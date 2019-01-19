@@ -1,0 +1,42 @@
+Import('*')
+PartName('rpm')
+VZ_RPM_NAME="$PART_ROOT_NAME"
+
+DependsOn([
+    "$PART_ROOT_NAME"
+])
+
+rpm_vars = [
+    "%define debug_package %{nil}",
+    # prevent stripping
+    "%define __strip /bin/true",
+    "%define short_version {0}".format(env.subst("$PART_SHORT_VERSION")),
+]
+
+description = '''
+Transaction Box
+'''
+
+url = "https://github.com/SolidWallOfCode/txn_box"
+
+
+out = env.RPMPackage(
+    '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
+    sources=["$PART_ROOT_NAME"],
+    TARGET_ARCH='x86_64',
+    NAME='${PART_ROOT_NAME}',
+    VERSION='${PART_VERSION}',
+    RELEASE=1,
+    summary="VZ Edge based build of ${PART_ROOT_NAME}",
+    description=description,
+    url=url,
+    autoreq="no",
+    license='AL2',
+    group="Development/Tools",
+    requires=[
+
+    ],
+    RPM_VARS=rpm_vars,
+)
+
+env.Alias("dist", env.CCopy("#dist", out))

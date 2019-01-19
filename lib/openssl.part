@@ -1,0 +1,15 @@
+import os
+Import('*')
+PartName("openssl")
+
+path=env.get("CUSTOM_PATH") # passed in from top level SConstruct.
+if path:
+    path = env.subst(path);
+    i_path = os.path.join(path,"include")
+    env.Prepend(CPPPATH=[i_path])
+    env.ExportCPPPATH([i_path])
+
+cfg = env.Configure()
+if not cfg.CheckCHeader("openssl/ssl.h"):
+    env.PrintError("ssl.h was not found!",show_stack=False)
+cfg.Finish()

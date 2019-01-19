@@ -1,0 +1,19 @@
+Import('*')
+PartName("txn_box")
+PartVersion("0.1.0")
+env.Part("txn_box.rpm.part")
+
+DependsOn([
+    Component("openssl"),
+    Component("trafficserver", version_range='7.*-*'),
+    Component("swoc++"),
+    Component("yaml-cpp")
+])
+
+
+files = Pattern(src_dir="src",includes=["*.cc"]).files()
+env.Append(CPPPATH="include")
+env.AppendUnique(CXXFLAGS=['-std=c++17'])
+env.Append(LIBS = [ 'pcre2-8' ])
+out = env.SharedLibrary("txn_box", files, SHLIBPREFIX='')
+env.InstallLib(out)

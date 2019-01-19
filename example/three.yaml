@@ -1,0 +1,16 @@
+txn_box:
+- when: preq
+  do:
+  - with: "{creq-host}"
+    select:
+    - suffix: ".org"
+      do:
+      - set-preq-field: [ X-swoc, "it's the original!" ]
+    - suffix: ".com"
+      do:
+      - set-preq-field:
+        - X-swoc
+        - Commercialized
+    - match: swoc.io
+      do:
+      - set-preq-field: [ X-swoc, hometown ]

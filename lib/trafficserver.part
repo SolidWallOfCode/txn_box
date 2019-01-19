@@ -1,0 +1,21 @@
+import os
+Import('*')
+PartName("trafficserver")
+PartVersion("$VERSION")
+
+# if we have a --with-trafficserver use that as value we pass 
+# else use the system which is the default of the compiler
+path=env.get("CUSTOM_PATH")
+if path:
+    path = os.path.join(env.subst(path),"include")
+    env.Append(CPPPATH=[path])
+    env.ExportCPPPATH([path])
+
+
+cfg = env.Configure()
+if not cfg.CheckCHeader("ts/ts.h"):
+    env.PrintError("ts/ts.h was not found!",show_stack=False)
+cfg.Finish()
+
+# Based on current design we don't link with anything from trafficserver directly
+# Hope to have this fixed someday.
