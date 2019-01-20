@@ -21,7 +21,7 @@
 #define PLUGIN_NAME "Transaction Tool Box"
 #define PLUGIN_TAG "txn_box"
 
-using ts::TextView;
+using swoc::TextView;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -33,12 +33,4 @@ TSPluginInit(int argc, char const *argv[])
   if (TSPluginRegister(&info) != TS_SUCCESS) {
     TSError(PLUGIN_NAME ": plugin registration failed.");
   }
-
-  Config.load_config(argc - 1, argv + 1);
-  if (Config.count() <= 0) {
-    TSError("%s: No destinations defined, plugin disabled", PLUGIN_TAG);
-  }
-
-  TSCont contp = TSContCreate(CB_Read_Request_Hdr, TSMutexCreate());
-  TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, contp);
 }
