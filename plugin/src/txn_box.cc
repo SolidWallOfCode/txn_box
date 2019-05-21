@@ -17,6 +17,7 @@
 #include "ts/ts.h"
 
 #include "swoc/TextView.h"
+#include "swoc/swoc_file.h"
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
@@ -25,6 +26,20 @@
 #define PLUGIN_TAG "txn_box"
 
 using swoc::TextView;
+
+/* ------------------------------------------------------------------------------------ */
+
+void load_func(swoc::file::path const& file_path) {
+  std::error_code ec;
+  std::string content = swoc::file::load(file_path, ec);
+
+  YAML::Node root;
+  try {
+    root = YAML::Load(content);
+  } catch (std::exception &ex) {
+//    return ctx.notes.error("Loading failed: {}", ex.what());
+  }
+}
 
 /* ------------------------------------------------------------------------------------ */
 

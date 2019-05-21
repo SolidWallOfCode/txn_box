@@ -34,7 +34,7 @@ ExternalProject_Add(lib-swoc++
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR swoc++
     INSTALL_DIR ${INSTALL_DIR}
-    CMAKE_ARGS "${_CMAKE_ARGS}"
+    CMAKE_ARGS "${_CMAKE_ARGS}" -DCMAKE_CXX_FLAGS="-fPIC"
     STEP_TARGETS install
     )
 

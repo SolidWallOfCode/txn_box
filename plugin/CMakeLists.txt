@@ -11,7 +11,9 @@ find_package(canned-yaml CONFIG REQUIRED)
 add_library(plugin SHARED
 	src/txn_box.cc
 	src/Extractor.cc
-	src/Context.cc src/Context.h src/Directive.cc src/Directive.h)
+	src/Context.cc
+	src/Directive.cc
+	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")
 
