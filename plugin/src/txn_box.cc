@@ -18,7 +18,7 @@
 
 #include "swoc/TextView.h"
 
-#include "Directive.h"
+#include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 
 #define PLUGIN_NAME "Transaction Tool Box"
