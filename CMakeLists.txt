@@ -56,10 +56,10 @@ ExternalProject_Add(traffic-server
     GIT_TAG master
     GIT_SHALLOW TRUE
     INSTALL_DIR ${INSTALL_DIR}
-    UPDATE_COMMAND ""
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
+    UPDATE_COMMAND autoreconf -i
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix ${CMAKE_HOME_DIRECTORY}
+    BUILD_COMMAND make -j 8
+    INSTALL_COMMAND make install
     STEP_TARGETS install
     )
 
@@ -79,10 +79,15 @@ ExternalProject_Add_Step(traffic-server rebuild
     )
 ExternalProject_Add_StepTargets(traffic-server rebuild)
 
-ExternalProject_Add(plugin
-    SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/plugin
-    INSTALL_DIR ${INSTALL_DIR}
-    CMAKE_ARGS "${_CMAKE_ARGS}"
-    DEPENDS canned-yaml-install
-    STEP_TARGETS install
-    )
+#ExternalProject_Add(plugin
+#    SOURCE_DIR ${CMAKE_HOME_DIRECTORY}/plugin
+#    INSTALL_DIR ${INSTALL_DIR}
+#    CMAKE_ARGS "${_CMAKE_ARGS}"
+#    DEPENDS canned-yaml-install
+#    STEP_TARGETS install
+#    )
+
+# If using CLion, pass "-DENABLE_IDE_HACKS=TRUE" as a CMake argument to make the editor behave as desired.
+if(${ENABLE_IDE_HACKS})
+    add_subdirectory(plugin)
+endif()
