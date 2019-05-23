@@ -10,9 +10,12 @@ find_package(canned-yaml CONFIG REQUIRED)
 
 add_library(plugin SHARED
 	src/txn_box.cc
-	src/Extractor.cc
 	src/Context.cc
 	src/Directive.cc
+	src/Extractor.cc
+	src/Features.cc
+	src/Machinery.cc
+    	src/Comparison.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")

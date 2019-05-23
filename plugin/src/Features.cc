@@ -19,35 +19,17 @@
 #include "swoc/TextView.h"
 
 #include "txn_box/Extractor.h"
+#include "txn_box/yaml-util.h"
 
 using swoc::TextView;
 
 /* ------------------------------------------------------------------------------------ */
+class Ex_Creq_Url_Host : public Extractor, public StringFeature {
+  using self_type = Ex_Creq_Url_Host;
+  using super_type = Extractor;
+public:
 
-swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table const& table) {
-  Spec literal_spec; // used to handle literals as spec instances.
-  auto ex { swoc::bwf::Format::bind(format_string) };
-  Format fmt;
-
-  literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
-
-  while (ex) {
-    Spec spec;
-    std::string_view literal;
-    bool spec_p = ex(literal, spec);
-
-    if (!literal.empty()) {
-      literal_spec._ext = literal;
-      fmt.push_back(literal_spec);
-    }
-
-    if (spec_p) {
-      if (spec._name.empty()) {
-        if (spec._idx >= 0) {
-        } else {
-        }
-      } else {
-      }
-    }
+  TextView direct_view(Context const& ctx) const override {
   }
-}
+};
+/* ------------------------------------------------------------------------------------ */

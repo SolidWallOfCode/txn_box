@@ -21,6 +21,7 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/yaml-util.h"
 
 #define PLUGIN_NAME "Transaction Tool Box"
 #define PLUGIN_TAG "txn_box"
@@ -28,6 +29,38 @@
 using swoc::TextView;
 
 /* ------------------------------------------------------------------------------------ */
+
+swoc::Rv<Directive::Handle> process_directive_node(YAML::Node node) {
+  swoc::Rv<Directive::Handle> zret;
+  auto & [ handle, errata ] = zret;
+  if (node.IsMap()) {
+    if (node.size() == 1) {
+      auto const& [ key, value ] { *node.begin() };
+      auto && [ dir_handle, dir_errata ] { Directive::assemble(key.as<TextView>(), value) };
+      if (dir_errata.is_ok()) {
+        handle = std::move(dir_handle);
+      } else {
+        errata = std::move(dir_errata);
+        errata.error(R"(Directive at {} is invalid.)", node.Mark());
+      }
+    } else {
+      errata.error(R"(Directive at {} has more than one key)", node.Mark());
+    }
+  } else if (node.IsSequence()) {
+    handle.reset(new DirectiveList);
+    for (auto child : node) {
+      auto && [child_handle, child_errata] {process_directive_node(child)};
+      if (child_errata.is_ok()) {
+        static_cast<DirectiveList *>(handle.get())->push_back(std::move(child_handle));
+      } else {
+        errata.note(child_errata);
+        errata.error(R"(Failed to load directives at {})", child.Mark());
+      }
+    }
+  } else {
+  }
+  return std::move(zret);
+}
 
 void load_func(swoc::file::path const& file_path) {
   std::error_code ec;
@@ -37,7 +70,7 @@ void load_func(swoc::file::path const& file_path) {
   try {
     root = YAML::Load(content);
   } catch (std::exception &ex) {
-//    return ctx.notes.error("Loading failed: {}", ex.what());
+    auto result { process_directive_node(root) };
   }
 }
 

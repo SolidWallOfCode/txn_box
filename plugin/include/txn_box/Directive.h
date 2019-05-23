@@ -19,11 +19,12 @@
 #include <unordered_map>
 #include <string_view>
 #include <functional>
+#include <memory>
 
 #include "yaml-cpp/yaml.h"
 #include "swoc/Errata.h"
 
-#include "Context.h"
+#include "txn_box/Context.h"
 
 /** Base class for directives.
  *
@@ -32,6 +33,7 @@ class Directive {
   using self_type = Directive; ///< Self reference type.
 
 public:
+  using Handle = std::unique_ptr<self_type>;
 
   /// Function that creates a @c Directive.
   /// This is passed the @c YAML::Node in the configuration that specifies the directive.
@@ -44,9 +46,21 @@ public:
    * @param ctx The transaction context.
    * @return Errors, if any.
    *
-0   * All information needed for the invocation of the directive is accessible from the @a ctx.
+   * All information needed for the invocation of the directive is accessible from the @a ctx.
    */
-  swoc::Errata invoke(Context &ctx);
+  virtual swoc::Errata invoke(Context &ctx) = 0;
+
+  /** Find the assembler for the directive @a name.
+   *
+   * @param name Name of the directive.
+   * @param node The value node containing the directive.
+   * @return The assembler if the directive name is found and it is correctly assembled.
+   */
+  static swoc::Rv<Handle> assemble(swoc::TextView name, YAML::Node node);
+protected:
+
+  /// The directive assemblers.
+  static Factory _factory;
 };
 
 /** An ordered list of directives.
@@ -56,4 +70,7 @@ public:
 class DirectiveList : public Directive {
   using self_type = DirectiveList; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
+
+public:
+  self_type & push_back(Handle && d);
 };

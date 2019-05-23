@@ -24,13 +24,13 @@ ExternalProject_Add(lib-yaml-cpp
     GIT_TAG yaml-cpp-0.6.2
     GIT_SHALLOW TRUE
     INSTALL_DIR ${INSTALL_DIR}
-    CMAKE_ARGS "${_CMAKE_ARGS}"
+    CMAKE_ARGS "${_CMAKE_ARGS}" -DCMAKE_CXX_FLAGS="-fPIC"
     STEP_TARGETS install
     )
 
 ExternalProject_Add(lib-swoc++
     GIT_REPOSITORY https://github.com/solidwallofcode/libswoc.git
-    GIT_TAG cmake
+    GIT_TAG master
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR swoc++
     INSTALL_DIR ${INSTALL_DIR}
