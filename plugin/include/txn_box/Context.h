@@ -16,7 +16,9 @@
 
 #pragma once
 
-#include "swoc/MemArena.h"
+#include <memory>
+
+#include <swoc/MemArena.h>
 
 /** Per transaction context.
  *

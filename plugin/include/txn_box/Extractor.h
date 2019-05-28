@@ -32,6 +32,7 @@ public:
   enum Type {
     STRING, ///< A string.
     INTEGER, ///< An integer.
+    BOOL, ///< Boolean.
     IP_ADDR ///< IP Address
   };
 

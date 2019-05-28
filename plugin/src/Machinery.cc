@@ -59,7 +59,7 @@ swoc::Rv<Directive::Handle> Do_Set_Preq_Url_Host::load(YAML::Node node) {
 
 /* ------------------------------------------------------------------------------------ */
 
-/// @c with clause.
+/// @c with directive.
 class With : public Directive {
   using super_type = Directive;
   using self_type = With;
@@ -137,5 +137,42 @@ Errata With::load_case(YAML::Node node) {
   } else {
     errata.error(R"(The clause at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
   }
+}
+
+/* ------------------------------------------------------------------------------------ */
+
+/// @c when directive - control which hook on which the configuration is handled.
+class When : public Directive {
+  using super_type = Directive;
+  using self_type = When;
+public:
+  static const std::string KEY;
+  static const std::string DO_KEY;
+
+  Errata invoke(Context &ctx) override;
+  static swoc::Rv<Handle> load(YAML::Node node);
+};
+
+const std::string When::KEY { "when" };
+const std::string When::DO_KEY { "do" };
+
+Errata When::invoke(Context &ctx) {
+  Errata zret;
+  return zret;
+}
+
+swoc::Rv<Directive::Handle> When::load(YAML::Node node) {
+  Errata errata;
+  if ( auto with_node { node[KEY] } ; with_node ) {
+    YAML::Node do_node { node[DO_KEY] };
+    if (do_node) {
+    } else {
+      errata.error(R"(The required "{}" key was not found in the "{}" directive at {}.")",
+          DO_KEY, KEY, node.Mark());
+    }
+  } else {
+    errata.error(R"(The directive at {} for "{}" is not an object.")", node.Mark(), KEY);
+  }
+  return { {}, errata };
 }
 

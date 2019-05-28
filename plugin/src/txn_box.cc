@@ -21,17 +21,22 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/Config.h"
 #include "txn_box/yaml-util.h"
 
-#define PLUGIN_NAME "Transaction Tool Box"
-#define PLUGIN_TAG "txn_box"
-
 using swoc::TextView;
+using swoc::Errata;
+using swoc::Rv;
 
+const std::string Config::ROOT_KEY { "txn_box" };
+
+swoc::Lexicon<Hook> HookName {{Hook::READ_REQ, "read-request" },
+                              {Hook::SEND_RSP, "send-response"}
+};
 /* ------------------------------------------------------------------------------------ */
 
-swoc::Rv<Directive::Handle> process_directive_node(YAML::Node node) {
-  swoc::Rv<Directive::Handle> zret;
+Rv<Directive::Handle> process_directive_node(YAML::Node node) {
+  Rv<Directive::Handle> zret;
   auto & [ handle, errata ] = zret;
   if (node.IsMap()) {
     if (node.size() == 1) {
@@ -62,26 +67,42 @@ swoc::Rv<Directive::Handle> process_directive_node(YAML::Node node) {
   return std::move(zret);
 }
 
-void load_func(swoc::file::path const& file_path) {
+Errata Config::load_file(swoc::file::path const& file_path) {
+  Errata zret;
   std::error_code ec;
   std::string content = swoc::file::load(file_path, ec);
+
+  if (ec) {
+    return zret.error(R"(Unable to load file "{}" - {}.)", file_path, ec);
+  }
 
   YAML::Node root;
   try {
     root = YAML::Load(content);
   } catch (std::exception &ex) {
-    auto result { process_directive_node(root) };
+    return zret.error(R"(YAML parsing of "{}" failed - {}.)", file_path, ex.what());
   }
-}
+
+  YAML::Node base_node { root[ROOT_KEY] };
+  if (! base_node) {
+    return zret.error(R"(Base key "{}" not found in "{}".)", ROOT_KEY, file_path);
+  }
+
+  if (root.IsSequence()) {
+  } else if (root.IsMap()) {
+  } else {
+  }
+};
 
 /* ------------------------------------------------------------------------------------ */
 
 void
 TSPluginInit(int argc, char const *argv[])
 {
-  TSPluginRegistrationInfo info{PLUGIN_NAME, "Verizon", "solidwallofcode@verizonmedia.com"};
+  TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media",
+                                "solidwallofcode@verizonmedia.com"};
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError(PLUGIN_NAME ": plugin registration failed.");
+    TSError("%s: plugin registration failed.", Config::PLUGIN_TAG.data());
   }
 }

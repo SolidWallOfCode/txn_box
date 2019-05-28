@@ -73,4 +73,13 @@ class DirectiveList : public Directive {
 
 public:
   self_type & push_back(Handle && d);
+
+  /** Invoke the directive.
+   *
+   * @param ctx The transaction context.
+   * @return Errors, if any.
+   *
+   * All information needed for the invocation of the directive is accessible from the @a ctx.
+   */
+  swoc::Errata invoke(Context &ctx) override;
 };

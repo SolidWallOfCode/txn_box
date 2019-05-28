@@ -4,6 +4,7 @@
 .. default-domain:: cpp
 
 .. |TxB| replace:: TxnBox
+.. |libswoc| replace:: `LibSWOC++ <http://github.com/SolidWallOfCode/libswoc`__
 
 .. _txn-box:
 
@@ -13,53 +14,69 @@ Transaction Box
 
 Transaction Box, or "txn_box", is a plugin to manipulate :term:`transaction`\s in Apache Traffic
 Server. It is intended to replace the ``header_rewrite`` and ``cookie_remap`` plugins with a more
-extensive set of capabilities and easier configuration.
+extensive set of capabilities that are also more general and able to be combined more effectively.
+This plugin is also `YAML <http://yaml.org>`__ based for increased ease of configuration.
 
 Configuration
 *************
 
 |TxB| is configured using YAML.
 
-The style of the configuration is based on :term:`extraction` which creates a :term:`feature` which
-is then used to choose how to manipulate the transaction. The power of the plugin comes from the
-flexibility available to both extract the feature and perform comparisons.
+The style of the configuration is based on :term:`extraction` which means extracting a
+:term:`feature` from the transaction which is then used to choose how to manipulate the transaction.
+The power of the plugin comes from the flexibility available to extract the feature, perform
+comparisons on the feature, and use that feature or others to modify the transaction.
 
-Manipulation of the transaction is done with :term:`action`\s. The basic process is to extract a
-feature then use comparisons to select a set of actions.
+Manipulation of the transaction is done with :term:`directive`\s. The basic process is to extract a
+feature then use comparisons to select a list of directives.
 
-An action can be another selection, providing a branching structure that looks at various parts of
-the transaction. A key rule is once a :term:`selection` has occurred, only actions associated with
+An directive can be another selection, providing a branching structure that looks at various parts of
+the transaction. A key rule is once a :term:`selection` has occurred, only directives associated with
 that selection will be performed. There is never any backtracking from a selection. This increases
 locality such that to determine behavior of a piece of the configuration only direct parent
 selections need be considered.
 
-There is a wide variety of actions, with an emphasis on manipulating the HTTP header, such as by
+There is a wide variety of directives, with an emphasis on manipulating the HTTP header, such as by
 adding or changing fields, changing the URL, etc. There is also a variety of extractors to get
 information from the transaction. Because most features are strings extractors can be used to
-generate strings for actions. For example when setting the value of a field the full set of
+generate strings for directives. For example when setting the value of a field the full set of
 extractors can be used to generate the string for the value.
+
+The top level configuration is grouped under the :code:`txn_box` key. The value of this key must be
+a single instance or list of :code:`when` `directives <when>`_. This structure enables |TxB|
+configuration to be mixed with other configuration in the same file [#config]_. The requirement to
+start with :code:`when` is done to be clear about the hook on which the configuration is active.
 
 Selection
 =========
 
-Selection is done first by extacting a feature from the transaction then applying comparison
-operators. For example, to do a selection based on the host in the client request URL ::
+Selection is the root of configuration. This is done first by specifygin the extraction of a feature
+from the transaction then applying comparison operators, each of which has an associated list of
+directives. If the comparison is successful, those directives are executed. For example, to do a
+selection based on the host in the client request URL ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "mail.example.one"
       do:
-      -  rewrite-url: "https://example.com/mail"
+      -  set-preq-url: "https://example.com/mail"
    -  match: "search.example.one"
       do:
-      -  rewrite-url: "https://engine.example.one"
+      -  set-preq-url: "https://engine.example.one"
 
-Here :code:`{creq.host}` is an extractor that extracts the host portion of the URL. The
-:code:`select` key supplies the alternaives for the selection. The value is a list of cases which
-consist of a :term:`comparison` and a list of actions as the value of the :code:`do` key.
+Here :code:`{creq-host}` is an extractor that extracts the host of the URL in the client
+request. The value of the :code:`select` key is a list of cases which consist of a
+:term:`comparison` and a list of directives as the value of the :code:`do` key.
 
-:code:`match` is a comparison operator that does string comparisons between the provided string and
-the feature. :code:`rewrite-url` is an action that changes the URL in the proxy request.
+The specific key :code:`match` is a comparison operator that does string comparisons between the
+provided string and the feature. :code:`set-preq-url` is an directive that sets the URL in the proxy
+request. What this configuration snippet does is rewrite the URL to use for the proxy request to the
+upstream, changing requests for "mail.example.one" to a request to "example com/mail" and requests
+for "search.example.on" to "engine.example.one".
+
+The :code:`with` / :code:`select` mechanism is a directive and so selection can be nested to an
+arbitrary depth. Each selection can be on a different feature. As result the relative importance of
+features is determined by the particular configuration, it is not built in to |TxB|.
 
 Features
 ++++++++
@@ -81,7 +98,7 @@ operators update the current feature. For example, the :code:`suffix` comparison
 suffix and if it matches the suffix is removed from the current feature. This makes walking the
 components of a path or host name much easier ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  suffix: ".org"
       do:
@@ -147,7 +164,7 @@ creq.method
 creq.scheme
    The scheme in the client request.
 
-creq.host
+creq-host
    The host of the client request URL.
 
 creq.path
@@ -251,8 +268,8 @@ not
    This is not a direct comparison, it must have as its value another comparison. The overall result
    is the opposite of the contained comparison.
 
-Actions
-=======
+Directives
+==========
 
 apply
    "apply: [ <regex>, <string> ]"
@@ -309,10 +326,10 @@ call
 
    .. note:: Implementation
 
-      Should the entry point be specifiable in the action? That could be very nice.
+      Should the entry point be specifiable in the directive? That could be very nice.
 
 when
-   Specify hook for actions. This requires a "do" value which contains the list of actions.
+   Specify hook for directives. This requires a "do" value which contains the list of directives.
    
 Formatting
 ==========
@@ -339,12 +356,18 @@ Experimental
 
 These capabilities are experimental or tentative.
 
+.. _when:
 Hook Control
 ++++++++++++
 
-The action key "when" can be used to specify when a hook on which to perform actions. The "when"
-must also have a "do" key with those actions. The value of "when" is the hook name, which must be
-one of
+.. note::
+
+   This is no longer experimental, the design has been changed to make it fundamental.
+   This documentation needs to be moved elsewhere.
+
+The directive key :code:`when` can be used to specify when a hook on which to perform directives.
+The "when" must also have a :code:`do` key with those directives. The value of :code:`when` is the
+hook name, which must be one of
 
 *  read-request
 *  pre-remap
@@ -371,7 +394,7 @@ If not specified, |TxB| operates during the Read Request hook.
 Variables
 +++++++++
 
-A set of variables is maintained for each transaction. These can be set with the "set-var" action,
+A set of variables is maintained for each transaction. These can be set with the "set-var" directive,
 which takes a variable name and value. The value can be later retrieved with the extractor "var"
 passing the name of the variable in the extension. E.g. to set the "thing" variable to the host in
 the client request ::
@@ -459,24 +482,34 @@ Issues
 #  What happens to the remap requirement? What counts as a remap match? Currently adding a
    comparison "always" which always matches, so that can count as a match.
 
+#  There are some use cases that want to check just for an extract string to be empty or non-empty.
+   Should there be a forcing to the ``bool`` type for these, which are then ``true`` for non-empty
+   and ``false`` for empty? Specific match operators for empty and non-empty (although this can be
+   done with regular expressions)?
+
 Examples
 ********
 
-For request URLs of the form "A.apache.org/path", change to "apache.org/A/path". ::
+For request URLs of the form "A.apache.org/path", change to "apache.org/A/path". This example has
+the full configuration to demonstrate that. Later examples have just the relevant configuration and
+assume this outer wrapper is present. ::
 
-   with: "{creq.host}"
-   select:
-   -  suffix: ".apache.org"
-      do:
-      -  rewrite-url: "{creq.scheme}://apache.org/{...}{creq.path}"
-   -  match: "apache.org"
-      # Explicitly do nothing with the base host name to count as "matched".
+   txn_box:
+   - when: read-request
+     do:
+     - with: "{creq-host}"
+       select:
+       -  suffix: ".apache.org"
+          do:
+          -  rewrite-url: "{creq.scheme}://apache.org/{...}{creq.path}"
+       -  match: "apache.org"
+          # Explicitly do nothing with the base host name to count as "matched".
 
 Access Control
 ==============
 
 Access to upstream resources can be controlled on a fine grained level by doing a selection and
-using the :code:`deny` action. For instance, if access to ``id.example.one`` should be restricted
+using the :code:`deny` directive. For instance, if access to ``id.example.one`` should be restricted
 to the ``GET``, ``POST``, and ``HEAD`` methods, this could be done wth ::
 
    with: "{creq.url}"
@@ -492,7 +525,7 @@ to the ``GET``, ``POST``, and ``HEAD`` methods, this could be done wth ::
       -  set-field: [ "Access", "Allowed" ] # mark OK and let the request go through.
 
 If the method is not one of the allowed ones, the :code:`select` matches resulting in a denial.
-Otherwise, because there is no match, further actions in the outside :code:`select` continue
+Otherwise, because there is no match, further directives in the outside :code:`select` continue
 to be performed and the transaction proceeds.
 
 This could be done in another way ::
@@ -512,7 +545,7 @@ The overall flow is the same - if the method doesn't match an allowed, the :code
 over and the :code:`deny` is performed. Which of these is better depends on how much additional
 processing is to be done.
 
-In either case, the :code:`set-field` action isn't required, it is present for illustrative
+In either case, the :code:`set-field` directive isn't required, it is present for illustrative
 purposes. This form of the innter :code:`select` works as well.  ::
 
    with: "{creq.method}"
@@ -543,7 +576,7 @@ Reverse Mapping
 If the URL "example.one" is rewritten to "some.place", then it useful to rewrite the ``Location``
 header from "some.place" to "example.one". This could be done as ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.one"
       do:
@@ -581,7 +614,7 @@ As with referer remapping, this is easily done by extracting and selecting on th
 To restrict the URL "example.one" to connections to the local port 8180 ::
 
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.one"
       do:
@@ -594,7 +627,7 @@ To restrict the URL "example.one" to connections to the local port 8180 ::
 Note because of the no backtrack rule, the request will pass through unmodified if allowed. If it
 needed to be changed to "special.example.one" that would be ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.one"
       do:
@@ -618,7 +651,7 @@ has modifier.
 Presuming the production destination is "example.one" and the test destination is "stage.example.one"
 then 1% of traffic can be sent to the staging system with ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.com"
       do:
@@ -631,7 +664,7 @@ then 1% of traffic can be sent to the staging system with ::
 
 To be more deterministic, the bucket could be based on the client IP address. ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.com"
       do:
@@ -645,7 +678,7 @@ To be more deterministic, the bucket could be based on the client IP address. ::
 As another alternative, this could be done with a cookie in the client request. If the cookie was
 "example" with the test bucket indicated by the value "test", then it would be. ::
 
-   with: "{creq.host}"
+   with: "{creq-host}"
    select:
    -  match: "example.com"
       do:
@@ -656,8 +689,92 @@ As another alternative, this could be done with a cookie in the client request. 
             -  rewrite-url: "http://stage.example.com"
          -  always: # match to allow unmodified request to continue.
 
+Real Life
+=========
+
+The following examples are not intended to be illustrative, but are based on actual production
+requests from internal sources or on the mailing list. These are here to serve as a guide to
+implementation.
+
+Legacy Appliances
+-----------------
+
+Support for legacy appliances is required. The problem is these have very old TLS stacks and among
+other things do not provide SNI data. However, it is unacceptable to accept such connections in
+general. The requirement is therefore to allow such connections only to specific upstream
+destinations and fail the connection otherwise.
+
+Query Only
+----------
+
+Rewrite the URL iff there is a non-empty query string.
+
+Cache TTL
+---------
+
+Set a cache TTL if
+
+*  From a specific domain.
+*  There are no cache TTL control fields.
+
+This is a bit tricky because multiple fields are involved. Could this be done via an extraction
+vector, or better by doing a single extraction of all fields and checking if that is empty?
+
 Implementation Notes
 ********************
+
+Notes on the internals of the plugin.
+
+Design Goals
+============
+
+History
+-------
+
+This work is the conjuction of a number of efforts. The original inspiration was the
+``header_rewrite`` plugin and the base work in |libswoc| was done with the intention of
+upgrading that plugin. The purpose was to provide much more generalized and expandable string
+manipulation for working with transaction headers. At the time, ``header_rewrite`` did not support
+string concatenation at all. When the Buffer Writer formatting became available in the Traffic
+Server core, it seemed clear this would be an excellent way to provide such facilities to
+``header_rewrite``.
+
+For a long time work effort was put in to improving |libswoc| to provide the anticipated
+requirements of the upgrade. However, there was much resistance to moving these improvements back
+in to the Traffic Server core and therefore upgrading ``header_rewrite`` was no longer feasible.
+The decision to proceed with a fully separate plugin was catalyzed by work on the ``cookie_remap``
+plugin. It seemed similar enough to ``header_rewrite`` that having two different plugins was
+sub-optimal. Plans were made to do this work.
+
+At the same time work was proceeding on upgrading the configuration for the core remap
+functionality, to make it YAML. At the Spring 2019 summit this work was rejected in favor of doing
+a complete overhaul of core remap, not just updating the configuration. I decided at that point
+that making a plugin to demonstrate my proposed configuration and functionality was the best way
+to move forward, as going directly to a rewrite of the core code was such a big step that it was
+likely to get bogged down. A plugin, on the other hand, would be completely separate and not subject
+to the friction of work on the core. In the long run, if this is successful it is expected the
+plugin functionality will be moved in to core Traffic Server.
+
+Goals
+-----
+
+The first requirement was the configuration be in YAML, as it is the goal of current work to
+transform all configuration to YAML.
+
+The community also expressed the desire the reduce the number of times a request must be matched,
+particularly with regard to applying regular expressions to the URL. This in turn implies broad
+functionality that can replace multiple other configurations. One example would be the "cache
+.config" file - that does the same sort of matching as remap processing and if the functionality
+there was replicated, "cache.config" could be abandoned.
+
+Providing easy and powerful string construction was important. Much of the work in transaction
+processing is putting connection related information in various header fields. This should be
+easy to do. In addition, it should be easy to extract substrings using regular expressions. A
+common complaint is the inability to move elements from the host to the path or vice versa, e.g.
+convert "http://mail.host.one/..." to "http://host.one/mail/..." (or the other way).
+
+Boolean Expressions
+===================
 
 With the addition of the :code:`not` comparison and suport for implicit "or" in other comparison
 operators such as :code:`match`, it is possible to implement the "NOR" operator, which in turn is
@@ -688,3 +805,8 @@ can transform this to a conjunctive form, expressed in configuration as ::
 
 Note the loopback addresses can be elided because they are subsumed by the "not in the
 non-routables" clause.
+
+.. rubric:: Footnotes
+
+.. [#config] Presuming none of the other configuration uses the top level key :code:`txn_box`
+which seems a reasonable requirement.

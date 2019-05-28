@@ -14,13 +14,15 @@
    
 */
 
-#include "ts/ts.h"
+#include <ts/ts.h>
 
-#include "swoc/TextView.h"
+#include <swoc/TextView.h>
+#include <swoc/Errata.h>
 
 #include "txn_box/Extractor.h"
 
 using swoc::TextView;
+using swoc::Errata;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -28,6 +30,7 @@ swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table
   Spec literal_spec; // used to handle literals as spec instances.
   auto ex { swoc::bwf::Format::bind(format_string) };
   Format fmt;
+  Errata errata;
 
   literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
 
@@ -43,9 +46,9 @@ swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table
 
     if (spec_p) {
       if (spec._name.empty()) {
-        if (spec._idx >= 0) {
-        } else {
-        }
+        if (spec._idx < 0) {
+          errata.error(R"(Extractor missing name at offset {})", format_string.size() - ex._fmt.size());
+        };
       } else {
       }
     }
