@@ -33,8 +33,8 @@ Glossary
    extractor
       A mechanism which can performat :term:`extraction`.
 
-   action
-      A description of something to perform while processing a transaction.
+   directive
+      An action to perform.
 
    selection
       Making a choice based on a :term:`feature`.

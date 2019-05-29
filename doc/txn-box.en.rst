@@ -4,7 +4,7 @@
 .. default-domain:: cpp
 
 .. |TxB| replace:: TxnBox
-.. |libswoc| replace:: `LibSWOC++ <http://github.com/SolidWallOfCode/libswoc`__
+.. |libswoc| replace:: LibSWOC++
 
 .. _txn-box:
 
@@ -16,6 +16,9 @@ Transaction Box, or "txn_box", is a plugin to manipulate :term:`transaction`\s i
 Server. It is intended to replace the ``header_rewrite`` and ``cookie_remap`` plugins with a more
 extensive set of capabilities that are also more general and able to be combined more effectively.
 This plugin is also `YAML <http://yaml.org>`__ based for increased ease of configuration.
+
+|TxB| uses `|libswoc| <http://github.com/SolidWallOfCode/txn-box.git>`__ and `YAML CPP
+<https://github.com/jbeder/yaml-cpp>`__.
 
 Configuration
 *************
@@ -51,9 +54,9 @@ Selection
 =========
 
 Selection is the root of configuration. This is done first by specifygin the extraction of a feature
-from the transaction then applying comparison operators, each of which has an associated list of
-directives. If the comparison is successful, those directives are executed. For example, to do a
-selection based on the host in the client request URL ::
+from the transaction then applying :term:`comparison operator`\s, each of which has an associated
+list of directives. If the comparison is successful, those directives are executed. For example, to
+do a selection based on the host in the client request URL ::
 
    with: "{creq-host}"
    select:
@@ -66,7 +69,7 @@ selection based on the host in the client request URL ::
 
 Here :code:`{creq-host}` is an extractor that extracts the host of the URL in the client
 request. The value of the :code:`select` key is a list of cases which consist of a
-:term:`comparison` and a list of directives as the value of the :code:`do` key.
+:comparison and a list of directives as the value of the :code:`do` key.
 
 The specific key :code:`match` is a comparison operator that does string comparisons between the
 provided string and the feature. :code:`set-preq-url` is an directive that sets the URL in the proxy
@@ -357,6 +360,7 @@ Experimental
 These capabilities are experimental or tentative.
 
 .. _when:
+
 Hook Control
 ++++++++++++
 
@@ -808,5 +812,7 @@ non-routables" clause.
 
 .. rubric:: Footnotes
 
-.. [#config] Presuming none of the other configuration uses the top level key :code:`txn_box`
-which seems a reasonable requirement.
+.. [#config]
+
+   Presuming none of the other configuration uses the top level key :code:`txn_box` which seems a
+   reasonable requirement.
