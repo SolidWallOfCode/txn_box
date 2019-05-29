@@ -21,6 +21,7 @@
 
 /// Supported hooks.
 enum class Hook {
+  INVALID, ///< Invalid hook (default initialization value).
   READ_REQ, ///< Read Request from user agent.
   SEND_RSP, ///< Send Response to user agent.
   BEGIN = READ_REQ, ///< Iteration support.

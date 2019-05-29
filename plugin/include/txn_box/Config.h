@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <swoc/TextView.h>
+#include <swoc/swoc_file.h>
 #include <yaml-cpp/yaml.h>
 
 #include "txn_box/common.h"
@@ -45,9 +46,31 @@ public:
    */
   Errata load_file(swoc::file::path const& file_path);
 
+  /** Load directives at the top level.
+   *
+   * @param node Base plugin configuation node.
+   * @return Errors, if any.
+   *
+   * Processing of directives directly in the base node value is handled specially
+   * by this method.
+   */
   Errata load_top_level_directive(YAML::Node node);
 
-protected:
+  /** Load / create a directive from a node.
+   *
+   * @param drtv_node Directive node.
+   * @return A new directive instance, or errors if loading failed.
+   */
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node);
 
-  std::array<Directive::Handle, std::tuple_size<Hook>::value> _roots;
+protected:
+  friend class When;
+
+  /// Top level directives for each hook. Always invoked.
+  std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
+
+  /// Maximum number of @c when directives that can execute in a specific hook.
+  /// These are updated by the @c When directive load. This includes the
+  /// top level @c when directives.
+  std::array<size_t, std::tuple_size<Hook>::value> _when_count { 0 };
 };

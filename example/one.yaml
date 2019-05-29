@@ -1,0 +1,7 @@
+txn_box:
+- with: "{creq-host}"
+  select:
+  - match: example.one
+    do:
+    - set-preq-host: "yahoo.com"
+    - set-preq-field: [ "X-swoc", "Modified" ]

@@ -33,5 +33,6 @@
 
 .idea
 cmake-build*
-include
+include/swoc
+include/yaml-cpp
 lib

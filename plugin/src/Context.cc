@@ -15,8 +15,9 @@
 */
 
 #include "txn_box/Context.h"
+#include "txn_box/Config.h"
 
-Context::Context() {
+Context::Context(Config & cfg) {
   swoc::MemArena arena { 4000 }; // close enough to a page to get bumped up.
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
   _arena.reset(arena.make<swoc::MemArena>(std::move(arena)));

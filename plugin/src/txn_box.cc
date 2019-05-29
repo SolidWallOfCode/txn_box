@@ -16,8 +16,9 @@
 
 #include "ts/ts.h"
 
-#include "swoc/TextView.h"
-#include "swoc/swoc_file.h"
+#include <swoc/TextView.h>
+#include <swoc/swoc_file.h>
+#include <swoc/bwf_std.h>
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
@@ -33,67 +34,57 @@ const std::string Config::ROOT_KEY { "txn_box" };
 swoc::Lexicon<Hook> HookName {{Hook::READ_REQ, "read-request" },
                               {Hook::SEND_RSP, "send-response"}
 };
+
+namespace {
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  HookName.set_default(Hook::INVALID);
+  return true;
+} ();
+}; // namespace
 /* ------------------------------------------------------------------------------------ */
 
-Rv<Directive::Handle> process_directive_node(YAML::Node node) {
-  Rv<Directive::Handle> zret;
-  auto & [ handle, errata ] = zret;
-  if (node.IsMap()) {
-    if (node.size() == 1) {
-      auto const& [ key, value ] { *node.begin() };
-      auto && [ dir_handle, dir_errata ] { Directive::assemble(key.as<TextView>(), value) };
-      if (dir_errata.is_ok()) {
-        handle = std::move(dir_handle);
+Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
+  if (drtv_node.IsMap()) {
+    return { Directive::load(*this, drtv_node) };
+  } else if (drtv_node.IsSequence()) {
+    Errata zret;
+    Directive::Handle drtv_list{new DirectiveList};
+    for (auto child : drtv_node) {
+      auto && [handle, errata] {this->load_directive(child)};
+      if (errata.is_ok()) {
+        static_cast<DirectiveList *>(drtv_list.get())->push_back(std::move(handle));
       } else {
-        errata = std::move(dir_errata);
-        errata.error(R"(Directive at {} is invalid.)", node.Mark());
-      }
-    } else {
-      errata.error(R"(Directive at {} has more than one key)", node.Mark());
-    }
-  } else if (node.IsSequence()) {
-    handle.reset(new DirectiveList);
-    for (auto child : node) {
-      auto && [child_handle, child_errata] {process_directive_node(child)};
-      if (child_errata.is_ok()) {
-        static_cast<DirectiveList *>(handle.get())->push_back(std::move(child_handle));
-      } else {
-        errata.note(child_errata);
-        errata.error(R"(Failed to load directives at {})", child.Mark());
+        return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
       }
     }
-  } else {
+    return {std::move(drtv_list), {}};
   }
-  return std::move(zret);
+  return { {}, Errata().error(R"(Directive at {} is not an object or a sequence as required.)",
+      drtv_node.Mark()) };
 }
 
-Errata Config::load_top_level_directive(YAML::Node node) {
+Errata Config::load_top_level_directive(YAML::Node drtv_node) {
   Errata zret;
-  if (node.IsMap()) {
-    if (node.size() == 1) {
-      auto const& [ key, value ] { *node.begin() };
-      auto && [ dir_handle, dir_errata ] { Directive::assemble(key.as<TextView>(), value) };
-      if (dir_errata.is_ok()) {
-        handle = std::move(dir_handle);
-      } else {
-        errata = std::move(dir_errata);
-        errata.error(R"(Directive at {} is invalid.)", node.Mark());
+  if (drtv_node.IsMap()) {
+    YAML::Node key_node { drtv_node[When::KEY] };
+    if (key_node) {
+      try {
+        auto hook_idx{HookName[key_node.Scalar()]};
+        auto && [ handle, errata ]{ When::load(*this, drtv_node, key_node) };
+        if (errata.is_ok()) {
+          _roots[static_cast<unsigned>(hook_idx)].emplace_back(std::move(handle));
+        } else {
+          zret.note(errata);
+        }
+      } catch (std::exception& ex) {
+        zret.error(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_node.Scalar(),
+            When::KEY, key_node.Mark());
       }
     } else {
-      errata.error(R"(Directive at {} has more than one key)", node.Mark());
-    }
-  } else if (node.IsSequence()) {
-    handle.reset(new DirectiveList);
-    for (auto child : node) {
-      auto && [child_handle, child_errata] {process_directive_node(child)};
-      if (child_errata.is_ok()) {
-        static_cast<DirectiveList *>(handle.get())->push_back(std::move(child_handle));
-      } else {
-        errata.note(child_errata);
-        errata.error(R"(Failed to load directives at {})", child.Mark());
-      }
+      zret.error(R"(Top level directive at {} is a "when" directive as required.)", drtv_node.Mark());
     }
   } else {
+    zret.error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
   }
   return std::move(zret);
 }
@@ -116,7 +107,8 @@ Errata Config::load_file(swoc::file::path const& file_path) {
 
   YAML::Node base_node { root[ROOT_KEY] };
   if (! base_node) {
-    return zret.error(R"(Base key "{}" not found in "{}".)", ROOT_KEY, file_path);
+    return zret.error(R"(Base key "{}" for plugin "{}" not found in "{}".)", ROOT_KEY,
+        PLUGIN_NAME, file_path);
   }
 
   if (base_node.IsSequence()) {

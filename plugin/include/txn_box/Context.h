@@ -19,6 +19,12 @@
 #include <memory>
 
 #include <swoc/MemArena.h>
+#include <swoc/Errata.h>
+
+#include "txn_box/common.h"
+#include "txn_box/Directive.h"
+
+class Config;
 
 /** Per transaction context.
  *
@@ -27,8 +33,12 @@
  * from a point to an instance of this class.
  */
 class Context {
+  using self_type = Context;
+public:
 
-  Context();
+  Context(Config & cfg);
+
+  swoc::Errata when_do(Hook hook_idx, Directive * drtv);
 
 protected:
 

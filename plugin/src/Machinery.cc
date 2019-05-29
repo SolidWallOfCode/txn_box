@@ -21,10 +21,30 @@
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Comparison.h"
+#include "txn_box/Config.h"
 #include "txn_box/yaml-util.h"
 
 using swoc::TextView;
 using swoc::Errata;
+using swoc::Rv;
+
+const std::string Directive::DO_KEY { "do" };
+/* ------------------------------------------------------------------------------------ */
+Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
+  // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
+  // if there is ever more than one.
+  YAML::Node key_node;
+  for ( auto const&  [ key_node, value ] : drtv_node ) {
+    TextView key { key_node.Scalar() };
+    if (key == DO_KEY) {
+      continue;
+    }
+    if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
+      return spot->second(cfg, drtv_node, key_node);
+    }
+  }
+  return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
+}
 
 /* ------------------------------------------------------------------------------------ */
 class Do_Set_Preq_Url_Host : public Directive {
@@ -66,7 +86,6 @@ class With : public Directive {
 public:
   static const std::string KEY;
   static const std::string SELECT_KEY;
-  static const std::string DO_KEY;
 
   Errata invoke(Context &ctx) override;
   static swoc::Rv<Handle> load(YAML::Node node);
@@ -84,7 +103,6 @@ protected:
 
 const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
-const std::string With::DO_KEY { "do" };
 
 Errata With::invoke(Context &ctx) {
   Errata zret;
@@ -137,42 +155,42 @@ Errata With::load_case(YAML::Node node) {
   } else {
     errata.error(R"(The clause at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
   }
+  return errata;
 }
 
 /* ------------------------------------------------------------------------------------ */
 
-/// @c when directive - control which hook on which the configuration is handled.
-class When : public Directive {
-  using super_type = Directive;
-  using self_type = When;
-public:
-  static const std::string KEY;
-  static const std::string DO_KEY;
-
-  Errata invoke(Context &ctx) override;
-  static swoc::Rv<Handle> load(YAML::Node node);
-};
-
 const std::string When::KEY { "when" };
-const std::string When::DO_KEY { "do" };
 
+When::When(Hook hook_idx, Directive::Handle &&directive) : _hook(hook_idx), _directive(std::move
+(directive)) {}
+
+// Put the internal directive in the directive array for the specified hook.
 Errata When::invoke(Context &ctx) {
-  Errata zret;
-  return zret;
+  return ctx.when_do(_hook, _directive.get());
 }
 
-swoc::Rv<Directive::Handle> When::load(YAML::Node node) {
-  Errata errata;
-  if ( auto with_node { node[KEY] } ; with_node ) {
-    YAML::Node do_node { node[DO_KEY] };
-    if (do_node) {
+swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  Errata zret;
+  if (Hook hook_idx{HookName[key_node.Scalar()]} ; hook_idx != Hook::INVALID) {
+    if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
+      auto &&[do_handle, do_errata]{cfg.load_directive(do_node)};
+      if (do_errata.is_ok()) {
+        ++cfg._when_count[static_cast<unsigned>(hook_idx)];
+        return { Handle{new self_type{hook_idx, std::move(do_handle)}} , {}};
+      } else {
+        zret.note(do_errata);
+        zret.error(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY
+                   , do_node.Mark(), KEY, key_node.Mark());
+      }
     } else {
-      errata.error(R"(The required "{}" key was not found in the "{}" directive at {}.")",
-          DO_KEY, KEY, node.Mark());
+      zret.error(R"(The required "{}" key was not found in the "{}" directive at {}.")", DO_KEY, KEY
+                 , drtv_node.Mark());
     }
   } else {
-    errata.error(R"(The directive at {} for "{}" is not an object.")", node.Mark(), KEY);
+    zret.error(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_node.Scalar(), When::KEY
+               , key_node.Mark());
   }
-  return { {}, errata };
+  return {{}, std::move(zret)};
 }
 

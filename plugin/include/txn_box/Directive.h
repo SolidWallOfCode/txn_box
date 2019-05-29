@@ -24,7 +24,10 @@
 #include "yaml-cpp/yaml.h"
 #include "swoc/Errata.h"
 
-#include "txn_box/Context.h"
+#include "txn_box/common.h"
+
+class Config;
+class Context;
 
 /** Base class for directives.
  *
@@ -33,11 +36,23 @@ class Directive {
   using self_type = Directive; ///< Self reference type.
 
 public:
+  /// Standard name for nested directives.
+  /// This key is never matched as a directive name.
+  /// It is defined here, even though not all directives use it, in order to be consistent across
+  /// those that do.
+  static const std::string DO_KEY;
+
   using Handle = std::unique_ptr<self_type>;
 
-  /// Function that creates a @c Directive.
-  /// This is passed the @c YAML::Node in the configuration that specifies the directive.
-  using Assembler = std::function<Directive* (YAML::Node)>;
+  /** Functor to create an instance of a @c Directive from configuration.
+   *
+   * @param cfg Configuration object.
+   * @param drtv_node Directive node.
+   * @param key_node Child of @a drtv_node that contains the key used to match the functor.
+   * @return A new instance of the appropriate directive, or errors on failure.
+   */
+  using Assembler = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, YAML::Node key_node)>;
+
   /// A factory that maps from directive names to generator functions (@c Assembler instances).
   using Factory = std::unordered_map<std::string_view, Assembler>;
 
@@ -52,11 +67,11 @@ public:
 
   /** Find the assembler for the directive @a name.
    *
-   * @param name Name of the directive.
-   * @param node The value node containing the directive.
-   * @return The assembler if the directive name is found and it is correctly assembled.
+   * @param cfg Configuration object.
+   * @param node The directive node, which must be an object / map.
+   * @return A new directive instance on successful load, errata otherwise.
    */
-  static swoc::Rv<Handle> assemble(swoc::TextView name, YAML::Node node);
+  static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node);
 protected:
 
   /// The directive assemblers.
@@ -83,3 +98,32 @@ public:
    */
   swoc::Errata invoke(Context &ctx) override;
 };
+
+/// @c when directive - control which hook on which the configuration is handled.
+// @c when is special and needs to be globally visible.
+class When : public Directive {
+  using super_type = Directive;
+  using self_type = When;
+public:
+  static const std::string KEY;
+
+  swoc::Errata invoke(Context &ctx) override;
+
+  Hook get_hook() const;
+
+  /** Load / create an instance from configuration data.
+   *
+   * @param config Configuration object.
+   * @param drtv_node Directive node.
+   * @param key_node Child of @a dctv_node which matched the directive key.
+   * @return A new directive instance on success, error notes on failure.
+   */
+  static swoc::Rv<Handle> load(Config& config, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Hook _hook { Hook::INVALID };
+  Handle _directive; /// Directive to invoke in the specified hook.
+
+  When(Hook hook_idx, Directive::Handle && directive);
+};
+

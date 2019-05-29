@@ -28,16 +28,16 @@ using swoc::Errata;
 
 swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table const& table) {
   Spec literal_spec; // used to handle literals as spec instances.
-  auto ex { swoc::bwf::Format::bind(format_string) };
+  auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;
-  Errata errata;
+  Errata zret;
 
   literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
 
-  while (ex) {
+  while (parser) {
     Spec spec;
     std::string_view literal;
-    bool spec_p = ex(literal, spec);
+    bool spec_p = parser(literal, spec);
 
     if (!literal.empty()) {
       literal_spec._ext = literal;
@@ -47,10 +47,21 @@ swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table
     if (spec_p) {
       if (spec._name.empty()) {
         if (spec._idx < 0) {
-          errata.error(R"(Extractor missing name at offset {})", format_string.size() - ex._fmt.size());
-        };
+          zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt
+          .size());
+        } else {
+          fmt.push_back(spec);
+        }
       } else {
+        if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
+          spec._extractor = ex->second;
+          fmt.push_back(spec);
+        } else {
+          zret.error(R"(Extractor "{}" not found at offset {}.)", spec._name, format_string.size
+          () - parser._fmt.size());
+        }
       }
     }
   }
+  return { std::move(fmt), std::move(zret) };
 }

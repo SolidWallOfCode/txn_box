@@ -29,8 +29,10 @@ template<> class tuple_element<1, YAML::const_iterator::value_type> { public: us
 } // namespace std
 
 template < size_t IDX > YAML::Node const& get(YAML::const_iterator::value_type const& v);
-template <> YAML::Node const& get<0>(YAML::const_iterator::value_type const& v) { return v.first; }
-template <> YAML::Node const& get<1>(YAML::const_iterator::value_type const& v) { return v.second; }
+template <> inline YAML::Node const& get<0>(YAML::const_iterator::value_type const& v) { return v
+.first; }
+template <> inline YAML::Node const& get<1>(YAML::const_iterator::value_type const& v) { return v
+.second; }
 
 // Providing formatting for the node mark - this prints out just the line.
 namespace swoc {

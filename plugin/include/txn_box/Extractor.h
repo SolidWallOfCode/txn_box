@@ -40,7 +40,7 @@ public:
 
   struct Spec : public swoc::bwf::Spec {
     /// Extractor used in the spec, if any.
-    self_type * _extractor = nullptr;
+    Extractor * _extractor = nullptr;
   };
 
   /// Compiled format string containing extractors.
@@ -56,11 +56,14 @@ public:
    * @return
    */
   static swoc::Rv<Format> parse(swoc::TextView format_string, Table const& table);
+
+protected:
+  static Table _ex_table;
 };
 
 class StringFeature {
 public:
-  Extractor::Type preferred_type const { return Extractor::STRING; }
+  Extractor::Type preferred_type() const { return Extractor::STRING; }
 };
 
 class IPAddrFeature {

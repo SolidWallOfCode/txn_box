@@ -30,6 +30,7 @@ class Ex_Creq_Url_Host : public Extractor, public StringFeature {
 public:
 
   TextView direct_view(Context const& ctx) const override {
+    return { nullptr };
   }
 };
 /* ------------------------------------------------------------------------------------ */
