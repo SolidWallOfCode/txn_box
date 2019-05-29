@@ -380,6 +380,29 @@ the client request ::
 
 Afterwards the value can be extracted with "{var::thing}" in any extraction string.
 
+Inline Conditionals
++++++++++++++++++++
+
+One thing that could be useful but is difficult in this design is the ability to perform a simple
+operation such as setting a header conditionally, inline. While possible, the no backtrack rule
+means it can require either being careful to do it at the end of processing, or duplicate
+significant chunks of configuration. One approach to work around this is to allow the abuse of
+the :code:`when` operator. This was originally put in to enable actions on future callbacks
+conditionally. However, it would be a relatively small change to allow it on the *same* callback,
+just "later". Then a conditional (such as setting a header based on whether the transaction is
+internal) could be done as ::
+
+  when: read-response
+  do:
+     with: "{creq.is_internal}"
+     select:
+        eq: true
+        do:
+           set-header "x-Is-Internal" "true"
+
+presuming "read-response" is the current hook. If this is allowed, it might be reasonable to have
+a special value such as "after" which means the current hook to make this less error prone.
+
 Feature Tuples
 ++++++++++++++
 
@@ -452,6 +475,36 @@ Without a feature tuple, this could be done with ::
 Because of no backtracking, once an address is selected it is only necessary to block invalid
 methods. This can be done either with :code:`not` to match invalid methods, or by matching
 the valid methods and using :code:`else` to do the :code:`deny`.
+
+IP Address Maps
+===============
+
+For fast lookups on large IP address data sets there is support for "IP Address Space". This is
+a mapping from IP addresses to property sets, which are the equivalent of YAML objects where
+the values are all scalars. The style of use would be to define the IP space, and then use it
+as a feature modifier on an IP address feature. The selection feature would then be either the
+property set for the address, or a particular property of that set. The selection would then be
+done on that value.
+
+For example, the IP space could map to a property that describes what type of network the address
+is in, such as "data-center", "production", "corporate", etc. The client request address could then
+be extracted and modified by the space, transforming it in to one of those values, which would then
+be used for the selection. Suppose the IP space was named "networks" and the network type was encoded
+in the "role" property in the property sets. Then this might be something like ::
+
+   with:
+   -  "{inbound.remove_addr}"
+   -  ip-space: [ "networks", "role" ]
+   select:
+   -  match: [ "corporate", "data-center" ]
+      do:
+         set-header "X-Access" "internal"
+   -  match: "production"
+      do:
+         set-header "X-Access" "prod"
+   -  else:
+      do:
+         deny: "External access is not allowed."
 
 Issues
 ******
@@ -688,3 +741,41 @@ can transform this to a conjunctive form, expressed in configuration as ::
 
 Note the loopback addresses can be elided because they are subsumed by the "not in the
 non-routables" clause.
+
+Design
+******
+
+The overall work here has gone through several iterations, including a previous design for |TxB| and
+and YAML based overhaul of "remap.config".
+
+At the Spring 2019 summit, it was decided that the latter, changing only the configuration for
+"remap.config" wasn't worth the trouble. The decision was that if the format was to be changed, the
+change should take full advantage of YAML, disregarding any previous configuration or specific
+functionality. It was required that anything that could be done currently could continue to be done,
+but without any requirement to do it in a similar way.
+
+A primary goal of the work was also to be to minimize the number of times the request, and
+particularly the URL, was matched against literals or especially regular expressions. The existing
+configurations of various sorts all required independent matching resulting in the comparisons
+being done repeatedly. To avoid that, however, required the new URL rewrite configuration to be much
+more powerful and general such that it could perform the functions of these other configurations, including
+
+*  hosting.config
+*  cache.config
+*  parent.config
+*  The ``header_rewrite`` plugin.
+*  The ``regexr_remap`` plugin.
+*  The ``cookie_remap`` plugin.
+*  The ``conf_remap`` plugin.
+
+This was not as large a task as it might originally seem, as just a few basic abilities would cover
+most of the use cases. In particular these are
+
+*  Set or remove fields in the header.
+
+*  Set per transaction configuration variables.
+
+*  Set the upstream destination.
+
+*  Respond immediately with a specific status code. This covers redirect, access control, and
+   similar cases.
