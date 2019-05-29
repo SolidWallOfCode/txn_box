@@ -1,4 +1,7 @@
-/*
+/** @file
+
+   Forward definitions for the TS C API.
+
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -14,24 +17,7 @@
 
 */
 
-#include <swoc/Errata.h>
+#pragma once
 
-#include "txn_box/Directive.h"
-
-using swoc::Errata;
-
-Directive::Factory Directive::_factory;
-
-DirectiveList& DirectiveList::push_back(Directive::Handle &&d) {
-  _directives.emplace_back(std::move(d));
-  return *this;
-}
-
-Errata DirectiveList::invoke(Context &ctx) {
-  Errata zret;
-  for ( auto const& drtv : _directives ) {
-    zret.note(drtv->invoke(ctx));
-  }
-  return std::move(zret);
-}
-
+using TSCont = struct tsapi_cont *;
+using TSHttpTxn = struct tsapi_httptxn *;

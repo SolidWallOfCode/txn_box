@@ -97,6 +97,9 @@ public:
    * All information needed for the invocation of the directive is accessible from the @a ctx.
    */
   swoc::Errata invoke(Context &ctx) override;
+
+protected:
+  std::vector<Directive::Handle> _directives;
 };
 
 /// @c when directive - control which hook on which the configuration is handled.
@@ -126,5 +129,9 @@ protected:
 
   When(Hook hook_idx, Directive::Handle && directive);
 };
+
+inline Hook When::get_hook() const { return _hook; }
+
+
 
 

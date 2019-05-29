@@ -70,15 +70,16 @@ public:
   /// @return @a true if there are any top level directives, @c false if not.
   bool is_active() const;
 
-  /** Set any required hooks for a transaction, based on this configuration.
+  /** Get the top level directives for a @a hook.
    *
-   * @param txn Transaction.
-   * @return Errors if any.
+   * @param hook The hook identifier.
+   * @return A reference to the vector of top level directives.
    */
-  Errata set_txn_hooks(TSHttpTxn txn, TSCont cont);
+  std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
 protected:
   friend class When;
+  friend class Context;
 
   /// Mark whether there are any top level directives.
   bool _active_p { false };
@@ -92,3 +93,8 @@ protected:
 };
 
 inline bool Config::is_active() const { return _active_p; }
+
+inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
+  return _roots[static_cast<unsigned>(hook)];
+}
+

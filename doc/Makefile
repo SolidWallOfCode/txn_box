@@ -20,7 +20,7 @@ UMLDIR = $(srcdir)/uml
 $(IMAGEDIR)/%.svg : $(UMLDIR)/%.plantuml
 	$(PLANTUML) $< -tsvg -o $(shell $(REALPATH) $(IMAGEDIR))
 
-html: uml ext/local-config.py
+html: uml ext/local-config.py static
 	$(SBUILD) -d $(BUILDDIR)/doctrees -b html $(srcdir) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

@@ -23,6 +23,7 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Directive.h"
+#include "txn_box/ts_fwd.h"
 
 class Config;
 
@@ -40,6 +41,21 @@ public:
 
   swoc::Errata when_do(Hook hook_idx, Directive * drtv);
 
+  swoc::Errata invoke_for_hook(Hook hook);
+
+  Hook _cur_hook = Hook::INVALID;
+  TSCont _cont = nullptr;
+  TSHttpTxn _txn = nullptr;
+
+  /// Directives for a particular hook.
+  struct HookDirectives {
+    unsigned _count = 0; ///< Number of directives.
+    unsigned _idx = 0; ///< Index of next directive to invoke.
+    Directive** _drtv = nullptr; ///< Array of directive pointers.
+    bool _hook_set = false; ///< If a hook has already been set.
+  };
+  /// State of each hook for this transaction / context.
+  std::array<HookDirectives, std::tuple_size<Hook>::value> _directives;
 protected:
 
   /// Cleanup functor for an inverted arena.
@@ -52,4 +68,5 @@ protected:
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
+
 };

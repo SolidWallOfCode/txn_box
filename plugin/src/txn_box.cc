@@ -18,8 +18,6 @@
 #include <map>
 #include <getopt.h>
 
-#include "ts/ts.h"
-
 #include <swoc/TextView.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
@@ -28,6 +26,7 @@
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Config.h"
+#include "txn_box/ts_util.h"
 #include "txn_box/yaml-util.h"
 
 using swoc::TextView;
@@ -38,36 +37,43 @@ using swoc::Rv;
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
-swoc::Lexicon<Hook> HookName {{Hook::CREQ, {"read-request", "preq"} },
-                              {Hook::PREQ, {"send-response", "prsp"} }
-};
+#if 1
+swoc::Lexicon<Hook> HookName {{{Hook::CREQ, {"read-request", "preq"}}, {Hook::PREQ, {"send-response", "prsp"}}, {Hook::URSP, {"read-response", "ursp"}}, {Hook::PRSP, {"send-response", "prsp"}}
+                              }};
+#else
+swoc::Lexicon<Hook> HookName;
+#endif
+
+std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   HookName.set_default(Hook::INVALID);
+
+  TS_Hook[static_cast<unsigned>(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
+  TS_Hook[static_cast<unsigned>(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
+  TS_Hook[static_cast<unsigned>(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
+  TS_Hook[static_cast<unsigned>(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
+
   return true;
 } ();
 }; // namespace
 
+Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
+  static const std::map<TSEvent, Hook> table{{TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ},
+                                                  {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ},
+                                                  {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP},
+                                                  {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP},
+  };
+  if (auto spot{table.find(ev)}; spot != table.end()) {
+    return spot->second;
+  }
+  return Hook::INVALID;
+}
+
 Config Plugin_Config;
 
-std::map<Hook, TSHttpHookID> HookID { {Hook::CREQ, TS_HTTP_READ_REQUEST_HDR_HOOK },
-                                      {Hook::PREQ, TS_HTTP_SEND_REQUEST_HDR_HOOK },
-                                      {Hook::URSP, TS_HTTP_READ_RESPONSE_HDR_HOOK },
-                                      {Hook::PRSP, TS_HTTP_SEND_RESPONSE_HDR_HOOK },
-};
 /* ------------------------------------------------------------------------------------ */
-
-Errata Config::set_txn_hooks(TSHttpTxn txn, TSCont cont) {
-  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
-    auto const& drtv_list { _roots[idx] };
-    if (! drtv_list.empty()) {
-      TSHttpTxnHookAdd(txn, HookID[static_cast<Hook>(idx)], cont);
-    }
-  }
-  // Always set a cleanup hook.
-  TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, cont);
-}
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {
@@ -155,24 +161,47 @@ Errata Config::load_file(swoc::file::path const& file_path) {
 /* ------------------------------------------------------------------------------------ */
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
   Context* ctx = static_cast<Context*>(TSContDataGet(cont));
-  switch (ev) {
-    case TS_HTTP_TXN_CLOSE_HOOK:
-      delete ctx;
+  /// TXN Close is special
+  if (ev == TS_EVENT_HTTP_TXN_CLOSE) {
+      TSContDataSet(cont, nullptr);
       TSContDestroy(cont);
-      break;
+      delete ctx;
+  } else {
+    Hook hook { Convert_TS_Event_To_TxB_Hook(ev) };
+    if (Hook::INVALID != hook) {
+      ctx->_cur_hook = hook;
+      // Run the top level directives first.
+      for (auto const &handle : Plugin_Config.hook_directives(hook)) {
+        handle->invoke(*ctx); // need to log errors here.
+      }
+      // Run any accumulated directives for the hook.
+      ctx->invoke_for_hook(hook);
+    }
   }
   return TS_SUCCESS;
 }
 
+// Global callback, not thread safe.
+// This sets up local context for a transaction and spins up a per TXN Continuation which is
+// protected by a mutex. This hook isn't set if there are no top level directives.
 int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   auto txn {reinterpret_cast<TSHttpTxn>(payload) };
-
-  // Set TXN hooks on hooks that have directives.
   Context* ctx = new Context(Plugin_Config);
   TSCont txn_cont { TSContCreate(CB_Directive, TSMutexCreate()) };
   TSContDataSet(txn_cont, ctx);
+  ctx->_cont = txn_cont;
+  ctx->_txn = txn;
 
-  Plugin_Config.set_txn_hooks(txn, cont);
+  // set hooks for top level directives.
+  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
+    auto const& drtv_list { Plugin_Config.hook_directives(static_cast<Hook>(idx)) };
+    if (! drtv_list.empty()) {
+      TSHttpTxnHookAdd(txn, TS_Hook[idx], cont);
+      ctx->_directives[idx]._hook_set = true;
+    }
+  }
+  // Always set a cleanup hook.
+  TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, cont);
   return TS_SUCCESS;
 };
 
@@ -180,26 +209,22 @@ std::array<option, 2> Options = {
     {{"config", 1, nullptr, 'c'}, {nullptr, 0, nullptr, 0}}};
 
 void
-TSPluginInit(int argc, char *argv[])
-{
+TSPluginInit(int argc, char const *argv[]) {
   Errata errata;
 
-  TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media",
-                                "solidwallofcode@verizonmedia.com"};
+  TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media"
+                                , "solidwallofcode@verizonmedia.com"};
 
   int opt;
   int idx;
   optind = 0; // Reset options in case of other plugins.
-  while (-1 != (opt = getopt_long(argc, argv, ":", Options.data(), &idx))) {
+  while (-1 != (opt = getopt_long(argc, const_cast<char **>(argv), ":", Options.data(), &idx))) {
     switch (opt) {
-      case ':':
-        errata.error("'{}' requires a value", argv[optind - 1]);
+      case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c':
-        errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind]}));
+      case 'c':errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind]}));
         break;
-      default:
-        errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
+      default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
         break;
     }
   }

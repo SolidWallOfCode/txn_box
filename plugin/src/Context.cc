@@ -14,11 +14,46 @@
 
 */
 
+#include <swoc/MemSpan.h>
+
 #include "txn_box/Context.h"
 #include "txn_box/Config.h"
+#include "txn_box/ts_util.h"
+
+using swoc::MemSpan;
+using swoc::Errata;
 
 Context::Context(Config & cfg) {
   swoc::MemArena arena { 4000 }; // close enough to a page to get bumped up.
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
   _arena.reset(arena.make<swoc::MemArena>(std::move(arena)));
+
+  // Provide array storage for each potential conditional directive for each hook.
+  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx) {
+     MemSpan<Directive*> drtv_list = _arena->alloc(sizeof(Directive*) * cfg._directive_count[idx]).rebind<Directive*>();
+     _directives[idx] = { static_cast<unsigned>(drtv_list.count()), 0, drtv_list.data() };
+  };
+}
+
+Errata Context::when_do(Hook hook, Directive* drtv) {
+  auto & hd { _directives[static_cast<unsigned>(hook)] };
+  if (! hd._hook_set) { // no hook to invoke this directive, set one up.
+    if (hook > _cur_hook) {
+      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook)], _cont);
+      hd._hook_set = true;
+    } else if (hook < _cur_hook) {
+      // error condition - should report. Also, should detect this on config load.
+    }
+  }
+  hd._drtv[hd._count++] = drtv;
+  return {};
 };
+
+Errata Context::invoke_for_hook(Hook hook) {
+  auto & hd { _directives[static_cast<unsigned>(hook)] };
+  while (hd._idx < hd._count) {
+    Directive* drtv = hd._drtv[hd._idx++];
+    drtv->invoke(*this);
+  }
+  return {};
+}

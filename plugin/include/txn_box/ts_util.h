@@ -1,4 +1,5 @@
-/*
+/** @file Utility helpers for TS C API.
+
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -14,24 +15,21 @@
 
 */
 
-#include <swoc/Errata.h>
+#pragma once
 
-#include "txn_box/Directive.h"
+#include <array>
 
-using swoc::Errata;
+#include "txn_box/common.h"
 
-Directive::Factory Directive::_factory;
+#include <ts/ts.h>
 
-DirectiveList& DirectiveList::push_back(Directive::Handle &&d) {
-  _directives.emplace_back(std::move(d));
-  return *this;
-}
+/** Convert a TS hook ID to the local TxB enum.
+ *
+ * @param ts_id TS C API hook ID.
+ * @return The corresponding TxB hook enum value, or @c Hook::INVALID if not a supported hook.
+ */
+Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev);
 
-Errata DirectiveList::invoke(Context &ctx) {
-  Errata zret;
-  for ( auto const& drtv : _directives ) {
-    zret.note(drtv->invoke(ctx));
-  }
-  return std::move(zret);
-}
-
+/// Convert TxB hook value to TS hook value.
+/// TxB values are compact so an array works fine.
+extern std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;

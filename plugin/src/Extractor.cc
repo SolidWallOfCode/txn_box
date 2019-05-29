@@ -24,6 +24,8 @@
 using swoc::TextView;
 using swoc::Errata;
 
+Extractor::Table Extractor::_ex_table;
+
 /* ------------------------------------------------------------------------------------ */
 
 swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table const& table) {

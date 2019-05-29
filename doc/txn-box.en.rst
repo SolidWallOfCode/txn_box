@@ -754,7 +754,7 @@ requests from internal sources or on the mailing list. These are here to serve a
 implementation.
 
 Legacy Appliances
------------------
++++++++++++++++++
 
 Support for legacy appliances is required. The problem is these have very old TLS stacks and among
 other things do not provide SNI data. However, it is unacceptable to accept such connections in
@@ -762,12 +762,12 @@ general. The requirement is therefore to allow such connections only to specific
 destinations and fail the connection otherwise.
 
 Query Only
-----------
+++++++++++
 
 Rewrite the URL iff there is a non-empty query string.
 
 Cache TTL
----------
++++++++++
 
 Set a cache TTL if
 
@@ -776,6 +776,12 @@ Set a cache TTL if
 
 This is a bit tricky because multiple fields are involved. Could this be done via an extraction
 vector, or better by doing a single extraction of all fields and checking if that is empty?
+
+Mutual TLS
+++++++++++
+
+Control remapping based on whether the user agent provided a TLS certificate, whether the
+certificate was verified, and whether the SNI name is in a whitelist.
 
 Implementation Notes
 ********************
@@ -786,7 +792,7 @@ Design Goals
 ============
 
 History
--------
++++++++
 
 This work is the conjuction of a number of efforts. The original inspiration was the
 ``header_rewrite`` plugin and the base work in |libswoc| was done with the intention of
@@ -813,7 +819,7 @@ to the friction of work on the core. In the long run, if this is successful it i
 plugin functionality will be moved in to core Traffic Server.
 
 Goals
------
++++++
 
 The first requirement was the configuration be in YAML, as it is the goal of current work to
 transform all configuration to YAML.
