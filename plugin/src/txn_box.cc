@@ -14,11 +14,16 @@
    
 */
 
+#include <string>
+#include <map>
+#include <getopt.h>
+
 #include "ts/ts.h"
 
 #include <swoc/TextView.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
+#include <yaml-cpp/yaml.h>
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
@@ -29,10 +34,12 @@ using swoc::TextView;
 using swoc::Errata;
 using swoc::Rv;
 
+/* ------------------------------------------------------------------------------------ */
+
 const std::string Config::ROOT_KEY { "txn_box" };
 
-swoc::Lexicon<Hook> HookName {{Hook::READ_REQ, "read-request" },
-                              {Hook::SEND_RSP, "send-response"}
+swoc::Lexicon<Hook> HookName {{Hook::CREQ, {"read-request", "preq"} },
+                              {Hook::PREQ, {"send-response", "prsp"} }
 };
 
 namespace {
@@ -41,7 +48,26 @@ namespace {
   return true;
 } ();
 }; // namespace
+
+Config Plugin_Config;
+
+std::map<Hook, TSHttpHookID> HookID { {Hook::CREQ, TS_HTTP_READ_REQUEST_HDR_HOOK },
+                                      {Hook::PREQ, TS_HTTP_SEND_REQUEST_HDR_HOOK },
+                                      {Hook::URSP, TS_HTTP_READ_RESPONSE_HDR_HOOK },
+                                      {Hook::PRSP, TS_HTTP_SEND_RESPONSE_HDR_HOOK },
+};
 /* ------------------------------------------------------------------------------------ */
+
+Errata Config::set_txn_hooks(TSHttpTxn txn, TSCont cont) {
+  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
+    auto const& drtv_list { _roots[idx] };
+    if (! drtv_list.empty()) {
+      TSHttpTxnHookAdd(txn, HookID[static_cast<Hook>(idx)], cont);
+    }
+  }
+  // Always set a cleanup hook.
+  TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, cont);
+}
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {
@@ -127,14 +153,68 @@ Errata Config::load_file(swoc::file::path const& file_path) {
 };
 
 /* ------------------------------------------------------------------------------------ */
+int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
+  Context* ctx = static_cast<Context*>(TSContDataGet(cont));
+  switch (ev) {
+    case TS_HTTP_TXN_CLOSE_HOOK:
+      delete ctx;
+      TSContDestroy(cont);
+      break;
+  }
+  return TS_SUCCESS;
+}
+
+int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
+  auto txn {reinterpret_cast<TSHttpTxn>(payload) };
+
+  // Set TXN hooks on hooks that have directives.
+  Context* ctx = new Context(Plugin_Config);
+  TSCont txn_cont { TSContCreate(CB_Directive, TSMutexCreate()) };
+  TSContDataSet(txn_cont, ctx);
+
+  Plugin_Config.set_txn_hooks(txn, cont);
+  return TS_SUCCESS;
+};
+
+std::array<option, 2> Options = {
+    {{"config", 1, nullptr, 'c'}, {nullptr, 0, nullptr, 0}}};
 
 void
-TSPluginInit(int argc, char const *argv[])
+TSPluginInit(int argc, char *argv[])
 {
+  Errata errata;
+
   TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media",
                                 "solidwallofcode@verizonmedia.com"};
 
-  if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("%s: plugin registration failed.", Config::PLUGIN_TAG.data());
+  int opt;
+  int idx;
+  optind = 0; // Reset options in case of other plugins.
+  while (-1 != (opt = getopt_long(argc, argv, ":", Options.data(), &idx))) {
+    switch (opt) {
+      case ':':
+        errata.error("'{}' requires a value", argv[optind - 1]);
+        break;
+      case 'c':
+        errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind]}));
+        break;
+      default:
+        errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
+        break;
+    }
+  }
+  if (errata.is_ok()) {
+    if (TSPluginRegister(&info) == TS_SUCCESS) {
+      if (Plugin_Config.is_active()) {
+        TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
+        TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
+      }
+    } else {
+      TSError("%s: plugin registration failed.", Config::PLUGIN_TAG.data());
+    }
+  } else {
+    std::string err_str;
+    swoc::bwprint(err_str, "{}: initialization failure.\n{}", Config::PLUGIN_NAME, errata);
+    TSError("%s", err_str.c_str());
   }
 }

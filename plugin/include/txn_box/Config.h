@@ -26,6 +26,9 @@
 #include "txn_box/common.h"
 #include "txn_box/Directive.h"
 
+using TSCont = struct tsapi_cont *;
+using TSHttpTxn = struct tsapi_httptxn *;
+
 /// Contains a configuration and configuration helper methods.
 class Config {
   using self_type = Config; ///< Self reference type.
@@ -63,14 +66,29 @@ public:
    */
   swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node);
 
+  /// Check for active directives.
+  /// @return @a true if there are any top level directives, @c false if not.
+  bool is_active() const;
+
+  /** Set any required hooks for a transaction, based on this configuration.
+   *
+   * @param txn Transaction.
+   * @return Errors if any.
+   */
+  Errata set_txn_hooks(TSHttpTxn txn, TSCont cont);
+
 protected:
   friend class When;
+
+  /// Mark whether there are any top level directives.
+  bool _active_p { false };
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
 
-  /// Maximum number of @c when directives that can execute in a specific hook.
-  /// These are updated by the @c When directive load. This includes the
-  /// top level @c when directives.
-  std::array<size_t, std::tuple_size<Hook>::value> _when_count { 0 };
+  /// Maximum number of directives that can execute in a specific hook. These are updated during
+  /// directive load, if needed. This includes the top level directives.
+  std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
 };
+
+inline bool Config::is_active() const { return _active_p; }

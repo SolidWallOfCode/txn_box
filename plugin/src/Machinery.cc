@@ -176,7 +176,7 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::
     if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
       auto &&[do_handle, do_errata]{cfg.load_directive(do_node)};
       if (do_errata.is_ok()) {
-        ++cfg._when_count[static_cast<unsigned>(hook_idx)];
+        ++cfg._directive_count[static_cast<unsigned>(hook_idx)];
         return { Handle{new self_type{hook_idx, std::move(do_handle)}} , {}};
       } else {
         zret.note(do_errata);

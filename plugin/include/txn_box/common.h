@@ -22,10 +22,12 @@
 /// Supported hooks.
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
-  READ_REQ, ///< Read Request from user agent.
-  SEND_RSP, ///< Send Response to user agent.
-  BEGIN = READ_REQ, ///< Iteration support.
-  END = SEND_RSP + 1 ///< Iteration support.
+  CREQ, ///< Read Request from user agent.
+  PREQ, ///< Send request from proxy to upstream.
+  URSP, ///< Read response from upstream.
+  PRSP, ///< Send response to user agent from proxy.
+  BEGIN = CREQ, ///< Iteration support.
+  END = PRSP + 1 ///< Iteration support.
 };
 
 /// Make @c tuple_size work for the @c Hook enum.
