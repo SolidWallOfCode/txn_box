@@ -30,8 +30,15 @@ uml: $(IMAGEDIR)/txn_box_config_schema.svg
 clean:
 	-rm -rf html warn.log
 	-rm -rf $(BUILDDIR)/doctrees $(BUILDDIR)/html
-	-rm uml/*.svg
+	-rm pix/*.svg
 
-ext/local-config.py : Makefile
-	@echo "plantuml = '$(JAVA) -jar $(PLANTUML_JAR)'" > ext/local-config.py
-	@echo "plantuml_output_format = 'svg'" >> ext/local-config.py
+ext/local-config.py : Makefile ext
+	@echo "def setup(app):" > ext/local-config.py
+	@echo "   plantuml = '$(JAVA) -jar $(PLANTUML_JAR)'" >> ext/local-config.py
+	@echo "   plantuml_output_format = 'svg'" >> ext/local-config.py
+
+ext:
+	if [ ! -d "ext" ] ; then mkdir ext; fi
+
+static:
+	if [ ! -d "static" ] ; then mkdir static; fi
