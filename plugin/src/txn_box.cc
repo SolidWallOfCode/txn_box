@@ -37,12 +37,11 @@ using swoc::Rv;
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
-#if 1
-swoc::Lexicon<Hook> HookName {{{Hook::CREQ, {"read-request", "preq"}}, {Hook::PREQ, {"send-response", "prsp"}}, {Hook::URSP, {"read-response", "ursp"}}, {Hook::PRSP, {"send-response", "prsp"}}
+swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
+                              , {Hook::PREQ, {"send-request", "preq"}}
+                              , {Hook::URSP, {"read-response", "ursp"}}
+                              , {Hook::PRSP, {"send-response", "prsp"}}
                               }};
-#else
-swoc::Lexicon<Hook> HookName;
-#endif
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
@@ -73,6 +72,60 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 
 Config Plugin_Config;
 
+/* ------------------------------------------------------------------------------------ */
+TextView ts::URL::host() {
+  char const* text;
+  int size;
+  if (this->is_valid() && nullptr != (text = TSUrlHostGet(_buff, _loc, &size))) {
+    return { text, static_cast<size_t>(size) };
+  }
+  return {};
+}
+
+TextView ts::HttpField::value() {
+  int size;
+  char const* text;
+  if (this->is_valid() && nullptr != (text = TSMimeHdrFieldValueStringGet(_buff, _loc, _hdr, -1, &size))) {
+    return { text, static_cast<size_t>(size) };
+  }
+  return {};
+}
+
+ts::URL ts::HttpHeader::url() {
+  TSMLoc url_loc;
+  if (this->is_valid() && TS_SUCCESS == TSHttpHdrUrlGet(_buff, _loc, &url_loc)) {
+    return {_buff, url_loc};
+  }
+  return {};
+}
+
+ts::HttpField ts::HttpHeader::field(TextView name) {
+  TSMLoc field_loc;
+  if (this->is_valid() && nullptr != (field_loc = TSMimeHdrFieldFind(_buff, _loc, name.data(), name.size()))) {
+    return { _buff, _loc, field_loc};
+  }
+  return {};
+}
+
+ts::HttpHeader ts::HttpTxn::creq_hdr() {
+  TSMBuffer buff;
+  TSMLoc loc;
+  if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientReqGet(_txn, &buff, &loc)) {
+    return { buff, loc };
+  }
+  return {};
+}
+
+ts::HttpHeader ts::HttpTxn::preq_hdr() {
+  TSMBuffer buff;
+  TSMLoc loc;
+  if (_txn != nullptr && TS_SUCCESS == TSHttpTxnServerReqGet(_txn, &buff, &loc)) {
+    return { buff, loc };
+  }
+  return {};
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------ */
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
@@ -243,3 +296,4 @@ TSPluginInit(int argc, char const *argv[]) {
     TSError("%s", err_str.c_str());
   }
 }
+

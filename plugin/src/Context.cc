@@ -57,3 +57,10 @@ Errata Context::invoke_for_hook(Hook hook) {
   }
   return {};
 }
+
+ts::HttpHeader Context::creq_hdr() {
+  if (!_creq.is_valid()) {
+    _creq = _txn.creq_hdr();
+  }
+  return _creq;
+}

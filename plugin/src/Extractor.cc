@@ -67,3 +67,10 @@ swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table
   }
   return { std::move(fmt), std::move(zret) };
 }
+
+Errata Extractor::define(TextView name, self_type * ex) {
+  _ex_table[name] = ex;
+  return {};
+}
+
+Extractor::Type Extractor::preferred_type() const { return STRING; }

@@ -23,7 +23,7 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Directive.h"
-#include "txn_box/ts_fwd.h"
+#include "txn_box/ts_util.h"
 
 class Config;
 
@@ -45,7 +45,7 @@ public:
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
-  TSHttpTxn _txn = nullptr;
+  ts::HttpTxn _txn;
 
   /// Directives for a particular hook.
   struct HookDirectives {
@@ -54,8 +54,12 @@ public:
     Directive** _drtv = nullptr; ///< Array of directive pointers.
     bool _hook_set = false; ///< If a hook has already been set.
   };
+
   /// State of each hook for this transaction / context.
   std::array<HookDirectives, std::tuple_size<Hook>::value> _directives;
+
+  ts::HttpHeader creq_hdr();
+
 protected:
 
   /// Cleanup functor for an inverted arena.
@@ -68,5 +72,11 @@ protected:
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
+
+  // HTTP header objects for the transaction.
+  ts::HttpHeader _creq; ///< Client request header.
+  ts::HttpHeader _preq; ///< Proxy request header.
+  ts::HttpHeader _ursp; ///< Upstream response header.
+  ts::HttpHeader _prsp; ///< Proxy response header.
 
 };

@@ -17,16 +17,43 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
+
+#include <swoc/TextView.h>
 
 class Comparison {
   using self_type = Comparison;
 public:
+  /// Handle type for local instances.
   using Handle = std::unique_ptr<self_type>;
+
+  /// Factory functor that creates an instance from a configuration node.
+  /// Arguments are the comparison node and the key node in the comparison node.
+  using Assembler = std::function<swoc::Rv<Handle> (YAML::Node, YAML::Node)>;
+
+  // Factory that maps from names to assemblers.
+  using Factory = std::unordered_map<swoc::TextView, Assembler>;
+
+  /** Define an assembler that constructs @c Comparison instances.
+   *
+   * @param name Name for key node to indicate this comparison.
+   * @param cmp_asm Assembler to construct instance from configuration node.
+   * @return A handle to a constructed instance on success, errors on failure.
+   */
+  static swoc::Errata define(swoc::TextView name, Assembler && cmp_asm);
+
+protected:
+  /// The assemblers.
+  static Factory _factory;
 };
 
-
+/// Subclass of comparison for string comparisons.
 class StringComparison : public Comparison {
   using self_type = StringComparison;
   using super_type = Comparison;
 public:
+
+  virtual bool operator () (swoc::TextView text) = 0;
+
+protected:
 };

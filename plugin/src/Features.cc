@@ -14,23 +14,70 @@
    
 */
 
-#include "ts/ts.h"
-
 #include "swoc/TextView.h"
 
 #include "txn_box/Extractor.h"
 #include "txn_box/yaml-util.h"
+#include "txn_box/ts_util.h"
 
 using swoc::TextView;
 
+const TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
+
 /* ------------------------------------------------------------------------------------ */
-class Ex_Creq_Url_Host : public Extractor, public StringFeature {
-  using self_type = Ex_Creq_Url_Host;
+class Ex_creq_url_host : public Extractor, public StringFeature {
+  using self_type = Ex_creq_url_host;
   using super_type = Extractor;
 public:
 
-  TextView direct_view(Context const& ctx) const override {
-    return { nullptr };
-  }
+  static constexpr TextView NAME { "creq-url-host" };
+
+  TextView direct_view(Context & ctx) const override;
 };
+
+TextView Ex_creq_url_host::direct_view(Context &ctx) const {
+  TextView zret;
+  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.host();
+    }
+  }
+  return zret;
+}
+
+class Ex_creq_host : public Extractor, public StringFeature {
+  using self_type = Ex_creq_host;
+  using super_type = Extractor;
+public:
+  static constexpr TextView NAME { "creq-host" };
+
+  TextView direct_view(Context & ctx) const override;
+};
+
+TextView Ex_creq_host::direct_view(Context &ctx) const {
+  TextView zret;
+  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.host();
+      if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
+        if ( auto field { hdr.field(HTTP_FIELD_HOST) } ; field.is_valid()) {
+          zret = field.value();
+        }
+      }
+    }
+  }
+  return zret;
+}
+
 /* ------------------------------------------------------------------------------------ */
+
+namespace {
+Ex_creq_host creq_host;
+Ex_creq_url_host creq_url_host;
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Extractor::define(Ex_creq_host::NAME, &creq_host);
+  Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
+
+  return true;
+} ();
+}; // namespace

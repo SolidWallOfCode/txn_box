@@ -14,19 +14,51 @@
 
 */
 
-#include "txn_box/Comparison.h"
+#include <string>
 
+#include <swoc/TextView.h>
 #include <swoc/Errata.h>
 #include <yaml-cpp/yaml.h>
 
-#include <string>
+#include "txn_box/Comparison.h"
+
+using swoc::TextView;
+using swoc::Errata;
+using swoc::Rv;
+
+Comparison::Factory Comparison::_factory;
+
+Errata Comparison::define(swoc::TextView name, Comparison::Assembler &&cmp_asm) {
+  _factory[name] = std::move(cmp_asm);
+  return {};
+}
 
 /// Exact string match.
 class Cmp_Match : public StringComparison {
   using self_type = Cmp_Match;
   using super_type = StringComparison;
 public:
-  static swoc::Rv<Handle> load(YAML::Node node);
+  static constexpr TextView NAME { "match" };
+  static Rv<Handle> load(YAML::Node cmp_node, YAML::Node key_node);
+
+  bool operator() (TextView text) override;
+
 protected:
   std::string _value; ///< Valuie to match.
 };
+
+bool Cmp_Match::operator()(TextView text) {
+  return text == _value;
+}
+
+Rv<Comparison::Handle> Cmp_Match::load(YAML::Node cmp_node, YAML::Node key_node) {
+  return { nullptr, {} };
+}
+
+namespace {
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Comparison::define(Cmp_Match::NAME, &Cmp_Match::load);
+
+  return true;
+} ();
+}; // namespace

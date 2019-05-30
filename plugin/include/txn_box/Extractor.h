@@ -46,8 +46,9 @@ public:
   /// Compiled format string containing extractors.
   using Format = std::vector<Spec>;
 
-  virtual Type preferred_type() const = 0;
-  virtual swoc::TextView direct_view(Context const& ctx) const = 0;
+  virtual Type preferred_type() const;
+
+  virtual swoc::TextView direct_view(Context & ctx) const = 0;
 
   /** Parse a format string.
    *
@@ -56,6 +57,8 @@ public:
    * @return
    */
   static swoc::Rv<Format> parse(swoc::TextView format_string, Table const& table);
+
+  static swoc::Errata define(swoc::TextView name, self_type * ex);
 
 protected:
   static Table _ex_table;
