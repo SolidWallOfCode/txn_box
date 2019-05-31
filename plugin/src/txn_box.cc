@@ -166,7 +166,7 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
             When::KEY, key_node.Mark());
       }
     } else {
-      zret.error(R"(Top level directive at {} is a "when" directive as required.)", drtv_node.Mark());
+      zret.error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
     }
   } else {
     zret.error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());

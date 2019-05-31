@@ -18,8 +18,13 @@
 
 #include <memory>
 #include <unordered_map>
+#include <functional>
 
 #include <swoc/TextView.h>
+#include <swoc/Errata.h>
+#include <yaml-cpp/yaml.h>
+
+class Config;
 
 class Comparison {
   using self_type = Comparison;
@@ -28,8 +33,8 @@ public:
   using Handle = std::unique_ptr<self_type>;
 
   /// Factory functor that creates an instance from a configuration node.
-  /// Arguments are the comparison node and the key node in the comparison node.
-  using Assembler = std::function<swoc::Rv<Handle> (YAML::Node, YAML::Node)>;
+  /// Arguments are the comparison node and the value for the identfy comparison key.
+  using Assembler = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
 
   // Factory that maps from names to assemblers.
   using Factory = std::unordered_map<swoc::TextView, Assembler>;
@@ -41,6 +46,8 @@ public:
    * @return A handle to a constructed instance on success, errors on failure.
    */
   static swoc::Errata define(swoc::TextView name, Assembler && cmp_asm);
+
+  static swoc::Rv<Handle> load(Config & cfg, YAML::Node node);
 
 protected:
   /// The assemblers.

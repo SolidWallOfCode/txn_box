@@ -18,6 +18,7 @@
 #pragma once
 
 #include <swoc/bwf_base.h>
+#include <yaml-cpp/yaml.h>
 
 // Structured binding support for nodes. E.g.
 // YAML::Node node;

@@ -28,7 +28,7 @@ Extractor::Table Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
 
-swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string, Table const& table) {
+swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string) {
   Spec literal_spec; // used to handle literals as spec instances.
   auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;

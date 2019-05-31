@@ -56,7 +56,7 @@ public:
    * @param table
    * @return
    */
-  static swoc::Rv<Format> parse(swoc::TextView format_string, Table const& table);
+  static swoc::Rv<Format> parse(swoc::TextView format_string);
 
   static swoc::Errata define(swoc::TextView name, self_type * ex);
 
