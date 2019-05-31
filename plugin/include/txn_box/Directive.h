@@ -130,6 +130,28 @@ protected:
   When(Hook hook_idx, Directive::Handle && directive);
 };
 
+/** Directive that explicitly does nothing.
+ *
+ * Used for a place holder to avoid proliferatin null checks. This isn't explicitly available from
+ * configuration - instead it is used when the directive is omitted (e.g. an empty @c do key).
+ */
+
+class NilDirective : public Directive {
+  using self_type = NilDirective; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+
+public:
+  /** Invoke the directive.
+   *
+   * @param ctx The transaction context.
+   * @return Errors, if any.
+   *
+   * All information needed for the invocation of the directive is accessible from the @a ctx.
+   */
+  swoc::Errata invoke(Context &ctx) override;;
+protected:
+};
+
 inline Hook When::get_hook() const { return _hook; }
 
 

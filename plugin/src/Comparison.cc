@@ -46,8 +46,7 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
       return spot->second(cfg, node, value_node);
     }
   }
-
-  }
+  return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
 }
 
 /// Exact string match.
@@ -70,7 +69,7 @@ bool Cmp_Match::operator()(TextView text) {
   return text == _value;
 }
 
-Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node) {
+Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node, YAML::Node key_node) {
   if (!key_node.IsScalar()) {
     return { {}, Errata().error(R"(Value for "{}" at {} is not a string.)", NAME, key_node.Mark()) };
   }

@@ -143,6 +143,8 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
       }
     }
     return {std::move(drtv_list), {}};
+  } else if (drtv_node.IsNull()) {
+    return {Directive::Handle(new NilDirective)};
   }
   return { {}, Errata().error(R"(Directive at {} is not an object or a sequence as required.)",
       drtv_node.Mark()) };

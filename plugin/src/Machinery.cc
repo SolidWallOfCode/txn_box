@@ -15,6 +15,7 @@
 */
 
 #include <swoc/TextView.h>
+#include <swoc/Errata.h>
 
 #include "ts/ts.h"
 
@@ -117,6 +118,7 @@ Errata With::invoke(Context &ctx) {
 }
 
 class WithTuple : public Directive {
+  friend class With;
   using super_type = Directive;
   using self_type = WithTuple;
 public:
@@ -131,12 +133,12 @@ public:
     ANY_OF, ALL_OF, NONE_OF
   };
 
+  static const swoc::Lexicon<Op> OpName;
+
   Errata invoke(Context &ctx) override;
 
 protected:
-  static Errata load_case(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
-
-  std::vector<Extractor::Format> _fmt; /// Extractor tuple.
+  std::vector<Extractor::Format> _ex; /// Extractor tuple.
 
   /// A single case in the select.
   struct Case {
@@ -146,6 +148,11 @@ protected:
   };
   using CaseGroup = std::vector<Case>;
   CaseGroup _cases; ///< List of cases for the select.
+
+  WithTuple(std::vector<Extractor::Format> && fmt, CaseGroup && cases) : _ex(std::move(fmt)), _cases(std::move(cases)) {}
+
+  static swoc::Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+  static Errata load_case(Config & cfg, CaseGroup& cases, YAML::Node node, unsigned tuple_size);
 };
 
 const std::string WithTuple::KEY { With::KEY };
@@ -153,6 +160,8 @@ const std::string WithTuple::SELECT_KEY { With::SELECT_KEY };
 static const std::string ANY_OF_KEY { "any-of" };
 static const std::string ALL_OF_KEY { "all-of" };
 static const std::string NONE_OF_KEY { "none-of" };
+
+const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY } };
 
 Errata WithTuple::invoke(Context &ctx) {
   Errata zret;
@@ -172,69 +181,158 @@ swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML:
 
     auto &&[fmt, errata]{Extractor::parse(key_node.Scalar())};
 
-    if (!errata.is_ok()) {
+    if (errata.is_ok()) {
+      if (select_node.IsMap()) {
+        zret = self_type::load_case(cfg, cases, select_node);
+      } else if (select_node.IsSequence()) {
+        for (YAML::Node child : select_node) {
+          zret.note(self_type::load_case(cfg, cases, child));
+        }
+        if (!zret.is_ok()) {
+          zret.error(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark()
+                     , SELECT_KEY, select_node.Mark());
+        }
+      } else {
+        zret.error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")"
+                   , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
+      }
+      if (zret.is_ok()) {
+        return {Handle{new With(std::move(fmt), std::move(cases))}, {}};
+      }
+      return {{}, std::move(zret)};
+    } else {
       return { {}, std::move(errata) };
     }
-
-    if (select_node.IsMap()) {
-      zret = self_type::load_case(cfg, cases, select_node);
-    } else if (select_node.IsSequence()) {
-      for (YAML::Node child : select_node) {
-        zret.note(self_type::load_case(cfg, cases, child));
-      }
-      if (!zret.is_ok()) {
-        zret.error(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark()
-                   , SELECT_KEY, select_node.Mark());
-      }
-    } else {
-      zret.error(R"(The value for "{}" at {} in "{}" diretive at {} is not a list or object.")"
-                 , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
-    }
-    if (zret.is_ok()) {
-      return {Handle{new With(std::move(fmt), std::move(cases))}, {}};
-    }
-    return {{}, std::move(zret)};
   } else if (key_node.IsSequence()) {
+    return WithTuple::load(cfg, drtv_node, key_node);
   }
   return { {}, Errata().error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_node.Mark()) };
 }
 
 Errata With::load_case(Config & cfg, CaseGroup & cases, YAML::Node node) {
-  Errata zret;
-  Case c;
-
   if (node.IsMap()) {
-    [[maybe_unused]] bool do_key_p = false; // found DO key?
-    for ( auto const& [ key, value ] : node ) {
-      if (key.Scalar() == DO_KEY) {
-        auto && [ handle, errata ] { cfg.load_directive(value) };
-        do_key_p = true;
-        if (! errata.is_ok()) {
-          errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
-          return std::move(errata);
-        }
+    Case c;
+    if (YAML::Node do_node{node[DO_KEY]}; do_node) {
+      auto &&[handle, errata]{cfg.load_directive(do_node)};
+      if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {
-        auto && [ handle, errata ] { Comparison::load(cfg, node) };
+        errata.error(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY
+                     , do_node.Mark(), node.Mark());
+        return errata;
       }
+    } else {
+      c._do.reset(new NilDirective);
     }
-    // At some point we'll want to handle the no DO key specially.
 
-      if (cmp_node.IsMap()) {
-        for ( auto const& [ key, value ] : cmp_node ) {
-          if ( auto cmp_asm { Comparison::find(key.Scalar()) } ; nullptr != cmp_asm ) {
-            auto && [ handle, errata ] { (*cmp_asm)(cmp_node) };
-          }
-        }
+    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, node)};
+    if (cmp_errata.is_ok()) {
+      c._cmp = std::move(cmp_handle);
+      cases.emplace_back(std::move(c));
+    } else {
+      cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
+      return std::move(cmp_errata);
+    }
+
+    return {}; // everything is fine!
+  }
+  return Errata().error(R"(The value at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
+}
+
+// This is only called from @c With::load which calls this iff the @c with key value is a sequence.
+swoc::Rv<Directive::Handle> WithTuple::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  YAML::Node select_node { drtv_node[SELECT_KEY] };
+  Errata zret;
+  CaseGroup cases;
+  std::vector<Extractor::Format> ex_tuple;
+
+  // Get the feature extraction tuple.
+  for ( auto const& child : key_node ) {
+    if (child.IsScalar()) {
+      auto &&[fmt, errata]{Extractor::parse(child.Scalar())};
+      if (errata.is_ok()) {
+        ex_tuple.emplace_back(std::move(fmt));
       } else {
+        zret = std::move(errata);
+        break;
+      }
+    } else {
+      zret.error(R"(Value at {} is not a string as required.)", child.Mark());
+      break;
+    }
+  }
+  if (!zret.is_ok()) {
+    zret.error(R"(While parsing feature extraction tuple for "{}" at {} in directive at {}.)", KEY, key_node.Mark(), drtv_node.Mark());
+    return {{}, std::move(zret)};
+  }
+
+  // Next process the selection cases.
+  if (select_node.IsMap()) {
+    zret = self_type::load_case(cfg, cases, select_node, ex_tuple.size());
+  } else if (select_node.IsSequence()) {
+    for ( auto const& case_node : select_node ) {
+      zret = self_type::load_case(cfg, cases, case_node, ex_tuple.size());
+      if (! zret.is_ok()) {
+        zret.error(R"(While processing list in selection case at {}.)", select_node.Mark());
+        break;
       }
     }
   } else {
-    zret.error(R"(The clause at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
+    zret.error(R"(Value at {} for "{}" is not an object or sequence as required.)", select_node.Mark(), SELECT_KEY);
   }
-  return zret;
+  if (zret.is_ok()) {
+    return {Handle(new WithTuple(std::move(ex_tuple), std::move(cases))), {}};
+  }
+  return { {}, std::move(zret) };
 }
 
+Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, unsigned tuple_size) {
+  if (node.IsMap()) {
+    Case c;
+    if (YAML::Node do_node{node[DO_KEY]}; do_node) {
+      auto &[handle, errata]{cfg.load_directive(do_node)};
+      if (errata.is_ok()) {
+        c._do = std::move(handle);
+      }
+    } else {
+      c._do.reset(new NilDirective);
+    }
+
+    // Each comparison is a list under one of the combinator keys.
+    YAML::Node op_node;
+    for ( auto const&  [ key , name ] : OpName ) {
+      op_node.reset(node[name]);
+      if (! op_node.IsNull()) {
+        c._op = key;
+        break;
+      }
+    }
+    if (op_node.IsSequence()) {
+      for (auto const &cmp_node : op_node) {
+        auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, cmp_node)};
+        if (cmp_errata.is_ok()) {
+          c._cmp.emplace_back(std::move(cmp_handle));
+        } else {
+          cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
+          return std::move(cmp_errata);
+        }
+      }
+      if (c._cmp.size() != tuple_size) {
+        return Errata().error(R"(Comparison list at {} has {} comparisons instead of the required {}.)", op_node.Mark(), c._cmp.size(), tuple_size);
+      }
+    } else if (op_node.IsNull()) {
+      return Errata().error(R"(Selection case at {} does not the required key of "{}", "{}", or "{}".)"
+                            , node.Mark(), ALL_OF_KEY, ANY_OF_KEY, NONE_OF_KEY);
+    } else {
+      return Errata().error(R"(Selection case key "{}" at {} is not a list as required.)", OpName[c._op]
+                            , op_node.Mark());
+    }
+
+    cases.emplace_back(std::move(c));
+    return {};
+  }
+  return Errata().error(R"(The case value at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
+}
 /* ------------------------------------------------------------------------------------ */
 
 const std::string When::KEY { "when" };

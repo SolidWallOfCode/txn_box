@@ -544,6 +544,10 @@ Issues
    and ``false`` for empty? Specific match operators for empty and non-empty (although this can be
    done with regular expressions)?
 
+#  How optional should ``do`` nodes be? For instance, for selection cases is it OK to omit the
+   node entirely if there's nothing to actually do, it's just a match for some other reason (e.g.
+   to prevent requests that match from matching subsequent cases)?
+
 Examples
 ********
 

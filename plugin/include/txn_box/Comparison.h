@@ -33,7 +33,7 @@ public:
   using Handle = std::unique_ptr<self_type>;
 
   /// Factory functor that creates an instance from a configuration node.
-  /// Arguments are the comparison node and the value for the identfy comparison key.
+  /// Arguments are the comparison node and the value for the comparison identity key.
   using Assembler = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
 
   // Factory that maps from names to assemblers.

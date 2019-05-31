@@ -35,3 +35,5 @@ Errata DirectiveList::invoke(Context &ctx) {
   return std::move(zret);
 }
 
+// Do nothing.
+swoc::Errata NilDirective::invoke(Context &ctx) { return {}; }
