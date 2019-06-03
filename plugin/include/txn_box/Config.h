@@ -24,6 +24,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "txn_box/common.h"
+#include "txn_box/Extractor.h"
 #include "txn_box/Directive.h"
 
 using TSCont = struct tsapi_cont *;

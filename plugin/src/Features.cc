@@ -17,6 +17,8 @@
 #include "swoc/TextView.h"
 
 #include "txn_box/Extractor.h"
+#include "txn_box/Context.h"
+
 #include "txn_box/yaml-util.h"
 #include "txn_box/ts_util.h"
 
@@ -25,14 +27,13 @@ using swoc::TextView;
 const TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_url_host : public Extractor, public ViewFeature {
+class Ex_creq_url_host : public Extractor, public DirectFeature {
   using self_type = Ex_creq_url_host;
   using super_type = Extractor;
 public:
+  swoc::TextView direct_view(Context & ctx) const override;
 
   static constexpr TextView NAME { "creq-url-host" };
-
-  TextView direct_view(Context & ctx) const override;
 };
 
 TextView Ex_creq_url_host::direct_view(Context &ctx) const {
@@ -45,7 +46,7 @@ TextView Ex_creq_url_host::direct_view(Context &ctx) const {
   return zret;
 }
 
-class Ex_creq_host : public Extractor, public ViewFeature {
+class Ex_creq_host : public Extractor, public DirectFeature {
   using self_type = Ex_creq_host;
   using super_type = Extractor;
 public:

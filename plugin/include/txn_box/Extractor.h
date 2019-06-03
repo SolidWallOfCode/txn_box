@@ -25,7 +25,7 @@
 #include <swoc/Errata.h>
 #include <swoc/swoc_ip.h>
 
-#include "txn_box/Context.h"
+class Context;
 
 class Extractor {
   using self_type = Extractor; ///< Self reference type.

@@ -23,8 +23,8 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Directive.h"
+#include "txn_box/Extractor.h"
 #include "txn_box/ts_util.h"
-#include "Extractor.h"
 
 class Config;
 

@@ -20,6 +20,7 @@
 #include <swoc/Errata.h>
 
 #include "txn_box/Extractor.h"
+#include "txn_box/Context.h"
 
 using swoc::TextView;
 using swoc::Errata;

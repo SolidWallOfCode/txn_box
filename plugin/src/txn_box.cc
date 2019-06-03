@@ -26,6 +26,8 @@
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Config.h"
+#include "txn_box/Context.h"
+
 #include "txn_box/ts_util.h"
 #include "txn_box/yaml-util.h"
 
