@@ -9,7 +9,7 @@ Transaction Box
 .. toctree::
    :maxdepth: 2
 
-   txn-box.en
+   txn_box.en
 
 Reference
 *********
