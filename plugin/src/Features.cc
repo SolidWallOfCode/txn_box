@@ -19,7 +19,7 @@
 #include "txn_box/Extractor.h"
 #include "txn_box/Context.h"
 
-#include "txn_box/yaml-util.h"
+#include "txn_box/yaml_util.h"
 #include "txn_box/ts_util.h"
 
 using swoc::TextView;

@@ -23,7 +23,7 @@
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
-#include "txn_box/yaml-util.h"
+#include "txn_box/yaml_util.h"
 
 class Config;
 
