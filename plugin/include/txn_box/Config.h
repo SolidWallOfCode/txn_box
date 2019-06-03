@@ -84,7 +84,7 @@ public:
    * @param fmt Condensed extractor format string.
    * @return @a this
    */
-  self_type &uses(Extractor::Format & fmt);
+  self_type &use_extractors(Extractor::Format & fmt);
 
   /** Indicate a directive provides a context based feature.
    *

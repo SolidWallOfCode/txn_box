@@ -33,7 +33,6 @@ public:
   /// Preferred type, if any, for the extracted feature.
   enum Type {
     VIEW, ///< View of a string.
-    DIRECT, ///< Direct view of a transient string.
     INTEGER, ///< An integer.
     IP_ADDR, ///< IP Address
     BOOL ///< Boolean.
@@ -42,21 +41,30 @@ public:
   /** Data storage for a feature.
    * This is carefully arranged to have types in the same order as @c Type.
    */
-  using Feature = std::variant<swoc::TextView, swoc::TextView, intmax_t, swoc::IPAddr, bool>;
+  using Feature = std::variant<swoc::TextView, intmax_t, swoc::IPAddr, bool>;
 
+  /// Container for extractor factory.
   using Table = std::unordered_map<std::string_view, self_type *>;
 
+  /** Format specifier.
+   * This is a subclass of the base format specifier, in order to add a field that points at
+   * the extractor, if any, for the specifier.
+   */
   struct Spec : public swoc::bwf::Spec {
     /// Extractor used in the spec, if any.
     Extractor * _extractor = nullptr;
   };
 
-  /// Compiled format string containing extractors.
+  /// Parsed extractor string.
   class Format {
-    using self_type = Format;
+    using self_type = Format; ///< Self reference type.
   public:
-    /// @c true if any format element has a context reference.
-    bool _has_ctx_ref = false;
+    /// @defgroup Properties.
+    /// @{
+    bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
+    bool _literal_p = false; ///< @c true if the format is only literals, no extractors.
+    bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
+    /// @}
 
     /// Type of feature extracted by this format.
     Type _feature_type = VIEW;
@@ -78,12 +86,14 @@ public:
     Spec& operator [] (size_t idx) { return _items[idx]; }
   };
 
-  /// @defgroup ExtractorProperties Property methods for extractors.
+  /// @defgroup Properties. Property methods for extractors.
   /// @{
 
   /** The type of feature extracted.
    *
    * @return The extracted feature type.
+   *
+   * The default implementation returns @c VIEW.
    *
    * @note All features can be extracted as strings if needed. This type provides the ability to
    * do more specific type processing for singleton extractions.
@@ -94,6 +104,7 @@ public:
    *
    * This is important for @c DIRECT features - if there is a potential reference to that value
    * in another directive, it must be "upgraded" to a @c VIEW to avoid using changed or invalid data.
+   * The default implementation returns @c false.
    *
    * @return @c true if the extractor uses the context, @c false otherwise.
    */

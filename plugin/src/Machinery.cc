@@ -83,7 +83,10 @@ swoc::Rv<Directive::Handle> Do_Set_Preq_Url_Host::load(YAML::Node node) {
 
 /* ------------------------------------------------------------------------------------ */
 
-/// @c with directive.
+/** @c with directive.
+ * 
+ * This a central part of the 
+ */
 class With : public Directive {
   using super_type = Directive;
   using self_type = With;
