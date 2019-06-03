@@ -18,10 +18,12 @@
 
 #include <unordered_map>
 #include <string_view>
+#include <variant>
 
 #include <swoc/TextView.h>
 #include <swoc/bwf_base.h>
 #include <swoc/Errata.h>
+#include <swoc/swoc_ip.h>
 
 #include "txn_box/Context.h"
 
@@ -30,11 +32,17 @@ class Extractor {
 public:
   /// Preferred type, if any, for the extracted feature.
   enum Type {
-    STRING, ///< A string.
+    VIEW, ///< View of a string.
+    DIRECT, ///< Direct view of a transient string.
     INTEGER, ///< An integer.
-    BOOL, ///< Boolean.
-    IP_ADDR ///< IP Address
+    IP_ADDR, ///< IP Address
+    BOOL ///< Boolean.
   };
+
+  /** Data storage for a feature.
+   * This is carefully arranged to have types in the same order as @c Type.
+   */
+  using Feature = std::variant<swoc::TextView, swoc::TextView, intmax_t, swoc::IPAddr, bool>;
 
   using Table = std::unordered_map<std::string_view, self_type *>;
 
@@ -44,11 +52,54 @@ public:
   };
 
   /// Compiled format string containing extractors.
-  using Format = std::vector<Spec>;
+  class Format {
+    using self_type = Format;
+  public:
+    /// @c true if any format element has a context reference.
+    bool _has_ctx_ref = false;
 
-  virtual Type preferred_type() const;
+    /// Type of feature extracted by this format.
+    Type _feature_type = VIEW;
 
-  virtual swoc::TextView direct_view(Context & ctx) const = 0;
+    /// Specifiers / elements of the parsed format string.
+    std::vector<Spec> _items;
+
+    /// Add an format specifier item to the format.
+    self_type push_back(Spec const& spec);
+
+    /// The number of elements in the format.
+    size_t size() const;
+
+    /** Access a format element by index.
+     *
+     * @param idx Element index.
+     * @return A reference to the element.
+     */
+    Spec& operator [] (size_t idx) { return _items[idx]; }
+  };
+
+  /// @defgroup ExtractorProperties Property methods for extractors.
+  /// @{
+
+  /** The type of feature extracted.
+   *
+   * @return The extracted feature type.
+   *
+   * @note All features can be extracted as strings if needed. This type provides the ability to
+   * do more specific type processing for singleton extractions.
+   */
+  virtual Type feature_type() const;
+
+  /** Whether the extactor uses data from the contest.
+   *
+   * This is important for @c DIRECT features - if there is a potential reference to that value
+   * in another directive, it must be "upgraded" to a @c VIEW to avoid using changed or invalid data.
+   *
+   * @return @c true if the extractor uses the context, @c false otherwise.
+   */
+  virtual bool has_ctx_ref() const;
+
+  /// @}
 
   /** Parse a format string.
    *
@@ -64,9 +115,24 @@ protected:
   static Table _ex_table;
 };
 
-class StringFeature {
+/** A string expressed as a view.
+ *
+ */
+class ViewFeature {
 public:
-  Extractor::Type preferred_type() const { return Extractor::STRING; }
+  Extractor::Type feature_type() const;
+};
+
+/** A view of a transient string.
+ * This is similar to @c VIEW. The difference is the view is of a string in non-plugin controlled
+ * memory which may disappear or change outside of plugin control. It must therefore be treated
+ * with a great deal more care than a @c VIEW type. This type can be converted to a @c VIEW by
+ * localizing (making a copy of) the string in the arena.
+ */
+class DirectFeature {
+public:
+  Extractor::Type feature_type() const;
+  virtual swoc::TextView direct_view(Context & ctx) const = 0;
 };
 
 class IPAddrFeature {
@@ -74,3 +140,5 @@ class IPAddrFeature {
 
 class IntegerFeature {
 };
+
+inline size_t Extractor::Format::size() const { return _items.size(); }

@@ -16,10 +16,6 @@
 
 #include <string>
 
-#include <swoc/TextView.h>
-#include <swoc/Errata.h>
-
-#include "txn_box/yaml-util.h"
 #include "txn_box/Comparison.h"
 #include "txn_box/Directive.h"
 

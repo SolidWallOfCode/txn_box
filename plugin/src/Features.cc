@@ -25,7 +25,7 @@ using swoc::TextView;
 const TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_url_host : public Extractor, public StringFeature {
+class Ex_creq_url_host : public Extractor, public ViewFeature {
   using self_type = Ex_creq_url_host;
   using super_type = Extractor;
 public:
@@ -45,7 +45,7 @@ TextView Ex_creq_url_host::direct_view(Context &ctx) const {
   return zret;
 }
 
-class Ex_creq_host : public Extractor, public StringFeature {
+class Ex_creq_host : public Extractor, public ViewFeature {
   using self_type = Ex_creq_host;
   using super_type = Extractor;
 public:

@@ -213,6 +213,37 @@ Errata Config::load_file(swoc::file::path const& file_path) {
   return std::move(zret);
 };
 
+Config& Config::uses(Extractor::Format & fmt) {
+  if (fmt.size() > 1) {
+    fmt._feature_type = Extractor::VIEW;
+  } else {
+    auto & spec { fmt[0] };
+    if (spec._extractor && spec._extractor->has_ctx_ref()) {
+      _ctx_ref_p = true;
+    }
+  };
+  return *this;
+};
+
+Config& Config::provides(Extractor::Format &fmt) {
+  if (fmt.size() > 1) {
+    fmt._feature_type = Extractor::VIEW;
+  } else {
+    auto & spec { fmt[0] };
+    if (spec._extractor) {
+      fmt._feature_type = spec._extractor->feature_type();
+      // Special case - if the feature type is @c DIRECT, which means it's a view of externally
+      // controlled data, that can break if used in a later directive via context reference.
+      // In that case, it needs to be copied locally and become a @c VIEW.
+      // Other types are scalars and get copied in to the context feature data in all cases.
+      if (fmt._feature_type == Extractor::DIRECT && _ctx_ref_p) {
+        _ctx_ref_p = false;
+        fmt._feature_type = Extractor::VIEW;
+      }
+    }
+  };
+  return *this;
+}
 /* ------------------------------------------------------------------------------------ */
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
   Context* ctx = static_cast<Context*>(TSContDataGet(cont));

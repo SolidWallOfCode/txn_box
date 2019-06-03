@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <swoc/TextView.h>
 #include <swoc/bwf_base.h>
 #include <yaml-cpp/yaml.h>
 
@@ -42,3 +43,42 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, YAML::Mark const &mark) {
   return w.print("Line {}", mark.line);
 }
 } // namespace swoc
+
+namespace YAML {
+
+// Need these to pass views in to node indexing.
+template <> struct convert<std::string_view> {
+  static Node
+  encode(std::string_view const &sv)
+  {
+    return Node() = std::string(sv.data(), sv.size());
+  }
+  static bool
+  decode(const Node &node, std::string_view &sv)
+  {
+    if (!node.IsScalar()) {
+      return false;
+    }
+    sv = std::string_view{node.Scalar()};
+    return true;
+  }
+};
+
+template <> struct convert<swoc::TextView> {
+  static Node
+  encode(swoc::TextView const &tv)
+  {
+    return Node() = std::string(tv.data(), tv.size());
+  }
+  static bool
+  decode(const Node &node, swoc::TextView &tv)
+  {
+    if (!node.IsScalar()) {
+      return false;
+    }
+    tv.assign(node.Scalar());
+    return true;
+  }
+};
+
+} // namespace YAML

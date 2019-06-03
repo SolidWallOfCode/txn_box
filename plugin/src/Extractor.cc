@@ -73,4 +73,18 @@ Errata Extractor::define(TextView name, self_type * ex) {
   return {};
 }
 
-Extractor::Type Extractor::preferred_type() const { return STRING; }
+Extractor::Type Extractor::feature_type() const { return VIEW; }
+
+bool Extractor::has_ctx_ref() const { return false; }
+
+Extractor::Type ViewFeature::feature_type() const { return Extractor::VIEW; }
+
+Extractor::Type DirectFeature::feature_type() const { return Extractor::DIRECT; }
+
+Extractor::Format::self_type Extractor::Format::push_back(Extractor::Spec const &spec) {
+  _items.push_back(spec);
+  if (spec._extractor && spec._extractor->has_ctx_ref()) {
+    _has_ctx_ref = true;
+  }
+}
+

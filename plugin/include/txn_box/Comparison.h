@@ -22,7 +22,8 @@
 
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
-#include <yaml-cpp/yaml.h>
+
+#include "txn_box/yaml-util.h"
 
 class Config;
 
@@ -37,7 +38,7 @@ public:
   using Assembler = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
 
   // Factory that maps from names to assemblers.
-  using Factory = std::unordered_map<swoc::TextView, Assembler>;
+  using Factory = std::unordered_map<swoc::TextView, Assembler, std::hash<std::string_view>>;
 
   /** Define an assembler that constructs @c Comparison instances.
    *

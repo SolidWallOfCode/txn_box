@@ -30,6 +30,7 @@ using TSCont = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;
 
 /// Contains a configuration and configuration helper methods.
+/// This is also used to pass information between node parsing during configuration loading.
 class Config {
   using self_type = Config; ///< Self reference type.
   using Errata = swoc::Errata;
@@ -77,12 +78,29 @@ public:
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
+  /** Indicate an extractor string is used by the @c Context.
+   *
+   * @param fmt Condensed extractor format string.
+   * @return @a this
+   */
+  self_type &uses(Extractor::Format & fmt);
+
+  /** Indicate a directive provides a context based feature.
+   *
+   * @param fmt Condensed extractor format string that defines the feature.
+   * @return @a this
+   */
+  self_type &provides(Extractor::Format & fmt);
+
 protected:
   friend class When;
   friend class Context;
 
   /// Mark whether there are any top level directives.
   bool _active_p { false };
+
+  /// If there is a pending context reference in an extractor format.
+  bool _ctx_ref_p { false };
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
@@ -97,4 +115,3 @@ inline bool Config::is_active() const { return _active_p; }
 inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
   return _roots[static_cast<unsigned>(hook)];
 }
-

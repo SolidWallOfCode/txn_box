@@ -95,6 +95,10 @@ public:
 
 protected:
   Extractor::Format _ex; ///< Extractor format.
+  /// Data type for @a _ex.
+  /// This is a @c STRING unless @a _ex is a singleton with a different preferred type.
+  Extractor::Type _feature_type = Extractor::VIEW;
+  Extractor::Feature _feature; ///< Extracted feature.
 
   /// A single case in the select.
   struct Case {
@@ -113,8 +117,7 @@ const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
 
 Errata With::invoke(Context &ctx) {
-  Errata zret;
-  return zret;
+  return {};
 }
 
 class WithTuple : public Directive {
@@ -152,7 +155,7 @@ protected:
   WithTuple(std::vector<Extractor::Format> && fmt, CaseGroup && cases) : _ex(std::move(fmt)), _cases(std::move(cases)) {}
 
   static swoc::Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
-  static Errata load_case(Config & cfg, CaseGroup& cases, YAML::Node node, unsigned tuple_size);
+  static Errata load_case(Config & cfg, CaseGroup& cases, YAML::Node node, unsigned size);
 };
 
 const std::string WithTuple::KEY { With::KEY };
@@ -196,8 +199,11 @@ swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML:
         zret.error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")"
                    , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
       }
+
       if (zret.is_ok()) {
-        return {Handle{new With(std::move(fmt), std::move(cases))}, {}};
+        auto drtv { new With(std::move(fmt), std::move(cases)) };
+        cfg.provides(drtv->_ex);
+        return {Handle{drtv}, {}};
       }
       return {{}, std::move(zret)};
     } else {
@@ -286,13 +292,13 @@ swoc::Rv<Directive::Handle> WithTuple::load(Config & cfg, YAML::Node drtv_node, 
   return { {}, std::move(zret) };
 }
 
-Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, unsigned tuple_size) {
+Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, unsigned size) {
   if (node.IsMap()) {
     Case c;
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
-      auto &[handle, errata]{cfg.load_directive(do_node)};
-      if (errata.is_ok()) {
-        c._do = std::move(handle);
+      auto &&[do_handle, do_errata]{cfg.load_directive(do_node)};
+      if (do_errata.is_ok()) {
+        c._do = std::move(do_handle);
       }
     } else {
       c._do.reset(new NilDirective);
@@ -317,8 +323,8 @@ Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, un
           return std::move(cmp_errata);
         }
       }
-      if (c._cmp.size() != tuple_size) {
-        return Errata().error(R"(Comparison list at {} has {} comparisons instead of the required {}.)", op_node.Mark(), c._cmp.size(), tuple_size);
+      if (c._cmp.size() != size) {
+        return Errata().error(R"(Comparison list at {} has {} comparisons instead of the required {}.)", op_node.Mark(), c._cmp.size(), size);
       }
     } else if (op_node.IsNull()) {
       return Errata().error(R"(Selection case at {} does not the required key of "{}", "{}", or "{}".)"

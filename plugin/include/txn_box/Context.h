@@ -24,6 +24,7 @@
 #include "txn_box/common.h"
 #include "txn_box/Directive.h"
 #include "txn_box/ts_util.h"
+#include "Extractor.h"
 
 class Config;
 
@@ -46,6 +47,8 @@ public:
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
   ts::HttpTxn _txn;
+  /// Current extracted feature data.
+  Extractor::Feature _feature;
 
   /// Directives for a particular hook.
   struct HookDirectives {
