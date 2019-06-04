@@ -403,7 +403,7 @@ which takes a variable name and value. The value can be later retrieved with the
 passing the name of the variable in the extension. E.g. to set the "thing" variable to the host in
 the client request ::
 
-   set-var: [ "thing" "{creq.field::host}" ]
+   set-var: [ "thing" "{creq-field::host}" ]
 
 Afterwards the value can be extracted with "{var::thing}" in any extraction string.
 
@@ -421,7 +421,7 @@ internal) could be done as ::
 
   when: read-response
   do:
-     with: "{creq.is_internal}"
+     with: "{creq-is-internal}"
      select:
         eq: true
         do:
@@ -434,56 +434,65 @@ Feature Tuples
 ++++++++++++++
 
 The basic configuration requires selections to be done on a single extracted feature of the
-transaction. This should be adequate for almost all uses, but there are some rare edge cases
-where selecting on more than one feature in parallel is required. In this case a tuple of
-features can be created and then matched against.
+transaction. This should be adequate for almost all uses, and very much in the style of the existing
+"remap.config". In addition, the presence of the :code:`not` comparison means many cases that are
+naturally a combination of two feature compares can be changed to :code:`not` of alternatives.
+Still, there are some rare edge cases where selecting on more than one feature in parallel is
+useful. In this case a tuple of features can be created and then matched against.
 
-The tupleis created by passing :code:`with` a list of extractors. Each extractor generates a
-feature which is stored in the tuple. When matching, the :code:`tuple` key must be used to
-provide a tuple of comparison operators. Each operator is applied to the corresponding feature
-tuple element and the case matches iff all of the comparison operaors match. Every case must
-have a comparison operator for each member of the tuple, with the exception of the :code:`else`
-comparison operator, which is taken as short hand for using the :code:`anything` comparison
-operator for all membersof the tuple (that is, all possible tuple values will be matched).
+The tuple is created by passing :code:`with` a list of extractors. Each extractor generates a
+feature which is stored in a "feature tuple". When matching a "combination" key must be used to
+provide a list of comparison operators. These keys are
+
+:code:`all-of`
+    The match succeeds if every comparison succeeds.
+
+:code:`any-of`
+    The match succeeds if any comparison succeeds.
+
+:code:`none-of`
+    The match succeeds if no comparsion succeeds (all must fail).
+
+:code:`else`
+    The match succeeds. This combination is not allowed to have any comparison operators.
+
+The list of comparisons for the combination (except :code:`else`) must be exactly the same length as the feature
+list. Each comparison in the list is applied to the corresponding feature tuple element.
 
 The simplest example is doing access control based on both method and source address. In this
 example, the goal is
 
 *  Loopback should be able to use all methods.
 *  Non-routables should be able to use "GET", "POST", "HEAD", and "DELETE".
-*  Other addresses should be restricted to "GEt", "POST", "HEAD".
+*  Other addresses should be restricted to "GET", "POST", "HEAD".
 
 Suitable configuration could be ::
 
-   with: [ "{creq.method}, "{inbound.remove_addr}" ]
+   with: [ "{creq-method}", "{inbound-remote-addr}" ]
    select:
-   -  tuple:
-      -  anything:
+   -  any-of:
+      -  match: [ "GET", "POST", "HEAD ]
       -  in: [ "127.0.0.0/8", "::1" ]
       do: # nothing - transaction allowed
-   -  tuple:
-      -  match: [ "GET", "POST", "HEAD", "DELETE" ]
+   -  all-of:
+      -  match: "DELETE"
       -  in: [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" ]
-      do: # nothing - transaction allowed
-   -  tuple:
-      -  match: [ "GET", "POST", "HEAD" ]
-      -  anything:
       do: # nothing - transaction allowed
    -  else:
       do:
-         deny: # not allowd
+         deny: # not allowed
 
 This could have be done without a feature tuple at the cost of some repetition. The actual use
 cases that require this mechanism are rare and difficult to reduce to a sufficiently simple example.
 Without a feature tuple, this could be done with ::
 
-   with: {inbound.remove_addr}
+   with: {inbound-remoye-addr}
    select:
    -  in: [ "127.0.0.0/8", "::1" ]
       do: # nothing - transaction allowed.
    -  in: [ "10.0.0.8/8", "172.16.0.0/12", "192.168.0.0/16" ]
       do:
-         with: "{creq.method}"
+         with: "{creq-method}"
          select:
          -  not:
                match: [ "GET", "POST", "HEAD", "DELETE" ]
@@ -491,7 +500,7 @@ Without a feature tuple, this could be done with ::
                deny:
    -  else:
       do:
-         with: "{creq.method}"
+         with: "{creq-method}"
          select:
          -  match: [ "GET", "POST", "HEAD" ]
             do: # nothing - transaction allowed
@@ -502,6 +511,12 @@ Without a feature tuple, this could be done with ::
 Because of no backtracking, once an address is selected it is only necessary to block invalid
 methods. This can be done either with :code:`not` to match invalid methods, or by matching
 the valid methods and using :code:`else` to do the :code:`deny`.
+
+This is also easier because of YAML support for `anchors and references
+<https://yaml.org/spec/1.2/spec.html#id2784064>`__ means that even if the configuration must be
+repeated that can be done syntatically rather than actually copying the configuration. This wouldn't
+be any help in this example, but if the configuration in the alternates were non-trivial it can of
+great benefit.
 
 IP Address Maps
 ===============

@@ -80,12 +80,22 @@ bool Extractor::has_ctx_ref() const { return false; }
 
 Extractor::Type ViewFeature::feature_type() const { return Extractor::VIEW; }
 
-Extractor::Type DirectFeature::feature_type() const { return Extractor::DIRECT; }
-
-Extractor::Format::self_type Extractor::Format::push_back(Extractor::Spec const &spec) {
-  _items.push_back(spec);
-  if (spec._extractor && spec._extractor->has_ctx_ref()) {
-    _has_ctx_ref = true;
+Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
+  _specs.push_back(spec);
+  // update properties.
+  if (spec._type != swoc::bwf::Spec::LITERAL_TYPE) {
+    _literal_p = false;
+    if (_specs.size() == 1) {
+      if (spec._extractor) {
+        _feature_type = spec._extractor->feature_type();
+        if (nullptr == dynamic_cast<DirectFeature*>(spec._extractor)) {
+          _direct_p = false;
+        }
+      }
+    } else { // multiple items
+      _direct_p = false;
+    }
   }
+  return *this;
 }
 

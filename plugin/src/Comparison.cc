@@ -30,7 +30,7 @@ Errata Comparison::define(swoc::TextView name, Comparison::Assembler &&cmp_asm) 
   return {};
 }
 
-Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
+Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType type, YAML::Node node) {
   for ( auto const& [ key_node, value_node ] : node ) {
     TextView key { key_node.Scalar() };
     if (key == Directive::DO_KEY) {
@@ -39,13 +39,26 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to comparison. First key that is in the factory determines the comparison type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      return spot->second(cfg, node, value_node);
+      auto &&[handle, errata]{spot->second(cfg, node, value_node)};
+
+      if (!errata.is_ok()) {
+        return {{}, std::move(errata)};
+      }
+
+      if (!handle->is_valid_for(type)) {
+        return {{}, Errata().error(
+            R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark()
+            , type)};
+      }
+      return {std::move(handle), {}};
     }
   }
   return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
 }
 
-/// Exact string match.
+bool StringComparison::is_valid_for(FeatureType type) const { return type == FeatureType::VIEW; }
+
+/// String match.
 class Cmp_Match : public StringComparison {
   using self_type = Cmp_Match;
   using super_type = StringComparison;
@@ -56,7 +69,7 @@ public:
   bool operator() (TextView text) override;
 
 protected:
-  std::string _value; ///< Valuie to match.
+  std::string _value; ///< Value to match.
 
   explicit Cmp_Match(TextView text);
 };
@@ -81,3 +94,4 @@ namespace {
   return true;
 } ();
 }; // namespace
+

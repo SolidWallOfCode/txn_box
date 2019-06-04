@@ -20,12 +20,13 @@
 #include <vector>
 
 #include <swoc/TextView.h>
+#include <swoc/MemArena.h>
 #include <swoc/swoc_file.h>
-#include <yaml-cpp/yaml.h>
 
 #include "txn_box/common.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Directive.h"
+#include "txn_box/yaml_util.h"
 
 using TSCont = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;
@@ -68,6 +69,30 @@ public:
    */
   swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node);
 
+  /** Load / create a directive from a node.
+   *
+   * @param drtv_node Directive node.
+   * @param feature_type Provided feature type.
+   * @param referenced_p Set if feature was referenced.
+   *
+   * @return A new directive instance, or errors if loading failed.
+   *
+   * This is used by directives that provide a feature and contain other directives. The type of
+   * the feature must be specified and also a flag, which is set if any of the directives loaded
+   * by this call reference the feature. This can be used to perform optimizations if desired.
+   */
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool& referenced_p);
+
+  /** Parse a string as a feature extractor.
+   *
+   * @param fmt Input string.
+   * @return The condensed extractor format or errors on failure.
+   *
+   * This should be called instead of the direct call in order for the @c Config to track
+   * extractor use, particularly with regard to the active feature.
+   */
+  swoc::Rv<Extractor::Format> parse_feature(swoc::TextView fmt_string);
+
   /// Check for active directives.
   /// @return @a true if there are any top level directives, @c false if not.
   bool is_active() const;
@@ -79,6 +104,7 @@ public:
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
+  #if 0
   /** Indicate an extractor string is used by the @c Context.
    *
    * @param fmt Condensed extractor format string.
@@ -92,6 +118,7 @@ public:
    * @return @a this
    */
   self_type &provides(Extractor::Format & fmt);
+  #endif
 
 protected:
   friend class When;
@@ -100,8 +127,12 @@ protected:
   /// Mark whether there are any top level directives.
   bool _active_p { false };
 
-  /// If there is a pending context reference in an extractor format.
-  bool _ctx_ref_p { false };
+  /// Flag and reference. If set, there is an active feature and this is the reference flag.
+  /// If not, then no active feature.
+  bool * _feature_ref_p { nullptr };
+
+  /// If a feature is active, this is the type.
+  Extractor::Type _feature_type { Extractor::VIEW };
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
@@ -109,6 +140,9 @@ protected:
   /// Maximum number of directives that can execute in a specific hook. These are updated during
   /// directive load, if needed. This includes the top level directives.
   std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
+
+  /// For localizing data at a configuration level, primarily strings.
+  swoc::MemArena _arena;
 };
 
 inline bool Config::is_active() const { return _active_p; }

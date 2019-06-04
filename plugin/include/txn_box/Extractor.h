@@ -25,23 +25,14 @@
 #include <swoc/Errata.h>
 #include <swoc/swoc_ip.h>
 
+#include "txn_box/common.h"
+
 class Context;
 
 class Extractor {
   using self_type = Extractor; ///< Self reference type.
 public:
-  /// Preferred type, if any, for the extracted feature.
-  enum Type {
-    VIEW, ///< View of a string.
-    INTEGER, ///< An integer.
-    IP_ADDR, ///< IP Address
-    BOOL ///< Boolean.
-  };
-
-  /** Data storage for a feature.
-   * This is carefully arranged to have types in the same order as @c Type.
-   */
-  using Feature = std::variant<swoc::TextView, intmax_t, swoc::IPAddr, bool>;
+  using Type = FeatureType; ///< Import for convenience.
 
   /// Container for extractor factory.
   using Table = std::unordered_map<std::string_view, self_type *>;
@@ -62,18 +53,20 @@ public:
     /// @defgroup Properties.
     /// @{
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
-    bool _literal_p = false; ///< @c true if the format is only literals, no extractors.
+    bool _literal_p = true; ///< @c true if the format is only literals, no extractors.
     bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
     /// @}
 
     /// Type of feature extracted by this format.
     Type _feature_type = VIEW;
 
+    /// Condensed format string.
+    using Specifiers = std::vector<Spec>;
     /// Specifiers / elements of the parsed format string.
-    std::vector<Spec> _items;
+    Specifiers _specs;
 
     /// Add an format specifier item to the format.
-    self_type push_back(Spec const& spec);
+    self_type & push_back(Spec const& spec);
 
     /// The number of elements in the format.
     size_t size() const;
@@ -83,7 +76,34 @@ public:
      * @param idx Element index.
      * @return A reference to the element.
      */
-    Spec& operator [] (size_t idx) { return _items[idx]; }
+    Spec& operator [] (size_t idx) { return _specs[idx]; }
+  };
+
+  /** Format extractor for BWF.
+   * Walk the @c Format and pull out the items for BWF.
+   */
+  class FmtEx {
+  public:
+    FmtEx(Format::Specifiers const& specs) : _specs(specs), _iter(specs.begin()) {}
+
+    bool operator()() const { return _iter != _specs.end(); }
+    bool operator()(std::string_view& literal, Spec & spec) {
+      bool zret = false;
+      Spec const& current { *_iter++ };
+      if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
+        literal = _iter->_ext;
+        ++_iter;
+      }
+      if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
+        spec = *_iter;
+        ++_iter;
+        zret = true;
+      }
+      return zret;
+    };
+  protected:
+    Format::Specifiers const& _specs;
+    Format::Specifiers::const_iterator _iter;
   };
 
   /// @defgroup Properties. Property methods for extractors.
@@ -100,7 +120,7 @@ public:
    */
   virtual Type feature_type() const;
 
-  /** Whether the extactor uses data from the contest.
+  /** Whether the extractor uses data from the contest.
    *
    * This is important for @c DIRECT features - if there is a potential reference to that value
    * in another directive, it must be "upgraded" to a @c VIEW to avoid using changed or invalid data.
@@ -111,6 +131,8 @@ public:
   virtual bool has_ctx_ref() const;
 
   /// @}
+
+  virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) = 0;
 
   /** Parse a format string.
    *
@@ -152,4 +174,4 @@ class IPAddrFeature {
 class IntegerFeature {
 };
 
-inline size_t Extractor::Format::size() const { return _items.size(); }
+inline size_t Extractor::Format::size() const { return _specs.size(); }

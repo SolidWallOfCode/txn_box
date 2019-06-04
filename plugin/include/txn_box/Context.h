@@ -38,17 +38,55 @@ class Context {
   using self_type = Context;
 public:
 
-  Context(Config & cfg);
+  /// Construct based a specific configuration.
+  explicit Context(Config & cfg);
 
   swoc::Errata when_do(Hook hook_idx, Directive * drtv);
 
   swoc::Errata invoke_for_hook(Hook hook);
 
+  swoc::Errata extract(Extractor::Format const& fmt);
+
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
   ts::HttpTxn _txn;
   /// Current extracted feature data.
-  Extractor::Feature _feature;
+  FeatureData _feature;
+
+  void names(swoc::BufferWriter& w, Extractor::Spec const& spec);
+
+  class ArgPack : public swoc::bwf::ArgPack {
+  public:
+    explicit ArgPack(Context& ctx) : _ctx(ctx) {}
+
+    /** Get argument at index @a idx.
+      *
+      * @param idx Argument index.
+      * @return The argument value.
+      *
+      * Should have BWF supply a default implementation that throws - this is used in so few
+      * cases it shouldn't have to be implemented by default.
+      */
+    std::any capture(unsigned idx) const override { return std::string_view{"Bogus"}; }
+
+    /** Generate formatted output for an argument.
+     *
+     * @param idx Argument index.
+     * @param w Output.
+     * @param spec Formatting specifier (should be a @c Extractor::Spec)
+     * @return @a w
+     *
+     * For now this is unimplemented - it will get filled out when regex support is done.
+     */
+    swoc::BufferWriter &print(unsigned idx, swoc::BufferWriter &w, swoc::bwf::Spec const &spec) const override {
+      return w;
+    }
+
+    /// Number of arguments in the pack.
+    unsigned count() const override { return 0; }
+
+    Context& _ctx;
+  };
 
   /// Directives for a particular hook.
   struct HookDirectives {

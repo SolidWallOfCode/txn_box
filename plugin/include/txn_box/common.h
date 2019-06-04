@@ -17,7 +17,23 @@
 #pragma once
 
 #include <tuple>
+#include <variant>
+
+#include <swoc/swoc_ip.h>
 #include <swoc/Lexicon.h>
+
+/// Supported feature types.
+enum FeatureType {
+  VIEW, ///< View of a string.
+  INTEGER, ///< An integer.
+  IP_ADDR, ///< IP Address
+  BOOL ///< Boolean.
+};
+
+/** Data storage for a feature.
+ * This is carefully arranged to have types in the same order as @c Type.
+ */
+using FeatureData = std::variant<swoc::TextView, intmax_t, swoc::IPAddr, bool>;
 
 /// Supported hooks.
 enum class Hook {

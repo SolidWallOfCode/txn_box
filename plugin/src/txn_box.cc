@@ -16,6 +16,7 @@
 
 #include <string>
 #include <map>
+#include <numeric>
 #include <getopt.h>
 
 #include <swoc/TextView.h>
@@ -74,6 +75,11 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 
 Config Plugin_Config;
 
+template < typename F > struct scope_exit {
+  F _f;
+  explicit scope_exit(F &&f) : _f(std::move(f)) {}
+  ~scope_exit() { _f(); }
+};
 /* ------------------------------------------------------------------------------------ */
 TextView ts::URL::host() {
   char const* text;
@@ -128,7 +134,50 @@ ts::HttpHeader ts::HttpTxn::preq_hdr() {
 }
 
 /* ------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------ */
+Rv<Extractor::Format> Config::parse_feature(swoc::TextView fmt_string) {
+  auto && [ fmt, errata ] { Extractor::parse(fmt_string) };
+  if (errata.is_ok()) {
+
+    if (fmt._ctx_ref_p && _feature_ref_p) {
+      *_feature_ref_p = true;
+    }
+
+    // If the extraction is piece-wise literal, consolidate into a single literal.
+    if (fmt._literal_p && fmt.size() > 1) {
+      size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [] (size_t sum, Extractor::Spec const& spec) -> size_t { return sum += spec._ext.size(); });
+      auto span { _arena.alloc(n).rebind<char>() };
+      Extractor::Spec literal_spec;
+      literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
+      literal_spec._ext = { span.data(), span.size() };
+      for ( auto const& spec : fmt._specs ) {
+        memcpy(span.data(), spec._ext.data(), spec._ext.size());
+        span.remove_prefix(spec._ext.size());
+      }
+      fmt._specs.resize(1);
+      fmt._specs[0] = literal_spec;
+    }
+  }
+  return { std::move(fmt), std::move(errata) };
+}
+
+// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During
+// load, all paths must be explored and so the active feature needs to be stacked up. During
+// runtime, only one path is followed and therefore this isn't required.
+Rv<Directive::Handle>
+Config::load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool &referenced_p) {
+  bool * saved_flag = _feature_ref_p;
+  Extractor::Type saved_type = _feature_type;
+  _feature_ref_p = &referenced_p;
+  _feature_type = feature_type;
+  // put the old values back on return, this is cleaner than needing a temporary and @c std::move
+  // to perform the restore.
+  scope_exit cleanup([&] () {
+    _feature_ref_p = saved_flag;
+    _feature_type = saved_type;
+  });
+
+  return this->load_directive(drtv_node);
+}
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {

@@ -24,6 +24,7 @@
 #include <swoc/Errata.h>
 
 #include "txn_box/yaml_util.h"
+#include "txn_box/common.h"
 
 class Config;
 
@@ -40,6 +41,13 @@ public:
   // Factory that maps from names to assemblers.
   using Factory = std::unordered_map<swoc::TextView, Assembler, std::hash<std::string_view>>;
 
+  /** Check if the comparison is valid for @a type.
+   *
+   * @param type Type of feature to compare.
+   * @return @c true if this comparison can compare to that feature type, @c false otherwise.
+   */
+  virtual bool is_valid_for(FeatureType type) const = 0;
+
   /** Define an assembler that constructs @c Comparison instances.
    *
    * @param name Name for key node to indicate this comparison.
@@ -48,7 +56,14 @@ public:
    */
   static swoc::Errata define(swoc::TextView name, Assembler && cmp_asm);
 
-  static swoc::Rv<Handle> load(Config & cfg, YAML::Node node);
+  /** Load a comparison from a YAML @a node.
+   *
+   * @param cfg Configuration object.
+   * @param type Type of feature for comparison.
+   * @param node Node with comparison config.
+   * @return A constructed instance or errors on failure.
+   */
+  static swoc::Rv<Handle> load(Config & cfg, FeatureType type, YAML::Node node);
 
 protected:
   /// The assemblers.
@@ -60,6 +75,8 @@ class StringComparison : public Comparison {
   using self_type = StringComparison;
   using super_type = Comparison;
 public:
+
+  bool is_valid_for(FeatureType type) const override;
 
   virtual bool operator () (swoc::TextView text) = 0;
 

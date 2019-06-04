@@ -36,10 +36,14 @@
 cmake-build*
 include/swoc
 include/yaml-cpp
+include/swoc
+include/ts
+include/tscpp
 /lib
 /bin
 /doc/docbuild
 /doc/pix
+/doc/ext
 /doc/ext/local-config.py
 /etc
 /lib64

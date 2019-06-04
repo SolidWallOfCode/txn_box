@@ -58,6 +58,18 @@ Errata Context::invoke_for_hook(Hook hook) {
   return {};
 }
 
+void Context::names(swoc::BufferWriter& w, Extractor::Spec const& spec) {
+  spec._extractor->format(w, spec, *this);
+}
+
+Errata Context::extract(Extractor::Format const &fmt) {
+  if (fmt._direct_p) {
+  } else {
+    swoc::FixedBufferWriter w{ _arena->remnant().rebind<char>() };
+    w.print_nfv(this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
+  };
+}
+
 ts::HttpHeader Context::creq_hdr() {
   if (!_creq.is_valid()) {
     _creq = _txn.creq_hdr();
