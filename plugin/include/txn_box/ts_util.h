@@ -74,6 +74,9 @@ public:
   HttpField() = default;
 
   swoc::TextView value();
+
+  bool assign(swoc::TextView value);
+
 protected:
   HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc);
 
@@ -85,8 +88,35 @@ class HttpHeader : public HeapObject {
   using self_type = HttpHeader; ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
+  /** Retrieve the URL object from the header.
+   *
+   * @return A URL object wrapper.
+   */
   URL url();
+
+  /** Find the field with @a name.
+   *
+   * @param name Field name.
+   * @return The field if found, an invalid field if not.
+   */
   HttpField field(swoc::TextView name);
+
+  /** Create a field with @a name and no value.
+   *
+   * @param name Name of field.
+   * @return A valid on success, invalid on error.
+   */
+  HttpField field_create(swoc::TextView name);
+
+  /** Find or create a field with @a name.
+   *
+   * @param name Name of the field.
+   * @return A valid field on success, invalid on error.
+   *
+   * This is convenient for setting a field, as it will create the field if not found. Failure
+   * to get a valid field indicates a bad HTTP header object.
+   */
+  HttpField field_obtain(swoc::TextView name);
 
 public:
   HttpHeader() = default;
@@ -123,6 +153,8 @@ inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc
 inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 
 inline HttpTxn::operator TSHttpTxn() const { return _txn; }
+
+const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 
 }; // namespace ts
 

@@ -36,7 +36,16 @@ class Config;
  */
 class Context {
   using self_type = Context;
+  /// Cleanup functor for an inverted arena.
+  /// @internal Because the arena is inverted, calling the destructor will clean up everything.
+  /// For this reason @c delete must @b not be called (that will double free).
+  struct ArenaDestructor {
+    void operator()(swoc::MemArena* arena) { arena->swoc::MemArena::~MemArena(); }
+  };
 public:
+  /// Transaction local storage.
+  /// This is a pointer so that the arena can be inverted to minimize allocations.
+  std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
 
   /// Construct based a specific configuration.
   explicit Context(Config & cfg);
@@ -45,7 +54,34 @@ public:
 
   swoc::Errata invoke_for_hook(Hook hook);
 
-  swoc::Errata extract(Extractor::Format const& fmt);
+  /** Extract a feature.
+   *
+   * @param fmt The extraction format.
+   * @return The feature.
+   *
+   * This extracts the feature as described by @a fmt. This feature is transient and will potentially
+   * be overwritten by the next feature extraction. If the feature should be preserved longer than
+   * that, use @c commit.
+   *
+   * The purpose of this is to permit examining the feature after extraction and before committing
+   * it to transaction local memory.
+   *
+   * @see commit
+   */
+  FeatureData extract(Extractor::Format const& fmt);
+
+  /** Commit a feature.
+   *
+   * @param feature Feature to commit.
+   * @return @a this
+   *
+   * This causes the feature data in @a feature to be committed such that it will no longer be
+   * overwritten by future feature extractions. This @b must be called on the most recently
+   * extracted feature.
+   *
+   * @see extract
+   */
+  self_type& commit(FeatureData const& feature);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
@@ -53,7 +89,7 @@ public:
   /// Current extracted feature data.
   FeatureData _feature;
 
-  void names(swoc::BufferWriter& w, Extractor::Spec const& spec);
+  void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
   class ArgPack : public swoc::bwf::ArgPack {
   public:
@@ -100,20 +136,9 @@ public:
   std::array<HookDirectives, std::tuple_size<Hook>::value> _directives;
 
   ts::HttpHeader creq_hdr();
+  ts::HttpHeader preq_hdr();
 
 protected:
-
-  /// Cleanup functor for an inverted arena.
-  /// @internal Because the arena is inverted, calling the destructor will clean up everything.
-  /// For this reason @c delete must @b not be called (that will double free).
-  struct ArenaDestructor {
-    void operator()(swoc::MemArena* arena) { arena->swoc::MemArena::~MemArena(); }
-  };
-
-  /// Transaction local storage.
-  /// This is a pointer so that the arena can be inverted to minimize allocations.
-  std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
-
   // HTTP header objects for the transaction.
   ts::HttpHeader _creq; ///< Client request header.
   ts::HttpHeader _preq; ///< Proxy request header.

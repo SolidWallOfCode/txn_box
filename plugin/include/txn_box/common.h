@@ -22,18 +22,55 @@
 #include <swoc/swoc_ip.h>
 #include <swoc/Lexicon.h>
 
+namespace swoc {
+class BufferWriter;
+namespace bwf {
+class Spec;
+} // namespace bwf
+} // namespace swoc
+
 /// Supported feature types.
 enum FeatureType {
   VIEW, ///< View of a string.
   INTEGER, ///< An integer.
   IP_ADDR, ///< IP Address
-  BOOL ///< Boolean.
+  BOOL, ///< Boolean.
 };
 
-/** Data storage for a feature.
- * This is carefully arranged to have types in the same order as @c Type.
+/** Data for a feature that is a view / string.
+ * This is a @c TextView with a couple of extra flags to indicate the semantic location of the
+ * string memory. If neither flag is set, the string data should be presumed to exist in transient
+ * transaction memory and is therefore subject to overwriting.
  */
-using FeatureData = std::variant<swoc::TextView, intmax_t, swoc::IPAddr, bool>;
+class FeatureView : public swoc::TextView {
+  using self_type = FeatureView;
+  using super_type = swoc::TextView;
+public:
+  bool _direct_p = false; ///< String is in externally controlled memory.
+  bool _literal_p = false; ///< String is in transaction static memory.
+
+  using super_type::super_type;
+  using super_type::operator=;
+
+  static self_type Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
+};
+
+/// Feature descriptor storage.
+/// @note view types have only the view stored here, the string memory is elsewhere.
+using FeatureData = std::variant<FeatureView, intmax_t, swoc::IPAddr, bool>;
+
+/** Convert a feature @a type to a variant index.
+ *
+ * @param type Feature type.
+ * @return Index in @c FeatureData for that feature type.
+ */
+inline unsigned IndexFor(FeatureType type) {
+  static constexpr std::array<unsigned, 4> IDX { 0, 1, 2, 3, };
+  return IDX[static_cast<unsigned>(type)];
+};
+
+extern swoc::Lexicon<FeatureType> FeatureTypeName;
+extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, FeatureType type);
 
 /// Supported hooks.
 enum class Hook {

@@ -78,7 +78,7 @@ Extractor::Type Extractor::feature_type() const { return VIEW; }
 
 bool Extractor::has_ctx_ref() const { return false; }
 
-Extractor::Type ViewFeature::feature_type() const { return Extractor::VIEW; }
+Extractor::Type ViewFeature::feature_type() const { return VIEW; }
 
 Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
   _specs.push_back(spec);

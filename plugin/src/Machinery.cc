@@ -29,6 +29,8 @@
 using swoc::TextView;
 using swoc::Errata;
 using swoc::Rv;
+using swoc::BufferWriter;
+namespace bwf = swoc::bwf;
 
 const std::string Directive::DO_KEY { "do" };
 /* ------------------------------------------------------------------------------------ */
@@ -51,28 +53,28 @@ Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Do_Set_Preq_Url_Host : public Directive {
+class Do_set_preq_url_host : public Directive {
   using super_type = Directive;
-  using self_type = Do_Set_Preq_Url_Host;
+  using self_type = Do_set_preq_url_host;
 public:
   static const std::string KEY;
 
-  explicit Do_Set_Preq_Url_Host(TextView text) : _host(text) {}
+  explicit Do_set_preq_url_host(TextView text) : _host(text) {}
 
   Errata invoke(Context &ctx) override;
-  static swoc::Rv<Handle> load(YAML::Node node);
+  static Rv<Handle> load(YAML::Node node);
 protected:
   std::string _host;
 };
 
-const std::string Do_Set_Preq_Url_Host::KEY { "set-preq-url-host" };
+const std::string Do_set_preq_url_host::KEY { "set-preq-url-host" };
 
-Errata Do_Set_Preq_Url_Host::invoke(Context &ctx) {
+Errata Do_set_preq_url_host::invoke(Context &ctx) {
   Errata zret;
   return zret;
 }
 
-swoc::Rv<Directive::Handle> Do_Set_Preq_Url_Host::load(YAML::Node node) {
+swoc::Rv<Directive::Handle> Do_set_preq_url_host::load(YAML::Node node) {
   Errata errata;
   if ( auto item { node[KEY] } ; item ) {
     return { Handle{new self_type{item.Scalar()}}, {} };
@@ -81,6 +83,65 @@ swoc::Rv<Directive::Handle> Do_Set_Preq_Url_Host::load(YAML::Node node) {
   return { {}, errata };
 }
 
+/* ------------------------------------------------------------------------------------ */
+class Do_set_preq_field : public Directive {
+  using self_type = Do_set_preq_field;
+public:
+  static const std::string KEY;
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Extractor::Format _name_fmt;
+  Extractor::Format _value_fmt;
+
+  Do_set_preq_field() = default;
+};
+
+const std::string Do_set_preq_field::KEY { "set-preq-field" };
+
+Errata Do_set_preq_field::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<VIEW>(ctx.extract(_name_fmt));
+    if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
+      TextView value = std::get<VIEW>(ctx.extract(_value_fmt));
+      field.assign(value);
+    }
+    return Errata().error(R"(Failed to find or create field "{}")", name);
+  }
+  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+}
+
+Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  if (key_node.IsSequence()) {
+    if (key_node.size() == 2) {
+      auto name_node { key_node[0] };
+      auto value_node { key_node[1] };
+      if (name_node.IsScalar() && value_node.IsScalar()) {
+        auto && [ name_fmt, name_errata ] { cfg.parse_feature(name_node.Scalar()) };
+        if (name_errata.is_ok()) {
+          auto &&[value_fmt, value_errata]{cfg.parse_feature(value_node.Scalar())};
+          if (value_errata.is_ok()) {
+            auto self{new self_type};
+            self->_name_fmt = std::move(name_fmt);
+            self->_value_fmt = std::move(value_fmt);
+            return {Handle(self), {}};
+          }
+          return {{}, std::move(
+              value_errata.error(R"(While parsing value (second item) for "{}" key at {}.)", KEY
+                                 , key_node))};
+        }
+        return {{}, std::move(
+            name_errata.error(R"(While parsing name (first item) for "{}" key at {}.)", KEY
+                               , key_node))};
+      }
+      return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 strings as required.)", KEY, key_node) };
+    }
+    return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 elements as required.)", KEY, key_node) };
+  }
+  return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node) };
+}
 /* ------------------------------------------------------------------------------------ */
 
 /** @c with directive.
@@ -163,8 +224,22 @@ static const std::string NONE_OF_KEY { "none-of" };
 static const std::string ELSE_KEY { "else" };
 
 const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY }, { ELSE, ELSE_KEY } };
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op) {
+  if (spec.has_numeric_type()) {
+    return bwformat(w, spec, static_cast<unsigned>(op));
+  }
+  return bwformat(w, spec, WithTuple::OpName[op]);
+}
+
 
 Errata With::invoke(Context &ctx) {
+  FeatureData feature { ctx.extract(_ex) };
+  for ( auto const& c : _cases ) {
+    if ((*c._cmp)(feature)) {
+      ctx._feature = feature;
+      return c._do->invoke(ctx);
+    }
+  }
   return {};
 }
 

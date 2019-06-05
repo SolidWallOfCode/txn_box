@@ -132,7 +132,7 @@ protected:
   bool * _feature_ref_p { nullptr };
 
   /// If a feature is active, this is the type.
-  Extractor::Type _feature_type { Extractor::VIEW };
+  Extractor::Type _feature_type { VIEW };
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;

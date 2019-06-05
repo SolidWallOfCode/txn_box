@@ -35,10 +35,24 @@
 using swoc::TextView;
 using swoc::Errata;
 using swoc::Rv;
-
+using swoc::BufferWriter;
+namespace bwf = swoc::bwf;
 /* ------------------------------------------------------------------------------------ */
 
 const std::string Config::ROOT_KEY { "txn_box" };
+
+swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::VIEW, "string"}
+                                            , {FeatureType::INTEGER, "integer"}
+                                            , {FeatureType::BOOL, "boolean"}
+                                            , {FeatureType::IP_ADDR, "IP address"}
+                                           }};
+
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, FeatureType type) {
+  if (spec.has_numeric_type()) {
+    return bwformat(w, spec, static_cast<unsigned>(type));
+  }
+  return bwformat(w, spec, FeatureTypeName[type]);
+}
 
 swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
@@ -133,6 +147,29 @@ ts::HttpHeader ts::HttpTxn::preq_hdr() {
   return {};
 }
 
+ts::HttpField ts::HttpHeader::field_create(TextView name) {
+  if (this->is_valid()) {
+    TSMLoc field_loc;
+    if (TS_SUCCESS ==
+        TSMimeHdrFieldCreateNamed(_buff, _loc, name.data(), name.size(), &field_loc)) {
+      if (TS_SUCCESS == TSMimeHdrFieldAppend(_buff, _loc, field_loc)) {
+        return HttpField{_buff, _loc, field_loc};
+      }
+      TSMimeHdrFieldDestroy(_buff, _loc, field_loc);
+    }
+  }
+  return {};
+}
+
+ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
+  if (this->is_valid()) {
+    if (HttpField field { this->field(name) } ; field.is_valid()) {
+      return field;
+    }
+    return this->field_create(name);
+  }
+  return {};
+}
 /* ------------------------------------------------------------------------------------ */
 Rv<Extractor::Format> Config::parse_feature(swoc::TextView fmt_string) {
   auto && [ fmt, errata ] { Extractor::parse(fmt_string) };
@@ -264,37 +301,6 @@ Errata Config::load_file(swoc::file::path const& file_path) {
   return std::move(zret);
 };
 
-Config& Config::uses(Extractor::Format & fmt) {
-  if (fmt.size() > 1) {
-    fmt._feature_type = Extractor::VIEW;
-  } else {
-    auto & spec { fmt[0] };
-    if (spec._extractor && spec._extractor->has_ctx_ref()) {
-      _ctx_ref_p = true;
-    }
-  };
-  return *this;
-};
-
-Config& Config::provides(Extractor::Format &fmt) {
-  if (fmt.size() > 1) {
-    fmt._feature_type = Extractor::VIEW;
-  } else {
-    auto & spec { fmt[0] };
-    if (spec._extractor) {
-      fmt._feature_type = spec._extractor->feature_type();
-      // Special case - if the feature type is @c DIRECT, which means it's a view of externally
-      // controlled data, that can break if used in a later directive via context reference.
-      // In that case, it needs to be copied locally and become a @c VIEW.
-      // Other types are scalars and get copied in to the context feature data in all cases.
-      if (fmt._feature_type == Extractor::DIRECT && _ctx_ref_p) {
-        _ctx_ref_p = false;
-        fmt._feature_type = Extractor::VIEW;
-      }
-    }
-  };
-  return *this;
-}
 /* ------------------------------------------------------------------------------------ */
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
   Context* ctx = static_cast<Context*>(TSContDataGet(cont));

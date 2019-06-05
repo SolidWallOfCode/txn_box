@@ -56,17 +56,16 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType type, YAML::No
   return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
 }
 
-bool StringComparison::is_valid_for(FeatureType type) const { return type == FeatureType::VIEW; }
-
 /// String match.
-class Cmp_Match : public StringComparison {
+class Cmp_Match : public Comparison {
   using self_type = Cmp_Match;
-  using super_type = StringComparison;
+  using super_type = Comparison;
 public:
   static constexpr TextView NAME { "match" };
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
-  bool operator() (TextView text) override;
+  bool is_valid_for(FeatureType type) const override;
+  bool operator() (TextView& text) const override;
 
 protected:
   std::string _value; ///< Value to match.
@@ -74,7 +73,11 @@ protected:
   explicit Cmp_Match(TextView text);
 };
 
-bool Cmp_Match::operator()(TextView text) {
+Cmp_Match::Cmp_Match(TextView text) : _value(text) {}
+
+bool Cmp_Match::is_valid_for(FeatureType type) const { return type == VIEW; }
+
+bool Cmp_Match::operator()(TextView& text) const {
   return text == _value;
 }
 
@@ -82,10 +85,8 @@ Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node, YAML::Node key_n
   if (!key_node.IsScalar()) {
     return { {}, Errata().error(R"(Value for "{}" at {} is not a string.)", NAME, key_node.Mark()) };
   }
-  return { Handle{new self_type{key_node.Scalar()}}, {} };
+  return { Handle{new self_type{TextView{key_node.Scalar()}}}, {} };
 }
-
-Cmp_Match::Cmp_Match(TextView text) : _value(text) {}
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {

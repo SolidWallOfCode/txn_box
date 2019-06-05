@@ -77,6 +77,13 @@ public:
      * @return A reference to the element.
      */
     Spec& operator [] (size_t idx) { return _specs[idx]; }
+
+    /** Access a format element by index.
+     *
+     * @param idx Element index.
+     * @return A reference to the element.
+     */
+    Spec const& operator [] (size_t idx) const { return _specs[idx]; }
   };
 
   /** Format extractor for BWF.
@@ -86,7 +93,7 @@ public:
   public:
     FmtEx(Format::Specifiers const& specs) : _specs(specs), _iter(specs.begin()) {}
 
-    bool operator()() const { return _iter != _specs.end(); }
+    operator bool() const { return _iter != _specs.end(); }
     bool operator()(std::string_view& literal, Spec & spec) {
       bool zret = false;
       Spec const& current { *_iter++ };
@@ -165,7 +172,7 @@ public:
 class DirectFeature {
 public:
   Extractor::Type feature_type() const;
-  virtual swoc::TextView direct_view(Context & ctx) const = 0;
+  virtual FeatureView direct_view(Context & ctx) const = 0;
 };
 
 class IPAddrFeature {

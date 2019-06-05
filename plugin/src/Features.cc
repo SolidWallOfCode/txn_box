@@ -23,21 +23,21 @@
 #include "txn_box/ts_util.h"
 
 using swoc::TextView;
-
-const TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
+using swoc::BufferWriter;
+namespace bwf = swoc::bwf;
 
 /* ------------------------------------------------------------------------------------ */
 class Ex_creq_url_host : public Extractor, public DirectFeature {
-  using self_type = Ex_creq_url_host;
-  using super_type = Extractor;
 public:
-  swoc::TextView direct_view(Context & ctx) const override;
-
   static constexpr TextView NAME { "creq-url-host" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  FeatureView direct_view(Context & ctx) const override;
 };
 
-TextView Ex_creq_url_host::direct_view(Context &ctx) const {
-  TextView zret;
+FeatureView Ex_creq_url_host::direct_view(Context &ctx) const {
+  FeatureView zret;
+  zret._direct_p = true;
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.host();
@@ -46,28 +46,36 @@ TextView Ex_creq_url_host::direct_view(Context &ctx) const {
   return zret;
 }
 
+BufferWriter& Ex_creq_url_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->direct_view(ctx));
+}
+
 class Ex_creq_host : public Extractor, public DirectFeature {
-  using self_type = Ex_creq_host;
-  using super_type = Extractor;
 public:
   static constexpr TextView NAME { "creq-host" };
 
-  TextView direct_view(Context & ctx) const override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  FeatureView direct_view(Context & ctx) const override;
 };
 
-TextView Ex_creq_host::direct_view(Context &ctx) const {
-  TextView zret;
+FeatureView Ex_creq_host::direct_view(Context &ctx) const {
+  FeatureView zret;
+  zret._direct_p = true;
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.host();
       if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
-        if ( auto field { hdr.field(HTTP_FIELD_HOST) } ; field.is_valid()) {
+        if ( auto field { hdr.field(ts::HTTP_FIELD_HOST) } ; field.is_valid()) {
           zret = field.value();
         }
       }
     }
   }
   return zret;
+}
+
+BufferWriter& Ex_creq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->direct_view(ctx));
 }
 
 /* ------------------------------------------------------------------------------------ */

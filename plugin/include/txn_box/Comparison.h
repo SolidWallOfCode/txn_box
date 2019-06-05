@@ -48,6 +48,21 @@ public:
    */
   virtual bool is_valid_for(FeatureType type) const = 0;
 
+  bool operator()(FeatureData & data) {
+    return std::visit(*this, data);
+  }
+
+  /// @defgroup Comparison overloads.
+  /// These must match the set of types in @c FeatureData.
+  /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
+  /// The feature is passed by reference because comparisons are allowed to perform updates.
+  /// @{
+  virtual bool operator()(swoc::TextView& view) const { return false; }
+  virtual bool operator()(intmax_t& n) const { return false; }
+  virtual bool operator()(bool& f) const { return false; }
+  virtual bool operator()(swoc::IPAddr & addr) const { return false; }
+  /// @}
+
   /** Define an assembler that constructs @c Comparison instances.
    *
    * @param name Name for key node to indicate this comparison.
@@ -68,17 +83,4 @@ public:
 protected:
   /// The assemblers.
   static Factory _factory;
-};
-
-/// Subclass of comparison for string comparisons.
-class StringComparison : public Comparison {
-  using self_type = StringComparison;
-  using super_type = Comparison;
-public:
-
-  bool is_valid_for(FeatureType type) const override;
-
-  virtual bool operator () (swoc::TextView text) = 0;
-
-protected:
 };
