@@ -113,6 +113,11 @@ TextView ts::HttpField::value() {
   return {};
 }
 
+bool ts::HttpField::assign(swoc::TextView value) {
+  return this->is_valid() &&
+    TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size());
+}
+
 ts::URL ts::HttpHeader::url() {
   TSMLoc url_loc;
   if (this->is_valid() && TS_SUCCESS == TSHttpHdrUrlGet(_buff, _loc, &url_loc)) {
@@ -365,7 +370,7 @@ TSPluginInit(int argc, char const *argv[]) {
     switch (opt) {
       case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c':errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind]}));
+      case 'c':errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind-1]}));
         break;
       default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
         break;

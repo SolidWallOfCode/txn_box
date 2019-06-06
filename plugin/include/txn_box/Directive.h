@@ -65,6 +65,11 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
+  /** Define a directive.
+   *
+   */
+   static swoc::Errata define(swoc::TextView name, Assembler const& assm);
+
   /** Find the assembler for the directive @a name.
    *
    * @param cfg Configuration object.

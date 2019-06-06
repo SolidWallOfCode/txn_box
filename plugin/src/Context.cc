@@ -106,3 +106,10 @@ ts::HttpHeader Context::creq_hdr() {
   }
   return _creq;
 }
+
+ts::HttpHeader Context::preq_hdr() {
+  if (!_preq.is_valid()) {
+    _preq = _txn.creq_hdr();
+  }
+  return _preq;
+}

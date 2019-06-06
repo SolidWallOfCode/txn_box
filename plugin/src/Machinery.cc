@@ -36,8 +36,8 @@ const std::string Directive::DO_KEY { "do" };
 /* ------------------------------------------------------------------------------------ */
 Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
   YAML::Node key_node;
-  for ( auto const&  [ key_node, value ] : drtv_node ) {
-    TextView key { key_node.Scalar() };
+  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
+    TextView key { key_name.Scalar() };
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
     if (key == DO_KEY) {
@@ -46,7 +46,7 @@ Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to directives. First key that is in the factory determines the directive type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      return spot->second(cfg, drtv_node, key_node);
+      return spot->second(cfg, drtv_node, key_value);
     }
   }
   return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
@@ -62,8 +62,7 @@ public:
   explicit Do_set_preq_url_host(TextView text) : _host(text) {}
 
   Errata invoke(Context &ctx) override;
-  static Rv<Handle> load(YAML::Node node);
-protected:
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
   std::string _host;
 };
 
@@ -74,13 +73,35 @@ Errata Do_set_preq_url_host::invoke(Context &ctx) {
   return zret;
 }
 
-swoc::Rv<Directive::Handle> Do_set_preq_url_host::load(YAML::Node node) {
-  Errata errata;
-  if ( auto item { node[KEY] } ; item ) {
-    return { Handle{new self_type{item.Scalar()}}, {} };
-  }
-  errata.error(R"(Key "{}" not found in directive at {})", KEY, node.Mark());
-  return { {}, errata };
+swoc::Rv<Directive::Handle> Do_set_preq_url_host::load(Config &, YAML::Node, YAML::Node key_node) {
+  return { Handle{new self_type{key_node.Scalar()}}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+class Do_set_preq_host : public Directive {
+  using super_type = Directive;
+  using self_type = Do_set_preq_host;
+public:
+  static const std::string KEY;
+
+  explicit Do_set_preq_host(TextView text);
+
+  Errata invoke(Context &ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+  std::string _host;
+};
+
+const std::string Do_set_preq_host::KEY { "set-preq-host" };
+
+Do_set_preq_host::Do_set_preq_host(TextView text) : _host(text) {}
+
+Errata Do_set_preq_host::invoke(Context &ctx) {
+  Errata zret;
+  return zret;
+}
+
+swoc::Rv<Directive::Handle> Do_set_preq_host::load(Config &, YAML::Node, YAML::Node key_node) {
+  return { Handle{new self_type{key_node.Scalar()}}, {} };
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -136,11 +157,11 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node
             name_errata.error(R"(While parsing name (first item) for "{}" key at {}.)", KEY
                                , key_node))};
       }
-      return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 strings as required.)", KEY, key_node) };
+      return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 strings as required.)", KEY, key_node.Mark()) };
     }
-    return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 elements as required.)", KEY, key_node) };
+    return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 elements as required.)", KEY, key_node.Mark()) };
   }
-  return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node) };
+  return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node.Mark()) };
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -218,10 +239,10 @@ protected:
 
 const std::string WithTuple::KEY { With::KEY };
 const std::string WithTuple::SELECT_KEY { With::SELECT_KEY };
-static const std::string ANY_OF_KEY { "any-of" };
-static const std::string ALL_OF_KEY { "all-of" };
-static const std::string NONE_OF_KEY { "none-of" };
-static const std::string ELSE_KEY { "else" };
+const std::string WithTuple::ANY_OF_KEY { "any-of" };
+const std::string WithTuple::ALL_OF_KEY { "all-of" };
+const std::string WithTuple::NONE_OF_KEY { "none-of" };
+const std::string WithTuple::ELSE_KEY { "else" };
 
 const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY }, { ELSE, ELSE_KEY } };
 BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op) {
@@ -454,3 +475,15 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::
   return {{}, std::move(zret)};
 }
 
+/* ------------------------------------------------------------------------------------ */
+
+namespace {
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Directive::define(When::KEY, When::load);
+  Directive::define(With::KEY, With::load);
+  Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::load);
+  Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::load);
+  Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::load);
+  return true;
+} ();
+} // namespace

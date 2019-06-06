@@ -89,4 +89,4 @@ Ex_creq_url_host creq_url_host;
 
   return true;
 } ();
-}; // namespace
+} // namespace

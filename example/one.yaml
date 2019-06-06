@@ -1,5 +1,6 @@
 txn_box:
 - when: preq
+  do:
   - with: "{creq-host}"
     select:
     - match: example.one
