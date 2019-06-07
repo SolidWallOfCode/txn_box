@@ -31,6 +31,7 @@
 *.out
 *.app
 
+__pycache__
 .clang-format
 .idea
 cmake-build*
@@ -43,8 +44,8 @@ include/tscpp
 /bin
 /doc/docbuild
 /doc/pix
-/doc/ext
 /doc/ext/local-config.py
+/doc/doxygen
 /etc
 /lib64
 /share

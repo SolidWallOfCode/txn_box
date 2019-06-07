@@ -3,9 +3,6 @@
 .. highlight:: yaml
 .. default-domain:: cpp
 
-.. |TxB| replace:: TxnBox
-.. |libswoc| replace:: LibSWOC++
-
 .. _txn-box:
 
 ***************

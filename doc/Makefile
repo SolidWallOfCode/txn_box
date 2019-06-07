@@ -20,7 +20,7 @@ UMLDIR = $(srcdir)/uml
 $(IMAGEDIR)/%.svg : $(UMLDIR)/%.plantuml
 	$(PLANTUML) $< -tsvg -o $(shell $(REALPATH) $(IMAGEDIR))
 
-html: uml ext/local-config.py static
+html: uml ext/local-config.py static docbuild/html/src
 	$(SBUILD) -d $(BUILDDIR)/doctrees -b html $(srcdir) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
@@ -42,3 +42,6 @@ ext:
 
 static:
 	if [ ! -d "static" ] ; then mkdir static; fi
+
+docbuild/html/src:
+	@if [ ! -r docbuild/html/src ] ; then mkdir -p docbuild/html; ln -s ../../doxygen/html docbuild/html/src ; fi

@@ -51,11 +51,14 @@ extensions = [ 'sphinx.ext.graphviz'
              , 'sphinx.ext.viewcode'
              , 'sphinx.ext.githubpages'
              , 'sphinxcontrib.plantuml'
+	     , 'sphinxcontrib.doxylink'
              , 'local-config'
              ]
 
 # Contains values that are dependent on configure.ac.
 #execfile('ext/local-config.py')
+
+doxylink = { "txb" : ( 'doxygen/txn_box.tag', 'src/' ) }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

@@ -10,6 +10,7 @@ Transaction Box
    :maxdepth: 2
 
    txn_box.en
+   arch.en
 
 Reference
 *********
