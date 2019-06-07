@@ -395,4 +395,3 @@ TSPluginInit(int argc, char const *argv[]) {
     TSError("%s", err_str.c_str());
   }
 }
-

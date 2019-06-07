@@ -1,0 +1,16 @@
+txn_box:
+- when: preq
+  do:
+  - with: "{creq-host}"
+    select:
+    - match: !regex-caseless "[.]org$"
+      do:
+      - set-preq-field: [ X-swoc, "it's the original!" ]
+    - match: !regex "[.]com$"
+      do:
+      - set-preq-field:
+        - X-swoc
+        - Commercialized
+    - match: swoc.io
+      do:
+      - set-preq-field: [ X-swoc, hometown ]

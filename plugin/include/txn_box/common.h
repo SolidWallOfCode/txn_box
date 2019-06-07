@@ -49,10 +49,10 @@ public:
   bool _direct_p = false; ///< String is in externally controlled memory.
   bool _literal_p = false; ///< String is in transaction static memory.
 
-  using super_type::super_type;
-  using super_type::operator=;
+  using super_type::super_type; ///< Import constructors.
+  using super_type::operator=; ///< Import assignment.
 
-  static self_type Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
+  static self_type Literal(TextView view);
 };
 
 /// Feature descriptor storage.
@@ -92,3 +92,5 @@ template<> struct tuple_size<Hook> : public std::integral_constant<size_t,
 
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
+
+inline FeatureView::self_type FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }

@@ -18,8 +18,10 @@
 
 #include "txn_box/Comparison.h"
 #include "txn_box/Directive.h"
+#include "txn_box/Config.h"
 
 using swoc::TextView;
+using namespace swoc::literals;
 using swoc::Errata;
 using swoc::Rv;
 
@@ -56,12 +58,29 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType type, YAML::No
   return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
 }
 
+class Cmp_RegexMatch : public Comparison {
+  using self_type = Cmp_RegexMatch;
+  using super_type = Comparison;
+  friend class Cmp_Match;
+public:
+  static const std::string KEY;
+
+  bool operator() (TextView& text) const override;
+
+protected:
+  Rxp _rxp; ///< regular expression to match.
+  bool _caseless_p = false;
+
+  explicit Cmp_RegexMatch(Rxp && rxp) : _rxp(std::move(rxp)) {}
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+};
+
 /// String match.
 class Cmp_Match : public Comparison {
   using self_type = Cmp_Match;
   using super_type = Comparison;
 public:
-  static constexpr TextView NAME { "match" };
+  static const std::string KEY;
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
   bool is_valid_for(FeatureType type) const override;
@@ -69,9 +88,13 @@ public:
 
 protected:
   std::string _value; ///< Value to match.
+  bool _caseless_p = false;
 
   explicit Cmp_Match(TextView text);
 };
+
+const std::string Cmp_Match::KEY { "match" };
+const std::string Cmp_RegexMatch::KEY { Cmp_Match::KEY };
 
 Cmp_Match::Cmp_Match(TextView text) : _value(text) {}
 
@@ -81,18 +104,78 @@ bool Cmp_Match::operator()(TextView& text) const {
   return text == _value;
 }
 
-Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node, YAML::Node key_node) {
+Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node) {
   if (!key_node.IsScalar()) {
-    return { {}, Errata().error(R"(Value for "{}" at {} is not a string.)", NAME, key_node.Mark()) };
+    return { {}, Errata().error(R"(Value for "{}" at {} is not a string.)", KEY, key_node.Mark()) };
   }
-  return { Handle{new self_type{TextView{key_node.Scalar()}}}, {} };
+
+  // Check for flags embedded in the node tag.
+  TextView tag { key_node.Tag() };
+  bool regex_p = false;
+  bool caseless_p = false;
+  bool literal_p = false;
+  while (tag) {
+    auto token{tag.take_prefix_at('-')};
+    if (token == "regex"_sv) {
+      regex_p = true;
+    } else if (token == "caseless"_sv) {
+      caseless_p = true;
+    } else if (token == "literal"_sv) {
+      literal_p = true;
+    } else {
+      return { {}, Errata().error(R"(Invalid extended comparison type "{}" at {} for "{}" comparison.)", key_node.Tag(), key_node.Mark(), KEY) };
+    }
+  }
+
+  // Extract?
+  if (! literal_p) {
+    auto && [ ex_fmt, errata ] { cfg.parse_feature(key_node.Scalar()) };
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing regular expression in comparison "{}" at {}.)", KEY, key_node.Mark());
+      return { {}, std::move(errata) };
+    }
+  }
+
+  if (regex_p) {
+    // Gah. This is ugly, but need to pass @a caseless in without having to parse the tag yet again.
+    // Also better than splitting the class in to case and caseless versions.
+    auto && [ rxp_cmp, errata ] { Cmp_RegexMatch::load(cfg, cmp_node, key_node) };
+    if (errata.is_ok()) {
+      static_cast<Cmp_RegexMatch *>(rxp_cmp.get())->_caseless_p = caseless_p;
+    }
+    return { std::move(rxp_cmp), std::move(errata) };
+  }
+
+  // Literal string comparison.
+  auto self = new self_type(key_node.Scalar());
+  self->_caseless_p = caseless_p;
+  return { Handle{self}, {} };
 }
+
+Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+
+}
+
+Rv<Rxp> Rxp::parse(TextView str) {
+  int errc = 0;
+  size_t err_off = 0;
+  auto result = pcre2_compile(reinterpret_cast<unsigned const char*>(str.data()), str.size(), 0, &errc, &err_off, nullptr);
+  if (nullptr == result) {
+    PCRE2_UCHAR err_buff[128];
+    auto err_size = pcre2_get_error_message(errc, err_buff, sizeof(err_buff));
+    return { {}, Errata().error(R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)", TextView(
+        reinterpret_cast<char const*>(err_buff), err_size), errc, err_off, str) };
+  }
+  return { result, {} };
+};
+
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Comparison::define(Cmp_Match::NAME, &Cmp_Match::load);
+  Comparison::define(Cmp_Match::KEY, &Cmp_Match::load);
 
   return true;
 } ();
+
 }; // namespace
 

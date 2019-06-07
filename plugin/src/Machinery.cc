@@ -351,7 +351,7 @@ swoc::Rv<Directive::Handle> WithTuple::load(Config & cfg, YAML::Node drtv_node, 
   // Get the feature extraction tuple.
   for ( auto const& child : key_node ) {
     if (child.IsScalar()) {
-      auto &&[fmt, errata]{Extractor::parse(child.Scalar())};
+      auto &&[fmt, errata]{cfg.parse_feature(child.Scalar())};
       if (errata.is_ok()) {
         ex_tuple.emplace_back(std::move(fmt));
       } else {
