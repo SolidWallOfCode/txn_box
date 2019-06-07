@@ -33,7 +33,7 @@ Context::Context(Config & cfg) {
   // Provide array storage for each potential conditional directive for each hook.
   for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx) {
      MemSpan<Directive*> drtv_list = _arena->alloc(sizeof(Directive*) * cfg._directive_count[idx]).rebind<Directive*>();
-     _directives[idx] = { static_cast<unsigned>(drtv_list.count()), 0, drtv_list.data() };
+     _directives[idx] = { 0, 0, drtv_list.data() };
   };
 }
 
@@ -109,7 +109,7 @@ ts::HttpHeader Context::creq_hdr() {
 
 ts::HttpHeader Context::preq_hdr() {
   if (!_preq.is_valid()) {
-    _preq = _txn.creq_hdr();
+    _preq = _txn.preq_hdr();
   }
   return _preq;
 }

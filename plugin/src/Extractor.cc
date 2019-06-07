@@ -83,7 +83,9 @@ Extractor::Type ViewFeature::feature_type() const { return VIEW; }
 Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
   _specs.push_back(spec);
   // update properties.
-  if (spec._type != swoc::bwf::Spec::LITERAL_TYPE) {
+  if (spec._type == swoc::bwf::Spec::LITERAL_TYPE) {
+    _direct_p = false; // literals aren't direct.
+  } else {
     _literal_p = false;
     if (_specs.size() == 1) {
       if (spec._extractor) {

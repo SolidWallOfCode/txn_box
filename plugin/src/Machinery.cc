@@ -252,7 +252,6 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op)
   return bwformat(w, spec, WithTuple::OpName[op]);
 }
 
-
 Errata With::invoke(Context &ctx) {
   FeatureData feature { ctx.extract(_ex) };
   for ( auto const& c : _cases ) {

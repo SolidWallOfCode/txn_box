@@ -184,8 +184,9 @@ Rv<Extractor::Format> Config::parse_feature(swoc::TextView fmt_string) {
       *_feature_ref_p = true;
     }
 
-    // If the extraction is piece-wise literal, consolidate into a single literal.
-    if (fmt._literal_p && fmt.size() > 1) {
+    // Copy literal data from the YAML data into Config arena memory to stabilize it. Additionally if it's
+    // multiple literals (which can happen) then consolidate it into a single literal string.
+    if (fmt._literal_p) {
       size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [] (size_t sum, Extractor::Spec const& spec) -> size_t { return sum += spec._ext.size(); });
       auto span { _arena.alloc(n).rebind<char>() };
       Extractor::Spec literal_spec;
@@ -253,6 +254,7 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
         auto && [ handle, errata ]{ When::load(*this, drtv_node, key_node) };
         if (errata.is_ok()) {
           _roots[static_cast<unsigned>(hook_idx)].emplace_back(std::move(handle));
+          _active_p = true;
         } else {
           zret.note(errata);
         }
@@ -326,6 +328,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
       ctx->invoke_for_hook(hook);
     }
   }
+  TSHttpTxnReenable(ctx->_txn, TS_EVENT_HTTP_CONTINUE);
   return TS_SUCCESS;
 }
 
@@ -344,12 +347,13 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
     auto const& drtv_list { Plugin_Config.hook_directives(static_cast<Hook>(idx)) };
     if (! drtv_list.empty()) {
-      TSHttpTxnHookAdd(txn, TS_Hook[idx], cont);
+      TSHttpTxnHookAdd(txn, TS_Hook[idx], txn_cont);
       ctx->_directives[idx]._hook_set = true;
     }
   }
   // Always set a cleanup hook.
   TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, cont);
+  TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
   return TS_SUCCESS;
 };
 

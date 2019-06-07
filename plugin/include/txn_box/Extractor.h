@@ -29,6 +29,12 @@
 
 class Context;
 
+/** Feature extraction.
+ *
+ * Application of format strings to transactions to extract features. This also maintains a factory
+ * which maps from names to instances of subclasses. In use, the extractor will be passed a
+ * run time context which is expected to suffice to extract the appropriate information.
+ */
 class Extractor {
   using self_type = Extractor; ///< Self reference type.
 public:
