@@ -11,6 +11,7 @@ Transaction Box
 
    txn_box.en
    arch.en
+   design.en
 
 Reference
 *********

@@ -17,30 +17,36 @@ This plugin is also `YAML <http://yaml.org>`__ based for increased ease of confi
 |TxB| uses `|libswoc| <http://github.com/SolidWallOfCode/txn-box.git>`__ and `YAML CPP
 <https://github.com/jbeder/yaml-cpp>`__.
 
+This plugin should also be considered a prototype for upgrading the core URL rewriting engine. Doing
+this first in a plugin will enable must faster iteration of the design without disrupting
+production. Deployments can update the plugin and core TS independently which means changes can be
+made to the plugin based on experience and feedback without blocking other core updates.
+
 Configuration
 *************
 
-|TxB| is configured using YAML.
+|TxB| is configured using YAML. The configuration consists essentially of a list of
+:term;`directive`'s. Each of these specifies a run time action to performa. A few of them have
+special processing rules.
 
-The style of the configuration is based on :term:`extraction` which means extracting a
-:term:`feature` from the transaction which is then used to choose how to manipulate the transaction.
-The power of the plugin comes from the flexibility available to extract the feature, perform
-comparisons on the feature, and use that feature or others to modify the transaction.
+The work style of the configuration is based on :term:`selection` which means performing an
+:term:`extraction` on a transaction to obtain a :term:`feature` which is subjected to a series of
+:term:`comparison`\s. Each comparison has an associated sequence of directives and if the comparison
+is successful, those directives and *only those directives* are invoked. This is the "no
+backtracking" rule. Selection is done by a directive and so selections nest easily.
 
-Manipulation of the transaction is done with :term:`directive`\s. The basic process is to extract a
-feature then use comparisons to select a list of directives.
+It is a key rule that once :term:`selection` has occurred, only directives associated with
+successful comparison will be invoked. There is never any backtracking from a selection. If no
+comparison in a selection matches, the selection skipped and the next directive invoked. This
+increases locality such that to determine behavior of a piece of the configuration only direct
+parent selections need be considered.
 
-An directive can be another selection, providing a branching structure that looks at various parts of
-the transaction. A key rule is once a :term:`selection` has occurred, only directives associated with
-that selection will be performed. There is never any backtracking from a selection. This increases
-locality such that to determine behavior of a piece of the configuration only direct parent
-selections need be considered.
-
-There is a wide variety of directives, with an emphasis on manipulating the HTTP header, such as by
+There is a wide variety of directives, with an emphasis on manipulating the HTTP header, such as
 adding or changing fields, changing the URL, etc. There is also a variety of extractors to get
-information from the transaction. Because most features are strings extractors can be used to
-generate strings for directives. For example when setting the value of a field the full set of
-extractors can be used to generate the string for the value.
+information from the transaction. While a few features can be compared as a more specialized type,
+all* fatures are available in string format. Feature extraction is not just for selection - most
+places that expect strings will also perform extraction. For example when setting the value of a
+field the full set of extractors can be used to generate the string for the value.
 
 The top level configuration is grouped under the :code:`txn_box` key. The value of this key must be
 a single instance or list of :code:`when` `directives <when>`_. This structure enables |TxB|
@@ -50,8 +56,8 @@ start with :code:`when` is done to be clear about the hook on which the configur
 Selection
 =========
 
-Selection is the root of configuration. This is done first by specifygin the extraction of a feature
-from the transaction then applying :term:`comparison operator`\s, each of which has an associated
+Selection is the root of configuration. This is done first by specifying the extraction of a feature
+from the transaction then applying :term:`comparison`\s, each of which has an associated
 list of directives. If the comparison is successful, those directives are executed. For example, to
 do a selection based on the host in the client request URL ::
 
@@ -798,130 +804,6 @@ Mutual TLS
 
 Control remapping based on whether the user agent provided a TLS certificate, whether the
 certificate was verified, and whether the SNI name is in a whitelist.
-
-Implementation Notes
-********************
-
-Notes on the internals of the plugin.
-
-Design Goals
-============
-
-History
-+++++++
-
-This work is the conjuction of a number of efforts. The original inspiration was the
-``header_rewrite`` plugin and the base work in |libswoc| was done with the intention of
-upgrading that plugin. The purpose was to provide much more generalized and expandable string
-manipulation for working with transaction headers. At the time, ``header_rewrite`` did not support
-string concatenation at all. When the Buffer Writer formatting became available in the Traffic
-Server core, it seemed clear this would be an excellent way to provide such facilities to
-``header_rewrite``.
-
-For a long time work effort was put in to improving |libswoc| to provide the anticipated
-requirements of the upgrade. However, there was much resistance to moving these improvements back
-in to the Traffic Server core and therefore upgrading ``header_rewrite`` was no longer feasible.
-The decision to proceed with a fully separate plugin was catalyzed by work on the ``cookie_remap``
-plugin. It seemed similar enough to ``header_rewrite`` that having two different plugins was
-sub-optimal. Plans were made to do this work.
-
-At the same time work was proceeding on upgrading the configuration for the core remap
-functionality, to make it YAML. At the Spring 2019 summit this work was rejected in favor of doing
-a complete overhaul of core remap, not just updating the configuration. I decided at that point
-that making a plugin to demonstrate my proposed configuration and functionality was the best way
-to move forward, as going directly to a rewrite of the core code was such a big step that it was
-likely to get bogged down. A plugin, on the other hand, would be completely separate and not subject
-to the friction of work on the core. In the long run, if this is successful it is expected the
-plugin functionality will be moved in to core Traffic Server.
-
-Goals
-+++++
-
-The first requirement was the configuration be in YAML, as it is the goal of current work to
-transform all configuration to YAML.
-
-The community also expressed the desire the reduce the number of times a request must be matched,
-particularly with regard to applying regular expressions to the URL. This in turn implies broad
-functionality that can replace multiple other configurations. One example would be the "cache
-.config" file - that does the same sort of matching as remap processing and if the functionality
-there was replicated, "cache.config" could be abandoned.
-
-Providing easy and powerful string construction was important. Much of the work in transaction
-processing is putting connection related information in various header fields. This should be
-easy to do. In addition, it should be easy to extract substrings using regular expressions. A
-common complaint is the inability to move elements from the host to the path or vice versa, e.g.
-convert "http://mail.host.one/..." to "http://host.one/mail/..." (or the other way).
-
-Boolean Expressions
-===================
-
-With the addition of the :code:`not` comparison and suport for implicit "or" in other comparison
-operators such as :code:`match`, it is possible to implement the "NOR" operator, which in turn is
-sufficient to represent any boolean computation. Although this seems to make that somewhat obscure,
-in practice use of complex booleans expressions doesn't occur due to its difficulty in comprehension
-of humans writing and debugging the configuraion. This structure makes the common tasks and
-expressions simpler, at the acceptable expense of somewhat more complex general expressions which
-will be rarely (if ever) used.
-
-For example, suppose the goal was to allow requests from loopback, the 10.1.2.0/24 network, and
-the 172.17.0.0/16 network, but not other non-routable networks. This would be ::
-
-  in(127.0.0.0/8) OR in(::1) OR in(10.1.2.0/24) OR in(172.17.0.0/16)
-  OR (NOT(in(10.0.0/8) OR in(192.168.0.0/16) AND NOT(in(172.16.0.0/12))))
-
-There is no AND, but a bit of `DeMorgan magic <http://mathworld.wolfram.com/deMorgansLaws.html>`__
-can transform this to a conjunctive form, expressed in configuration as ::
-
-   or:
-   -  in:
-      -  "10.1.2.8/24"
-      -  "172.17.0.0/16"
-   -  not:
-          in:
-          -  "10.0.0.8/8"
-          -  "172.16.0.0/12"
-          -  "192.168.0.0/16"
-
-Note the loopback addresses can be elided because they are subsumed by the "not in the
-non-routables" clause.
-
-Design
-******
-
-The overall work here has gone through several iterations, including a previous design for |TxB| and
-and YAML based overhaul of "remap.config".
-
-At the Spring 2019 summit, it was decided that the latter, changing only the configuration for
-"remap.config" wasn't worth the trouble. The decision was that if the format was to be changed, the
-change should take full advantage of YAML, disregarding any previous configuration or specific
-functionality. It was required that anything that could be done currently could continue to be done,
-but without any requirement to do it in a similar way.
-
-A primary goal of the work was also to be to minimize the number of times the request, and
-particularly the URL, was matched against literals or especially regular expressions. The existing
-configurations of various sorts all required independent matching resulting in the comparisons
-being done repeatedly. To avoid that, however, required the new URL rewrite configuration to be much
-more powerful and general such that it could perform the functions of these other configurations, including
-
-*  hosting.config
-*  cache.config
-*  parent.config
-*  The ``header_rewrite`` plugin.
-*  The ``regexr_remap`` plugin.
-*  The ``cookie_remap`` plugin.
-*  The ``conf_remap`` plugin.
-
-This was not as large a task as it might originally seem, as just a few basic abilities would cover
-most of the use cases. In particular these are
-
-*  Set or remove fields in the header.
-
-*  Set per transaction configuration variables.
-
-*  Set the upstream destination.
-
-*  Respond immediately with a specific status code. This covers redirect, access control, and
-   similar cases.
 
 .. rubric:: Footnotes
 
