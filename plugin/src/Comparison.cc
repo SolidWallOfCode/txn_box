@@ -58,43 +58,41 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType type, YAML::No
   return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
 }
 
-class Cmp_RegexMatch : public Comparison {
-  using self_type = Cmp_RegexMatch;
-  using super_type = Comparison;
-  friend class Cmp_Match;
-public:
-  static const std::string KEY;
-
-  bool operator() (TextView& text) const override;
-
-protected:
-  Rxp _rxp; ///< regular expression to match.
-  bool _caseless_p = false;
-
-  explicit Cmp_RegexMatch(Rxp && rxp) : _rxp(std::move(rxp)) {}
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-};
-
-/// String match.
+/// Direct / exact string matching.
 class Cmp_Match : public Comparison {
   using self_type = Cmp_Match;
   using super_type = Comparison;
 public:
+  /// Identifier for this comparison.
   static const std::string KEY;
+
+  /** Instantiate an instance from YAML configuration.
+   *
+   * @param cfg Global configuration object.
+   * @param cmp_node The node containing the comparison.
+   * @param key_node The node in @a cmp_node that identified this comparison.
+   * @return An instance or errors on failure.
+   */
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
+  /// Mark which feature types this can compare.
   bool is_valid_for(FeatureType type) const override;
+
+  /** Compare @a text for a match.
+   *
+   * @param text The feature to compare.
+   * @return @c true if @a text matches, @c false otherwise.
+   */
   bool operator() (TextView& text) const override;
 
 protected:
   std::string _value; ///< Value to match.
-  bool _caseless_p = false;
 
+  /// Constructor used by @c load.
   explicit Cmp_Match(TextView text);
 };
 
 const std::string Cmp_Match::KEY { "match" };
-const std::string Cmp_RegexMatch::KEY { Cmp_Match::KEY };
 
 Cmp_Match::Cmp_Match(TextView text) : _value(text) {}
 
@@ -105,55 +103,39 @@ bool Cmp_Match::operator()(TextView& text) const {
 }
 
 Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  if (!key_node.IsScalar()) {
-    return { {}, Errata().error(R"(Value for "{}" at {} is not a string.)", KEY, key_node.Mark()) };
-  }
-
-  // Check for flags embedded in the node tag.
-  TextView tag { key_node.Tag() };
-  bool regex_p = false;
-  bool caseless_p = false;
-  bool literal_p = false;
-  while (tag) {
-    auto token{tag.take_prefix_at('-')};
-    if (token == "regex"_sv) {
-      regex_p = true;
-    } else if (token == "caseless"_sv) {
-      caseless_p = true;
-    } else if (token == "literal"_sv) {
-      literal_p = true;
-    } else {
-      return { {}, Errata().error(R"(Invalid extended comparison type "{}" at {} for "{}" comparison.)", key_node.Tag(), key_node.Mark(), KEY) };
-    }
-  }
-
-  // Extract?
-  if (! literal_p) {
-    auto && [ ex_fmt, errata ] { cfg.parse_feature(key_node.Scalar()) };
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing regular expression in comparison "{}" at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(errata) };
-    }
-  }
-
-  if (regex_p) {
-    // Gah. This is ugly, but need to pass @a caseless in without having to parse the tag yet again.
-    // Also better than splitting the class in to case and caseless versions.
-    auto && [ rxp_cmp, errata ] { Cmp_RegexMatch::load(cfg, cmp_node, key_node) };
-    if (errata.is_ok()) {
-      static_cast<Cmp_RegexMatch *>(rxp_cmp.get())->_caseless_p = caseless_p;
-    }
-    return { std::move(rxp_cmp), std::move(errata) };
+  auto && [ ex_fmt, errata ] { cfg.parse_feature(key_node) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing comparison "{}" at {}.)", KEY, key_node.Mark());
+    return { {}, std::move(errata) };
   }
 
   // Literal string comparison.
   auto self = new self_type(key_node.Scalar());
-  self->_caseless_p = caseless_p;
   return { Handle{self}, {} };
 }
 
-Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+class Cmp_RegexMatch : public Comparison {
+  using self_type = Cmp_RegexMatch;
+  using super_type = Comparison;
+  friend class Cmp_Match;
+public:
+  static const std::string KEY;
 
+  bool operator() (TextView& text) const override;
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  Rxp _rxp; ///< regular expression to match.
+  bool _caseless_p = false;
+
+  explicit Cmp_RegexMatch(Rxp && rxp) : _rxp(std::move(rxp)) {}
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+};
+
+const std::string Cmp_RegexMatch::KEY { "regex" };
+Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  
+  return { {}, {} };
 }
 
 Rv<Rxp> Rxp::parse(TextView str) {

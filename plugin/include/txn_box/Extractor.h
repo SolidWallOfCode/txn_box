@@ -26,6 +26,7 @@
 #include <swoc/swoc_ip.h>
 
 #include "txn_box/common.h"
+#include "txn_box/FeatureMod.h"
 
 class Context;
 
@@ -68,8 +69,14 @@ public:
 
     /// Condensed format string.
     using Specifiers = std::vector<Spec>;
+    /// Modifiers
+    using Modifers = std::vector<FeatureMod::Handle>;
+
     /// Specifiers / elements of the parsed format string.
     Specifiers _specs;
+
+    /// Post extraction modifiers.
+    Modifers _mods;
 
     /// Add an format specifier item to the format.
     self_type & push_back(Spec const& spec);
@@ -145,15 +152,34 @@ public:
 
   /// @}
 
+  /** Generate string output for the feature.
+   *
+   * @param w Output writer.
+   * @param spec Specifier data.
+   * @param ctx Transaction context.
+   * @return @a w.
+   *
+   * This is the generic entry point for generating string output for a feature, which is required
+   * for all extractrors.
+   */
   virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) = 0;
 
   /** Parse a format string.
    *
    * @param format_string Format string.
-   * @param table
-   * @return
+   * @return The format instance or errors on failure.
    */
   static swoc::Rv<Format> parse(swoc::TextView format_string);
+
+  /** Create a format string as a literal.
+   *
+   * @param format_string Format string.
+   * @return The format instance or errors on failure.
+   *
+   * This does no parsing of @a format_string. It will return a format that outputs @a format_string
+   * literally.
+   */
+  static swoc::Rv<Format> literal(swoc::TextView format_string);
 
   static swoc::Errata define(swoc::TextView name, self_type * ex);
 

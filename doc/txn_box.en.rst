@@ -14,13 +14,19 @@ Server. It is intended to replace the ``header_rewrite`` and ``cookie_remap`` pl
 extensive set of capabilities that are also more general and able to be combined more effectively.
 This plugin is also `YAML <http://yaml.org>`__ based for increased ease of configuration.
 
-|TxB| uses `|libswoc| <http://github.com/SolidWallOfCode/txn-box.git>`__ and `YAML CPP
+|TxB| uses `libswoc <http://github.com/SolidWallOfCode/libswoc.git>`__ and `YAML CPP
 <https://github.com/jbeder/yaml-cpp>`__.
 
 This plugin should also be considered a prototype for upgrading the core URL rewriting engine. Doing
 this first in a plugin will enable must faster iteration of the design without disrupting
 production. Deployments can update the plugin and core TS independently which means changes can be
 made to the plugin based on experience and feedback without blocking other core updates.
+
+.. note::
+
+   The code and this documentation is under rapid development, sections may already be outdated. In
+   addition, much of this has yet to be implemented and represents future work. Time permitting,
+   this will be made clearer.
 
 Configuration
 *************

@@ -85,13 +85,33 @@ public:
 
   /** Parse a string as a feature extractor.
    *
-   * @param fmt Input string.
+   * @param fmt The node with the extractor.
    * @return The condensed extractor format or errors on failure.
    *
-   * This should be called instead of the direct call in order for the @c Config to track
-   * extractor use, particularly with regard to the active feature.
+   * This must be called to parse extractors, rather than direct comparison because this does a
+   * lot of required checks on the input.
    */
-  swoc::Rv<Extractor::Format> parse_feature(swoc::TextView fmt_string);
+  swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node);
+
+  /** Copy @a text to local storage in this instance.
+   *
+   * @param text Text to copy.
+   * @return The localized copy.
+   *
+   * Strings in the YAML configuration are transient. If the content needs to be available at
+   * run time it must be first localized.
+   */
+  swoc::TextView localize(swoc::TextView text);
+
+  /** Localized a format.
+   *
+   * @param fmt Format to localize.
+   * @return @a this
+   *
+   * Localize all the strings in @a fmt, which is updated in place. If @a fmt is a pure literal
+   * it will be condensed in to a single item literal.
+   */
+  self_type & localize(Extractor::Format & fmt);
 
   /// Check for active directives.
   /// @return @a true if there are any top level directives, @c false if not.

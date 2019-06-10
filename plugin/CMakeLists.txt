@@ -13,6 +13,7 @@ add_library(plugin SHARED
 	src/Context.cc
 	src/Directive.cc
 	src/Extractor.cc
+        src/FeatureMod.cc
 	src/Features.cc
 	src/Machinery.cc
     	src/Comparison.cc

@@ -19,15 +19,16 @@
 #include <tuple>
 #include <variant>
 
+#include <swoc/TextView.h>
 #include <swoc/swoc_ip.h>
 #include <swoc/Lexicon.h>
+#include <swoc/bwf_fwd.h>
 
-namespace swoc {
-class BufferWriter;
-namespace bwf {
-class Spec;
-} // namespace bwf
-} // namespace swoc
+// Forward declares
+class Config;
+class Context;
+
+namespace YAML { class Node; }
 
 /// Supported feature types.
 enum FeatureType {
@@ -38,9 +39,14 @@ enum FeatureType {
 };
 
 /** Data for a feature that is a view / string.
+ *
  * This is a @c TextView with a couple of extra flags to indicate the semantic location of the
  * string memory. If neither flag is set, the string data should be presumed to exist in transient
  * transaction memory and is therefore subject to overwriting.
+ *
+ * This is used by the @c Context to represent string features in order to minimize string
+ * copying while providing safe access to (possibly) transient data. This enables copy on use
+ * rather than always copying.
  */
 class FeatureView : public swoc::TextView {
   using self_type = FeatureView;
@@ -52,8 +58,16 @@ public:
   using super_type::super_type; ///< Import constructors.
   using super_type::operator=; ///< Import assignment.
 
+  /** Return a literal view.
+   *
+   * @param view Text of the literal.
+   * @return A @c FeatureView marked as a literal.
+   */
   static self_type Literal(TextView view);
 };
+
+/// YAML tag type for literal (no feature extraction).
+static constexpr swoc::TextView LITERAL_TAG { "literal" };
 
 /// Feature descriptor storage.
 /// @note view types have only the view stored here, the string memory is elsewhere.

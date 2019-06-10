@@ -24,12 +24,23 @@
 
 using swoc::TextView;
 using swoc::Errata;
+using swoc::Rv;
+using namespace swoc::literals;
 
 Extractor::Table Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
 
-swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string) {
+Rv<Extractor::Format> Extractor::literal(TextView format_string) {
+  Spec lit;
+  Format fmt;
+  lit._type = swoc::bwf::Spec::LITERAL_TYPE;
+  lit._ext = format_string;
+  fmt.push_back(lit);
+  return { std::move(fmt), {} };
+}
+
+Rv<Extractor::Format> Extractor::parse(TextView format_string) {
   Spec literal_spec; // used to handle literals as spec instances.
   auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;

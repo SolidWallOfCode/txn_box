@@ -26,6 +26,7 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/FeatureMod.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
@@ -37,6 +38,7 @@ using swoc::Errata;
 using swoc::Rv;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
+using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 
 const std::string Config::ROOT_KEY { "txn_box" };
@@ -176,36 +178,62 @@ ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Rv<Extractor::Format> Config::parse_feature(swoc::TextView fmt_string) {
-  auto && [ fmt, errata ] { Extractor::parse(fmt_string) };
-  if (errata.is_ok()) {
+Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
+  if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
+    if (! fmt_node.IsScalar()) {
+      return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
+    }
+    return { Extractor::literal(fmt_node.Scalar()), {} };
+  }
 
-    if (fmt._ctx_ref_p && _feature_ref_p) {
-      *_feature_ref_p = true;
+  // Handle simple string.
+  if (fmt_node.IsScalar()) {
+
+    auto &&[fmt, errata]{Extractor::parse(fmt_node.Scalar())};
+    if (errata.is_ok()) {
+
+      if (fmt._ctx_ref_p && _feature_ref_p) {
+        *_feature_ref_p = true;
+      }
+
+      this->localize(fmt);
+    }
+    return {std::move(fmt), std::move(errata)};
+  } else if (fmt_node.IsSequence()) {
+    // empty list is treated as an empty string.
+    if (fmt_node.size() < 1) {
+      return { Extractor::literal(TextView{}), {} };
     }
 
-    // Copy literal data from the YAML data into Config arena memory to stabilize it. Additionally if it's
-    // multiple literals (which can happen) then consolidate it into a single literal string.
-    if (fmt._literal_p) {
-      size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [] (size_t sum, Extractor::Spec const& spec) -> size_t { return sum += spec._ext.size(); });
-      auto span { _arena.alloc(n).rebind<char>() };
-      Extractor::Spec literal_spec;
-      literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
-      literal_spec._ext = { span.data(), span.size() };
-      for ( auto const& spec : fmt._specs ) {
-        memcpy(span.data(), spec._ext.data(), spec._ext.size());
-        span.remove_prefix(spec._ext.size());
+    auto str_node { fmt_node[0] };
+    if (! str_node.IsScalar()) {
+      return { {}, Errata().error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark()) };
+    }
+
+    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
+      return { {}, std::move(errata) };
+    }
+
+    for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
+      auto child { fmt_node[idx] };
+      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
+      if (! mod_errata.is_ok()) {
+        errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
       }
-      fmt._specs.resize(1);
-      fmt._specs[0] = literal_spec;
+      _feature_type = mod->output_type();
+      fmt._mods.emplace_back(std::move(mod));
     }
   }
-  return { std::move(fmt), std::move(errata) };
+
+  return { {}, Errata().error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark()) };
 }
 
-// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During
-// load, all paths must be explored and so the active feature needs to be stacked up. During
-// runtime, only one path is followed and therefore this isn't required.
+// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
+// all paths must be explored and so the active feature needs to be stacked up so it can be restored
+// after a tree descent. During runtime, only one path is followed and therefore this isn't
+// required.
 Rv<Directive::Handle>
 Config::load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool &referenced_p) {
   bool * saved_flag = _feature_ref_p;
@@ -213,7 +241,7 @@ Config::load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool 
   _feature_ref_p = &referenced_p;
   _feature_type = feature_type;
   // put the old values back on return, this is cleaner than needing a temporary and @c std::move
-  // to perform the restore.
+  // to perform the restore before the return.
   scope_exit cleanup([&] () {
     _feature_ref_p = saved_flag;
     _feature_type = saved_type;
@@ -227,11 +255,12 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
     return { Directive::load(*this, drtv_node) };
   } else if (drtv_node.IsSequence()) {
     Errata zret;
-    Directive::Handle drtv_list{new DirectiveList};
+    auto list { new DirectiveList };
+    Directive::Handle drtv_list{list};
     for (auto child : drtv_node) {
       auto && [handle, errata] {this->load_directive(child)};
       if (errata.is_ok()) {
-        static_cast<DirectiveList *>(drtv_list.get())->push_back(std::move(handle));
+        list->push_back(std::move(handle));
       } else {
         return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
       }
@@ -269,6 +298,42 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
     zret.error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
   }
   return std::move(zret);
+}
+
+TextView Config::localize(swoc::TextView text) {
+  auto span { _arena.alloc(text.size()).rebind<char>() };
+  memcpy(span, text);
+  return span.view();
+};
+
+Config& Config::localize(Extractor::Format &fmt) {
+  // Special case a "pure" literal - it's a format but all of the specifiers are literals.
+  // This can be consolidated into a single specifier with a single literal.
+  if (fmt._literal_p) {
+    size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
+                                                                                   , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
+    auto span{_arena.alloc(n).rebind<char>()};
+    Extractor::Spec literal_spec;
+    literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
+    literal_spec._ext = {span.data(), span.size()};
+    for (auto const &spec : fmt._specs) {
+      memcpy(span.data(), spec._ext.data(), spec._ext.size());
+      span.remove_prefix(spec._ext.size());
+    }
+    fmt._specs.resize(1);
+    fmt._specs[0] = literal_spec;
+  } else {
+    // Localize and update the names and extensions.
+    for (auto &spec : fmt._specs) {
+      if (! spec._name.empty()) {
+        spec._name = this->localize(spec._name);
+      }
+      if (! spec._ext.empty()) {
+        spec._ext = this->localize(spec._ext);
+      }
+    }
+  }
+  return *this;
 }
 
 Errata Config::load_file(swoc::file::path const& file_path) {

@@ -1,9 +1,9 @@
-.. include:: common.defs
+.. include:: /common.defs
 
 .. highlight:: cpp
 .. default-domain:: cpp
 
-.. _arch:
+.. _design:
 
 ************
 Design Notes
@@ -91,6 +91,39 @@ Requiring that text output be available is key to making the extractors useful i
 contexts, primarily as values during HTTP header manipulation. Having a single mechanism for
 accessing data in the transaction was a key design goal, so that it need be written only once to be
 available for both (and other) uses.
+
+String Features
+===============
+
+Other feature types are scalars and therefore easily copied. String features (which are by far the
+most common) are copied around as views but this doesn't alleviate the requirement to be careful
+with the backing memory for those views.
+
+The class :txb:`FeatureView` is used to track a view along with the source of the memory for the
+view. This is needed only in the :txb:`Context` object which tracks transaction local data. For
+the :txb:`Config` object is is sufficiently efficient to always copy any non-transient string to
+local storage, as this is only once per configuration.
+
+For a :code:`Context` the goal is to avoid copies of transient strings while providing safe access
+to strings that are referenced later. When a string feature is used for selection, it is copied
+to temporary arena memory. If the string is transient, which means it is referenced only in that
+specific selection, then it can be abandonded to be overwritten by a future selection. This minimizes
+allocation. In some cases the :code:`Context` can do even better and use a string in external (to
+|TxB|) memory, such as the value of a field in a HTTP header, and not copy the feature even to
+temporary memory. This also works if the string use is transient as described above. However, if
+the feature is referenced later, it needs to be stabilized. :code:`FeatureView` tracks three cases
+
+*  Transient - the string exists only in the context local temporary memory.
+*  Literal - the string  is in the :code:`Config` local memory.
+*  Direct - the string is in external memory which is unstable.
+
+These are handled in different ways. ``Literal`` is the easiest - nothing needs to be done as the
+string (from the point of view of the transaction processing) is persistent. A ``direct`` string
+needs to be copied if referenced later because the plugin cannot make assumptions about the
+durability of external memory, but on the other hand if it is transient it does not need to be
+copied to temporary memory either. Strings that are neither of these exist in the temporary memory
+and don't need to be copied again, it is only necessary to "allocate" the temporary memory in which
+the string resides to prevent overwritting.
 
 No Backtracking
 ===============
