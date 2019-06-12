@@ -124,9 +124,9 @@ const std::string Do_set_preq_field::KEY { "set-preq-field" };
 
 Errata Do_set_preq_field::invoke(Context &ctx) {
   if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
-    TextView name = std::get<VIEW>(ctx.extract(_name_fmt));
+    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
     if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
-      TextView value = std::get<VIEW>(ctx.extract(_value_fmt));
+      TextView value = std::get<STRING>(ctx.extract(_value_fmt));
       field.assign(value);
     }
     return Errata().error(R"(Failed to find or create field "{}")", name);

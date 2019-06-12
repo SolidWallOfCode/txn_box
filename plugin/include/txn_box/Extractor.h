@@ -66,7 +66,7 @@ public:
     /// @}
 
     /// Type of feature extracted by this format.
-    Type _feature_type = VIEW;
+    Type _feature_type = STRING;
 
     /// Condensed format string.
     using Specifiers = std::vector<Spec>;
@@ -114,7 +114,8 @@ public:
     Format::Specifiers::const_iterator _iter;
   };
 
-  /// @defgroup Properties. Property methods for extractors.
+  /// @defgroup Properties.
+  /// Property methods for extractors.
   /// @{
 
   /** The type of feature extracted.
@@ -177,6 +178,7 @@ protected:
 
 /** A string expressed as a view.
  *
+ * @internal Is this still useful?
  */
 class ViewFeature {
 public:
@@ -184,7 +186,7 @@ public:
 };
 
 /** A view of a transient string.
- * This is similar to @c VIEW. The difference is the view is of a string in non-plugin controlled
+ * This is similar to @c STRING. The difference is the view is of a string in non-plugin controlled
  * memory which may disappear or change outside of plugin control. It must therefore be treated
  * with a great deal more care than a @c VIEW type. This type can be converted to a @c VIEW by
  * localizing (making a copy of) the string in the arena.

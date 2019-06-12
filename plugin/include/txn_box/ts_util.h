@@ -1,4 +1,5 @@
-/** @file Utility helpers for TS C API.
+/** @file
+    Utility helpers for TS C API.
 
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
@@ -25,7 +26,7 @@
 
 /** Convert a TS hook ID to the local TxB enum.
  *
- * @param ts_id TS C API hook ID.
+ * @param ev TS C API event value.
  * @return The corresponding TxB hook enum value, or @c Hook::INVALID if not a supported hook.
  */
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev);

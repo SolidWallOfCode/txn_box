@@ -26,6 +26,9 @@
 #include "txn_box/yaml_util.h"
 #include "txn_box/common.h"
 
+/** Base class for comparisons.
+ *
+ */
 class Comparison {
   using self_type = Comparison;
 public:
@@ -34,17 +37,10 @@ public:
 
   /// Factory functor that creates an instance from a configuration node.
   /// Arguments are the comparison node and the value for the comparison identity key.
-  using Assembler = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
+  using Worker = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
 
   // Factory that maps from names to assemblers.
-  using Factory = std::unordered_map<swoc::TextView, Assembler, std::hash<std::string_view>>;
-
-  /** Check if the comparison is valid for @a type.
-   *
-   * @param type Type of feature to compare.
-   * @return @c true if this comparison can compare to that feature type, @c false otherwise.
-   */
-  virtual bool is_valid_for(FeatureType type) const = 0;
+  using Factory = std::unordered_map<swoc::TextView, std::tuple<Worker, FeatureMask>, std::hash<std::string_view>>;
 
   /** Number of regular expression capture groups.
    *
@@ -71,22 +67,23 @@ public:
   virtual bool operator()(Context&, swoc::IPAddr & addr) const { return false; }
   /// @}
 
-  /** Define an assembler that constructs @c Comparison instances.
+  /** Define a comparison.
    *
    * @param name Name for key node to indicate this comparison.
-   * @param cmp_asm Assembler to construct instance from configuration node.
+   * @param types Mask of types that are supported by this comparison.
+   * @param worker Assembler to construct instance from configuration node.
    * @return A handle to a constructed instance on success, errors on failure.
    */
-  static swoc::Errata define(swoc::TextView name, Assembler && cmp_asm);
+  static swoc::Errata define(swoc::TextView name, FeatureMask const& types, Worker && worker);
 
   /** Load a comparison from a YAML @a node.
    *
    * @param cfg Configuration object.
-   * @param type Type of feature for comparison.
+   * @param ftype Type of feature for comparison.
    * @param node Node with comparison config.
    * @return A constructed instance or errors on failure.
    */
-  static swoc::Rv<Handle> load(Config & cfg, FeatureType type, YAML::Node node);
+  static swoc::Rv<Handle> load(Config & cfg, FeatureType ftype, YAML::Node node);
 
 protected:
   /// The assemblers.

@@ -83,11 +83,11 @@ Errata Extractor::define(TextView name, self_type * ex) {
   return {};
 }
 
-Extractor::Type Extractor::feature_type() const { return VIEW; }
+Extractor::Type Extractor::feature_type() const { return STRING; }
 
 bool Extractor::has_ctx_ref() const { return false; }
 
-Extractor::Type ViewFeature::feature_type() const { return VIEW; }
+Extractor::Type ViewFeature::feature_type() const { return STRING; }
 
 Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
   _specs.push_back(spec);

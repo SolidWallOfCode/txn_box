@@ -43,8 +43,9 @@ public:
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
 
+  /// Track the state of provided features.
   struct FeatureRefState {
-    FeatureType _type { VIEW }; ///< Type of active feature.
+    FeatureType _type { STRING }; ///< Type of active feature.
     bool _feature_active_p = false; ///< Feature is active (provided).
     bool _feature_ref_p = false; ///< Feature has been referenced / used.
     bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
@@ -81,20 +82,18 @@ public:
   /** Load / create a directive from a node.
    *
    * @param drtv_node Directive node.
-   * @param feature_type Provided feature type.
-   * @param referenced_p Set if feature was referenced.
+   * @param state A reference state to use for the directives in @a node.
    *
    * @return A new directive instance, or errors if loading failed.
    *
-   * This is used by directives that provide a feature and contain other directives. The type of
-   * the feature must be specified and also a flag, which is set if any of the directives loaded
-   * by this call reference the feature. This can be used for performance optimizations.
+   * This is used by directives that provide a feature and contain other directives. The
+   * @a state provides information on feature provision.
    */
   swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, FeatureRefState& state);
 
   /** Parse a string as a feature extractor.
    *
-   * @param fmt The node with the extractor.
+   * @param fmt_node The node with the extractor.
    * @return The condensed extractor format or errors on failure.
    *
    * This must be called to parse extractors, rather than direct comparison because this does a

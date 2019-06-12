@@ -78,7 +78,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
     return FeatureView::Literal(fmt[0]._ext);
   } else {
     switch (fmt._feature_type) {
-      case VIEW: {
+      case STRING: {
         FixedBufferWriter w{_arena->remnant()};
         // double write - try in the remnant first. If that suffices, done.
         // Otherwise the size is now known and the needed space can be correctly allocated.
@@ -101,7 +101,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
 }
 
 Context& Context::commit(FeatureData const &feature) {
-  if (auto fv = std::get_if<VIEW>(&feature) ; fv && !(fv->_direct_p || fv->_literal_p)) {
+  if (auto fv = std::get_if<STRING>(&feature) ; fv && !(fv->_direct_p || fv->_literal_p)) {
     _arena->alloc(fv->size());
   }
   return *this;

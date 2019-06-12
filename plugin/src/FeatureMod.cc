@@ -88,7 +88,7 @@ const std::string Mod_Hash::KEY { "hash" };
 Mod_Hash::Mod_Hash(unsigned n) : _n(n) {}
 
 bool Mod_Hash::is_valid_for(FeatureType ftype) const {
-  return VIEW == ftype;
+  return STRING == ftype;
 }
 
 FeatureType Mod_Hash::output_type() const {

@@ -1,4 +1,6 @@
-/*
+/* @file
+   Required for all compilation units.
+
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -32,11 +34,16 @@ namespace YAML { class Node; }
 
 /// Supported feature types.
 enum FeatureType {
-  VIEW, ///< View of a string.
+  STRING, ///< View of a string.
   INTEGER, ///< An integer.
   IP_ADDR, ///< IP Address
   BOOL, ///< Boolean.
 };
+
+/// Number of feature types.
+/// @internal @b MUST update this if @c FeatureType is changed.
+/// @internal if @c IndexFor doesn't compile, failure to update is the most likely cause.
+static constexpr size_t N_FEATURE_TYPE = BOOL + 1;
 
 /** Data for a feature that is a view / string.
  *
@@ -73,16 +80,66 @@ static constexpr swoc::TextView LITERAL_TAG { "literal" };
 /// @note view types have only the view stored here, the string memory is elsewhere.
 using FeatureData = std::variant<FeatureView, intmax_t, swoc::IPAddr, bool>;
 
+/// A mask indicating a set of @c FeatureType.
+using FeatureMask = std::bitset<N_FEATURE_TYPE>;
+
 /** Convert a feature @a type to a variant index.
  *
  * @param type Feature type.
  * @return Index in @c FeatureData for that feature type.
  */
-inline unsigned IndexFor(FeatureType type) {
-  static constexpr std::array<unsigned, 4> IDX { 0, 1, 2, 3, };
+inline constexpr unsigned IndexFor(FeatureType type) {
+  constexpr std::array<unsigned, N_FEATURE_TYPE> IDX { 0, 1, 2, 3, };
   return IDX[static_cast<unsigned>(type)];
 };
 
+/** Create a @c FeatureMask containing a single @a type.
+ *
+ * @param type Type to put in the mask.
+ * @return A mask with only @a type set.
+ *
+ * This is useful for initializing @c const instance of @c FeatureMask. For example, if the mask
+ * should be for @c STRING it would be
+ *
+ * @code
+ *   static const FeatureMask Mask { MaskFor(STRING) };
+ * @endcode
+ *
+ * @see FeatureType
+ * @see FeatureMask
+ */
+inline FeatureMask MaskFor(FeatureType type) {
+  FeatureMask mask;
+  mask[IndexFor(type)] = true;
+  return std::move(mask);
+}
+
+/** Create a @c FeatureMask containing @a types.
+ *
+ * @param types List of types to put in the mask.
+ * @return A mask with the specified @a types set.
+ *
+ * @a types is an initializer list. For example, if the mask should have @c STRING and @c INTEGER
+ * set, it would be
+ *
+ * @code
+ *   static const FeatureMask Mask { MaskFor({ STRING, INTEGER}) };
+ * @endcode
+ *
+ * This is useful for initializing @c const instance of @c FeatureMask.
+ *
+ * @see FeatureType
+ * @see FeatureMask
+ */
+inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
+  FeatureMask mask;
+  for (auto type : types) {
+    mask[IndexFor(type)] = true;
+  }
+  return std::move(mask);
+}
+
+/// Conversion between @c FeatureType and printable names.
 extern swoc::Lexicon<FeatureType> FeatureTypeName;
 extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, FeatureType type);
 

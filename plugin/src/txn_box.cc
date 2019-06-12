@@ -43,7 +43,7 @@ using namespace swoc::literals;
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
-swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::VIEW, "string"}
+swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::STRING, "string"}
                                             , {FeatureType::INTEGER, "integer"}
                                             , {FeatureType::BOOL, "boolean"}
                                             , {FeatureType::IP_ADDR, "IP address"}
