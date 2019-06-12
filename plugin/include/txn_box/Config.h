@@ -43,6 +43,14 @@ public:
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
 
+  struct FeatureRefState {
+    FeatureType _type { VIEW }; ///< Type of active feature.
+    bool _feature_active_p = false; ///< Feature is active (provided).
+    bool _feature_ref_p = false; ///< Feature has been referenced / used.
+    bool _rxp_group_active_p = false; /// Regular expression capture groups active.
+    bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
+  };
+
   Config() = default;
 
   /** Load the configuration from the file @a file_path.
@@ -79,9 +87,9 @@ public:
    *
    * This is used by directives that provide a feature and contain other directives. The type of
    * the feature must be specified and also a flag, which is set if any of the directives loaded
-   * by this call reference the feature. This can be used to perform optimizations if desired.
+   * by this call reference the feature. This can be used for performance optimizations.
    */
-  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool& referenced_p);
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, FeatureRefState& state);
 
   /** Parse a string as a feature extractor.
    *
@@ -113,9 +121,16 @@ public:
    */
   self_type & localize(Extractor::Format & fmt);
 
-  /// Check for active directives.
+  /** Require regular expression capture vectors to support at least @a n groups.
+   *
+   * @param n Number of capture groups.
+   * @return @a this
+   */
+  self_type &require_capture_count(unsigned n);
+
+  /// Check for top level directives.
   /// @return @a true if there are any top level directives, @c false if not.
-  bool is_active() const;
+  bool has_top_level_directive() const;
 
   /** Get the top level directives for a @a hook.
    *
@@ -124,35 +139,29 @@ public:
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
-  #if 0
-  /** Indicate an extractor string is used by the @c Context.
-   *
-   * @param fmt Condensed extractor format string.
-   * @return @a this
-   */
-  self_type &use_extractors(Extractor::Format & fmt);
-
-  /** Indicate a directive provides a context based feature.
-   *
-   * @param fmt Condensed extractor format string that defines the feature.
-   * @return @a this
-   */
-  self_type &provides(Extractor::Format & fmt);
-  #endif
-
 protected:
   friend class When;
   friend class Context;
 
   /// Mark whether there are any top level directives.
-  bool _active_p { false };
+  bool _has_top_level_directive_p { false };
 
-  /// Flag and reference. If set, there is an active feature and this is the reference flag.
-  /// If not, then no active feature.
-  bool * _feature_ref_p { nullptr };
+  /// Maximum number of capture groups for regular expression matching.
+  unsigned _capture_groups = 1;
 
-  /// If a feature is active, this is the type.
-  Extractor::Type _feature_type { VIEW };
+  /** @defgroup Feature reference tracking.
+   * A bit obscure but necessary because the active feature and the active capture groups must
+   * be tracked independently because either can be overwritten independent of the other. When
+   * directives are processed, a state instance can be passed to track back references. This is
+   * checked and the pointers updated to point to that iff the incoming state marks the corresopnding
+   * tracking as active. These can therefore point to different states at different levels of
+   * recursion, or the same. This allows the tracking to operate in a simple way, updating the data
+   * for the specific tracking without having to do value checks.
+   */
+  /// @{
+  FeatureRefState* _feature_state = nullptr; ///< Feature.
+  FeatureRefState* _rxp_group_state = nullptr; ///< Regular expression capture groups.
+  /// #}
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
@@ -165,8 +174,13 @@ protected:
   swoc::MemArena _arena;
 };
 
-inline bool Config::is_active() const { return _active_p; }
+inline bool Config::has_top_level_directive() const { return _has_top_level_directive_p; }
 
 inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
   return _roots[static_cast<unsigned>(hook)];
+}
+
+inline Config::self_type &Config::require_capture_count(unsigned n) {
+  _capture_groups = std::max(_capture_groups, n);
+  return *this;
 }

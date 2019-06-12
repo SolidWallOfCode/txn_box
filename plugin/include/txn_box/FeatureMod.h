@@ -87,7 +87,7 @@ public:
 
 protected:
   /// Set of defined modifiers.
-  using Factory = std::unordered_map<swoc::TextView, Worker>;
+  using Factory = std::unordered_map<swoc::TextView, Worker, std::hash<std::string_view>>;
   /// Storage for set of modifiers.
   static Factory _factory;
 };

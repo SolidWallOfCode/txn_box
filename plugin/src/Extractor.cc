@@ -60,14 +60,11 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
 
     if (spec_p) {
       if (spec._name.empty()) {
-        if (spec._idx < 0) {
-          zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt
-          .size());
-        } else {
-          fmt.push_back(spec);
-        }
+        zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt.size());
       } else {
-        if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
+        if (spec._idx >= 0) {
+          fmt.push_back(spec);
+        } else if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
           spec._extractor = ex->second;
           fmt.push_back(spec);
         } else {
@@ -112,3 +109,18 @@ Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec cons
   return *this;
 }
 
+bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &spec) {
+  bool zret = false;
+  if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
+    literal = _iter->_ext;
+    if (++_iter == _specs.end()) { // all done!
+      return zret;
+    }
+  }
+  if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
+    spec = *_iter;
+    ++_iter;
+    zret = true;
+  }
+  return zret;
+}

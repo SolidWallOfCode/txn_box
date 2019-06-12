@@ -183,7 +183,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
     if (! fmt_node.IsScalar()) {
       return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
     }
-    return { Extractor::literal(fmt_node.Scalar()), {} };
+    return Extractor::literal(fmt_node.Scalar());
   }
 
   // Handle simple string.
@@ -192,8 +192,8 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
     auto &&[fmt, errata]{Extractor::parse(fmt_node.Scalar())};
     if (errata.is_ok()) {
 
-      if (fmt._ctx_ref_p && _feature_ref_p) {
-        *_feature_ref_p = true;
+      if (fmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
+        _feature_state->_feature_ref_p = true;
       }
 
       this->localize(fmt);
@@ -202,7 +202,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
   } else if (fmt_node.IsSequence()) {
     // empty list is treated as an empty string.
     if (fmt_node.size() < 1) {
-      return { Extractor::literal(TextView{}), {} };
+      return Extractor::literal(TextView{});
     }
 
     auto str_node { fmt_node[0] };
@@ -220,11 +220,15 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
       auto child { fmt_node[idx] };
       auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
       if (! mod_errata.is_ok()) {
-        errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
+        mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
+        return { {}, std::move(mod_errata) };
       }
-      _feature_type = mod->output_type();
+      if (_feature_state) {
+        _feature_state->_type = mod->output_type();
+      }
       fmt._mods.emplace_back(std::move(mod));
     }
+    return { std::move(fmt), {} };
   }
 
   return { {}, Errata().error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark()) };
@@ -235,17 +239,16 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
 // after a tree descent. During runtime, only one path is followed and therefore this isn't
 // required.
 Rv<Directive::Handle>
-Config::load_directive(YAML::Node drtv_node, Extractor::Type feature_type, bool &referenced_p) {
-  bool * saved_flag = _feature_ref_p;
-  Extractor::Type saved_type = _feature_type;
-  _feature_ref_p = &referenced_p;
-  _feature_type = feature_type;
-  // put the old values back on return, this is cleaner than needing a temporary and @c std::move
-  // to perform the restore before the return.
-  scope_exit cleanup([&] () {
-    _feature_ref_p = saved_flag;
-    _feature_type = saved_type;
-  });
+Config::load_directive(YAML::Node drtv_node, FeatureRefState &state) {
+  auto saved_feature = _feature_state;
+  auto saved_rxp = _rxp_group_state;
+  if (state._feature_active_p) {
+    _feature_state = &state;
+  }
+  if (state._rxp_group_active_p) {
+    _rxp_group_state = &state;
+  }
+  scope_exit cleanup([&] () { _feature_state = saved_feature; _rxp_group_state = saved_rxp; });
 
   return this->load_directive(drtv_node);
 }
@@ -283,7 +286,7 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
         auto && [ handle, errata ]{ When::load(*this, drtv_node, key_node) };
         if (errata.is_ok()) {
           _roots[static_cast<unsigned>(hook_idx)].emplace_back(std::move(handle));
-          _active_p = true;
+          _has_top_level_directive_p = true;
         } else {
           zret.note(errata);
         }
@@ -447,7 +450,7 @@ TSPluginInit(int argc, char const *argv[]) {
   }
   if (errata.is_ok()) {
     if (TSPluginRegister(&info) == TS_SUCCESS) {
-      if (Plugin_Config.is_active()) {
+      if (Plugin_Config.has_top_level_directive()) {
         TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
         TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
       }

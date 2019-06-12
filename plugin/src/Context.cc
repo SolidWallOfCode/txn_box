@@ -25,6 +25,7 @@ using swoc::MemSpan;
 using swoc::Errata;
 using swoc::BufferWriter;
 using swoc::FixedBufferWriter;
+using namespace swoc::literals;
 
 Context::Context(Config & cfg) {
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
@@ -35,6 +36,12 @@ Context::Context(Config & cfg) {
      MemSpan<Directive*> drtv_list = _arena->alloc(sizeof(Directive*) * cfg._directive_count[idx]).rebind<Directive*>();
      _directives[idx] = { 0, 0, drtv_list.data() };
   };
+
+  // Provide local storage for regex capture groups.
+  _rxp_ctx = pcre2_general_context_create([] (PCRE2_SIZE size, void* ctx) -> void* { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
+  , [] (void*, void*) -> void {}, this);
+  _rxp_capture = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
+  _rxp_working = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
 }
 
 Errata Context::when_do(Hook hook, Directive* drtv) {
@@ -113,3 +120,16 @@ ts::HttpHeader Context::preq_hdr() {
   }
   return _preq;
 }
+
+unsigned Context::ArgPack::count() const {
+  return _ctx._rxp_capture ? pcre2_get_ovector_count(_ctx._rxp_capture) : 0;
+}
+
+BufferWriter& Context::ArgPack::print(unsigned idx, BufferWriter &w
+                                      , swoc::bwf::Spec const &spec) const {
+  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_capture);
+  idx *= 2; // To account for offset pairs.
+  return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx+1] - ovector[idx]));
+}
+
+std::any Context::ArgPack::capture(unsigned idx) const { return "Bogus"_sv; }

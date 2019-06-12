@@ -3,10 +3,10 @@ txn_box:
   do:
   - with: "{creq-host}"
     select:
-    - match: !regex-caseless "[.]org$"
+    - regex-nocase: "(.*?)[.]ORG"
       do:
-      - set-preq-field: [ X-swoc, "it's the original!" ]
-    - match: !regex "[.]com$"
+      - set-preq-field: [ X-swoc, "it's the original {1}!" ]
+    - regex: "[.]com$"
       do:
       - set-preq-field:
         - X-swoc

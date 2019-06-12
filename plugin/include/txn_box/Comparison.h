@@ -20,49 +20,11 @@
 #include <unordered_map>
 #include <functional>
 
-#define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
-
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
 #include "txn_box/yaml_util.h"
 #include "txn_box/common.h"
-
-class Config;
-
-/** Regular expression support.
- *
- * This is split out from @c Comparison because regular expressions will be used in additional
- * situations. It is non-copyable because it is basically a wrapper on a non-shared PCRE code
- * block and it seems silly to have a handle to what is effectively a handle. Aggregrating classes
- * can deal with it the same way as a @c std::unique_ptr.
- */
-class Rxp {
-  using self_type = Rxp;
-  struct PCRE_Deleter {
-    void operator()(pcre2_code* ptr) { pcre2_code_free(ptr); }
-  };
-  using RxpHandle = std::unique_ptr<pcre2_code, PCRE_Deleter>;
-
-public:
-  Rxp() = default;
-  Rxp(self_type const&) = delete;
-  Rxp(self_type && that) : _rxp(std::move(that._rxp)) {}
-  self_type & operator = (self_type const&) = delete;
-
-  size_t capture_count() const {
-    uint32_t count = 0;
-    auto result = pcre2_pattern_info(_rxp.get(), PCRE2_INFO_CAPTURECOUNT, &count);
-    return result == 0 ? count : 0;
-  }
-
-  static swoc::Rv<self_type> parse(swoc::TextView str);
-protected:
-  RxpHandle _rxp;
-
-  Rxp(pcre2_code* rxp) : _rxp(rxp) {}
-};
 
 class Comparison {
   using self_type = Comparison;
@@ -84,8 +46,18 @@ public:
    */
   virtual bool is_valid_for(FeatureType type) const = 0;
 
-  bool operator()(FeatureData & data) {
-    return std::visit(*this, data);
+  /** Check if the comparison has a regular expression and therefore capture groups.
+   *
+   * @return @c true if the comparison applies a regular expression, @c false if not.
+   *
+   * The default implementation returns @c false, regular expression based comparisons must
+   * override to return @c true.
+   */
+  virtual bool has_regex() const;
+
+  bool operator()(Context& ctx, FeatureData & data) {
+    auto visitor = [&](auto && arg) { return (*this)(ctx, arg); };
+    return std::visit(visitor, data);
   }
 
   /// @defgroup Comparison overloads.
@@ -93,10 +65,10 @@ public:
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// The feature is passed by reference because comparisons are allowed to perform updates.
   /// @{
-  virtual bool operator()(swoc::TextView& view) const { return false; }
-  virtual bool operator()(intmax_t& n) const { return false; }
-  virtual bool operator()(bool& f) const { return false; }
-  virtual bool operator()(swoc::IPAddr & addr) const { return false; }
+  virtual bool operator()(Context&, swoc::TextView& view) const { return false; }
+  virtual bool operator()(Context&, intmax_t& n) const { return false; }
+  virtual bool operator()(Context&, bool& f) const { return false; }
+  virtual bool operator()(Context&, swoc::IPAddr & addr) const { return false; }
   /// @}
 
   /** Define an assembler that constructs @c Comparison instances.

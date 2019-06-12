@@ -107,20 +107,7 @@ public:
     FmtEx(Format::Specifiers const& specs) : _specs(specs), _iter(specs.begin()) {}
 
     operator bool() const { return _iter != _specs.end(); }
-    bool operator()(std::string_view& literal, Spec & spec) {
-      bool zret = false;
-      Spec const& current { *_iter++ };
-      if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
-        literal = _iter->_ext;
-        ++_iter;
-      }
-      if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
-        spec = *_iter;
-        ++_iter;
-        zret = true;
-      }
-      return zret;
-    };
+    bool operator()(std::string_view& literal, Spec & spec);;
   protected:
     Format::Specifiers const& _specs;
     Format::Specifiers::const_iterator _iter;

@@ -140,9 +140,9 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node
       auto name_node { key_node[0] };
       auto value_node { key_node[1] };
       if (name_node.IsScalar() && value_node.IsScalar()) {
-        auto && [ name_fmt, name_errata ] { cfg.parse_feature(name_node.Scalar()) };
+        auto && [ name_fmt, name_errata ] { cfg.parse_feature(name_node) };
         if (name_errata.is_ok()) {
-          auto &&[value_fmt, value_errata]{cfg.parse_feature(value_node.Scalar())};
+          auto &&[value_fmt, value_errata]{cfg.parse_feature(value_node)};
           if (value_errata.is_ok()) {
             auto self{new self_type};
             self->_name_fmt = std::move(name_fmt);
@@ -255,7 +255,7 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op)
 Errata With::invoke(Context &ctx) {
   FeatureData feature { ctx.extract(_ex) };
   for ( auto const& c : _cases ) {
-    if ((*c._cmp)(feature)) {
+    if ((*c._cmp)(ctx, feature)) {
       ctx._feature = feature;
       return c._do->invoke(ctx);
     }
@@ -279,7 +279,7 @@ swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML:
 
   if (key_node.IsScalar()) {
     // Need to parse this first, so the feature type can be determined.
-    auto && [ fmt, errata ] = cfg.parse_feature(key_node.Scalar());
+    auto && [ fmt, errata ] = cfg.parse_feature(key_node);
 
     if (!errata.is_ok()) {
       return {{}, std::move(errata)};
@@ -315,9 +315,20 @@ swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML:
 Errata With::load_case(Config & cfg, YAML::Node node) {
   if (node.IsMap()) {
     Case c;
+    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex._feature_type, node)};
+    if (cmp_errata.is_ok()) {
+      c._cmp = std::move(cmp_handle);
+    } else {
+      cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
+      return std::move(cmp_errata);
+    }
+
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
-      bool ref_p = false;
-      auto &&[handle, errata]{cfg.load_directive(do_node, _ex._feature_type, ref_p)};
+      Config::FeatureRefState ref;
+      ref._feature_active_p = true;
+      ref._type = _ex._feature_type;
+      ref._rxp_group_active_p = c._cmp->has_regex();
+      auto &&[handle, errata]{cfg.load_directive(do_node, ref)};
       if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {
@@ -328,17 +339,9 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
     } else {
       c._do.reset(new NilDirective);
     }
-
-    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex._feature_type, node)};
-    if (cmp_errata.is_ok()) {
-      c._cmp = std::move(cmp_handle);
-      _cases.emplace_back(std::move(c));
-    } else {
-      cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
-      return std::move(cmp_errata);
-    }
-
-    return {}; // everything is fine!
+    // Everything is fine, update the case load and return.
+    _cases.emplace_back(std::move(c));
+    return {};
   }
   return Errata().error(R"(The value at {} for "{}" is not an object as required.")", node.Mark(), SELECT_KEY);
 }
@@ -351,7 +354,7 @@ swoc::Rv<Directive::Handle> WithTuple::load(Config & cfg, YAML::Node drtv_node, 
   // Get the feature extraction tuple.
   for ( auto const& child : key_node ) {
     if (child.IsScalar()) {
-      auto &&[fmt, errata]{cfg.parse_feature(child.Scalar())};
+      auto &&[fmt, errata]{cfg.parse_feature(child)};
       if (errata.is_ok()) {
         ex_tuple.emplace_back(std::move(fmt));
       } else {

@@ -27,6 +27,7 @@ FeatureMod::Factory FeatureMod::_factory;
 
 Errata FeatureMod::define(swoc::TextView name, FeatureMod::Worker const &f) {
   _factory[name] = f;
+  return {};
 }
 
 Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, FeatureType ftype) {
@@ -44,7 +45,7 @@ Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, Fea
       if (!errata.is_ok()) {
         return {{}, std::move(errata)};
       }
-      if (! handle->is_valid_for(ftype) {
+      if (! handle->is_valid_for(ftype)) {
         return { {}, Errata().error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ftype) };
       }
 

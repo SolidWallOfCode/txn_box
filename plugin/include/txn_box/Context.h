@@ -22,11 +22,10 @@
 #include <swoc/Errata.h>
 
 #include "txn_box/common.h"
+#include "txn_box/Rxp.h"
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/ts_util.h"
-
-class Config;
 
 /** Per transaction context.
  *
@@ -103,7 +102,7 @@ public:
       * Should have BWF supply a default implementation that throws - this is used in so few
       * cases it shouldn't have to be implemented by default.
       */
-    std::any capture(unsigned idx) const override { return std::string_view{"Bogus"}; }
+    std::any capture(unsigned idx) const override;
 
     /** Generate formatted output for an argument.
      *
@@ -114,12 +113,10 @@ public:
      *
      * For now this is unimplemented - it will get filled out when regex support is done.
      */
-    swoc::BufferWriter &print(unsigned idx, swoc::BufferWriter &w, swoc::bwf::Spec const &spec) const override {
-      return w;
-    }
+    swoc::BufferWriter &print(unsigned idx, swoc::BufferWriter &w, swoc::bwf::Spec const &spec) const override;
 
     /// Number of arguments in the pack.
-    unsigned count() const override { return 0; }
+    unsigned count() const override;
 
     Context& _ctx;
   };
@@ -138,11 +135,27 @@ public:
   ts::HttpHeader creq_hdr();
   ts::HttpHeader preq_hdr();
 
+  /// Context for working with PCRE - allocates from the transaction arena.
+  pcre2_general_context* _rxp_ctx = nullptr;
+
+  /// Active regex capture data.
+  pcre2_match_data *_rxp_capture = nullptr;
+  /// Active view to which the capture groups refer.
+  FeatureView _rxp_src;
+
+  /// Temporary / working capture group data.
+  pcre2_match_data *_rxp_working = nullptr;
+
+  /// Promote the working capture group data to active capture group data.
+  pcre2_match_data* promote_capture_data() {
+    std::swap(_rxp_capture, _rxp_working);
+    return _rxp_capture;
+  }
+
 protected:
   // HTTP header objects for the transaction.
   ts::HttpHeader _creq; ///< Client request header.
   ts::HttpHeader _preq; ///< Proxy request header.
   ts::HttpHeader _ursp; ///< Upstream response header.
   ts::HttpHeader _prsp; ///< Proxy response header.
-
 };

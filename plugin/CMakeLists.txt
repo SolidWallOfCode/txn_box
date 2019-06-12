@@ -10,18 +10,19 @@ find_package(canned-yaml CONFIG REQUIRED)
 
 add_library(plugin SHARED
 	src/txn_box.cc
+    	src/Comparison.cc
 	src/Context.cc
 	src/Directive.cc
 	src/Extractor.cc
         src/FeatureMod.cc
 	src/Features.cc
 	src/Machinery.cc
-    	src/Comparison.cc
+        src/Rxp.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")
 
-target_link_libraries(plugin PUBLIC swoc++::swoc++ yaml-cpp)
+target_link_libraries(plugin PUBLIC swoc++::swoc++ yaml-cpp pcre2-8)
 target_include_directories(plugin PUBLIC include)
 target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include)
 
