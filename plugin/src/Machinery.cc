@@ -327,7 +327,8 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
       Config::FeatureRefState ref;
       ref._feature_active_p = true;
       ref._type = _ex._feature_type;
-      ref._rxp_group_active_p = c._cmp->has_regex();
+      ref._rxp_group_count = c._cmp->rxp_group_count();
+      ref._rxp_line = node.Mark().line;
       auto &&[handle, errata]{cfg.load_directive(do_node, ref)};
       if (errata.is_ok()) {
         c._do = std::move(handle);

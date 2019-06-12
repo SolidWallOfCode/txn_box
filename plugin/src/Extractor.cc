@@ -64,6 +64,7 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
       } else {
         if (spec._idx >= 0) {
           fmt.push_back(spec);
+          fmt._max_arg_idx = std::max(fmt._max_arg_idx, spec._idx);
         } else if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
           spec._extractor = ex->second;
           fmt.push_back(spec);

@@ -29,7 +29,7 @@ using swoc::Rv;
 
 Comparison::Factory Comparison::_factory;
 
-bool Comparison::has_regex() const { return false; }
+unsigned Comparison::rxp_group_count() const { return 0; }
 
 Errata Comparison::define(swoc::TextView name, Comparison::Assembler &&cmp_asm) {
   _factory[name] = std::move(cmp_asm);
@@ -128,7 +128,7 @@ public:
 
   bool operator() (Context& ctx, TextView& text) const override;
   bool is_valid_for(FeatureType ftype) const override;
-  bool has_regex() const override;
+  unsigned rxp_group_count() const override;
 
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
@@ -146,7 +146,7 @@ bool Cmp_RegexMatch::is_valid_for(FeatureType ftype) const {
   return VIEW == ftype;
 }
 
-bool Cmp_RegexMatch::has_regex() const { return true; }
+unsigned Cmp_RegexMatch::rxp_group_count() const { return _rxp.capture_count(); }
 
 Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
   auto && [ fmt, errata ] { cfg.parse_feature(key_node) };

@@ -192,6 +192,14 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
     auto &&[fmt, errata]{Extractor::parse(fmt_node.Scalar())};
     if (errata.is_ok()) {
 
+      if (fmt._max_arg_idx >= 0) {
+        if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
+          return { {}, Errata().error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark()) };
+        } else if (fmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
+          return { {}, Errata().error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", fmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line) };
+        }
+      }
+
       if (fmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
         _feature_state->_feature_ref_p = true;
       }
@@ -245,7 +253,7 @@ Config::load_directive(YAML::Node drtv_node, FeatureRefState &state) {
   if (state._feature_active_p) {
     _feature_state = &state;
   }
-  if (state._rxp_group_active_p) {
+  if (state._rxp_group_count > 0) {
     _rxp_group_state = &state;
   }
   scope_exit cleanup([&] () { _feature_state = saved_feature; _rxp_group_state = saved_rxp; });

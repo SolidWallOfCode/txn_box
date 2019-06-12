@@ -46,14 +46,14 @@ public:
    */
   virtual bool is_valid_for(FeatureType type) const = 0;
 
-  /** Check if the comparison has a regular expression and therefore capture groups.
+  /** Number of regular expression capture groups.
    *
-   * @return @c true if the comparison applies a regular expression, @c false if not.
+   * @return The number of capture groups, or 0 if it is not a regular expression.
    *
-   * The default implementation returns @c false, regular expression based comparisons must
-   * override to return @c true.
+   * The default implementation returns @c 0, regular expression based comparisons must
+   * override to return the appropriate number for the regular expression.
    */
-  virtual bool has_regex() const;
+  virtual unsigned rxp_group_count() const;
 
   bool operator()(Context& ctx, FeatureData & data) {
     auto visitor = [&](auto && arg) { return (*this)(ctx, arg); };

@@ -47,8 +47,9 @@ public:
     FeatureType _type { VIEW }; ///< Type of active feature.
     bool _feature_active_p = false; ///< Feature is active (provided).
     bool _feature_ref_p = false; ///< Feature has been referenced / used.
-    bool _rxp_group_active_p = false; /// Regular expression capture groups active.
     bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
+    unsigned _rxp_group_count = 0; ///< Number of active capture groups - 0 => not active.
+    int _rxp_line = -1; ///< Line of the active regular expression.
   };
 
   Config() = default;
