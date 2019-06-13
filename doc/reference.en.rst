@@ -39,5 +39,5 @@ Glossary
    selection
       Making a choice based on a :term:`feature`.
 
-   comparison operator
+   comparison
       An operator that compares local data to a feature and indicates if the data matches the feature.

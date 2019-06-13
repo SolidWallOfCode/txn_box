@@ -1,4 +1,5 @@
-/** @file Utility helpers for YAML CPP.
+/** @file
+   Utility helpers for YAML CPP.
 
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
@@ -23,7 +24,7 @@
 
 // Structured binding support for nodes. E.g.
 // YAML::Node node;
-//  for ( auto const& [ key, value ] : node ] { ... }
+// for ( auto const& [ key, value ] : node ] { ... }
 namespace std {
 template<> class tuple_size<YAML::const_iterator::value_type> : public std::integral_constant<size_t, 2> {};
 template<> class tuple_element<0, YAML::const_iterator::value_type> { public: using type = const YAML::Node; };

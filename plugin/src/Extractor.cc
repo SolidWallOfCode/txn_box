@@ -20,15 +20,27 @@
 #include <swoc/Errata.h>
 
 #include "txn_box/Extractor.h"
+#include "txn_box/Context.h"
 
 using swoc::TextView;
 using swoc::Errata;
+using swoc::Rv;
+using namespace swoc::literals;
 
 Extractor::Table Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
 
-swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string) {
+Rv<Extractor::Format> Extractor::literal(TextView format_string) {
+  Spec lit;
+  Format fmt;
+  lit._type = swoc::bwf::Spec::LITERAL_TYPE;
+  lit._ext = format_string;
+  fmt.push_back(lit);
+  return { std::move(fmt), {} };
+}
+
+Rv<Extractor::Format> Extractor::parse(TextView format_string) {
   Spec literal_spec; // used to handle literals as spec instances.
   auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;
@@ -48,14 +60,12 @@ swoc::Rv<Extractor::Format> Extractor::parse(swoc::TextView format_string) {
 
     if (spec_p) {
       if (spec._name.empty()) {
-        if (spec._idx < 0) {
-          zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt
-          .size());
-        } else {
-          fmt.push_back(spec);
-        }
+        zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt.size());
       } else {
-        if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
+        if (spec._idx >= 0) {
+          fmt.push_back(spec);
+          fmt._max_arg_idx = std::max(fmt._max_arg_idx, spec._idx);
+        } else if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
           spec._extractor = ex->second;
           fmt.push_back(spec);
         } else {
@@ -73,18 +83,45 @@ Errata Extractor::define(TextView name, self_type * ex) {
   return {};
 }
 
-Extractor::Type Extractor::feature_type() const { return VIEW; }
+Extractor::Type Extractor::feature_type() const { return STRING; }
 
 bool Extractor::has_ctx_ref() const { return false; }
 
-Extractor::Type ViewFeature::feature_type() const { return Extractor::VIEW; }
+Extractor::Type ViewFeature::feature_type() const { return STRING; }
 
-Extractor::Type DirectFeature::feature_type() const { return Extractor::DIRECT; }
-
-Extractor::Format::self_type Extractor::Format::push_back(Extractor::Spec const &spec) {
-  _items.push_back(spec);
-  if (spec._extractor && spec._extractor->has_ctx_ref()) {
-    _has_ctx_ref = true;
+Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
+  _specs.push_back(spec);
+  // update properties.
+  if (spec._type == swoc::bwf::Spec::LITERAL_TYPE) {
+    _direct_p = false; // literals aren't direct.
+  } else {
+    _literal_p = false;
+    if (_specs.size() == 1) {
+      if (spec._extractor) {
+        _feature_type = spec._extractor->feature_type();
+        if (nullptr == dynamic_cast<DirectFeature*>(spec._extractor)) {
+          _direct_p = false;
+        }
+      }
+    } else { // multiple items
+      _direct_p = false;
+    }
   }
+  return *this;
 }
 
+bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &spec) {
+  bool zret = false;
+  if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
+    literal = _iter->_ext;
+    if (++_iter == _specs.end()) { // all done!
+      return zret;
+    }
+  }
+  if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
+    spec = *_iter;
+    ++_iter;
+    zret = true;
+  }
+  return zret;
+}

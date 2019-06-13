@@ -22,6 +22,11 @@ using swoc::Errata;
 
 Directive::Factory Directive::_factory;
 
+Errata Directive::define(swoc::TextView name, Directive::Assembler const &assm) {
+  _factory[name] = assm;
+  return {};
+}
+
 DirectiveList& DirectiveList::push_back(Directive::Handle &&d) {
   _directives.emplace_back(std::move(d));
   return *this;

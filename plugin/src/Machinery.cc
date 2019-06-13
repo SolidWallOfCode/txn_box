@@ -17,24 +17,27 @@
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
-#include "ts/ts.h"
-
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Comparison.h"
 #include "txn_box/Config.h"
-#include "txn_box/yaml-util.h"
+#include "txn_box/Context.h"
+
+#include "txn_box/yaml_util.h"
+#include "txn_box/ts_util.h"
 
 using swoc::TextView;
 using swoc::Errata;
 using swoc::Rv;
+using swoc::BufferWriter;
+namespace bwf = swoc::bwf;
 
 const std::string Directive::DO_KEY { "do" };
 /* ------------------------------------------------------------------------------------ */
 Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
   YAML::Node key_node;
-  for ( auto const&  [ key_node, value ] : drtv_node ) {
-    TextView key { key_node.Scalar() };
+  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
+    TextView key { key_name.Scalar() };
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
     if (key == DO_KEY) {
@@ -43,46 +46,129 @@ Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to directives. First key that is in the factory determines the directive type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      return spot->second(cfg, drtv_node, key_node);
+      return spot->second(cfg, drtv_node, key_value);
     }
   }
   return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Do_Set_Preq_Url_Host : public Directive {
+class Do_set_preq_url_host : public Directive {
   using super_type = Directive;
-  using self_type = Do_Set_Preq_Url_Host;
+  using self_type = Do_set_preq_url_host;
 public:
   static const std::string KEY;
 
-  explicit Do_Set_Preq_Url_Host(TextView text) : _host(text) {}
+  explicit Do_set_preq_url_host(TextView text) : _host(text) {}
 
   Errata invoke(Context &ctx) override;
-  static swoc::Rv<Handle> load(YAML::Node node);
-protected:
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
   std::string _host;
 };
 
-const std::string Do_Set_Preq_Url_Host::KEY { "set-preq-url-host" };
+const std::string Do_set_preq_url_host::KEY { "set-preq-url-host" };
 
-Errata Do_Set_Preq_Url_Host::invoke(Context &ctx) {
+Errata Do_set_preq_url_host::invoke(Context &ctx) {
   Errata zret;
   return zret;
 }
 
-swoc::Rv<Directive::Handle> Do_Set_Preq_Url_Host::load(YAML::Node node) {
-  Errata errata;
-  if ( auto item { node[KEY] } ; item ) {
-    return { Handle{new self_type{item.Scalar()}}, {} };
-  }
-  errata.error(R"(Key "{}" not found in directive at {})", KEY, node.Mark());
-  return { {}, errata };
+swoc::Rv<Directive::Handle> Do_set_preq_url_host::load(Config &, YAML::Node, YAML::Node key_node) {
+  return { Handle{new self_type{key_node.Scalar()}}, {} };
 }
 
 /* ------------------------------------------------------------------------------------ */
+class Do_set_preq_host : public Directive {
+  using super_type = Directive;
+  using self_type = Do_set_preq_host;
+public:
+  static const std::string KEY;
 
-/// @c with directive.
+  explicit Do_set_preq_host(TextView text);
+
+  Errata invoke(Context &ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+  std::string _host;
+};
+
+const std::string Do_set_preq_host::KEY { "set-preq-host" };
+
+Do_set_preq_host::Do_set_preq_host(TextView text) : _host(text) {}
+
+Errata Do_set_preq_host::invoke(Context &ctx) {
+  Errata zret;
+  return zret;
+}
+
+swoc::Rv<Directive::Handle> Do_set_preq_host::load(Config &, YAML::Node, YAML::Node key_node) {
+  return { Handle{new self_type{key_node.Scalar()}}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+class Do_set_preq_field : public Directive {
+  using self_type = Do_set_preq_field;
+public:
+  static const std::string KEY;
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Extractor::Format _name_fmt;
+  Extractor::Format _value_fmt;
+
+  Do_set_preq_field() = default;
+};
+
+const std::string Do_set_preq_field::KEY { "set-preq-field" };
+
+Errata Do_set_preq_field::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
+      TextView value = std::get<STRING>(ctx.extract(_value_fmt));
+      field.assign(value);
+    }
+    return Errata().error(R"(Failed to find or create field "{}")", name);
+  }
+  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+}
+
+Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  if (key_node.IsSequence()) {
+    if (key_node.size() == 2) {
+      auto name_node { key_node[0] };
+      auto value_node { key_node[1] };
+      if (name_node.IsScalar() && value_node.IsScalar()) {
+        auto && [ name_fmt, name_errata ] { cfg.parse_feature(name_node) };
+        if (name_errata.is_ok()) {
+          auto &&[value_fmt, value_errata]{cfg.parse_feature(value_node)};
+          if (value_errata.is_ok()) {
+            auto self{new self_type};
+            self->_name_fmt = std::move(name_fmt);
+            self->_value_fmt = std::move(value_fmt);
+            return {Handle(self), {}};
+          }
+          return {{}, std::move(
+              value_errata.error(R"(While parsing value (second item) for "{}" key at {}.)", KEY
+                                 , key_node))};
+        }
+        return {{}, std::move(
+            name_errata.error(R"(While parsing name (first item) for "{}" key at {}.)", KEY
+                               , key_node))};
+      }
+      return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 strings as required.)", KEY, key_node.Mark()) };
+    }
+    return { {}, Errata().error(R"(Value for "{}" key at {} does have exactly 2 elements as required.)", KEY, key_node.Mark()) };
+  }
+  return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node.Mark()) };
+}
+/* ------------------------------------------------------------------------------------ */
+
+/** @c with directive.
+ * 
+ * This a central part of the 
+ */
 class With : public Directive {
   using super_type = Directive;
   using self_type = With;
@@ -95,10 +181,6 @@ public:
 
 protected:
   Extractor::Format _ex; ///< Extractor format.
-  /// Data type for @a _ex.
-  /// This is a @c STRING unless @a _ex is a singleton with a different preferred type.
-  Extractor::Type _feature_type = Extractor::VIEW;
-  Extractor::Feature _feature; ///< Extracted feature.
 
   /// A single case in the select.
   struct Case {
@@ -108,17 +190,13 @@ protected:
   using CaseGroup = std::vector<Case>;
   CaseGroup _cases; ///< List of cases for the select.
 
-  With(Extractor::Format && fmt, CaseGroup && cases) : _ex(std::move(fmt)), _cases(std::move(cases)) {}
+  With() = default;
 
-  static Errata load_case(Config & cfg, CaseGroup& cases, YAML::Node node);
+  Errata load_case(Config & cfg, YAML::Node node);
 };
 
 const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
-
-Errata With::invoke(Context &ctx) {
-  return {};
-}
 
 class WithTuple : public Directive {
   friend class With;
@@ -130,10 +208,11 @@ public:
   static const std::string ANY_OF_KEY;
   static const std::string ALL_OF_KEY;
   static const std::string NONE_OF_KEY;
+  static const std::string ELSE_KEY;
 
   /// Operation to combine the matches in a case.
   enum Op {
-    ANY_OF, ALL_OF, NONE_OF
+    ANY_OF, ALL_OF, NONE_OF, ELSE
   };
 
   static const swoc::Lexicon<Op> OpName;
@@ -152,23 +231,40 @@ protected:
   using CaseGroup = std::vector<Case>;
   CaseGroup _cases; ///< List of cases for the select.
 
-  WithTuple(std::vector<Extractor::Format> && fmt, CaseGroup && cases) : _ex(std::move(fmt)), _cases(std::move(cases)) {}
+  WithTuple() = default;
 
   static swoc::Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
-  static Errata load_case(Config & cfg, CaseGroup& cases, YAML::Node node, unsigned size);
+  Errata load_case(Config & cfg, YAML::Node node, unsigned size);
 };
 
 const std::string WithTuple::KEY { With::KEY };
 const std::string WithTuple::SELECT_KEY { With::SELECT_KEY };
-static const std::string ANY_OF_KEY { "any-of" };
-static const std::string ALL_OF_KEY { "all-of" };
-static const std::string NONE_OF_KEY { "none-of" };
+const std::string WithTuple::ANY_OF_KEY { "any-of" };
+const std::string WithTuple::ALL_OF_KEY { "all-of" };
+const std::string WithTuple::NONE_OF_KEY { "none-of" };
+const std::string WithTuple::ELSE_KEY { "else" };
 
-const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY } };
+const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY }, { ELSE, ELSE_KEY } };
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op) {
+  if (spec.has_numeric_type()) {
+    return bwformat(w, spec, static_cast<unsigned>(op));
+  }
+  return bwformat(w, spec, WithTuple::OpName[op]);
+}
+
+Errata With::invoke(Context &ctx) {
+  FeatureData feature { ctx.extract(_ex) };
+  for ( auto const& c : _cases ) {
+    if ((*c._cmp)(ctx, feature)) {
+      ctx._feature = feature;
+      return c._do->invoke(ctx);
+    }
+  }
+  return {};
+}
 
 Errata WithTuple::invoke(Context &ctx) {
-  Errata zret;
-  return zret;
+  return {};
 };
 
 swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
@@ -176,50 +272,64 @@ swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML:
   if (! select_node) {
     return {{}, Errata().error(R"(Required "{}" key not found in "{}" directive at {}.)", SELECT_KEY
                                , KEY, drtv_node.Mark())};
+  } else if (!(select_node.IsMap() || select_node.IsSequence()) ) {
+    return {{}, Errata().error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")"
+               , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark()) };
   }
 
   if (key_node.IsScalar()) {
-    Errata zret;
-    With::CaseGroup cases;
+    // Need to parse this first, so the feature type can be determined.
+    auto && [ fmt, errata ] = cfg.parse_feature(key_node);
 
-    auto &&[fmt, errata]{Extractor::parse(key_node.Scalar())};
-
-    if (errata.is_ok()) {
-      if (select_node.IsMap()) {
-        zret = self_type::load_case(cfg, cases, select_node);
-      } else if (select_node.IsSequence()) {
-        for (YAML::Node child : select_node) {
-          zret.note(self_type::load_case(cfg, cases, child));
-        }
-        if (!zret.is_ok()) {
-          zret.error(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark()
-                     , SELECT_KEY, select_node.Mark());
-        }
-      } else {
-        zret.error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")"
-                   , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
-      }
-
-      if (zret.is_ok()) {
-        auto drtv { new With(std::move(fmt), std::move(cases)) };
-        cfg.provides(drtv->_ex);
-        return {Handle{drtv}, {}};
-      }
-      return {{}, std::move(zret)};
-    } else {
-      return { {}, std::move(errata) };
+    if (!errata.is_ok()) {
+      return {{}, std::move(errata)};
     }
+
+    self_type * self = new self_type;
+    Handle handle(self); // for return, and cleanup in case of error.
+    self->_ex = std::move(fmt);
+
+    if (select_node.IsMap()) {
+      errata = self->load_case(cfg, select_node);
+      if (! errata.is_ok()) {
+        return {{}, std::move(errata)};
+      }
+    } else {
+      for (YAML::Node child : select_node) {
+        errata = (self->load_case(cfg, child));
+        if (!errata.is_ok()) {
+          errata.error(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark()
+                     , SELECT_KEY, select_node.Mark());
+          return { {}, std::move(errata) };
+        }
+      }
+    }
+    return {std::move(handle), {}};
   } else if (key_node.IsSequence()) {
     return WithTuple::load(cfg, drtv_node, key_node);
   }
+
   return { {}, Errata().error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_node.Mark()) };
 }
 
-Errata With::load_case(Config & cfg, CaseGroup & cases, YAML::Node node) {
+Errata With::load_case(Config & cfg, YAML::Node node) {
   if (node.IsMap()) {
     Case c;
+    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex._feature_type, node)};
+    if (cmp_errata.is_ok()) {
+      c._cmp = std::move(cmp_handle);
+    } else {
+      cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
+      return std::move(cmp_errata);
+    }
+
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
-      auto &&[handle, errata]{cfg.load_directive(do_node)};
+      Config::FeatureRefState ref;
+      ref._feature_active_p = true;
+      ref._type = _ex._feature_type;
+      ref._rxp_group_count = c._cmp->rxp_group_count();
+      ref._rxp_line = node.Mark().line;
+      auto &&[handle, errata]{cfg.load_directive(do_node, ref)};
       if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {
@@ -230,69 +340,58 @@ Errata With::load_case(Config & cfg, CaseGroup & cases, YAML::Node node) {
     } else {
       c._do.reset(new NilDirective);
     }
-
-    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, node)};
-    if (cmp_errata.is_ok()) {
-      c._cmp = std::move(cmp_handle);
-      cases.emplace_back(std::move(c));
-    } else {
-      cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
-      return std::move(cmp_errata);
-    }
-
-    return {}; // everything is fine!
+    // Everything is fine, update the case load and return.
+    _cases.emplace_back(std::move(c));
+    return {};
   }
-  return Errata().error(R"(The value at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
+  return Errata().error(R"(The value at {} for "{}" is not an object as required.")", node.Mark(), SELECT_KEY);
 }
 
 // This is only called from @c With::load which calls this iff the @c with key value is a sequence.
 swoc::Rv<Directive::Handle> WithTuple::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
   YAML::Node select_node { drtv_node[SELECT_KEY] };
-  Errata zret;
-  CaseGroup cases;
   std::vector<Extractor::Format> ex_tuple;
 
   // Get the feature extraction tuple.
   for ( auto const& child : key_node ) {
     if (child.IsScalar()) {
-      auto &&[fmt, errata]{Extractor::parse(child.Scalar())};
+      auto &&[fmt, errata]{cfg.parse_feature(child)};
       if (errata.is_ok()) {
         ex_tuple.emplace_back(std::move(fmt));
       } else {
-        zret = std::move(errata);
-        break;
+        errata.error(R"(While processing element at {} in feature tuple at {} in "{}" directive at {}.)", child.Mark(), key_node.Mark(), KEY, key_node.Mark());
+        return { {}, std::move(errata) };
       }
     } else {
-      zret.error(R"(Value at {} is not a string as required.)", child.Mark());
-      break;
+      return { {}, Errata().error(R"(Element at {} in feature tuple at {} in "{}" directive at {} is not a string as required.)", child.Mark(), key_node.Mark(), KEY, key_node.Mark()) };
     }
   }
-  if (!zret.is_ok()) {
-    zret.error(R"(While parsing feature extraction tuple for "{}" at {} in directive at {}.)", KEY, key_node.Mark(), drtv_node.Mark());
-    return {{}, std::move(zret)};
-  }
+
+  self_type * self = new self_type;
+  Handle handle(self); // for return, and cleanup in case of error.
+  self->_ex = std::move(ex_tuple);
 
   // Next process the selection cases.
   if (select_node.IsMap()) {
-    zret = self_type::load_case(cfg, cases, select_node, ex_tuple.size());
+    auto errata { self->load_case(cfg, select_node, ex_tuple.size()) };
+    if (! errata.is_ok()) {
+      return {{}, std::move(errata)};
+    }
   } else if (select_node.IsSequence()) {
     for ( auto const& case_node : select_node ) {
-      zret = self_type::load_case(cfg, cases, case_node, ex_tuple.size());
-      if (! zret.is_ok()) {
-        zret.error(R"(While processing list in selection case at {}.)", select_node.Mark());
-        break;
+      auto errata { self->load_case(cfg, case_node, ex_tuple.size()) };
+      if (! errata.is_ok()) {
+        errata.error(R"(While processing list in selection case at {}.)", select_node.Mark());
+        return { {}, std::move(errata) };
       }
     }
   } else {
-    zret.error(R"(Value at {} for "{}" is not an object or sequence as required.)", select_node.Mark(), SELECT_KEY);
+    return { {}, Errata().error(R"(Value at {} for "{}" is not an object or sequence as required.)", select_node.Mark(), SELECT_KEY) };
   }
-  if (zret.is_ok()) {
-    return {Handle(new WithTuple(std::move(ex_tuple), std::move(cases))), {}};
-  }
-  return { {}, std::move(zret) };
+  return { std::move(handle), {}};
 }
 
-Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, unsigned size) {
+Errata WithTuple::load_case(Config & cfg, YAML::Node node, unsigned size) {
   if (node.IsMap()) {
     Case c;
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
@@ -313,18 +412,22 @@ Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, un
         break;
       }
     }
-    if (op_node.IsSequence()) {
-      for (auto const &cmp_node : op_node) {
-        auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, cmp_node)};
+
+    if (c._op == ELSE) {
+      // ignore everything in the node.
+    } else if (op_node.IsSequence()) {
+      if (op_node.size() != size) {
+        return Errata().error(R"(Comparison list at {} for "{}" has {} comparisons instead of the required {}.)", op_node.Mark(), OpName[c._op], op_node.size(), size);
+      }
+
+      for ( unsigned idx = 0 ; idx < size ; ++idx ) {
+        auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex[idx]._feature_type, op_node[idx])};
         if (cmp_errata.is_ok()) {
           c._cmp.emplace_back(std::move(cmp_handle));
         } else {
-          cmp_errata.error(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
+          cmp_errata.error(R"(While parsing comparison #{} at {} for "{}" at {}.)", idx, op_node[idx].Mark(), OpName[c._op], op_node.Mark());
           return std::move(cmp_errata);
         }
-      }
-      if (c._cmp.size() != size) {
-        return Errata().error(R"(Comparison list at {} has {} comparisons instead of the required {}.)", op_node.Mark(), c._cmp.size(), size);
       }
     } else if (op_node.IsNull()) {
       return Errata().error(R"(Selection case at {} does not the required key of "{}", "{}", or "{}".)"
@@ -334,7 +437,7 @@ Errata WithTuple::load_case(Config & cfg, CaseGroup & cases, YAML::Node node, un
                             , op_node.Mark());
     }
 
-    cases.emplace_back(std::move(c));
+    _cases.emplace_back(std::move(c));
     return {};
   }
   return Errata().error(R"(The case value at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
@@ -375,3 +478,15 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::
   return {{}, std::move(zret)};
 }
 
+/* ------------------------------------------------------------------------------------ */
+
+namespace {
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Directive::define(When::KEY, When::load);
+  Directive::define(With::KEY, With::load);
+  Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::load);
+  Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::load);
+  Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::load);
+  return true;
+} ();
+} // namespace

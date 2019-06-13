@@ -31,16 +31,21 @@
 *.out
 *.app
 
+__pycache__
 .clang-format
 .idea
 cmake-build*
 include/swoc
 include/yaml-cpp
+include/swoc
+include/ts
+include/tscpp
 /lib
 /bin
 /doc/docbuild
 /doc/pix
 /doc/ext/local-config.py
+/doc/doxygen
 /etc
 /lib64
 /share

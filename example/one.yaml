@@ -1,8 +1,8 @@
 txn_box:
 - when: preq
+  do:
   - with: "{creq-host}"
     select:
-    - match: example.one
+    - match: httpbin.org
       do:
-      - set-preq-host: "yahoo.com"
       - set-preq-field: [ "X-swoc", "Modified" ]

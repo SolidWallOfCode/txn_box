@@ -65,10 +65,15 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
+  /** Define a directive.
+   *
+   */
+   static swoc::Errata define(swoc::TextView name, Assembler const& assm);
+
   /** Find the assembler for the directive @a name.
    *
    * @param cfg Configuration object.
-   * @param node The directive node, which must be an object / map.
+   * @param drtv_node The directive node, which must be an object / map.
    * @return A new directive instance on successful load, errata otherwise.
    */
   static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node);

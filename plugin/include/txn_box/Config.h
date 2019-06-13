@@ -20,11 +20,13 @@
 #include <vector>
 
 #include <swoc/TextView.h>
+#include <swoc/MemArena.h>
 #include <swoc/swoc_file.h>
-#include <yaml-cpp/yaml.h>
 
 #include "txn_box/common.h"
+#include "txn_box/Extractor.h"
 #include "txn_box/Directive.h"
+#include "txn_box/yaml_util.h"
 
 using TSCont = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;
@@ -40,6 +42,16 @@ public:
   static constexpr swoc::TextView PLUGIN_TAG { "txn_box" };
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
+
+  /// Track the state of provided features.
+  struct FeatureRefState {
+    FeatureType _type { STRING }; ///< Type of active feature.
+    bool _feature_active_p = false; ///< Feature is active (provided).
+    bool _feature_ref_p = false; ///< Feature has been referenced / used.
+    bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
+    unsigned _rxp_group_count = 0; ///< Number of active capture groups - 0 => not active.
+    int _rxp_line = -1; ///< Line of the active regular expression.
+  };
 
   Config() = default;
 
@@ -67,9 +79,58 @@ public:
    */
   swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node);
 
-  /// Check for active directives.
+  /** Load / create a directive from a node.
+   *
+   * @param drtv_node Directive node.
+   * @param state A reference state to use for the directives in @a node.
+   *
+   * @return A new directive instance, or errors if loading failed.
+   *
+   * This is used by directives that provide a feature and contain other directives. The
+   * @a state provides information on feature provision.
+   */
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, FeatureRefState& state);
+
+  /** Parse a string as a feature extractor.
+   *
+   * @param fmt_node The node with the extractor.
+   * @return The condensed extractor format or errors on failure.
+   *
+   * This must be called to parse extractors, rather than direct comparison because this does a
+   * lot of required checks on the input.
+   */
+  swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node);
+
+  /** Copy @a text to local storage in this instance.
+   *
+   * @param text Text to copy.
+   * @return The localized copy.
+   *
+   * Strings in the YAML configuration are transient. If the content needs to be available at
+   * run time it must be first localized.
+   */
+  swoc::TextView localize(swoc::TextView text);
+
+  /** Localized a format.
+   *
+   * @param fmt Format to localize.
+   * @return @a this
+   *
+   * Localize all the strings in @a fmt, which is updated in place. If @a fmt is a pure literal
+   * it will be condensed in to a single item literal.
+   */
+  self_type & localize(Extractor::Format & fmt);
+
+  /** Require regular expression capture vectors to support at least @a n groups.
+   *
+   * @param n Number of capture groups.
+   * @return @a this
+   */
+  self_type &require_capture_count(unsigned n);
+
+  /// Check for top level directives.
   /// @return @a true if there are any top level directives, @c false if not.
-  bool is_active() const;
+  bool has_top_level_directive() const;
 
   /** Get the top level directives for a @a hook.
    *
@@ -78,29 +139,29 @@ public:
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
-  /** Indicate an extractor string is used by the @c Context.
-   *
-   * @param fmt Condensed extractor format string.
-   * @return @a this
-   */
-  self_type &uses(Extractor::Format & fmt);
-
-  /** Indicate a directive provides a context based feature.
-   *
-   * @param fmt Condensed extractor format string that defines the feature.
-   * @return @a this
-   */
-  self_type &provides(Extractor::Format & fmt);
-
 protected:
   friend class When;
   friend class Context;
 
   /// Mark whether there are any top level directives.
-  bool _active_p { false };
+  bool _has_top_level_directive_p { false };
 
-  /// If there is a pending context reference in an extractor format.
-  bool _ctx_ref_p { false };
+  /// Maximum number of capture groups for regular expression matching.
+  unsigned _capture_groups = 1;
+
+  /** @defgroup Feature reference tracking.
+   * A bit obscure but necessary because the active feature and the active capture groups must
+   * be tracked independently because either can be overwritten independent of the other. When
+   * directives are processed, a state instance can be passed to track back references. This is
+   * checked and the pointers updated to point to that iff the incoming state marks the corresopnding
+   * tracking as active. These can therefore point to different states at different levels of
+   * recursion, or the same. This allows the tracking to operate in a simple way, updating the data
+   * for the specific tracking without having to do value checks.
+   */
+  /// @{
+  FeatureRefState* _feature_state = nullptr; ///< Feature.
+  FeatureRefState* _rxp_group_state = nullptr; ///< Regular expression capture groups.
+  /// #}
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
@@ -108,10 +169,18 @@ protected:
   /// Maximum number of directives that can execute in a specific hook. These are updated during
   /// directive load, if needed. This includes the top level directives.
   std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
+
+  /// For localizing data at a configuration level, primarily strings.
+  swoc::MemArena _arena;
 };
 
-inline bool Config::is_active() const { return _active_p; }
+inline bool Config::has_top_level_directive() const { return _has_top_level_directive_p; }
 
 inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
   return _roots[static_cast<unsigned>(hook)];
+}
+
+inline Config::self_type &Config::require_capture_count(unsigned n) {
+  _capture_groups = std::max(_capture_groups, n);
+  return *this;
 }
