@@ -31,13 +31,13 @@ Extractor::Table Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
 
-Rv<Extractor::Format> Extractor::literal(TextView format_string) {
+Extractor::Format Extractor::literal(TextView format_string) {
   Spec lit;
   Format fmt;
   lit._type = swoc::bwf::Spec::LITERAL_TYPE;
   lit._ext = format_string;
   fmt.push_back(lit);
-  return { std::move(fmt), {} };
+  return std::move(fmt);
 }
 
 Rv<Extractor::Format> Extractor::parse(TextView format_string) {

@@ -163,8 +163,69 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node
   }
   return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node.Mark()) };
 }
-/* ------------------------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------------------------ */
+/// Set transaction status.
+/* ------------------------------------------------------------------------------------ */
+/// Send a debug message.
+class Do_debug_msg : public Directive {
+  using self_type = Do_debug_msg;
+  using super_type = Directive;
+public:
+  static const std::string KEY;
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Extractor::Format _tag_fmt;
+  Extractor::Format _msg_fmt;
+
+  Do_debug_msg(Extractor::Format && tag, Extractor::Format && msg);
+};
+
+const std::string Do_debug_msg::KEY { "debug" };
+
+Do_debug_msg::Do_debug_msg(Extractor::Format &&tag, Extractor::Format &&msg) : _tag_fmt(std::move(tag)), _msg_fmt(std::move(msg)) {}
+
+Errata Do_debug_msg::invoke(Context &ctx) {
+  TextView tag = std::get<IndexFor(STRING)>(ctx.extract(_tag_fmt));
+  TextView msg = std::get<IndexFor(STRING)>(ctx.extract(_msg_fmt));
+  TSDebug(tag.data(), "%.*s", static_cast<int>(msg.size()), msg.data());
+  return {};
+}
+
+Rv<Directive::Handle> Do_debug_msg::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  if (key_node.IsScalar()) {
+    auto && [ msg_fmt, msg_errata ] = cfg.parse_feature(key_node);
+    if (! msg_errata.is_ok()) {
+      msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_node.Mark(), KEY, drtv_node.Mark());
+      return { {}, std::move(msg_errata)};
+    }
+    return { Handle{new self_type{Extractor::literal(Config::PLUGIN_TAG), std::move(msg_fmt)}}, {} };
+  } else if (key_node.IsSequence()) {
+    if (key_node.size() > 2) {
+      return {{}, Errata().error(R"(Value for "{}" key at {} is not a list of two strings as required.)", KEY
+          , key_node.Mark())};
+    } else if (key_node.size() < 1) {
+      return {{}, Errata().error(R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY
+          , key_node.Mark())};
+    }
+    auto && [ tag_fmt, tag_errata ] = cfg.parse_feature(key_node[0], Config::StrType::C);
+    if (!tag_errata.is_ok()) {
+      tag_errata.info(R"(While parsing tag at {} for "{}" directive at {}.)", key_node[0].Mark(), KEY, drtv_node.Mark());
+      return { {}, std::move(tag_errata) };
+    }
+    auto && [ msg_fmt, msg_errata ] = cfg.parse_feature(key_node[1]);
+    if (!tag_errata.is_ok()) {
+      tag_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_node[1].Mark(), KEY, drtv_node.Mark());
+      return { {}, std::move(tag_errata) };
+    }
+    return { Handle(new self_type(std::move(tag_fmt), std::move(msg_fmt))), {} };
+  }
+  return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_node.Mark()) };
+}
+/* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  * 
  * This a central part of the 
@@ -487,6 +548,7 @@ namespace {
   Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::load);
   Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::load);
   Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::load);
+  Directive::define(Do_debug_msg::KEY, Do_debug_msg::load);
   return true;
 } ();
 } // namespace

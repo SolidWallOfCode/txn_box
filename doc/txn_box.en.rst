@@ -227,6 +227,14 @@ set-preq-field
    Set the value of a field in the proxy request to the upstream. The value should be a list of
    two elements, a field name and a field value. Any existing value for the field is overwritten
    and the field created if it does not exist.
+
+debug
+   :code:`debug: "message"`
+
+   :code:`debug: [ "tag", "message" ]`
+
+   Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
+   the plugin tag "txn_box" is used.
    
 Formatting
 ==========

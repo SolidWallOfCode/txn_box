@@ -57,11 +57,18 @@ public:
   class Format {
     using self_type = Format; ///< Self reference type.
   public:
+    Format() = default;
+    Format(self_type const& that) = delete;
+    Format(self_type && that) = default;
+    self_type & operator = (self_type const& that) = delete;
+    self_type & operator = (self_type && that) = default;
+
     /// @defgroup Properties.
     /// @{
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
     bool _literal_p = true; ///< @c true if the format is only literals, no extractors.
     bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
+    bool _c_string_p = false; ///< @c true if the extracted feature should be forced to a C-string.
     int _max_arg_idx = -1; ///< Largest argument index. -1 => no numbered arguments.
     /// @}
 
@@ -163,12 +170,12 @@ public:
   /** Create a format string as a literal.
    *
    * @param format_string Format string.
-   * @return The format instance or errors on failure.
+   * @return The format instance.
    *
    * This does no parsing of @a format_string. It will return a format that outputs @a format_string
    * literally.
    */
-  static swoc::Rv<Format> literal(swoc::TextView format_string);
+  static Format literal(swoc::TextView format_string);
 
   static swoc::Errata define(swoc::TextView name, self_type * ex);
 

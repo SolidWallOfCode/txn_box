@@ -83,6 +83,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         // double write - try in the remnant first. If that suffices, done.
         // Otherwise the size is now known and the needed space can be correctly allocated.
         w.print_nfv(*this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
+        if (fmt._c_string_p) {
+          w.write('\0');
+        }
         if (!w.error()) {
           return w.view();
         } else {

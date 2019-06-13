@@ -178,39 +178,44 @@ ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
+Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
   if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
     if (! fmt_node.IsScalar()) {
       return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
     }
-    return Extractor::literal(fmt_node.Scalar());
+    auto exfmt { Extractor::literal(fmt_node.Scalar()) };
+    exfmt._c_string_p = StrType::C == str_type;
+    return std::move(exfmt);
   }
 
   // Handle simple string.
   if (fmt_node.IsScalar()) {
 
-    auto &&[fmt, errata]{Extractor::parse(fmt_node.Scalar())};
+    auto &&[exfmt, errata]{Extractor::parse(fmt_node.Scalar())};
     if (errata.is_ok()) {
 
-      if (fmt._max_arg_idx >= 0) {
+      if (exfmt._max_arg_idx >= 0) {
         if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
           return { {}, Errata().error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark()) };
-        } else if (fmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
-          return { {}, Errata().error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", fmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line) };
+        } else if (exfmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
+          return { {}, Errata().error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", exfmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line) };
         }
       }
 
-      if (fmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
+      if (exfmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
         _feature_state->_feature_ref_p = true;
       }
 
-      this->localize(fmt);
+      exfmt._c_string_p = StrType::C == str_type;
+      this->localize(exfmt);
     }
-    return {std::move(fmt), std::move(errata)};
+    return {std::move(exfmt), std::move(errata)};
   } else if (fmt_node.IsSequence()) {
     // empty list is treated as an empty string.
     if (fmt_node.size() < 1) {
-      return Extractor::literal(TextView{});
+      auto exfmt { Extractor::literal(TextView{}) };
+      exfmt._c_string_p = StrType::C == str_type;
+      return std::move(exfmt);
     }
 
     auto str_node { fmt_node[0] };
@@ -223,6 +228,9 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
       errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
       return { {}, std::move(errata) };
     }
+
+    fmt._c_string_p = StrType::C == str_type;
+    this->localize(fmt);
 
     for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
       auto child { fmt_node[idx] };
@@ -323,6 +331,10 @@ Config& Config::localize(Extractor::Format &fmt) {
   if (fmt._literal_p) {
     size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
                                                                                    , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
+    if (fmt._c_string_p) {
+      ++n;
+    }
+
     auto span{_arena.alloc(n).rebind<char>()};
     Extractor::Spec literal_spec;
     literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
@@ -331,6 +343,10 @@ Config& Config::localize(Extractor::Format &fmt) {
       memcpy(span.data(), spec._ext.data(), spec._ext.size());
       span.remove_prefix(spec._ext.size());
     }
+    if (fmt._c_string_p) {
+      span[0] = '\0';
+    }
+    fmt._c_string_p = false; // Already took care of this, don't do it again.
     fmt._specs.resize(1);
     fmt._specs[0] = literal_spec;
   } else {

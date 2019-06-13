@@ -43,6 +43,12 @@ public:
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
 
+  /// Type of a view.
+  enum class StrType {
+    VIEW, ///< Standard view.
+    C, ///< C string
+  };
+
   /// Track the state of provided features.
   struct FeatureRefState {
     FeatureType _type { STRING }; ///< Type of active feature.
@@ -94,12 +100,13 @@ public:
   /** Parse a string as a feature extractor.
    *
    * @param fmt_node The node with the extractor.
+   * @param str_type Standard view or C string.
    * @return The condensed extractor format or errors on failure.
    *
    * This must be called to parse extractors, rather than direct comparison because this does a
    * lot of required checks on the input.
    */
-  swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node);
+  swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node, StrType str_type = StrType::VIEW);
 
   /** Copy @a text to local storage in this instance.
    *

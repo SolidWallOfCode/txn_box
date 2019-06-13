@@ -1,0 +1,9 @@
+txn_box:
+- when: pre-remap
+  do:
+  - with: "{creq-host}"
+    select:
+    - match: "redirect.yahoo.com"
+      do:
+      - respond: 301
+      - set-preq-field: [ Location, "foo.yahoo.com/{creq-path}" ]
