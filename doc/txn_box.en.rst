@@ -158,6 +158,23 @@ creq-field
    If the field is multi-valued, a single value can be accessed by adding brackets and an index to
    the field name. E.g "{creq.field::Forward[1]}" to get the first value in the "Forward" field.
 
+Regular Expression
+------------------
+
+If a regular expression has successful matched in a comparison, or explicitly applied, it and its
+capture groups become *active*. This makes the capture groups available as features to be extracted.
+These are numbered in the standard way, with ``0`` meaning the entire matched string, ``1`` the
+first capture group, ``2`` the second capture group, and so on. It is an error to use an index that
+is larger than the available capture groups, or when no regular expression is active. For example if
+a header named "mail-check" should be set if the host contains the domain "mail", it could be done
+as ::
+
+    with: "{creq-host}"
+    select:
+    - regex: "^(?:(.*?)[.])?mail[.](.*?)$"
+      do:
+      - set-preq-field: [ mail-check, "You've got mail from {2}!" ]
+
 Session
 -------
 
@@ -171,9 +188,6 @@ A comparison compares a feature against fixed data, specified in the configurati
 either matches or it doesn't. A comparison that matches may have side effects but a comparison
 that does not match is irrelevant. For example, a regular expression comparison can set the
 regular expression capture groups, but this happens only if the comparison matches.
-
-Operators
----------
 
 match
    Literal string matching. The comparison matches if the feature is exactly the specified string.
@@ -192,7 +206,7 @@ regex
    Regular expression matching. The value should be the regular expression to apply to the feature.
    If there are capture groups and the regular expression matches the feature, these groups will
    become available via extractor which are numbers, 0 for the entire matched text, and 1,2,etc.
-   explicit capture groups.
+   explicit capture groups. Regular expression are not anchored, this must be done explicitly.
 
 regex-nocase
    Regular expression matching that is case insensitive. Otherwise this is identical to :code:`regex`.
@@ -201,64 +215,57 @@ regex-nocase
 Directives
 ==========
 
-when
-   Specify hook for directives. This requires a "do" value which contains the list of directives.
-
 with
-   Selection
+   See `Selection`_.
+
+when
+   See `Hook Control`_.
 
 set-preq-field
-   Set the value of a field in the proxy request to the upstream.
+   :code:`set-preq-field: [ "name", "value" ]`
+
+   Set the value of a field in the proxy request to the upstream. The value should be a list of
+   two elements, a field name and a field value. Any existing value for the field is overwritten
+   and the field created if it does not exist.
    
 Formatting
 ==========
 
 The second part of an extractor supports controlling the format of the output. This is not generally
 requried, but in some cases it is quite useful. A good example is the extractor
-:code:`creq.is_internal`. This returns a true or false value, which is in the C style mapped to 1
-and 0. However, it can be changed to "true" and "false" by specifying the output as a string. E.g.
-::
+:code:`creq-is-internal`. This returns a true or false value, which is in the C style mapped to 1
+and 0. However, it can be changed to "true" and "false" by specifying the output as a string. ::
 
-   with: "{creq.is_internal:s}"
-   select:
-   -  match: "true"
-      do: # stuff
-   -  match: "false"
-      do: # things
+   set-preq-field: [ Carp-Internal, "{creq-is-internal:s}" ]
 
 Formatting is most commonly useful when setting values, such as field values. The extracted strings
 can be justified, limited in width, and in particular IP addresses can be formatted in a variety of
 ways.
 
-
 Hook Control
 ============
 
-The directive key :code:`when` can be used to specify when a hook on which to perform directives.
-The "when" must also have a :code:`do` key with those directives. The value of :code:`when` is the
-hook name, which must be one of
+The directive key :code:`when` can be used to specify on which hook directives should be performed.
+The "when" must also have a :code:`do` key which contains the directives. The value of :code:`when`
+is the hook name, which must be one of
 
-*  read-request
-*  pre-remap
-*  post-remap
-*  send-request
-*  read-response
-*  send-response
+================== ====
+Hook               when
+================== ====
+Client Request     creq
+Proxy Request      preq
+Upstream Response  ursp
+Proxy Response     prsp
+================== ====
 
-For example, to select on the upstream response in the "read-response" hook ::
+The top level directives, those in the :code:`txn_box` key, must be :code:`when` directives so that
+every directive is associated with a specific hook. To set the HTTP header field ``directive`` to
+``invoked`` immediately after the client request has been read, it would be ::
 
-   with: "{creq.field::X-Amzn-Id}"
-   select:
-   -  prefix: "cc1d-"
+   txn_box:
+      when: creq
       do:
-      -  when: send-response
-         do:
-         -  set-field: [ "Source", "external" ]
-
-This will set the field named "source" to the value "external" on the proxy response during the
-Send Response hook if the field "X-Amzn-Id" starts with "cc1d-".
-
-If not specified, |TxB| operates during the Read Request hook.
+      -  set-creq-field: [ directive, invoked ]
 
 Issues
 ******

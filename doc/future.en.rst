@@ -61,8 +61,8 @@ hash
    Hash the feature and reduce it to the range 1 .. ::code:`number`. Something like ::
 
       with:
-      -  "{creq.url}"
-      -  hash: 4096
+      - "{creq.url}"
+      - hash: 4096
 
    This will get the client request URL, hash it, then (as evenly as possibl) reduce it to a number
    in the range 1 .. 4096.
