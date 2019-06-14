@@ -51,10 +51,10 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using Assembler = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, YAML::Node key_node)>;
+  using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, YAML::Node key_node)>;
 
-  /// A factory that maps from directive names to generator functions (@c Assembler instances).
-  using Factory = std::unordered_map<std::string_view, Assembler>;
+  /// A factory that maps from directive names to generator functions (@c Worker instances).
+  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Worker>>;
 
   /** Invoke the directive.
    *
@@ -68,7 +68,7 @@ public:
   /** Define a directive.
    *
    */
-   static swoc::Errata define(swoc::TextView name, Assembler const& assm);
+   static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Worker const& worker);
 
   /** Find the assembler for the directive @a name.
    *
@@ -114,6 +114,7 @@ class When : public Directive {
   using self_type = When;
 public:
   static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   swoc::Errata invoke(Context &ctx) override;
 

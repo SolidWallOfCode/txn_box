@@ -60,28 +60,42 @@ swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
                               , {Hook::URSP, {"read-response", "ursp"}}
                               , {Hook::PRSP, {"send-response", "prsp"}}
+                              , {Hook::PRE_REMAP, {"pre-remap", "pre-remap"}}
+                              , {Hook::POST_REMAP, {"post-remap", "post-remap"}}
                               }};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
+
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, Hook hook) {
+  if (spec.has_numeric_type()) {
+    return bwformat(w, spec, IndexFor(hook));
+  }
+  return bwformat(w, spec, HookName[hook]);
+}
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   HookName.set_default(Hook::INVALID);
 
-  TS_Hook[static_cast<unsigned>(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PRE_REMAP)] = TS_HTTP_PRE_REMAP_HOOK;
+  TS_Hook[IndexFor(Hook::POST_REMAP)] = TS_HTTP_POST_REMAP_HOOK;
 
   return true;
 } ();
 }; // namespace
 
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
-  static const std::map<TSEvent, Hook> table{{TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ},
-                                                  {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ},
-                                                  {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP},
-                                                  {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP},
+  static const std::map<TSEvent, Hook> table{
+    {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
+  , {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ}
+  , {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP}
+  , {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP}
+  , {TS_EVENT_HTTP_PRE_REMAP, Hook::PRE_REMAP}
+  , {TS_EVENT_HTTP_POST_REMAP, Hook::POST_REMAP}
   };
   if (auto spot{table.find(ev)}; spot != table.end()) {
     return spot->second;
@@ -298,10 +312,10 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
     YAML::Node key_node { drtv_node[When::KEY] };
     if (key_node) {
       try {
-        auto hook_idx{HookName[key_node.Scalar()]};
+        _hook = {HookName[key_node.Scalar()]};
         auto && [ handle, errata ]{ When::load(*this, drtv_node, key_node) };
         if (errata.is_ok()) {
-          _roots[static_cast<unsigned>(hook_idx)].emplace_back(std::move(handle));
+          _roots[IndexFor(_hook)].emplace_back(std::move(handle));
           _has_top_level_directive_p = true;
         } else {
           zret.note(errata);

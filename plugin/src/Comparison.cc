@@ -316,7 +316,7 @@ Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YA
     return { {}, std::move(rxp_errata) };
   }
 
-  cfg.require_capture_count(rxp.capture_count());
+  cfg.require_rxp_group_count(rxp.capture_count());
   return { Handle(new self_type(std::move(rxp))), {} };
 }
 

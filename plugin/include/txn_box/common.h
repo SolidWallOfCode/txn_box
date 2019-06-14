@@ -147,6 +147,8 @@ extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
   CREQ, ///< Read Request from user agent.
+  PRE_REMAP, ///< Before remap.
+  POST_REMAP, ///< After remap.
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
   PRSP, ///< Send response to user agent from proxy.
@@ -154,14 +156,67 @@ enum class Hook {
   END = PRSP + 1 ///< Iteration support.
 };
 
+inline constexpr unsigned IndexFor(Hook id) {
+  return static_cast<unsigned>(id);
+}
+
+using HookMask = std::bitset<IndexFor(Hook::END)>;
+
+/** Create a @c HookMask containing a single @a type.
+ *
+ * @param type Type to put in the mask.
+ * @return A mask with only @a type set.
+ *
+ * This is useful for initializing @c const instance of @c HookMask. For example, if the mask
+ * should be for @c PRE_REMAP it would be
+ *
+ * @code
+ *   static const HookMask Mask { MaskFor(Hook::PRE_REMAP) };
+ * @endcode
+ *
+ * @see FeatureType
+ * @see HookMask
+ */
+inline HookMask MaskFor(Hook hook) {
+  HookMask mask;
+  mask[IndexFor(hook)] = true;
+  return std::move(mask);
+}
+
+/** Create a @c HookMask containing @a types.
+ *
+ * @param types List of types to put in the mask.
+ * @return A mask with the specified @a types set.
+ *
+ * @a types is an initializer list. For example, if the mask should have @c CREQ and @c PREQ
+ * set, it would be
+ *
+ * @code
+ *   static const HookMask Mask { MaskFor({ Hook::CREQ, Hook::PREQ}) };
+ * @endcode
+ *
+ * This is useful for initializing @c const instance of @c HookMask.
+ *
+ * @see FeatureType
+ * @see HookMask
+ */
+inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
+  HookMask mask;
+  for (auto hook : hooks) {
+    mask[IndexFor(hook)] = true;
+  }
+  return std::move(mask);
+}
+
 /// Make @c tuple_size work for the @c Hook enum.
 namespace std {
 template<> struct tuple_size<Hook> : public std::integral_constant<size_t,
-    static_cast<size_t>(Hook::END) - 1> {
+    IndexFor(Hook::END)> {
 };
 } // namespace std
 
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
+extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, Hook hook);
 
 inline FeatureView::self_type FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }

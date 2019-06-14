@@ -32,32 +32,13 @@ using swoc::Rv;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 
-const std::string Directive::DO_KEY { "do" };
-/* ------------------------------------------------------------------------------------ */
-Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
-  YAML::Node key_node;
-  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
-    TextView key { key_name.Scalar() };
-    // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
-    // if there is ever more than one.
-    if (key == DO_KEY) {
-      continue;
-    }
-    // See if this is in the factory. It's not an error if it's not, to enable adding extra
-    // keys to directives. First key that is in the factory determines the directive type.
-    if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      return spot->second(cfg, drtv_node, key_value);
-    }
-  }
-  return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
-}
-
 /* ------------------------------------------------------------------------------------ */
 class Do_set_preq_url_host : public Directive {
   using super_type = Directive;
   using self_type = Do_set_preq_url_host;
 public:
   static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   explicit Do_set_preq_url_host(TextView text) : _host(text) {}
 
@@ -67,6 +48,7 @@ public:
 };
 
 const std::string Do_set_preq_url_host::KEY { "set-preq-url-host" };
+const HookMask Do_set_preq_url_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
 Errata Do_set_preq_url_host::invoke(Context &ctx) {
   Errata zret;
@@ -83,6 +65,7 @@ class Do_set_preq_host : public Directive {
   using self_type = Do_set_preq_host;
 public:
   static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   explicit Do_set_preq_host(TextView text);
 
@@ -92,6 +75,7 @@ public:
 };
 
 const std::string Do_set_preq_host::KEY { "set-preq-host" };
+const HookMask Do_set_preq_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
 Do_set_preq_host::Do_set_preq_host(TextView text) : _host(text) {}
 
@@ -109,6 +93,7 @@ class Do_set_preq_field : public Directive {
   using self_type = Do_set_preq_field;
 public:
   static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
@@ -121,6 +106,7 @@ protected:
 };
 
 const std::string Do_set_preq_field::KEY { "set-preq-field" };
+const HookMask Do_set_preq_field::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
 Errata Do_set_preq_field::invoke(Context &ctx) {
   if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
@@ -173,6 +159,7 @@ class Do_debug_msg : public Directive {
   using super_type = Directive;
 public:
   static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
@@ -185,6 +172,7 @@ protected:
 };
 
 const std::string Do_debug_msg::KEY { "debug" };
+const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
 
 Do_debug_msg::Do_debug_msg(Extractor::Format &&tag, Extractor::Format &&msg) : _tag_fmt(std::move(tag)), _msg_fmt(std::move(msg)) {}
 
@@ -236,6 +224,7 @@ class With : public Directive {
 public:
   static const std::string KEY;
   static const std::string SELECT_KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context &ctx) override;
   static swoc::Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
@@ -258,6 +247,7 @@ protected:
 
 const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
+const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
 
 class WithTuple : public Directive {
   friend class With;
@@ -270,6 +260,8 @@ public:
   static const std::string ALL_OF_KEY;
   static const std::string NONE_OF_KEY;
   static const std::string ELSE_KEY;
+
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
   /// Operation to combine the matches in a case.
   enum Op {
@@ -304,6 +296,7 @@ const std::string WithTuple::ANY_OF_KEY { "any-of" };
 const std::string WithTuple::ALL_OF_KEY { "all-of" };
 const std::string WithTuple::NONE_OF_KEY { "none-of" };
 const std::string WithTuple::ELSE_KEY { "else" };
+const HookMask WithTuple::HOOKS { With::HOOKS };
 
 const swoc::Lexicon<WithTuple::Op> WithTuple::OpName { { ANY_OF, ANY_OF_KEY }, { ALL_OF , ALL_OF_KEY }, { NONE_OF , NONE_OF_KEY }, { ELSE, ELSE_KEY } };
 BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op) {
@@ -503,9 +496,11 @@ Errata WithTuple::load_case(Config & cfg, YAML::Node node, unsigned size) {
   }
   return Errata().error(R"(The case value at {} for "{}" is not an object.")", node.Mark(), SELECT_KEY);
 }
+
 /* ------------------------------------------------------------------------------------ */
 
 const std::string When::KEY { "when" };
+const HookMask When::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
 
 When::When(Hook hook_idx, Directive::Handle &&directive) : _hook(hook_idx), _directive(std::move
 (directive)) {}
@@ -543,12 +538,12 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Directive::define(When::KEY, When::load);
-  Directive::define(With::KEY, With::load);
-  Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::load);
-  Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::load);
-  Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::load);
-  Directive::define(Do_debug_msg::KEY, Do_debug_msg::load);
+  Directive::define(When::KEY, When::HOOKS, When::load);
+  Directive::define(With::KEY, With::HOOKS, With::load);
+  Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
+  Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
+  Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
+  Directive::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;
 } ();
 } // namespace

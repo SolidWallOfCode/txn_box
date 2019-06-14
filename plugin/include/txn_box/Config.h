@@ -128,12 +128,18 @@ public:
    */
   self_type & localize(Extractor::Format & fmt);
 
+  /** Hook for which the directives are being loaded.
+   *
+   * @return The current hook.
+   */
+  Hook current_hook() const;
+
   /** Require regular expression capture vectors to support at least @a n groups.
    *
    * @param n Number of capture groups.
    * @return @a this
    */
-  self_type &require_capture_count(unsigned n);
+  self_type &require_rxp_group_count(unsigned n);
 
   /// Check for top level directives.
   /// @return @a true if there are any top level directives, @c false if not.
@@ -149,6 +155,10 @@ public:
 protected:
   friend class When;
   friend class Context;
+
+  // Transient properties
+  /// Current hook for directives being loaded.
+  Hook _hook = Hook::INVALID;
 
   /// Mark whether there are any top level directives.
   bool _has_top_level_directive_p { false };
@@ -181,13 +191,14 @@ protected:
   swoc::MemArena _arena;
 };
 
+inline Hook Config::current_hook() const { return _hook; }
 inline bool Config::has_top_level_directive() const { return _has_top_level_directive_p; }
 
 inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
   return _roots[static_cast<unsigned>(hook)];
 }
 
-inline Config::self_type &Config::require_capture_count(unsigned n) {
+inline Config::self_type &Config::require_rxp_group_count(unsigned n) {
   _capture_groups = std::max(_capture_groups, n);
   return *this;
 }
