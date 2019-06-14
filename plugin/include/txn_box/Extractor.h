@@ -156,7 +156,7 @@ public:
    * @return @a w.
    *
    * This is the generic entry point for generating string output for a feature, which is required
-   * for all extractrors.
+   * for all extractors.
    */
   virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) = 0;
 
@@ -208,6 +208,17 @@ class IPAddrFeature {
 };
 
 class IntegerFeature {
+};
+
+class BooleanFeature {
+public:
+  /// C++ type of extracted feature.
+  using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData>;
+
+  /// Type of extracted feature.
+  Extractor::Type feature_type() const;
+
+  virtual ExType extract(Context& ctx) const = 0;
 };
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }

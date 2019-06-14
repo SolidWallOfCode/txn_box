@@ -1,0 +1,11 @@
+txn_box:
+- when: preq
+  do:
+  - with: "{is-internal}"
+    select:
+    - true:
+      do:
+      - set-preq-field: [ X-swoc, "internal: {is-internal:s}" ]
+    - false:
+      do:
+      - set-preq-field: [ X-swoc, "from user agent: {is-internal:s}" ]

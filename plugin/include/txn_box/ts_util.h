@@ -137,6 +137,13 @@ public:
 
   HttpHeader creq_hdr();
   HttpHeader preq_hdr();
+
+  /** Is this an internal request?
+   *
+   * @return @c true if internal, @c false if not.
+   */
+  bool is_internal() const;
+
 protected:
   TSHttpTxn _txn = nullptr;
 };

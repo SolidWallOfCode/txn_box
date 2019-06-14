@@ -125,3 +125,5 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
   }
   return zret;
 }
+
+Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }

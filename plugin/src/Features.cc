@@ -79,13 +79,38 @@ BufferWriter& Ex_creq_host::format(BufferWriter &w, Spec const &spec, Context &c
 }
 
 /* ------------------------------------------------------------------------------------ */
+class Ex_is_internal : public Extractor, public BooleanFeature {
+public:
+  static constexpr TextView NAME { "is-internal" }; ///< Extractor name.
+
+  /// Extract the feature from the @a ctx.
+  ExType extract(Context& ctx) const override;
+
+  /// Required text formatting access.
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context & ctx) override;
+};
+
+auto Ex_is_internal::extract(Context &ctx) const -> ExType {
+  return ctx._txn.is_internal();
+}
+
+BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx));
+}
+
+/* ------------------------------------------------------------------------------------ */
 
 namespace {
+// Extractors aren't constructed, they are always named references to singletons.
+// These are the singletons.
 Ex_creq_host creq_host;
 Ex_creq_url_host creq_url_host;
+Ex_is_internal is_internal;
+
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
+  Extractor::define(Ex_is_internal::NAME, &is_internal);
 
   return true;
 } ();

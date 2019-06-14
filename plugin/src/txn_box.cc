@@ -45,7 +45,7 @@ const std::string Config::ROOT_KEY { "txn_box" };
 
 swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::STRING, "string"}
                                             , {FeatureType::INTEGER, "integer"}
-                                            , {FeatureType::BOOL, "boolean"}
+                                            , {FeatureType::BOOLEAN, "boolean"}
                                             , {FeatureType::IP_ADDR, "IP address"}
                                            }};
 
@@ -60,8 +60,8 @@ swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
                               , {Hook::URSP, {"read-response", "ursp"}}
                               , {Hook::PRSP, {"send-response", "prsp"}}
-                              , {Hook::PRE_REMAP, {"pre-remap", "pre-remap"}}
-                              , {Hook::POST_REMAP, {"post-remap", "post-remap"}}
+                              , {Hook::PRE_REMAP, {"pre-remap"}}
+                              , {Hook::POST_REMAP, {"post-remap"}}
                               }};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
@@ -190,6 +190,10 @@ ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
     return this->field_create(name);
   }
   return {};
+}
+
+bool ts::HttpTxn::is_internal() const {
+  return static_cast<bool>(TSHttpTxnIsInternal(_txn));
 }
 /* ------------------------------------------------------------------------------------ */
 Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {

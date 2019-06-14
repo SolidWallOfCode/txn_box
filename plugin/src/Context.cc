@@ -97,7 +97,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
       }
       case IP_ADDR: break;
       case INTEGER: break;
-      case BOOL: break;
+      case BOOLEAN: break;
     }
   }
   return {};

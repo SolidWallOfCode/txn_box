@@ -37,13 +37,13 @@ enum FeatureType {
   STRING, ///< View of a string.
   INTEGER, ///< An integer.
   IP_ADDR, ///< IP Address
-  BOOL, ///< Boolean.
+  BOOLEAN, ///< Boolean.
 };
 
 /// Number of feature types.
 /// @internal @b MUST update this if @c FeatureType is changed.
 /// @internal if @c IndexFor doesn't compile, failure to update is the most likely cause.
-static constexpr size_t N_FEATURE_TYPE = BOOL + 1;
+static constexpr size_t N_FEATURE_TYPE = BOOLEAN + 1;
 
 /** Data for a feature that is a view / string.
  *

@@ -181,6 +181,9 @@ Session
 Other
 -----
 
+is-internal
+   Boolean feature, this is ``true`` if the transaction is an internal transaction, ``false`` if not.
+
 Comparisons
 +++++++++++
 
@@ -210,6 +213,12 @@ regex
 
 regex-nocase
    Regular expression matching that is case insensitive. Otherwise this is identical to :code:`regex`.
+
+true
+   For boolean features, this matches if the boolean value is true.
+
+false
+   For boolean features, this matchs if the boolean value is false.
 
 
 Directives
@@ -241,10 +250,10 @@ Formatting
 
 The second part of an extractor supports controlling the format of the output. This is not generally
 requried, but in some cases it is quite useful. A good example is the extractor
-:code:`creq-is-internal`. This returns a true or false value, which is in the C style mapped to 1
+:code:`is-internal`. This returns a true or false value, which is in the C style mapped to 1
 and 0. However, it can be changed to "true" and "false" by specifying the output as a string. ::
 
-   set-preq-field: [ Carp-Internal, "{creq-is-internal:s}" ]
+   set-preq-field: [ Carp-Internal, "{is-internal:s}" ]
 
 Formatting is most commonly useful when setting values, such as field values. The extracted strings
 can be justified, limited in width, and in particular IP addresses can be formatted in a variety of
