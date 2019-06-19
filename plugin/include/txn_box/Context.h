@@ -49,7 +49,7 @@ public:
   /// Construct based a specific configuration.
   explicit Context(Config & cfg);
 
-  swoc::Errata when_do(Hook hook_idx, Directive * drtv);
+  swoc::Errata on_hook_do(Hook hook_idx, Directive *drtv);
 
   swoc::Errata invoke_for_hook(Hook hook);
 

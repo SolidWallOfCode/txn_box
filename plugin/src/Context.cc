@@ -44,13 +44,13 @@ Context::Context(Config & cfg) {
   _rxp_working = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
 }
 
-Errata Context::when_do(Hook hook, Directive* drtv) {
-  auto & hd { _directives[static_cast<unsigned>(hook)] };
+Errata Context::on_hook_do(Hook hook_idx, Directive *drtv) {
+  auto & hd { _directives[static_cast<unsigned>(hook_idx)] };
   if (! hd._hook_set) { // no hook to invoke this directive, set one up.
-    if (hook > _cur_hook) {
-      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook)], _cont);
+    if (hook_idx > _cur_hook) {
+      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook_idx)], _cont);
       hd._hook_set = true;
-    } else if (hook < _cur_hook) {
+    } else if (hook_idx < _cur_hook) {
       // error condition - should report. Also, should detect this on config load.
     }
   }

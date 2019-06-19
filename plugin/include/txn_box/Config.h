@@ -141,6 +141,9 @@ public:
    */
   self_type &require_rxp_group_count(unsigned n);
 
+
+  self_type &reserve_slot(Hook hook) { ++_directive_count[IndexFor(hook)]; return *this; }
+
   /// Check for top level directives.
   /// @return @a true if there are any top level directives, @c false if not.
   bool has_top_level_directive() const;
@@ -151,6 +154,8 @@ public:
    * @return A reference to the vector of top level directives.
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
+
+  self_type & vivify(Directive& drtv, unsigned idx, size_t cfg_storage, size_t ctx_storage);
 
 protected:
   friend class When;
@@ -165,6 +170,23 @@ protected:
 
   /// Maximum number of capture groups for regular expression matching.
   unsigned _capture_groups = 1;
+
+  /// Current amount of shared config storage required.
+  size_t _cfg_storage_required = 0;
+
+  /// Current amount of shared context storage required.
+  size_t _ctx_storage_required = 0;
+
+  /// Information about a specific type of Directive.
+  struct DrtvInfo {
+    unsigned idx = 0; ///< Identifier.
+    unsigned count = 0; ///< Number of instances.
+    size_t ctx_storage_required = 0; ///< Amount of shared context storage required.
+    swoc::MemSpan<void> cfg_storage; ///< Shared config storage.
+  };
+
+  /// Directive info for all directive types.
+  std::vector<DrtvInfo> _drtv_info;
 
   /** @defgroup Feature reference tracking.
    * A bit obscure but necessary because the active feature and the active capture groups must
@@ -183,7 +205,7 @@ protected:
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
 
-  /// Maximum number of directives that can execute in a specific hook. These are updated during
+  /// Maximum number of directives that can execute in a hook. These are updated during
   /// directive load, if needed. This includes the top level directives.
   std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
 

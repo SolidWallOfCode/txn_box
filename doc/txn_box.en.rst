@@ -266,14 +266,18 @@ The directive key :code:`when` can be used to specify on which hook directives s
 The "when" must also have a :code:`do` key which contains the directives. The value of :code:`when`
 is the hook name, which must be one of
 
-================== ====
-Hook               when
-================== ====
-Client Request     creq
-Proxy Request      preq
-Upstream Response  ursp
-Proxy Response     prsp
-================== ====
+================== ===========    ============
+Hook               when           Abbreviation
+================== ===========    ============
+Client Request     read-request   creq
+Proxy Request      send-request   preq
+Upstream Response  read-response  ursp
+Proxy Response     send-response  prsp
+Pre remap          pre-remap
+Post remap         post-remap
+================== ===========    ============
+
+The abbreviations are primarly to allow consistency between hook tags, extractors, and directives.
 
 The top level directives, those in the :code:`txn_box` key, must be :code:`when` directives so that
 every directive is associated with a specific hook. To set the HTTP header field ``directive`` to

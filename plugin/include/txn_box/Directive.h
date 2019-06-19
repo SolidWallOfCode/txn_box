@@ -36,12 +36,49 @@ class Directive {
   using self_type = Directive; ///< Self reference type.
 
 public:
+  /// Options for a directive instance.
+  class Options {
+  private:
+    using self_type = Options; ///< Self reference type.
+  public:
+    Options() = default;
+    /** Set the amount of shared configuration storage needed.
+     *
+     * Configuration storage is allocated per directive class, not instance, and shared
+     * among all configuration instances and all transactions.
+     *
+     * @param n Number of bytes.
+     * @return @a this
+     */
+    self_type & cfg_storage(size_t n) {
+      _cfg_size = n;
+      return *this;
+    }
+
+    /** Set the amount of shared configuration storage needed.
+     *
+     * This storage is allocated per context per directive and shared among all directive instances
+     * in the configuration, but not shared across transactions.
+     *
+     * @param n Number of bytes.
+     * @return @a this
+     */
+    self_type & ctx_storage(size_t n) {
+      _ctx_size = n;
+      return *this;
+    }
+
+    size_t _cfg_size = 0; ///< Amount of config storage.
+    size_t _ctx_size = 0; ///< Amount of shared per context storage.
+  };
+
   /// Standard name for nested directives.
   /// This key is never matched as a directive name.
   /// It is defined here, even though not all directives use it, in order to be consistent across
   /// those that do.
   static const std::string DO_KEY;
 
+  /// Generic handle for all directives.
   using Handle = std::unique_ptr<self_type>;
 
   /** Functor to create an instance of a @c Directive from configuration.
@@ -52,9 +89,6 @@ public:
    * @return A new instance of the appropriate directive, or errors on failure.
    */
   using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, YAML::Node key_node)>;
-
-  /// A factory that maps from directive names to generator functions (@c Worker instances).
-  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Worker>>;
 
   /** Invoke the directive.
    *
@@ -68,7 +102,7 @@ public:
   /** Define a directive.
    *
    */
-   static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Worker const& worker);
+  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Worker const& worker, Options const& opts = Options{});
 
   /** Find the assembler for the directive @a name.
    *
@@ -79,7 +113,22 @@ public:
   static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node);
 protected:
 
-  /// The directive assemblers.
+  /// Per directive type static information.
+  struct DrtvStaticInfo {
+    unsigned idx = 0; ///< Indentifier.
+    size_t cfg_storage_required = 0;
+    size_t ctx_storage_required = 0;
+
+    /// Number of directive types, used to generate identifiers.
+    static unsigned drtv_info_count;
+
+    DrtvStaticInfo(Options const& opts) : idx(++drtv_info_count), cfg_storage_required(opts._cfg_size), ctx_storage_required(opts._ctx_size) {}
+  };
+
+  /// A factory that maps from directive names to generator functions (@c Worker instances).
+  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Worker, DrtvStaticInfo>>;
+
+  /// The set of defined directives..
   static Factory _factory;
 };
 
@@ -138,8 +187,8 @@ protected:
 
 /** Directive that explicitly does nothing.
  *
- * Used for a place holder to avoid proliferatin null checks. This isn't explicitly available from
- * configuration - instead it is used when the directive is omitted (e.g. an empty @c do key).
+ * Used for a place holder to avoid null checks. This isn't explicitly available from configuration
+ * it is used when the directive is omitted (e.g. an empty @c do key).
  */
 
 class NilDirective : public Directive {

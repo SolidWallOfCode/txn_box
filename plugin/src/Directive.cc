@@ -25,6 +25,7 @@ using swoc::TextView;
 
 Directive::Factory Directive::_factory;
 const std::string Directive::DO_KEY { "do" };
+unsigned Directive::DrtvStaticInfo::drtv_info_count = 0;
 
 /* ------------------------------------------------------------------------------------ */
 Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
@@ -39,7 +40,7 @@ Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to directives. First key that is in the factory determines the directive type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      auto const& [ hooks, worker ] { spot->second };
+      auto const& [ hooks, worker, info ] { spot->second };
       if (! hooks[IndexFor(cfg.current_hook())]) {
         return { {}, Errata().error(R"(Directive "{}" at {} is not allowed on hook "{}".)", key, drtv_node.Mark(), cfg.current_hook()) };
       }
@@ -50,8 +51,8 @@ Rv<Directive::Handle> Directive::load(Config & cfg, YAML::Node drtv_node) {
 }
 
 
-Errata Directive::define(swoc::TextView name, HookMask const& hooks, Directive::Worker const &worker) {
-  _factory[name] = std::make_tuple(hooks, worker);
+Errata Directive::define(swoc::TextView name, HookMask const& hooks, Directive::Worker const &worker, Options const& opts) {
+  _factory[name] = std::make_tuple(hooks, worker, opts);
   return {};
 }
 

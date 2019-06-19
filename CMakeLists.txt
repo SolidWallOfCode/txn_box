@@ -30,7 +30,7 @@ ExternalProject_Add(lib-yaml-cpp
 
 ExternalProject_Add(lib-swoc++
     GIT_REPOSITORY https://github.com/solidwallofcode/libswoc.git
-    GIT_TAG txnbox-1
+    GIT_TAG 1.0.6
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR swoc++
     INSTALL_DIR ${INSTALL_DIR}
