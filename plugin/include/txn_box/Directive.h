@@ -34,6 +34,7 @@ class Context;
  */
 class Directive {
   using self_type = Directive; ///< Self reference type.
+  friend Config;
 
 public:
   /// Options for a directive instance.
@@ -99,37 +100,32 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
-  /** Define a directive.
-   *
-   */
-  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Worker const& worker, Options const& opts = Options{});
-
-  /** Find the assembler for the directive @a name.
-   *
-   * @param cfg Configuration object.
-   * @param drtv_node The directive node, which must be an object / map.
-   * @return A new directive instance on successful load, errata otherwise.
-   */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node);
 protected:
-
-  /// Per directive type static information.
-  struct DrtvStaticInfo {
-    unsigned idx = 0; ///< Indentifier.
-    size_t cfg_storage_required = 0;
-    size_t ctx_storage_required = 0;
-
-    /// Number of directive types, used to generate identifiers.
-    static unsigned drtv_info_count;
-
-    DrtvStaticInfo(Options const& opts) : idx(++drtv_info_count), cfg_storage_required(opts._cfg_size), ctx_storage_required(opts._ctx_size) {}
+  /// Information about a specific type of Directive per @c Config instance.
+  /// This data can vary between @c Config instances and is initialized during instance construction
+  /// and configuration file loading. It is constant during runtime (transaction processing).
+  /// @internal Equivalent to run time type information.
+  struct CfgInfo {
+    unsigned _idx = 0; ///< Identifier.
+    unsigned _count = 0; ///< Number of instances.
+    size_t _ctx_storage_size = 0; ///< Amount of shared context storage required.
+    size_t _ctx_storage_offset = 0; ///< Offset into shared context storage block.
+    swoc::MemSpan<void> _cfg_span; ///< Shared config storage.
   };
 
-  /// A factory that maps from directive names to generator functions (@c Worker instances).
-  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Worker, DrtvStaticInfo>>;
+  /// Per directive type static information.
+  /// This is the same for all @c Config instances and is initialized at process static initialization.
+  /// @internal Equivalent to class static information.
+  struct StaticInfo {
+    unsigned _idx = 0; ///< Indentifier.
+    size_t _cfg_storage_required = 0;
+    size_t _ctx_storage_required = 0;
 
-  /// The set of defined directives..
-  static Factory _factory;
+    /// Number of directive types, used to generate identifiers.
+    static unsigned _counter;
+  };
+
+  CfgInfo const* _rtti; ///< Run time (per Config) information.
 };
 
 /** An ordered list of directives.

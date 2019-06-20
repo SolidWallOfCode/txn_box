@@ -196,6 +196,11 @@ bool ts::HttpTxn::is_internal() const {
   return static_cast<bool>(TSHttpTxnIsInternal(_txn));
 }
 /* ------------------------------------------------------------------------------------ */
+Config::Config() {
+  _drtv_info.resize(Directive::StaticInfo::_counter + 1);
+
+}
+
 Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
   if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
     if (! fmt_node.IsScalar()) {
@@ -268,28 +273,48 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
   return { {}, Errata().error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark()) };
 }
 
-// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
-// all paths must be explored and so the active feature needs to be stacked up so it can be restored
-// after a tree descent. During runtime, only one path is followed and therefore this isn't
-// required.
-Rv<Directive::Handle>
-Config::load_directive(YAML::Node drtv_node, FeatureRefState &state) {
-  auto saved_feature = _feature_state;
-  auto saved_rxp = _rxp_group_state;
-  if (state._feature_active_p) {
-    _feature_state = &state;
-  }
-  if (state._rxp_group_count > 0) {
-    _rxp_group_state = &state;
-  }
-  scope_exit cleanup([&] () { _feature_state = saved_feature; _rxp_group_state = saved_rxp; });
+Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
+{
+  YAML::Node key_node;
+  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
+    TextView key { key_name.Scalar() };
+    // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
+    // if there is ever more than one.
+    if (key == Directive::DO_KEY) {
+      continue;
+    }
+    // See if this is in the factory. It's not an error if it's not, to enable adding extra
+    // keys to directives. First key that is in the factory determines the directive type.
+    // If none of the keys are in the factory, that's an error and is reported after the loop.
+    if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
+      auto const& [ hooks, worker, static_info ] { spot->second };
+      if (! hooks[IndexFor(this->current_hook())]) {
+        return { {}, Errata().error(R"(Directive "{}" at {} is not allowed on hook "{}".)", key, drtv_node.Mark(), this->current_hook()) };
+      }
+      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, key_value) };
+      if (! drtv_errata.is_ok()) {
+        drtv_errata.info(R"()");
+        return { {}, std::move(drtv_errata) };
+      }
+      // Fill in config depending data and pass a pointer to it to the directive instance.
+      auto & rtti = _drtv_info[static_info._idx];
+      if (++rtti._count == 1) { // first time this directive type has been used.
+        rtti._idx = static_info._idx;
+        rtti._cfg_span = _arena.alloc(static_info._cfg_storage_required);
+        rtti._ctx_storage_offset = _ctx_storage_required;
+        _ctx_storage_required += static_info._ctx_storage_required;
+      }
+      drtv->_rtti = &rtti;
 
-  return this->load_directive(drtv_node);
+      return { std::move(drtv), {} };
+    }
+  }
+  return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
 }
 
-Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
+Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
   if (drtv_node.IsMap()) {
-    return { Directive::load(*this, drtv_node) };
+    return { this->load_directive(drtv_node) };
   } else if (drtv_node.IsSequence()) {
     Errata zret;
     auto list { new DirectiveList };
@@ -308,6 +333,29 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
   }
   return { {}, Errata().error(R"(Directive at {} is not an object or a sequence as required.)",
       drtv_node.Mark()) };
+}
+
+// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
+// all paths must be explored and so the active feature needs to be stacked up so it can be restored
+// after a tree descent. During runtime, only one path is followed and therefore this isn't
+// required.
+Rv<Directive::Handle>
+Config::parse_directive(YAML::Node const& drtv_node, FeatureRefState &state) {
+  // Set up state preservation.
+  auto saved_feature = _feature_state;
+  auto saved_rxp = _rxp_group_state;
+  if (state._feature_active_p) {
+    _feature_state = &state;
+  }
+  if (state._rxp_group_count > 0) {
+    _rxp_group_state = &state;
+  }
+  scope_exit cleanup([&]() {
+    _feature_state = saved_feature;
+    _rxp_group_state = saved_rxp;
+  });
+  // Now do normal parsing.
+  return this->parse_directive(drtv_node);
 }
 
 Errata Config::load_top_level_directive(YAML::Node drtv_node) {
@@ -404,7 +452,7 @@ Errata Config::load_file(swoc::file::path const& file_path) {
   }
 
   if (base_node.IsSequence()) {
-    for ( auto child : base_node ) {
+    for ( auto const& child : base_node ) {
       zret.note(this->load_top_level_directive(child));
     }
     if (! zret.is_ok()) {
@@ -417,6 +465,19 @@ Errata Config::load_file(swoc::file::path const& file_path) {
   }
   return std::move(zret);
 };
+
+
+Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Worker const &worker, Directive::Options const& opts) {
+  auto & record { _factory[name] };
+  std::get<0>(record) = hooks;
+  std::get<1>(record) = worker;
+  auto & info { std::get<2>(record) };
+  info._idx = ++Directive::StaticInfo::_counter;
+  info._cfg_storage_required = opts._cfg_size;
+  info._ctx_storage_required = opts._ctx_size;
+  return {};
+}
+
 
 /* ------------------------------------------------------------------------------------ */
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {

@@ -59,7 +59,7 @@ public:
     int _rxp_line = -1; ///< Line of the active regular expression.
   };
 
-  Config() = default;
+  Config();
 
   /** Load the configuration from the file @a file_path.
    *
@@ -83,7 +83,7 @@ public:
    * @param drtv_node Directive node.
    * @return A new directive instance, or errors if loading failed.
    */
-  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node);
+  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node);
 
   /** Load / create a directive from a node.
    *
@@ -95,7 +95,7 @@ public:
    * This is used by directives that provide a feature and contain other directives. The
    * @a state provides information on feature provision.
    */
-  swoc::Rv<Directive::Handle> load_directive(YAML::Node drtv_node, FeatureRefState& state);
+  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node, FeatureRefState& state);
 
   /** Parse a string as a feature extractor.
    *
@@ -155,7 +155,10 @@ public:
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
-  self_type & vivify(Directive& drtv, unsigned idx, size_t cfg_storage, size_t ctx_storage);
+  /** Define a directive.
+   *
+   */
+  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Directive::Worker const& worker, Directive::Options const& opts = Directive::Options{});
 
 protected:
   friend class When;
@@ -171,23 +174,6 @@ protected:
   /// Maximum number of capture groups for regular expression matching.
   unsigned _capture_groups = 1;
 
-  /// Current amount of shared config storage required.
-  size_t _cfg_storage_required = 0;
-
-  /// Current amount of shared context storage required.
-  size_t _ctx_storage_required = 0;
-
-  /// Information about a specific type of Directive.
-  struct DrtvInfo {
-    unsigned idx = 0; ///< Identifier.
-    unsigned count = 0; ///< Number of instances.
-    size_t ctx_storage_required = 0; ///< Amount of shared context storage required.
-    swoc::MemSpan<void> cfg_storage; ///< Shared config storage.
-  };
-
-  /// Directive info for all directive types.
-  std::vector<DrtvInfo> _drtv_info;
-
   /** @defgroup Feature reference tracking.
    * A bit obscure but necessary because the active feature and the active capture groups must
    * be tracked independently because either can be overwritten independent of the other. When
@@ -202,6 +188,21 @@ protected:
   FeatureRefState* _rxp_group_state = nullptr; ///< Regular expression capture groups.
   /// #}
 
+  /// Current amount of shared config storage required.
+  size_t _cfg_storage_required = 0;
+
+  /// Current amount of shared context storage required.
+  size_t _ctx_storage_required = 0;
+
+  /// Directive info for all directive types.
+  std::vector<Directive::CfgInfo> _drtv_info;
+
+  /// A factory that maps from directive names to generator functions (@c Worker instances).
+  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Directive::Worker, Directive::StaticInfo>>;
+
+  /// The set of defined directives..
+  static Factory _factory;
+
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
 
@@ -211,6 +212,8 @@ protected:
 
   /// For localizing data at a configuration level, primarily strings.
   swoc::MemArena _arena;
+
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node const& drtv_node);
 };
 
 inline Hook Config::current_hook() const { return _hook; }
