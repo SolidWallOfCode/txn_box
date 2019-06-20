@@ -119,6 +119,13 @@ public:
    */
   HttpField field_obtain(swoc::TextView name);
 
+  /** Set the reason field in the header.
+   *
+   * @param reason Reason string.
+   * @return @c true if success, @c false if not.
+   */
+  bool reason_set(swoc::TextView reason);
+
 public:
   HttpHeader() = default;
   HttpHeader(TSMBuffer buff, TSMLoc loc);
@@ -137,6 +144,8 @@ public:
 
   HttpHeader creq_hdr();
   HttpHeader preq_hdr();
+  HttpHeader ursp_hdr();
+  HttpHeader prsp_hdr();
 
   /** Is this an internal request?
    *
@@ -144,8 +153,35 @@ public:
    */
   bool is_internal() const;
 
+  /** Set the transaction status.
+   *
+   * @param status HTTP status code.
+   *
+   * If this is called before the @c POST_REMAP hook it will prevent an upstream request and instead
+   * return a response with this status. After that, it will modify the status of the upstream
+   * response.
+   *
+   * @see error_body_set
+   * @see HttpHeader::set_reason
+   */
+  void status_set(int status);
+
+  /** Set the body on an error response.
+   *
+   * @param body Body content.
+   * @param content_type Content type.
+   */
+  void error_body_set(swoc::TextView body, swoc::TextView content_type);
+
 protected:
   TSHttpTxn _txn = nullptr;
+
+  /** Duplicate a string into TS owned memory.
+   *
+   * @param text String to duplicate.
+   * @return The duplicated string.
+   */
+  swoc::MemSpan<char> ts_dup(swoc::TextView const& text);
 };
 
 inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(loc) {}
@@ -163,6 +199,7 @@ inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 inline HttpTxn::operator TSHttpTxn() const { return _txn; }
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
+const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
 
 }; // namespace ts
 

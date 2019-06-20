@@ -162,36 +162,47 @@ class Do_redirect : public Directive {
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
+  static constexpr Hook SET_LOCATION_HOOK = Hook::PRSP;
+  static const int STATUS = TS_HTTP_STATUS_MOVED_TEMPORARILY;
 
   Errata invoke(Context & ctx) override;
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
 
 protected:
-  int _status = TS_HTTP_STATUS_MOVED_TEMPORARILY;
+  int _status;
   Extractor::Format _loc_fmt;
+  Directive::Handle _set_location;
 
-  explicit Do_redirect(Extractor::Format && location);
-  Do_redirect(int status, Extractor::Format && location);
+  Do_redirect(Config& cfg, int status, Extractor::Format && location);
 
-  class SetLocation : public Directive {
-    friend Do_redirect;
-  public:
-    Errata invoke(Context & ctx) override;
-  protected:
-
-  };
+  Errata set_location(Context& ctx);
 };
 
 const std::string Do_redirect::KEY { "redirect" };
 const HookMask Do_redirect::HOOKS { MaskFor({Hook::POST_REMAP}) };
 
-Do_redirect::Do_redirect(int status, Extractor::Format &&location) : _status(status), _loc_fmt(std::move(location)) {}
-Do_redirect::Do_redirect(Extractor::Format &&location) : _loc_fmt(std::move(location)) {}
+Do_redirect::Do_redirect(Config& cfg, int status, Extractor::Format &&location)
+  : _status(status)
+  , _loc_fmt(std::move(location))
+  , _set_location(new LambdaDirective([this] (Context& ctx) -> Errata { return this->set_location(ctx); })) {
+  cfg.reserve_slot(SET_LOCATION_HOOK);
+}
 
 Errata Do_redirect::invoke(Context& ctx) {
   auto value = ctx.extract(_loc_fmt);
-  return ctx.on_hook_do(Hook::PRSP, _directive.get());
+  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
+  ctx.commit(value);
+  *view = std::get<FeatureView>(value);
+  return ctx.on_hook_do(SET_LOCATION_HOOK, _set_location.get());
 }
+
+Errata Do_redirect::set_location(Context &ctx) {
+  auto hdr { ctx.prsp_hdr() };
+  auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
+  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
+  field.assign(*view);
+  return {};
+};
 
 Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML::Node key_node) {
   if (key_node.IsScalar()) {
@@ -200,8 +211,7 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
       loc_errata.info(R"(While parsing location for "{}" directive at {}.)", KEY, key_node.Mark());
       return { {}, std::move(loc_errata) };
     }
-    cfg.reserve_slot(Hook::PRSP);
-    return { Handle(new self_type(std::move(loc_fmt))), {} };
+    return { Handle(new self_type(cfg, STATUS, std::move(loc_fmt))), {} };
   } else if (key_node.IsSequence()) {
     if (key_node.size() < 1) {
       return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of location or status and location.)", KEY, key_node.Mark()) };
@@ -221,7 +231,7 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
       loc_errata.info(R"(While parsing location for "{}" directive at {}.)", KEY, key_node.Mark());
       return { {}, std::move(loc_errata) };
     }
-    return { Handle(new self_type(status, std::move(loc_fmt))), {} };
+    return { Handle(new self_type(cfg, status, std::move(loc_fmt))), {} };
   }
   return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of status, string as required.)", KEY, key_node.Mark()) };
 }
@@ -456,7 +466,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
       ref._type = _ex._feature_type;
       ref._rxp_group_count = c._cmp->rxp_group_count();
       ref._rxp_line = node.Mark().line;
-      auto &&[handle, errata]{cfg.load_directive(do_node, ref)};
+      auto &&[handle, errata]{cfg.parse_directive(do_node, ref)};
       if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {
@@ -522,7 +532,7 @@ Errata WithTuple::load_case(Config & cfg, YAML::Node node, unsigned size) {
   if (node.IsMap()) {
     Case c;
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
-      auto &&[do_handle, do_errata]{cfg.load_directive(do_node)};
+      auto &&[do_handle, do_errata]{cfg.parse_directive(do_node)};
       if (do_errata.is_ok()) {
         c._do = std::move(do_handle);
       }
@@ -585,12 +595,12 @@ Errata When::invoke(Context &ctx) {
 
 swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::Node key_node) {
   Errata zret;
-  if (Hook hook_idx{HookName[key_node.Scalar()]} ; hook_idx != Hook::INVALID) {
+  if (Hook hook{HookName[key_node.Scalar()]} ; hook != Hook::INVALID) {
     if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
-      auto &&[do_handle, do_errata]{cfg.load_directive(do_node)};
+      auto &&[do_handle, do_errata]{cfg.parse_directive(do_node)};
       if (do_errata.is_ok()) {
-        cfg.reserve_slot(hook_idx);
-        return { Handle{new self_type{hook_idx, std::move(do_handle)}} , {}};
+        cfg.reserve_slot(hook);
+        return { Handle{new self_type{hook, std::move(do_handle)}} , {}};
       } else {
         zret.note(do_errata);
         zret.error(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY
@@ -611,12 +621,13 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Directive::define(When::KEY, When::HOOKS, When::load);
-  Directive::define(With::KEY, With::HOOKS, With::load);
-  Directive::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
-  Directive::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
-  Directive::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
-  Directive::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
+  Config::define(When::KEY, When::HOOKS, When::load);
+  Config::define(With::KEY, With::HOOKS, With::load);
+  Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
+  Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
+  Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
+  Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
+  Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   return true;
 } ();
 } // namespace

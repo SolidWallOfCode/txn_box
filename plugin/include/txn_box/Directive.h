@@ -35,6 +35,7 @@ class Context;
 class Directive {
   using self_type = Directive; ///< Self reference type.
   friend Config;
+  friend Context;
 
 public:
   /// Options for a directive instance.
@@ -203,8 +204,34 @@ public:
 protected:
 };
 
+class LambdaDirective : public Directive {
+  using self_type = LambdaDirective; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+
+public:
+  using Lambda = std::function<swoc::Errata (Context&)>;
+  /// Construct with function @a f.
+  /// When the directive is invoked, it in turn invokes @a f.
+  LambdaDirective(Lambda && f);
+
+  /** Invoke the directive.
+   *
+   * @param ctx The transaction context.
+   * @return Errors, if any.
+   *
+   * All information needed for the invocation of the directive is accessible from the @a ctx.
+   */
+  swoc::Errata invoke(Context &ctx) override;
+protected:
+  /// Function to invoke.
+  Lambda _f;
+};
+
 inline Hook When::get_hook() const { return _hook; }
 
+inline swoc::Errata LambdaDirective::invoke(Context &ctx) { return _f(ctx); }
+
+inline LambdaDirective::LambdaDirective(std::function<swoc::Errata(Context &)> &&f) : _f(std::move(f)) {}
 
 
 

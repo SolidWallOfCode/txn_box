@@ -11,6 +11,7 @@ find_package(canned-yaml CONFIG REQUIRED)
 add_library(plugin SHARED
 	src/txn_box.cc
     	src/Comparison.cc
+	src/Config.cc
 	src/Context.cc
 	src/Directive.cc
 	src/Extractor.cc

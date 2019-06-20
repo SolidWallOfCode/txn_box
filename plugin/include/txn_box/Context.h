@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memory>
+#include <functional>
 
 #include <swoc/MemArena.h>
 #include <swoc/Errata.h>
@@ -49,7 +50,7 @@ public:
   /// Construct based a specific configuration.
   explicit Context(Config & cfg);
 
-  swoc::Errata on_hook_do(Hook hook_idx, Directive *drtv);
+  swoc::Errata on_hook_do(Hook hook, Directive *drtv);
 
   swoc::Errata invoke_for_hook(Hook hook);
 
@@ -81,6 +82,8 @@ public:
    * @see extract
    */
   self_type& commit(FeatureData const& feature);
+
+  swoc::MemSpan<void> storage_for(Directive* drtv);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
@@ -134,6 +137,8 @@ public:
 
   ts::HttpHeader creq_hdr();
   ts::HttpHeader preq_hdr();
+  ts::HttpHeader ursp_hdr();
+  ts::HttpHeader prsp_hdr();
 
   /// Context for working with PCRE - allocates from the transaction arena.
   pcre2_general_context* _rxp_ctx = nullptr;
@@ -158,4 +163,7 @@ protected:
   ts::HttpHeader _preq; ///< Proxy request header.
   ts::HttpHeader _ursp; ///< Upstream response header.
   ts::HttpHeader _prsp; ///< Proxy response header.
+
+  /// Directive shared storage.
+  swoc::MemSpan<void> _ctx_store;
 };
