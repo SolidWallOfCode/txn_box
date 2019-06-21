@@ -1,4 +1,4 @@
-/* 
+/*
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -11,7 +11,7 @@
    is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
    or implied. See the License for the specific language governing permissions and limitations under
    the License.
-   
+
 */
 
 #pragma once
@@ -68,7 +68,8 @@ public:
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
     bool _literal_p = true; ///< @c true if the format is only literals, no extractors.
     bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
-    bool _c_string_p = false; ///< @c true if the extracted feature should be forced to a C-string.
+    bool _force_string_p = true; ///< @c true if the extracted feature should be forced to a string.
+    bool _force_c_string_p = false; ///< @c true if the extracted feature should be forced to a C-string.
     int _max_arg_idx = -1; ///< Largest argument index. -1 => no numbered arguments.
     /// @}
 
@@ -105,6 +106,29 @@ public:
      * @return A reference to the element.
      */
     Spec const& operator [] (size_t idx) const { return _specs[idx]; }
+
+    /// Check if the format is empty.
+    /// @note Default constructed instances are empty.
+    bool empty() const { return _specs.empty(); }
+
+    /** Check if the format is a pure literal (no extractors).
+     *
+     * @return @c true if the format is a literal, @c false if not.
+     */
+    bool is_literal() const { return _literal_p; }
+
+    /** Return the literal value of the format.
+     *
+     * @return A view of the literal.
+     *
+     * This returns a valid result iff @a this->is_literal() is @c true.
+     */
+    swoc::TextView literal() const {
+      if (_literal_p) {
+        return _specs[0]._ext;
+      }
+      return {};
+    }
   };
 
   /** Format extractor for BWF.
@@ -200,8 +224,15 @@ public:
  */
 class DirectFeature {
 public:
-  Extractor::Type feature_type() const;
-  virtual FeatureView direct_view(Context & ctx) const = 0;
+  /** Get a view of the feature.
+   *
+   * @param ctx Transaction context.
+   * @param spec Format specifier
+   * @return A view of the feature.
+   *
+   * @a spec may contain additional information needed by the extractor.
+   */
+  virtual FeatureView direct_view(Context & ctx, Extractor::Spec const& spec) const = 0;
 };
 
 class IPAddrFeature {

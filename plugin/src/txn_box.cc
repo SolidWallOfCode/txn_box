@@ -74,7 +74,7 @@ TextView ts::URL::host() {
 TextView ts::HttpField::value() {
   int size;
   char const* text;
-  if (this->is_valid() && nullptr != (text = TSMimeHdrFieldValueStringGet(_buff, _loc, _hdr, -1, &size))) {
+  if (this->is_valid() && nullptr != (text = TSMimeHdrFieldValueStringGet(_buff, _hdr, _loc, -1, &size))) {
     return { text, static_cast<size_t>(size) };
   }
   return {};

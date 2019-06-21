@@ -106,7 +106,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
       return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
     }
     auto exfmt { Extractor::literal(fmt_node.Scalar()) };
-    exfmt._c_string_p = StrType::C == str_type;
+    exfmt._force_c_string_p = StrType::C == str_type;
     return std::move(exfmt);
   }
 
@@ -128,7 +128,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
         _feature_state->_feature_ref_p = true;
       }
 
-      exfmt._c_string_p = StrType::C == str_type;
+      exfmt._force_c_string_p = StrType::C == str_type;
       this->localize(exfmt);
     }
     return {std::move(exfmt), std::move(errata)};
@@ -136,7 +136,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
     // empty list is treated as an empty string.
     if (fmt_node.size() < 1) {
       auto exfmt { Extractor::literal(TextView{}) };
-      exfmt._c_string_p = StrType::C == str_type;
+      exfmt._force_c_string_p = StrType::C == str_type;
       return std::move(exfmt);
     }
 
@@ -151,7 +151,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
       return { {}, std::move(errata) };
     }
 
-    fmt._c_string_p = StrType::C == str_type;
+    fmt._force_c_string_p = StrType::C == str_type;
     this->localize(fmt);
 
     for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
@@ -295,7 +295,7 @@ Config& Config::localize(Extractor::Format &fmt) {
   if (fmt._literal_p) {
     size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
                                                                                    , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
-    if (fmt._c_string_p) {
+    if (fmt._force_c_string_p) {
       ++n;
     }
 
@@ -307,10 +307,10 @@ Config& Config::localize(Extractor::Format &fmt) {
       memcpy(span.data(), spec._ext.data(), spec._ext.size());
       span.remove_prefix(spec._ext.size());
     }
-    if (fmt._c_string_p) {
+    if (fmt._force_c_string_p) {
       span[0] = '\0';
     }
-    fmt._c_string_p = false; // Already took care of this, don't do it again.
+    fmt._force_c_string_p = false; // Already took care of this, don't do it again.
     fmt._specs.resize(1);
     fmt._specs[0] = literal_spec;
   } else {

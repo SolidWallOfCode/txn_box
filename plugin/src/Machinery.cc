@@ -162,76 +162,123 @@ class Do_redirect : public Directive {
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
-  static constexpr Hook SET_LOCATION_HOOK = Hook::PRSP;
+  static constexpr Hook FIXUP_HOOK = Hook::PRSP;
   static const int STATUS = TS_HTTP_STATUS_MOVED_TEMPORARILY;
 
   Errata invoke(Context & ctx) override;
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
 
 protected:
-  int _status;
+  int _status = 0; ///< Return status is literal, 0 => extract at runtime.
+  Extractor::Format _status_fmt;
   Extractor::Format _loc_fmt;
-  Directive::Handle _set_location;
+  Extractor::Format _reason_fmt;
+  Extractor::Format _body_fmt;
+  Directive::Handle _set_location{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
 
-  Do_redirect(Config& cfg, int status, Extractor::Format && location);
+  explicit Do_redirect(Config & cfg);
 
-  Errata set_location(Context& ctx);
+  Errata load_status(Config& cfg, YAML::Node const& node);
+  Errata load_location(Config& cfg, YAML::Node const& node);
+
+  Errata fixup(Context &ctx);
 };
 
 const std::string Do_redirect::KEY { "redirect" };
-const HookMask Do_redirect::HOOKS { MaskFor({Hook::POST_REMAP}) };
+const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP}) };
 
-Do_redirect::Do_redirect(Config& cfg, int status, Extractor::Format &&location)
-  : _status(status)
-  , _loc_fmt(std::move(location))
-  , _set_location(new LambdaDirective([this] (Context& ctx) -> Errata { return this->set_location(ctx); })) {
-  cfg.reserve_slot(SET_LOCATION_HOOK);
+Do_redirect::Do_redirect(Config &cfg) {
+  cfg.reserve_slot(FIXUP_HOOK);
 }
-
 Errata Do_redirect::invoke(Context& ctx) {
   auto value = ctx.extract(_loc_fmt);
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
   ctx.commit(value);
-  *view = std::get<FeatureView>(value);
-  return ctx.on_hook_do(SET_LOCATION_HOOK, _set_location.get());
+  *view = std::get<IndexFor(STRING)>(value);
+  if (_status) {
+    ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
+  } else {
+    value = ctx.extract(_status_fmt);
+    if (value.index() == IndexFor(INTEGER)) {
+    } else { // it's a string.
+    }
+  }
+  return ctx.on_hook_do(FIXUP_HOOK, _set_location.get());
 }
 
-Errata Do_redirect::set_location(Context &ctx) {
+Errata Do_redirect::fixup(Context &ctx) {
   auto hdr { ctx.prsp_hdr() };
   auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
   field.assign(*view);
+  hdr.reason_set("Resource moved");
+  if (! _body_fmt.empty()) {
+    auto body { ctx.extract(_body_fmt) };
+    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
   return {};
-};
+}
+
+Errata Do_redirect::load_status(Config& cfg, YAML::Node const &node) {
+  auto &&[fmt, errata]{cfg.parse_feature(node)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  if (fmt.is_literal()) {
+    TextView src{fmt.literal()}, parsed;
+    auto status = swoc::svtou(src, &parsed);
+    if (parsed.size() != src.size() || status < 100 || status > 599) {
+      return Errata().error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)"
+                            , node.Scalar(), node.Mark());
+    }
+    _status = status;
+  } else {
+    if (fmt._feature_type != STRING && fmt._feature_type != INTEGER) {
+      return Errata().error(R"(Status "{}" at {} is not an integer or string as required.)", node.Scalar(), node.Mark());
+    }
+    _status_fmt = std::move(fmt);
+  }
+  return {};
+}
+
+Errata Do_redirect::load_location(Config &cfg, YAML::Node const &node) {
+  auto && [ fmt, errata ] { cfg.parse_feature(node) };
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  _loc_fmt = std::move(fmt);
+  _loc_fmt._force_string_p = true;
+  return {};
+}
 
 Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML::Node key_node) {
-  if (key_node.IsScalar()) {
-    auto && [ loc_fmt, loc_errata ] { cfg.parse_feature(key_node[0]) };
-    if (! loc_errata.is_ok()) {
-      loc_errata.info(R"(While parsing location for "{}" directive at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(loc_errata) };
-    }
-    return { Handle(new self_type(cfg, STATUS, std::move(loc_fmt))), {} };
-  } else if (key_node.IsSequence()) {
+  Handle handle { new self_type{cfg} };
+  auto self = static_cast<self_type*>(handle.get());
+
+  if (key_node.IsSequence()) {
     if (key_node.size() < 1) {
-      return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of location or status and location.)", KEY, key_node.Mark()) };
+      return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };
     } else if (key_node.size() > 2) {
-      return { {}, Errata().error(R"(Too many items for "{}" directive at {} which requires a list of locatio or status and location.)", KEY, key_node.Mark()) };
+      return { {}, Errata().error(R"(Too many items for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };
     }
     if (!key_node[0].IsScalar()) {
       return { {}, Errata().error(R"(Status at {} for "{}" directive at {} not a string as required.)", key_node[0].Mark(), KEY, key_node.Mark()) };
     }
-    TextView src{key_node[0].Scalar()}, parsed;
-    auto status = swoc::svtou(src, &parsed);
-    if (parsed.size() != src.size() || status < 100 || status > 599) {
-      return { {}, Errata().error(R"(Status "{}" at {} for "{}" directive at {} not a positive integer 100..599 as required.)", src, key_node[0].Mark(), KEY, key_node.Mark()) };
+
+    Errata errata { self->load_status(cfg, key_node[0]) };
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
+      return { {}, std::move(errata) };
     }
-    auto && [ loc_fmt, loc_errata ] { cfg.parse_feature(key_node[1]) };
-    if (! loc_errata.is_ok()) {
-      loc_errata.info(R"(While parsing location for "{}" directive at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(loc_errata) };
+
+    errata = self->load_location(cfg, key_node[1]);
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
+      return { {}, std::move(errata) };
     }
-    return { Handle(new self_type(cfg, status, std::move(loc_fmt))), {} };
+    return { std::move(handle), {} };
+  } else if (key_node.IsMap()) {
+
   }
   return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of status, string as required.)", KEY, key_node.Mark()) };
 }

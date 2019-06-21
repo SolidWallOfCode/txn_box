@@ -1,4 +1,4 @@
-/* 
+/*
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -11,7 +11,7 @@
    is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
    or implied. See the License for the specific language governing permissions and limitations under
    the License.
-   
+
 */
 
 #include "swoc/TextView.h"
@@ -32,10 +32,10 @@ public:
   static constexpr TextView NAME { "creq-url-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx) const override;
+  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
 };
 
-FeatureView Ex_creq_url_host::direct_view(Context &ctx) const {
+FeatureView Ex_creq_url_host::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -47,18 +47,19 @@ FeatureView Ex_creq_url_host::direct_view(Context &ctx) const {
 }
 
 BufferWriter& Ex_creq_url_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx));
+  return bwformat(w, spec, this->direct_view(ctx, spec));
 }
 
+/* ------------------------------------------------------------------------------------ */
 class Ex_creq_host : public Extractor, public DirectFeature {
 public:
   static constexpr TextView NAME { "creq-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx) const override;
+  FeatureView direct_view(Context & ctx, Spec const&) const override;
 };
 
-FeatureView Ex_creq_host::direct_view(Context &ctx) const {
+FeatureView Ex_creq_host::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -75,7 +76,32 @@ FeatureView Ex_creq_host::direct_view(Context &ctx) const {
 }
 
 BufferWriter& Ex_creq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx));
+  return bwformat(w, spec, this->direct_view(ctx, spec));
+}
+
+/* ------------------------------------------------------------------------------------ */
+class Ex_creq_field : public Extractor, public DirectFeature {
+public:
+  static constexpr TextView NAME { "creq-field" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+};
+
+FeatureView Ex_creq_field::direct_view(Context &ctx, Spec const& spec) const {
+  FeatureView zret;
+  zret._direct_p = true;
+  zret = TextView{};
+  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( auto field { hdr.field(spec._ext) } ; field.is_valid()) {
+      zret = field.value();
+    }
+  }
+  return zret;
+};
+
+BufferWriter& Ex_creq_field::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->direct_view(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -105,11 +131,13 @@ namespace {
 // These are the singletons.
 Ex_creq_host creq_host;
 Ex_creq_url_host creq_url_host;
+Ex_creq_field creq_field;
 Ex_is_internal is_internal;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
+  Extractor::define(Ex_creq_field::NAME, &creq_field);
   Extractor::define(Ex_is_internal::NAME, &is_internal);
 
   return true;

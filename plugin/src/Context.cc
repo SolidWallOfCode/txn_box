@@ -76,7 +76,7 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
 
 FeatureData Context::extract(Extractor::Format const &fmt) {
   if (fmt._direct_p) {
-    return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this);
+    return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this, fmt[0]);
   } else if (fmt._literal_p) {
     return FeatureView::Literal(fmt[0]._ext);
   } else {
@@ -86,7 +86,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         // double write - try in the remnant first. If that suffices, done.
         // Otherwise the size is now known and the needed space can be correctly allocated.
         w.print_nfv(*this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
-        if (fmt._c_string_p) {
+        if (fmt._force_c_string_p) {
           w.write('\0');
         }
         if (!w.error()) {
