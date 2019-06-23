@@ -27,6 +27,26 @@ using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 
 /* ------------------------------------------------------------------------------------ */
+class Ex_creq_url : public Extractor {
+public:
+  static constexpr TextView NAME { "creq-url" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+}
+
+BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  FeatureView zret;
+  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      bwformat(w, spec, url.view());
+    }
+  }
+  return w;
+}
+
+/* ------------------------------------------------------------------------------------ */
 class Ex_creq_url_host : public Extractor, public DirectFeature {
 public:
   static constexpr TextView NAME { "creq-url-host" };
