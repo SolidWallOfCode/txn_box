@@ -157,64 +157,118 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node
 /// Although this could technically be done "by hand", it's common enough to justify
 /// a specific directive.
 class Do_redirect : public Directive {
-  using self_type = Do_redirect;
-  using super_type = Directive;
+  using self_type = Do_redirect; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
 public:
-  static const std::string KEY;
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-  static constexpr Hook FIXUP_HOOK = Hook::PRSP;
-  static const int STATUS = TS_HTTP_STATUS_MOVED_TEMPORARILY;
+  static const std::string KEY; ///< Directive name.
+  static const std::string STATUS_KEY; ///< Key for status value.
+  static const std::string REASON_KEY; ///< Key for reason value.
+  static const std::string LOCATION_KEY; ///< Key for location value.
+  static const std::string BODY_KEY; ///< Key for body.
 
-  Errata invoke(Context & ctx) override;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+  /// Need to do fixups on a later hook.
+  static constexpr Hook FIXUP_HOOK = Hook::PRSP;
+  /// Status code to use if not specified.
+  static const int DEFAULT_STATUS = TS_HTTP_STATUS_MOVED_TEMPORARILY;
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_node Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
 
 protected:
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
-  Extractor::Format _status_fmt;
-  Extractor::Format _loc_fmt;
-  Extractor::Format _reason_fmt;
-  Extractor::Format _body_fmt;
+  Extractor::Format _status_fmt; ///< Return status.
+  Extractor::Format _reason_fmt; ///< Status reason text.
+  Extractor::Format _loc_fmt; ///< Location field value.
+  Extractor::Format _body_fmt; ///< Body content of respons.
+  /// Bounce from fixup hook directive back to @a this.
   Directive::Handle _set_location{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
 
+  /// Construct and do configuration related initialization.
   explicit Do_redirect(Config & cfg);
 
+  /// Load the status value from configuration.
   Errata load_status(Config& cfg, YAML::Node const& node);
+  /// Load the location value from configuration.
   Errata load_location(Config& cfg, YAML::Node const& node);
+  Errata load_reason(Config& cfg, YAML::Node const& node);
+  Errata load_body(Config& cfg, YAML::Node const& node);
 
+  /// Do post invocation fixup.
   Errata fixup(Context &ctx);
 };
 
 const std::string Do_redirect::KEY { "redirect" };
+const std::string Do_redirect::STATUS_KEY { "status" };
+const std::string Do_redirect::REASON_KEY { "reason" };
+const std::string Do_redirect::LOCATION_KEY { "location" };
+const std::string Do_redirect::BODY_KEY { "body" };
+
 const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP}) };
 
 Do_redirect::Do_redirect(Config &cfg) {
+  // Allocate a hook slot for the fixup directive.
   cfg.reserve_slot(FIXUP_HOOK);
 }
+
 Errata Do_redirect::invoke(Context& ctx) {
+  // Finalize the location and stash it in context storage.
   auto value = ctx.extract(_loc_fmt);
-  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
   ctx.commit(value);
+  // Remember where it is so the fix up can find it.
+  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
   *view = std::get<IndexFor(STRING)>(value);
+
+  // Set the status to prevent the upstream request.
   if (_status) {
     ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
   } else {
     value = ctx.extract(_status_fmt);
+    int status;
     if (value.index() == IndexFor(INTEGER)) {
+      status = std::get<IndexFor(INTEGER)>(value);
     } else { // it's a string.
+      TextView src{std::get<IndexFor(STRING)>(value)}, parsed;
+      status = swoc::svtou(src, &parsed);
+      if (parsed.size() != src.size()) {
+        // Need to log an error.
+        status = DEFAULT_STATUS;
+      }
     }
+    if (!(100 <= status && status <= 599)) {
+      // need to log an error.
+      status = DEFAULT_STATUS;
+    }
+    ctx._txn.status_set(static_cast<TSHttpStatus>(status));
   }
+  // Arrange for fixup to get invoked.
   return ctx.on_hook_do(FIXUP_HOOK, _set_location.get());
 }
 
 Errata Do_redirect::fixup(Context &ctx) {
   auto hdr { ctx.prsp_hdr() };
+  // Set the Location
   auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
   field.assign(*view);
-  hdr.reason_set("Resource moved");
+
+  // Set the reason.
+  if (! _reason_fmt.empty()) {
+    auto reason{ctx.extract(_reason_fmt)};
+    hdr.reason_set(std::get<IndexFor(STRING)>(reason));
+  }
+  // Set the body.
   if (! _body_fmt.empty()) {
-    auto body { ctx.extract(_body_fmt) };
+    auto body{ctx.extract(_body_fmt)};
     ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
+  }
   return {};
 }
 
@@ -234,7 +288,7 @@ Errata Do_redirect::load_status(Config& cfg, YAML::Node const &node) {
     _status = status;
   } else {
     if (fmt._feature_type != STRING && fmt._feature_type != INTEGER) {
-      return Errata().error(R"(Status "{}" at {} is not an integer or string as required.)", node.Scalar(), node.Mark());
+      return Errata().error(R"(Status "{}" at {} is not an integer nor string as required.)", node.Scalar(), node.Mark());
     }
     _status_fmt = std::move(fmt);
   }
@@ -251,11 +305,36 @@ Errata Do_redirect::load_location(Config &cfg, YAML::Node const &node) {
   return {};
 }
 
-Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML::Node key_node) {
-  Handle handle { new self_type{cfg} };
-  auto self = static_cast<self_type*>(handle.get());
+Errata Do_redirect::load_reason(Config &cfg, YAML::Node const &node) {
+  auto && [ fmt, errata ] { cfg.parse_feature(node) };
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  _reason_fmt = std::move(fmt);
+  _reason_fmt._force_string_p = true;
+  return {};
+}
 
-  if (key_node.IsSequence()) {
+Errata Do_redirect::load_body(Config &cfg, YAML::Node const &node) {
+  auto && [ fmt, errata ] { cfg.parse_feature(node) };
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  _body_fmt = std::move(fmt);
+  _body_fmt._force_string_p = true;
+  return {};
+}
+
+Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  Handle handle{new self_type{cfg}};
+  auto self = static_cast<self_type *>(handle.get());
+  if (key_node.IsScalar()) {
+    auto errata { self->load_location(cfg, key_node) };
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
+      return { {}, std::move(errata) };
+    }
+  } else if (key_node.IsSequence()) {
     if (key_node.size() < 1) {
       return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };
     } else if (key_node.size() > 2) {
@@ -276,11 +355,30 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
       errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
       return { {}, std::move(errata) };
     }
-    return { std::move(handle), {} };
   } else if (key_node.IsMap()) {
-
+    Errata errata;
+    if (auto node { key_node[BODY_KEY] } ; node) {
+      errata.note(self->load_body(cfg, node));
+    }
+    if (auto node { key_node[LOCATION_KEY] } ; node) {
+      errata.note(self->load_location(cfg, node));
+    }
+    if (auto node { key_node[REASON_KEY] } ; node) {
+      errata.note(self->load_reason(cfg, node));
+    }
+    if (auto node { key_node[STATUS_KEY] } ; node) {
+      errata.note(self->load_status(cfg, node));
+    }
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing "{}" directive at {}.)", key_node.Mark());
+      return {{}, std::move(errata)};
+    }
+  } else {
+    return {{}, Errata().error(
+        R"(Value for "{}" key at {} is not a string or a list of status, string as required.)", KEY
+        , key_node.Mark())};
   }
-  return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of status, string as required.)", KEY, key_node.Mark()) };
+  return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
 /// Send a debug message.
