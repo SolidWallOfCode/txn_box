@@ -68,8 +68,9 @@ public:
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
     bool _literal_p = true; ///< @c true if the format is only literals, no extractors.
     bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
-    bool _force_string_p = true; ///< @c true if the extracted feature should be forced to a string.
-    bool _force_c_string_p = false; ///< @c true if the extracted feature should be forced to a C-string.
+    /// @c true if the extracted feature should be forced to a C-string.
+    /// @note This only applies for @c STRING features.
+    bool _force_c_string_p = false;
     int _max_arg_idx = -1; ///< Largest argument index. -1 => no numbered arguments.
     /// @}
 

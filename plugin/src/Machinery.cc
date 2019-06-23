@@ -301,7 +301,7 @@ Errata Do_redirect::load_location(Config &cfg, YAML::Node const &node) {
     return std::move(errata);
   }
   _loc_fmt = std::move(fmt);
-  _loc_fmt._force_string_p = true;
+  _loc_fmt._feature_type = STRING;
   return {};
 }
 
@@ -311,7 +311,7 @@ Errata Do_redirect::load_reason(Config &cfg, YAML::Node const &node) {
     return std::move(errata);
   }
   _reason_fmt = std::move(fmt);
-  _reason_fmt._force_string_p = true;
+  _loc_fmt._feature_type = STRING;
   return {};
 }
 
@@ -321,7 +321,7 @@ Errata Do_redirect::load_body(Config &cfg, YAML::Node const &node) {
     return std::move(errata);
   }
   _body_fmt = std::move(fmt);
-  _body_fmt._force_string_p = true;
+  _loc_fmt._feature_type = STRING;
   return {};
 }
 
