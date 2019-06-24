@@ -170,7 +170,7 @@ public:
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
   /// Status code to use if not specified.
-  static const int DEFAULT_STATUS = TS_HTTP_STATUS_MOVED_TEMPORARILY;
+  static const int DEFAULT_STATUS = TS_HTTP_STATUS_MOVED_PERMANENTLY;
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
   /** Load from YAML configuration.
@@ -334,6 +334,7 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
       errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
       return { {}, std::move(errata) };
     }
+    self->_status = DEFAULT_STATUS;
   } else if (key_node.IsSequence()) {
     if (key_node.size() < 1) {
       return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };

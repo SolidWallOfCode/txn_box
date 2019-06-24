@@ -5,4 +5,8 @@ txn_box:
     select:
     - match: "redirect.yahoo.com"
       do:
-      - redirect: "http://yahoo.com"
+      - redirect:
+          status: 301
+          reason: Resource has moved.
+          location: http://yahoo.com
+          body: "<HTML><HEAD><TITLE>Resource moved</TITLE></HEAD><BODY><H1>Relocted</H1>The resource \"{creq-url}\" is now at http://yahoo.com.</BODY>"

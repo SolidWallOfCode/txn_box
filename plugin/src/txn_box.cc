@@ -79,15 +79,18 @@ TextView ts::URL::host() {
 }
 
 TextView ts::URL::view() {
+  // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
+  // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
   if (! _iobuff) {
-    _iobuff = TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_64K);
-    _ioreader = TSIOBufferReaderAlloc(_iobuff);
-    TSUrlPrint(_buff, _loc, _iobuff);
+    _iobuff.reset(TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K));
+    auto reader = TSIOBufferReaderAlloc(_iobuff.get());
+    TSUrlPrint(_buff, _loc, _iobuff.get());
+    int64_t avail = 0;
+    auto block = TSIOBufferReaderStart(reader);
+    auto ptr = TSIOBufferBlockReadStart(block, reader, &avail);
+    _view.assign(ptr, avail);
   }
-  int64_t avail = 0;
-  auto block = TSIOBufferReaderStart(_ioreader);
-  auto ptr = TSIOBufferBlockReadStart(block, _ioreader, &avail);
-  return { ptr, static_cast<size_t>(avail) };
+  return _view;
 }
 
 TextView ts::HttpField::value() {
@@ -204,6 +207,11 @@ void ts::HttpTxn::status_set(int status) {
   TSHttpTxnStatusSet(_txn, static_cast<TSHttpStatus>(status));
 }
 
+ts::String ts::HttpTxn::effective_url_get() const {
+  int size;
+  auto s = TSHttpTxnEffectiveUrlStringGet(_txn, &size);
+  return {s, size};
+};
 /* ------------------------------------------------------------------------------------ */
 
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {

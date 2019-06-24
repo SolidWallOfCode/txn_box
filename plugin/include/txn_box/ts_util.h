@@ -19,6 +19,7 @@
 #pragma once
 
 #include <array>
+#include <type_traits>
 
 #include "txn_box/common.h"
 
@@ -36,6 +37,40 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev);
 extern std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
 namespace ts {
+
+/** Hold a string allocated from TS core.
+ * This provides both a view of the string and clean up when destructed.
+ */
+class String {
+public:
+  String() = default; ///< Construct an empty instance.
+  ~String(); ///< Clean up string.
+
+  /** Construct from a TS allocated string.
+   *
+   * @param s Pointer returned from C API call.
+   * @param size Size of the string.
+   */
+  String(char *s, int64_t size);
+
+  operator swoc::TextView () const;
+
+protected:
+  swoc::TextView _view;
+};
+
+inline ts::String::String(char *s, int64_t size) : _view{ s, static_cast<size_t>(size) } {}
+
+inline String::~String() { if (_view.data()) { TSfree(const_cast<char*>(_view.data())); } }
+
+inline String::operator swoc::TextView() const { return _view; }
+
+/// Clean up an TS @C TSIOBuffer
+struct IOBufferDeleter {
+  void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); } }
+};
+
+using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBufferDeleter>;
 
 /** Generic base class for objects in the TS Header heaps.
  * All of these are represented by a buffer and a location.
@@ -62,14 +97,13 @@ class URL : public HeapObject {
   using super_type = HeapObject; ///< Parent type.
 public:
   URL() = default;
-  ~URL();
   URL(TSMBuffer buff, TSMLoc loc);;
 
   swoc::TextView view(); ///< View of entire URL.
   swoc::TextView host(); ///< View of the URL host.
 protected:
-  TSIOBuffer _iobuff = nullptr;
-  TSIOBufferReader _ioreader = nullptr;
+  IOBuffer _iobuff; ///< IO buffer with the URL text.
+  swoc::TextView _view; ///< View of the URL in @a _iobuff.
 };
 
 class HttpField : public HeapObject {
@@ -157,6 +191,8 @@ public:
    * @return @c true if internal, @c false if not.
    */
   bool is_internal() const;
+
+  String effective_url_get() const;
 
   /** Set the transaction status.
    *

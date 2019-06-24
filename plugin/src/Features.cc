@@ -38,8 +38,6 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-}
-
 BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -153,12 +151,14 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 namespace {
 // Extractors aren't constructed, they are always named references to singletons.
 // These are the singletons.
+Ex_creq_url creq_url;
 Ex_creq_host creq_host;
 Ex_creq_url_host creq_url_host;
 Ex_creq_field creq_field;
 Ex_is_internal is_internal;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Extractor::define(Ex_creq_url::NAME, &creq_url);
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
   Extractor::define(Ex_creq_field::NAME, &creq_field);
