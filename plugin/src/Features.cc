@@ -27,6 +27,10 @@ using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 
 /* ------------------------------------------------------------------------------------ */
+/** The entire URL.
+ * Because of the nature of the C API, this can only be a transient external string and
+ * therefore must be copied in to context storage.
+ */
 class Ex_creq_url : public Extractor {
 public:
   static constexpr TextView NAME { "creq-url" };

@@ -62,6 +62,13 @@ namespace {
  Config Plugin_Config;
 }
 /* ------------------------------------------------------------------------------------ */
+
+ts::URL::~URL() {
+  if (_iobuff) {
+    TSIOBufferDestroy(_iobuff);
+  }
+}
+
 TextView ts::URL::host() {
   char const* text;
   int size;
@@ -69,6 +76,18 @@ TextView ts::URL::host() {
     return { text, static_cast<size_t>(size) };
   }
   return {};
+}
+
+TextView ts::URL::view() {
+  if (! _iobuff) {
+    _iobuff = TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_64K);
+    _ioreader = TSIOBufferReaderAlloc(_iobuff);
+    TSUrlPrint(_buff, _loc, _iobuff);
+  }
+  int64_t avail = 0;
+  auto block = TSIOBufferReaderStart(_ioreader);
+  auto ptr = TSIOBufferBlockReadStart(block, _ioreader, &avail);
+  return { ptr, static_cast<size_t>(avail) };
 }
 
 TextView ts::HttpField::value() {

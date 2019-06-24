@@ -62,9 +62,14 @@ class URL : public HeapObject {
   using super_type = HeapObject; ///< Parent type.
 public:
   URL() = default;
+  ~URL();
   URL(TSMBuffer buff, TSMLoc loc);;
 
-  swoc::TextView host();
+  swoc::TextView view(); ///< View of entire URL.
+  swoc::TextView host(); ///< View of the URL host.
+protected:
+  TSIOBuffer _iobuff = nullptr;
+  TSIOBufferReader _ioreader = nullptr;
 };
 
 class HttpField : public HeapObject {
