@@ -87,6 +87,10 @@ TextView ts::URL::view() {
   return _view;
 }
 
+ts::HttpField::~HttpField() {
+  TSHandleMLocRelease(_buff, _hdr, _loc);
+}
+
 TextView ts::HttpField::value() {
   int size;
   char const* text;
@@ -103,6 +107,10 @@ bool ts::HttpField::assign(swoc::TextView value) {
 
 bool ts::HttpField::assign_if_not_set(swoc::TextView value) {
   return this->is_valid() && ( ! this->value().empty() || this->assign(value) );
+}
+
+bool ts::HttpField::destroy() {
+  return TS_SUCCESS == TSMimeHdrFieldDestroy(_buff, _hdr, _loc);
 }
 
 ts::URL ts::HttpHeader::url() {
@@ -179,6 +187,15 @@ ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
     return this->field_create(name);
   }
   return {};
+}
+
+ts::HttpHeader& ts::HttpHeader::field_remove(swoc::TextView name) {
+  if (this->is_valid()) {
+    if (HttpField field { this->field(name) } ; field.is_valid()) {
+      field.destroy();
+    }
+  }
+  return *this;
 }
 
 bool ts::HttpHeader::reason_set(swoc::TextView reason) {

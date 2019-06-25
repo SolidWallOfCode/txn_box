@@ -91,13 +91,15 @@ protected:
 
 class HttpHeader;
 
+/// A URL object.
 class URL : public HeapObject {
   friend class HttpHeader;
   using self_type = URL; ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
   URL() = default;
-  URL(TSMBuffer buff, TSMLoc loc);;
+  /// Construct from TS data.
+  URL(TSMBuffer buff, TSMLoc loc);
 
   swoc::TextView view(); ///< View of entire URL.
   swoc::TextView host(); ///< View of the URL host.
@@ -112,6 +114,7 @@ class HttpField : public HeapObject {
   using super_type = HeapObject; ///< Parent type.
 public:
   HttpField() = default;
+  ~HttpField();
 
   /// Return the current value for the field.
   swoc::TextView value();
@@ -131,6 +134,8 @@ public:
    * If the field already has a value, this does nothing. Otherwise the value is set to @a value.
    */
   bool assign_if_not_set(swoc::TextView value);
+
+  bool destroy();
 
 protected:
   HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc);
@@ -172,6 +177,13 @@ public:
    * to get a valid field indicates a bad HTTP header object.
    */
   HttpField field_obtain(swoc::TextView name);
+
+  /** Remove a field.
+   *
+   * @param name Field name.
+   * @return @a this.
+   */
+  self_type& field_remove(swoc::TextView name);
 
   /** Set the reason field in the header.
    *
