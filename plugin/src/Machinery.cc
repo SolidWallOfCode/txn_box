@@ -89,6 +89,52 @@ swoc::Rv<Directive::Handle> Do_set_preq_host::load(Config &, YAML::Node, YAML::N
 }
 
 /* ------------------------------------------------------------------------------------ */
+class FieldDirective {
+protected:
+  Extractor::Format _name_fmt;
+  Extractor::Format _value_fmt;
+
+  virtual TextView key() const = 0;
+  Errata load(Config& cfg, YAML::Node const& node);
+};
+
+Errata FieldDirective::load(Config & cfg, YAML::Node const& node) {
+  if (node.IsSequence()) {
+    if (node.size() == 2) {
+      auto name_node{node[0]};
+      auto value_node{node[1]};
+      auto &&[name_fmt, name_errata]{cfg.parse_feature(name_node)};
+      if (!name_errata.is_ok()) {
+        return std::move(
+            name_errata.error(R"(While parsing name (first item) for "{}" key at {}.)", this->key()
+                              , node));
+      }
+      if (name_fmt._feature_type != STRING) {
+        return Errata().error(
+            R"(The field name for "{}" key at {} is not a string type as required.)", this->key()
+            , node.Mark());
+      }
+
+      auto &&[value_fmt, value_errata]{cfg.parse_feature(value_node)};
+      if (!value_errata.is_ok()) {
+        return std::move(
+            value_errata.error(R"(While parsing value (second item) for "{}" key at {}.)"
+                               , this->key(), node));
+      }
+      if (value_fmt._feature_type != STRING) {
+        return Errata().error(
+            R"(The field value for "{}" key at {} is not a string type as required.)", this->key()
+            , node.Mark());
+      }
+      _name_fmt = std::move(name_fmt);
+      _value_fmt = std::move(value_fmt);
+      return {};
+    }
+    return Errata().error(R"(Value for "{}" key at {} does not have exactly 2 elements as required.)", this->key(), node.Mark());
+  }
+  return Errata().error(R"(Value for "{}" key at {} is not a list of two elements as required.)", this->key(), node.Mark());
+}
+/* ------------------------------------------------------------------------------------ */
 class Do_set_preq_field : public Directive {
   using self_type = Do_set_preq_field;
 public:
@@ -150,6 +196,45 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config & cfg, YAML::Node drtv_node
   return { {}, Errata().error(R"(Value for "{}" key at {} is not a list as required.)", KEY, key_node.Mark()) };
 }
 
+/* ------------------------------------------------------------------------------------ */
+class Do_set_creq_field_default : public Directive, FieldDirective {
+  using self_type = Do_set_creq_field_default;
+public:
+  static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Do_set_creq_field_default() = default;
+  TextView key() const override { return KEY; }
+};
+
+const std::string Do_set_creq_field_default::KEY { "set-creq-field-default" };
+const HookMask Do_set_creq_field_default::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::PRE_REMAP}) };
+
+Errata Do_set_creq_field_default::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
+      TextView value = std::get<STRING>(ctx.extract(_value_fmt));
+      field.assign_if_not_set(value);
+    }
+    return Errata().error(R"(Failed to find or create field "{}")", name);
+  }
+  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+}
+
+Rv<Directive::Handle> Do_set_creq_field_default::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  auto * self = new self_type;
+  Handle handle(self);
+  Errata errata { self->FieldDirective::load(cfg, key_node) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata.info(R"(While parsing directive at {}.)", drtv_node.Mark()))};
+  }
+  return { std::move(handle), {} };
+}
 /* ------------------------------------------------------------------------------------ */
 /// Set transaction status.
 /* ------------------------------------------------------------------------------------ */
@@ -769,11 +854,12 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Config::define(When::KEY, When::HOOKS, When::load);
   Config::define(With::KEY, With::HOOKS, With::load);
+  Config::define(Do_set_creq_field_default::KEY, Do_set_creq_field_default::HOOKS, Do_set_creq_field_default::load);
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
-  Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
+  Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;
 } ();
 } // namespace

@@ -113,9 +113,24 @@ class HttpField : public HeapObject {
 public:
   HttpField() = default;
 
+  /// Return the current value for the field.
   swoc::TextView value();
 
+  /** Set the @a value for @a this field.
+   *
+   * @param value Value to set.
+   * @return @c true if the value was successful updated, @c false if not.
+   */
   bool assign(swoc::TextView value);
+
+  /** Guarantee a @a value for @a this field.
+   *
+   * @param value Field value.
+   * @return @c true if the field has a value, @c false if successfully updated.
+   *
+   * If the field already has a value, this does nothing. Otherwise the value is set to @a value.
+   */
+  bool assign_if_not_set(swoc::TextView value);
 
 protected:
   HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc);
