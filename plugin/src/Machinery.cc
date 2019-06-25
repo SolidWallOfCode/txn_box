@@ -124,7 +124,7 @@ Errata FieldDirective::load(Config & cfg, YAML::Node const& node) {
       if (!value_errata.is_ok()) {
         return std::move(
             value_errata.error(R"(While parsing value (second item) for "{}" key at {}.)"
-                               , this->key(), node));
+                               , this->key(), node.Mark()));
       }
       if (value_fmt._feature_type != STRING) {
         return Errata().error(
@@ -271,6 +271,86 @@ Rv<Directive::Handle> Do_remove_creq_field::load(Config & cfg, YAML::Node drtv_n
   Handle handle(self);
   self->_name_fmt = std::move(name_fmt);
 
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set upstream response status code.
+class Do_set_ursp_status : public Directive {
+  using self_type = Do_set_ursp_status; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_node Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config & cfg, YAML::Node const& drtv_node, YAML::Node const& key_node);
+
+protected:
+  TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
+  Extractor::Format _status_fmt; ///< Return status.
+
+  Do_set_ursp_status() = default;
+};
+
+const std::string Do_set_ursp_status::KEY { "set-ursp-status" };
+const HookMask Do_set_ursp_status::HOOKS { MaskFor({Hook::URSP}) };
+
+Errata Do_set_ursp_status::invoke(Context &ctx) {
+  int status = TS_HTTP_STATUS_NONE;
+  if (_status) {
+    status = _status;
+  } else {
+    auto value = ctx.extract(_status_fmt);
+    if (value.index() == IndexFor(INTEGER)) {
+      status = std::get<IndexFor(INTEGER)>(value);
+    } else { // it's a string.
+      TextView src{std::get<IndexFor(STRING)>(value)}, parsed;
+      auto n = swoc::svtou(src, &parsed);
+      if (parsed.size() == src.size()) {
+        status = n;
+      } else {
+        return Errata().error(R"(Invalid status "{}" for "{}" directive.)", value, KEY);
+      }
+    }
+  }
+  if (100 <= status && status <= 599) {
+    ctx._txn.ursp_hdr().status_set(static_cast<TSHttpStatus>(status));
+  } else {
+    return Errata().error(R"(Status value {} out of range 100..599 for "{}" directive.)", status
+                          , KEY);
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& drtv_node, YAML::Node const &key_node) {
+  auto &&[fmt, errata]{cfg.parse_feature(key_node)};
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  auto self = new self_type;
+  Handle handle(self);
+
+  if (fmt._feature_type == INTEGER) {
+    auto status = fmt._number;
+    if (status < 100 || status > 599) {
+      return { {}, Errata().error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)"
+                            , key_node.Scalar(), key_node.Mark()) };
+    }
+    self->_status = static_cast<TSHttpStatus>(status);
+  } else if (fmt._feature_type == STRING) {
+    self->_status_fmt = std::move(fmt);
+  } else {
+    return {{}, Errata().error(R"(Status "{}" at {} is not an integer nor string as required.)"
+                               , key_node.Scalar(), key_node.Mark())};
+  }
   return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
@@ -563,6 +643,7 @@ Rv<Directive::Handle> Do_debug_msg::load(Config & cfg, YAML::Node drtv_node, YAM
   }
   return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_node.Mark()) };
 }
+
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
@@ -577,7 +658,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context &ctx) override;
-  static swoc::Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+  static swoc::Rv<Handle> load(Config & cfg, YAML::Node const& drtv_node, YAML::Node const& key_node);
 
 protected:
   Extractor::Format _ex; ///< Extractor format.
@@ -671,7 +752,7 @@ Errata WithTuple::invoke(Context &ctx) {
   return {};
 };
 
-swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+swoc::Rv<Directive::Handle> With::load(Config & cfg, YAML::Node const& drtv_node, YAML::Node const& key_node) {
   YAML::Node select_node { drtv_node[SELECT_KEY] };
   if (! select_node) {
     return {{}, Errata().error(R"(Required "{}" key not found in "{}" directive at {}.)", SELECT_KEY
@@ -848,7 +929,6 @@ Errata WithTuple::load_case(Config & cfg, YAML::Node node, unsigned size) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-
 const std::string When::KEY { "when" };
 const HookMask When::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
 
@@ -860,7 +940,7 @@ Errata When::invoke(Context &ctx) {
   return ctx.on_hook_do(_hook, _directive.get());
 }
 
-swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, YAML::Node key_node) {
+swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node const& drtv_node, YAML::Node const& key_node) {
   Errata zret;
   if (Hook hook{HookName[key_node.Scalar()]} ; hook != Hook::INVALID) {
     if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
@@ -895,6 +975,7 @@ namespace {
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
+  Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;

@@ -40,10 +40,12 @@ enum FeatureType {
   BOOLEAN, ///< Boolean.
 };
 
+static constexpr std::initializer_list<FeatureType> FeatureType_LIST { STRING, INTEGER, IP_ADDR, BOOLEAN };
+
 /// Number of feature types.
 /// @internal @b MUST update this if @c FeatureType is changed.
 /// @internal if @c IndexFor doesn't compile, failure to update is the most likely cause.
-static constexpr size_t N_FEATURE_TYPE = BOOLEAN + 1;
+static constexpr size_t N_FEATURE_TYPE = FeatureType_LIST.size();
 
 /** Data for a feature that is a view / string.
  *
@@ -141,8 +143,11 @@ inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
 
 /// Conversion between @c FeatureType and printable names.
 extern swoc::Lexicon<FeatureType> FeatureTypeName;
-extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, FeatureType type);
-
+namespace swoc {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureData const &feature);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask);
+}
 /// Supported hooks.
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).

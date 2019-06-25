@@ -99,7 +99,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: break;
+      case INTEGER: return dynamic_cast<IntegerFeature*>(fmt[0]._extractor)->extract(*this);
       case BOOLEAN:
         return dynamic_cast<BooleanFeature*>(fmt[0]._extractor)->extract(*this);
     }

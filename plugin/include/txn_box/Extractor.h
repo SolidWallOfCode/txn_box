@@ -71,6 +71,8 @@ public:
     /// @c true if the extracted feature should be forced to a C-string.
     /// @note This only applies for @c STRING features.
     bool _force_c_string_p = false;
+
+    intmax_t _number = 0; ///< The numeric value if @a _feature_type is @c INTEGER.
     int _max_arg_idx = -1; ///< Largest argument index. -1 => no numbered arguments.
     /// @}
 
@@ -154,12 +156,10 @@ public:
    *
    * @return The extracted feature type.
    *
-   * The default implementation returns @c VIEW.
-   *
    * @note All features can be extracted as strings if needed. This type provides the ability to
    * do more specific type processing for singleton extractions.
    */
-  virtual Type feature_type() const;
+  virtual Type feature_type() const = 0;
 
   /** Whether the extractor uses data from the contest.
    *
@@ -212,19 +212,21 @@ protected:
  *
  * @internal Is this still useful?
  */
-class ViewFeature {
+class StringFeature : public Extractor {
 public:
-  Extractor::Type feature_type() const;
+  virtual Extractor::Type feature_type() const;
 };
 
+inline Extractor::Type StringFeature::feature_type() const { return STRING; }
 /** A view of a transient string.
  * This is similar to @c STRING. The difference is the view is of a string in non-plugin controlled
  * memory which may disappear or change outside of plugin control. It must therefore be treated
  * with a great deal more care than a @c VIEW type. This type can be converted to a @c VIEW by
  * localizing (making a copy of) the string in the arena.
  */
-class DirectFeature {
+class DirectFeature : public StringFeature {
 public:
+
   /** Get a view of the feature.
    *
    * @param ctx Transaction context.
@@ -239,10 +241,20 @@ public:
 class IPAddrFeature {
 };
 
-class IntegerFeature {
+class IntegerFeature : public Extractor {
+public:
+  /// C++ type of extracted feature.
+  using ExType = std::variant_alternative_t<IndexFor(INTEGER), FeatureData>;
+
+  /// Type of extracted feature.
+  Extractor::Type feature_type() const;
+
+  virtual ExType extract(Context& ctx) const = 0;
 };
 
-class BooleanFeature {
+inline Extractor::Type IntegerFeature::feature_type() const { return INTEGER; }
+
+class BooleanFeature : public Extractor {
 public:
   /// C++ type of extracted feature.
   using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData>;
@@ -252,5 +264,7 @@ public:
 
   virtual ExType extract(Context& ctx) const = 0;
 };
+
+inline Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }

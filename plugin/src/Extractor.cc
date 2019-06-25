@@ -83,11 +83,9 @@ Errata Extractor::define(TextView name, self_type * ex) {
   return {};
 }
 
-Extractor::Type Extractor::feature_type() const { return STRING; }
+//Extractor::Type Extractor::feature_type() const { return STRING; }
 
 bool Extractor::has_ctx_ref() const { return false; }
-
-Extractor::Type ViewFeature::feature_type() const { return STRING; }
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -127,7 +125,5 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
   }
   return zret;
 }
-
-Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }
 
 /* ------------------------------------------------------------------------------------ */

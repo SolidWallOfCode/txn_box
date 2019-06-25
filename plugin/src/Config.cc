@@ -40,20 +40,6 @@ using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
-
-swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::STRING, "string"}
-                                            , {FeatureType::INTEGER, "integer"}
-                                            , {FeatureType::BOOLEAN, "boolean"}
-                                            , {FeatureType::IP_ADDR, "IP address"}
-                                           }};
-
-BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, FeatureType type) {
-  if (spec.has_numeric_type()) {
-    return bwformat(w, spec, static_cast<unsigned>(type));
-  }
-  return bwformat(w, spec, FeatureTypeName[type]);
-}
-
 swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
                               , {Hook::URSP, {"read-response", "ursp"}}
@@ -293,6 +279,14 @@ Config& Config::localize(Extractor::Format &fmt) {
   // Special case a "pure" literal - it's a format but all of the specifiers are literals.
   // This can be consolidated into a single specifier with a single literal.
   if (fmt._literal_p) {
+    if (fmt.size() == 1) {
+      TextView src{fmt[0]._ext}, parsed;
+      auto n = swoc::svtoi(src, &parsed);
+      if (parsed.size() == src.size()) {
+        fmt._feature_type = INTEGER;
+        fmt._number = n;
+      }
+    }
     size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
                                                                                    , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
     if (fmt._force_c_string_p) {

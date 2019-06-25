@@ -90,7 +90,7 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, YAML::Node key_node)>;
+  using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node const& drtv_node, YAML::Node const& key_node)>;
 
   /** Invoke the directive.
    *
@@ -173,7 +173,7 @@ public:
    * @param key_node Child of @a dctv_node which matched the directive key.
    * @return A new directive instance on success, error notes on failure.
    */
-  static swoc::Rv<Handle> load(Config& config, YAML::Node drtv_node, YAML::Node key_node);
+  static swoc::Rv<Handle> load(Config& config, YAML::Node const& drtv_node, YAML::Node const& key_node);
 
 protected:
   Hook _hook { Hook::INVALID };

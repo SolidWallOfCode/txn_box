@@ -1,0 +1,8 @@
+txn_box:
+- when: ursp
+  do:
+  - with: "{ursp-status}"
+    select:
+    - eq: 403
+      do:
+        set-ursp-status: 204

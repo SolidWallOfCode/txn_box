@@ -198,6 +198,10 @@ ts::HttpHeader& ts::HttpHeader::field_remove(swoc::TextView name) {
   return *this;
 }
 
+bool ts::HttpHeader::status_set(TSHttpStatus status) {
+  return TS_SUCCESS == TSHttpHdrStatusSet(_buff, _loc, status);
+}
+
 bool ts::HttpHeader::reason_set(swoc::TextView reason) {
   return this->is_valid() && TS_SUCCESS == TSHttpHdrReasonSet(_buff, _loc, reason.data(), reason.size());
 }
@@ -226,7 +230,14 @@ ts::String ts::HttpTxn::effective_url_get() const {
   int size;
   auto s = TSHttpTxnEffectiveUrlStringGet(_txn, &size);
   return {s, size};
-};
+}
+
+namespace swoc {
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status) {
+  return bwformat(w, spec, static_cast<unsigned>(status));
+}
+} // namespace swoc
+
 /* ------------------------------------------------------------------------------------ */
 
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {

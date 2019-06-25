@@ -16,6 +16,9 @@
 
 #include <string>
 
+#include <swoc/bwf_base.h>
+
+#include "txn_box/common.h"
 #include "txn_box/Rxp.h"
 #include "txn_box/Comparison.h"
 #include "txn_box/Directive.h"
@@ -339,8 +342,8 @@ swoc::Lexicon<bool> PredicateNames { { true, { "true", "1", "on", "enable" }}
 /** Compare a boolean value.
  * Check if a value is true.
  */
-class Cmp_True: public Comparison {
-  using self_type = Cmp_True; ///< Self reference type.
+class Cmp_true: public Comparison {
+  using self_type = Cmp_true; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
@@ -354,33 +357,33 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
 protected:
-  Cmp_True() = default;
+  Cmp_true() = default;
 };
 
-const std::string Cmp_True::KEY { "true" };
-const FeatureMask Cmp_True::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const std::string Cmp_true::KEY { "true" };
+const FeatureMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_True::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
   return true == PredicateNames[text];
 }
 
-bool Cmp_True::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
   return data;
 }
 
-bool Cmp_True::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
   return data != 0;
 }
 
-Rv<Comparison::Handle> Cmp_True::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+Rv<Comparison::Handle> Cmp_true::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
   return { Handle{new self_type}, {} };
 }
 
 /** Compare a boolean value.
  * Check if a value is false.
  */
-class Cmp_False: public Comparison {
-  using self_type = Cmp_False; ///< Self reference type.
+class Cmp_false: public Comparison {
+  using self_type = Cmp_false; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
@@ -394,26 +397,59 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
 protected:
-  Cmp_False() = default;
+  Cmp_false() = default;
 };
 
-const std::string Cmp_False::KEY { "false" };
-const FeatureMask Cmp_False::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const std::string Cmp_false::KEY { "false" };
+const FeatureMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_False::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
   return false == PredicateNames[text];
 }
 
-bool Cmp_False::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
   return ! data;
 }
 
-bool Cmp_False::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
   return data == 0;
 }
 
-Rv<Comparison::Handle> Cmp_False::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+Rv<Comparison::Handle> Cmp_false::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
   return { Handle{new self_type}, {} };
+}
+/* ------------------------------------------------------------------------------------ */
+class Cmp_eq : public Comparison {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const FeatureMask TYPES; ///< Support types.
+
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override {
+    return _value == data;
+  }
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node);
+
+protected:
+  int _value;
+  Extractor::Format _value_fmt;
+};
+
+const std::string Cmp_eq::KEY { "eq" };
+const FeatureMask Cmp_eq::TYPES { MaskFor(INTEGER) };
+
+Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node) {
+  auto && [ fmt, errata ] = cfg.parse_feature(key_node);
+  if (!errata.is_ok()) {
+    return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
+  }
+  if (!TYPES[fmt._feature_type]) {
+    return { {}, Errata().error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES) };
+  }
+  return { Handle(new self_type), {} };
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -425,8 +461,9 @@ namespace {
   Comparison::define(Cmp_SuffixNocase::KEY, Cmp_SuffixNocase::TYPES, Cmp_SuffixNocase::load);
   Comparison::define(Cmp_RegexMatch::KEY, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
   Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
-  Comparison::define(Cmp_True::KEY, Cmp_True::TYPES, Cmp_True::load);
-  Comparison::define(Cmp_False::KEY, Cmp_False::TYPES, Cmp_False::load);
+  Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
+  Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+  Comparison::define(Cmp_eq::KEY, Cmp_eq::TYPES, Cmp_eq::load);
 
   // Other file scope initializations.
   PredicateNames.set_default(false);

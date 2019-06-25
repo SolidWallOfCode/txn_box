@@ -185,6 +185,10 @@ public:
    */
   self_type& field_remove(swoc::TextView name);
 
+  TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
+
+  bool status_set(TSHttpStatus status);
+
   /** Set the reason field in the header.
    *
    * @param reason Reason string.
@@ -270,6 +274,10 @@ const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(T
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
 
 }; // namespace ts
+
+namespace swoc {
+  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status);
+} // namespace swoc
 
 namespace std {
 
