@@ -354,6 +354,55 @@ Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& dr
   return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
+/// Set upstream response reason phrase.
+class Do_set_ursp_reason : public Directive {
+  using self_type = Do_set_ursp_reason; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_node Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config & cfg, YAML::Node const& drtv_node, YAML::Node const& key_node);
+
+protected:
+  TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
+  Extractor::Format _fmt; ///< Reason phrase.
+
+  Do_set_ursp_reason() = default;
+};
+
+const std::string Do_set_ursp_reason::KEY { "set-ursp-reason" };
+const HookMask Do_set_ursp_reason::HOOKS { MaskFor({Hook::URSP}) };
+
+Errata Do_set_ursp_reason::invoke(Context &ctx) {
+  auto value = ctx.extract(_fmt);
+  ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
+  return {};
+}
+
+Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node const& drtv_node, YAML::Node const &key_node) {
+  auto &&[fmt, errata]{cfg.parse_feature(key_node)};
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  auto self = new self_type;
+  Handle handle(self);
+
+  self->_fmt = std::move(fmt);
+  self->_fmt._feature_type = STRING;
+
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
 /// Redirect.
 /// Although this could technically be done "by hand", it's common enough to justify
 /// a specific directive.
@@ -976,6 +1025,7 @@ namespace {
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
+  Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;

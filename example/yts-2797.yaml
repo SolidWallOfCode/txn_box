@@ -5,4 +5,6 @@ txn_box:
     select:
     - eq: 403
       do:
-        set-ursp-status: 204
+      - set-ursp-status: 204
+      - set-ursp-reason: "Config file not present"
+

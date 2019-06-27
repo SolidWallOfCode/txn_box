@@ -103,6 +103,7 @@ public:
 
   swoc::TextView view(); ///< View of entire URL.
   swoc::TextView host(); ///< View of the URL host.
+  swoc::TextView scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 protected:
   IOBuffer _iobuff; ///< IO buffer with the URL text.
   swoc::TextView _view; ///< View of the URL in @a _iobuff.
@@ -186,6 +187,7 @@ public:
   self_type& field_remove(swoc::TextView name);
 
   TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
+  swoc::TextView method() const { int length; auto text = TSHttpHdrMethodGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
   bool status_set(TSHttpStatus status);
 

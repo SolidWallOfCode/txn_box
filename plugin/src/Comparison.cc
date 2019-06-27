@@ -427,15 +427,17 @@ public:
   static const FeatureMask TYPES; ///< Support types.
 
   bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override {
-    return _value == data;
+    auto value = ctx.extract(_value_fmt);
+    return std::get<IndexFor(INTEGER)>(value) == data;
   }
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node);
 
 protected:
-  int _value;
   Extractor::Format _value_fmt;
+
+  Cmp_eq(Extractor::Format && fmt) : _value_fmt(std::move(fmt)) {}
 };
 
 const std::string Cmp_eq::KEY { "eq" };
@@ -449,7 +451,7 @@ Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAM
   if (!TYPES[fmt._feature_type]) {
     return { {}, Errata().error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES) };
   }
-  return { Handle(new self_type), {} };
+  return { Handle(new self_type(std::move(fmt))), {} };
 }
 /* ------------------------------------------------------------------------------------ */
 

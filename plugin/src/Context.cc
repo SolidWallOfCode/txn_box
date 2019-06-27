@@ -78,6 +78,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
   if (fmt._direct_p) {
     return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this, fmt[0]);
   } else if (fmt._literal_p) {
+    if (fmt._feature_type == INTEGER) {
+      return fmt._number;
+    }
     return FeatureView::Literal(fmt[0]._ext);
   } else {
     switch (fmt._feature_type) {
@@ -99,9 +102,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: return dynamic_cast<IntegerFeature*>(fmt[0]._extractor)->extract(*this);
+      case INTEGER: return static_cast<IntegerFeature*>(fmt[0]._extractor)->extract(*this);
       case BOOLEAN:
-        return dynamic_cast<BooleanFeature*>(fmt[0]._extractor)->extract(*this);
+        return static_cast<BooleanFeature*>(fmt[0]._extractor)->extract(*this);
     }
   }
   return {};
