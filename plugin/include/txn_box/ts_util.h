@@ -103,7 +103,7 @@ public:
 
   swoc::TextView view(); ///< View of entire URL.
   swoc::TextView host(); ///< View of the URL host.
-  swoc::TextView scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+  swoc::TextView scheme() const;
 protected:
   IOBuffer _iobuff; ///< IO buffer with the URL text.
   swoc::TextView _view; ///< View of the URL in @a _iobuff.
@@ -264,6 +264,8 @@ inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nu
 
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
+inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+
 inline HttpField::HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc) : super_type(buff, field_loc), _hdr(hdr_loc) {}
 
 inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
@@ -274,6 +276,8 @@ inline HttpTxn::operator TSHttpTxn() const { return _txn; }
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
+const swoc::TextView HTTP_FIELD_CONTENT_LENGTH { TS_MIME_FIELD_CONTENT_LENGTH, static_cast<size_t>(TS_MIME_LEN_CONTENT_LENGTH) };
+const swoc::TextView HTTP_FIELD_CONTENT_TYPE { TS_MIME_FIELD_CONTENT_TYPE, static_cast<size_t>(TS_MIME_LEN_CONTENT_TYPE) };
 
 }; // namespace ts
 

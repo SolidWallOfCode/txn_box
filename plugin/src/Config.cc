@@ -248,17 +248,13 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {
     YAML::Node key_node { drtv_node[When::KEY] };
     if (key_node) {
-      if ( (_hook = HookName[key_node.Scalar()]) != Hook::INVALID) {
-        auto &&[handle, errata]{When::load(*this, drtv_node, key_node)};
-        if (errata.is_ok()) {
-          _roots[IndexFor(_hook)].emplace_back(std::move(handle));
-          _has_top_level_directive_p = true;
-        } else {
-          zret.note(errata);
-        }
+      auto &&[handle, errata]{When::load(*this, drtv_node, key_node)};
+      if (errata.is_ok()) {
+        auto hook = static_cast<When*>(handle.get())->get_hook();
+        _roots[IndexFor(hook)].emplace_back(std::move(handle));
+        _has_top_level_directive_p = true;
       } else {
-        zret.error(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_node.Scalar(),
-            When::KEY, key_node.Mark());
+        zret.note(errata);
       }
     } else {
       zret.error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());

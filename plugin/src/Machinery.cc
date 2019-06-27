@@ -31,6 +31,7 @@ using swoc::Errata;
 using swoc::Rv;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
+using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
 class Do_set_preq_url_host : public Directive {
@@ -250,10 +251,60 @@ Errata Do_remove_creq_field::invoke(Context &ctx) {
     TextView name = std::get<STRING>(ctx.extract(_name_fmt));
     hdr.field_remove(name);
   }
-  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+  return {};
 }
 
 Rv<Directive::Handle> Do_remove_creq_field::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  // Load up the field name.
+  auto &&[name_fmt, name_errata]{cfg.parse_feature(key_node)};
+  if (!name_errata.is_ok()) {
+    return { {}, std::move(
+        name_errata.error(R"(While parsing field name for "{}" key at {}.)", KEY
+                          , key_node.Mark())) };
+  }
+  if (name_fmt._feature_type != STRING) {
+    return { {}, Errata().error(
+        R"(The field name for "{}" key at {} is not a string type as required.)", KEY
+        , key_node.Mark()) };
+  }
+
+  auto * self = new self_type;
+  Handle handle(self);
+  self->_name_fmt = std::move(name_fmt);
+
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/// Remove a field from the client request.
+class Do_remove_prsp_field : public Directive {
+  using self_type = Do_remove_prsp_field; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /// Perform directive.
+  Errata invoke(Context & ctx) override;
+  /// Load from YAML configuration.
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Extractor::Format _name_fmt; ///< Field name.
+
+  Do_remove_prsp_field() = default;
+};
+
+const std::string Do_remove_prsp_field::KEY { "remove-prsp-field" };
+const HookMask Do_remove_prsp_field::HOOKS { MaskFor(Hook::PRSP) };
+
+Errata Do_remove_prsp_field::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.prsp_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    hdr.field_remove(name);
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_remove_prsp_field::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
   // Load up the field name.
   auto &&[name_fmt, name_errata]{cfg.parse_feature(key_node)};
   if (!name_errata.is_ok()) {
@@ -390,6 +441,55 @@ Errata Do_set_ursp_reason::invoke(Context &ctx) {
 }
 
 Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node const& drtv_node, YAML::Node const &key_node) {
+  auto &&[fmt, errata]{cfg.parse_feature(key_node)};
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  auto self = new self_type;
+  Handle handle(self);
+
+  self->_fmt = std::move(fmt);
+  self->_fmt._feature_type = STRING;
+
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set body content for the proxy response.
+class Do_set_prsp_body : public Directive {
+  using self_type = Do_set_prsp_body; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_node Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config & cfg, YAML::Node const& drtv_node, YAML::Node const& key_node);
+
+protected:
+  TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
+  Extractor::Format _fmt; ///< Reason phrase.
+
+  Do_set_prsp_body() = default;
+};
+
+const std::string Do_set_prsp_body::KEY { "set-prsp-body" };
+const HookMask Do_set_prsp_body::HOOKS { MaskFor({Hook::URSP}) };
+
+Errata Do_set_prsp_body::invoke(Context &ctx) {
+  auto value = ctx.extract(_fmt);
+  ctx._txn.error_body_set(std::get<IndexFor(STRING)>(value), "text/hmtl"_tv);
+  return {};
+}
+
+Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node const& drtv_node, YAML::Node const &key_node) {
   auto &&[fmt, errata]{cfg.parse_feature(key_node)};
   if (! errata.is_ok()) {
     return { {}, std::move(errata) };
@@ -993,7 +1093,10 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node const& drtv_node,
   Errata zret;
   if (Hook hook{HookName[key_node.Scalar()]} ; hook != Hook::INVALID) {
     if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
+      auto save = cfg._hook;
+      cfg._hook = hook;
       auto &&[do_handle, do_errata]{cfg.parse_directive(do_node)};
+      cfg._hook = save;
       if (do_errata.is_ok()) {
         cfg.reserve_slot(hook);
         return { Handle{new self_type{hook, std::move(do_handle)}} , {}};
@@ -1021,11 +1124,13 @@ namespace {
   Config::define(With::KEY, With::HOOKS, With::load);
   Config::define(Do_set_creq_field_default::KEY, Do_set_creq_field_default::HOOKS, Do_set_creq_field_default::load);
   Config::define(Do_remove_creq_field::KEY, Do_remove_creq_field::HOOKS, Do_remove_creq_field::load);
+  Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
+  Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;

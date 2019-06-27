@@ -7,4 +7,7 @@ txn_box:
       do:
       - set-ursp-status: 204
       - set-ursp-reason: "Config file not present"
-
+      - when: prsp
+        do:
+        - remove-prsp-field: Content-Type
+        - remove-prsp-field: Content-Length
