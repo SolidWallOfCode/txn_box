@@ -157,6 +157,29 @@ BufferWriter& Ex_creq_scheme::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->direct_view(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_creq_path : public DirectFeature {
+public:
+  static constexpr TextView NAME { "creq-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+};
+
+FeatureView Ex_creq_path::direct_view(Context &ctx, Spec const&) const {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.path();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_creq_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->direct_view(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 class Ex_creq_host : public DirectFeature {
 public:
   static constexpr TextView NAME { "creq-host" };
@@ -257,6 +280,7 @@ Ex_creq_url creq_url;
 Ex_creq_host creq_host;
 Ex_creq_scheme creq_scheme;
 Ex_creq_method creq_method;
+Ex_creq_path creq_path;
 Ex_creq_url_host creq_url_host;
 Ex_creq_field creq_field;
 Ex_ursp_status ursp_status;
@@ -267,6 +291,7 @@ Ex_is_internal is_internal;
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_scheme::NAME, &creq_method);
   Extractor::define(Ex_creq_method::NAME, &creq_scheme);
+  Extractor::define(Ex_creq_path::NAME, &creq_path);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
   Extractor::define(Ex_creq_field::NAME, &creq_field);
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);

@@ -63,7 +63,7 @@ namespace {
 }
 /* ------------------------------------------------------------------------------------ */
 
-TextView ts::URL::host() {
+TextView ts::URL::host() const {
   char const* text;
   int size;
   if (this->is_valid() && nullptr != (text = TSUrlHostGet(_buff, _loc, &size))) {
@@ -72,7 +72,7 @@ TextView ts::URL::host() {
   return {};
 }
 
-TextView ts::URL::view() {
+TextView ts::URL::view() const {
   // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
   // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
   if (! _iobuff) {

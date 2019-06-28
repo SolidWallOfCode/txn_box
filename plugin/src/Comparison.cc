@@ -78,7 +78,7 @@ public:
   static const FeatureMask TYPES;
 
 protected:
-  Extractor::Format _exfmt; ///< Suffix value to compare.
+  Extractor::Format _exfmt; ///< String for comparison.
 
   /// Load up the string, accounting for extraction and types.
   static Rv<Extractor::Format> load_exfmt(Config& cfg, YAML::Node cmp_node, YAML::Node key_node, std::string const& KEY);
@@ -197,7 +197,6 @@ Rv<Comparison::Handle> Cmp_MatchNocase::load(Config& cfg, YAML::Node cmp_node, Y
 }
 
 /* ------------------------------------------------------------------------------------ */
-
 /** Compare a suffix.
  * This matches if the suffix of the feature is the same as the static value.
  */
@@ -262,6 +261,78 @@ bool Cmp_SuffixNocase::operator()(Context &ctx, FeatureView &text) const {
 }
 
 Rv<Comparison::Handle> Cmp_SuffixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  return { Handle{new self_type(std::move(exfmt))}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+/** Compare a prefix.
+ * This matches if the prefix of the feature is the same as the static value.
+ */
+class Cmp_Prefix : public StringComparison {
+  using self_type = Cmp_Prefix; ///< Self reference type.
+  using super_type = StringComparison; ///< Parent type.
+public:
+  /// Name of comparison.
+  static const std::string KEY;
+
+  /// Test for prefix being @a text.
+  bool operator() (Context& ctx, FeatureView& text) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  using super_type::super_type;
+};
+
+const std::string Cmp_Prefix::KEY { "prefix" };
+
+bool Cmp_Prefix::operator()(Context &ctx, FeatureView &text) const {
+  FeatureData feature { ctx.extract(_exfmt) };
+  return text.starts_with(std::get<IndexFor(STRING)>(feature));
+}
+
+Rv<Comparison::Handle> Cmp_Prefix::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  return { Handle{new self_type(std::move(exfmt))}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+/** Compare a prefix.
+ * This matches if the prefix of the feature is the same as the static value.
+ */
+class Cmp_PrefixNocase : public StringComparison {
+  using self_type = Cmp_PrefixNocase; ///< Self reference type.
+  using super_type = StringComparison; ///< Parent type.
+public:
+  /// Name of comparison.
+  static const std::string KEY;
+
+  /// Test for prefix being @a text.
+  bool operator() (Context& ctx, FeatureView& text) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  using super_type::super_type;
+};
+
+const std::string Cmp_PrefixNocase::KEY { "prefix-nocase" };
+
+bool Cmp_PrefixNocase::operator()(Context &ctx, FeatureView &text) const {
+  FeatureData feature { ctx.extract(_exfmt) };
+  return text.starts_with_nocase(std::get<IndexFor(STRING)>(feature));
+}
+
+Rv<Comparison::Handle> Cmp_PrefixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
   auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
   if (! errata.is_ok()) {
     return { {}, std::move(errata) };
@@ -461,6 +532,8 @@ namespace {
   Comparison::define(Cmp_MatchNocase::KEY, Cmp_MatchNocase::TYPES, Cmp_MatchNocase::load);
   Comparison::define(Cmp_Suffix::KEY, Cmp_Suffix::TYPES, &Cmp_Suffix::load);
   Comparison::define(Cmp_SuffixNocase::KEY, Cmp_SuffixNocase::TYPES, Cmp_SuffixNocase::load);
+  Comparison::define(Cmp_Prefix::KEY, Cmp_Prefix::TYPES, &Cmp_Prefix::load);
+  Comparison::define(Cmp_PrefixNocase::KEY, Cmp_PrefixNocase::TYPES, Cmp_PrefixNocase::load);
   Comparison::define(Cmp_RegexMatch::KEY, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
   Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
   Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);

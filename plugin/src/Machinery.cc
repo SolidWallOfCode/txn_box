@@ -275,7 +275,57 @@ Rv<Directive::Handle> Do_remove_creq_field::load(Config & cfg, YAML::Node drtv_n
   return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
-/// Remove a field from the client request.
+/// Remove a field from the upstream response.
+class Do_remove_ursp_field : public Directive {
+  using self_type = Do_remove_ursp_field; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /// Perform directive.
+  Errata invoke(Context & ctx) override;
+  /// Load from YAML configuration.
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Extractor::Format _name_fmt; ///< Field name.
+
+  Do_remove_ursp_field() = default;
+};
+
+const std::string Do_remove_ursp_field::KEY { "remove-ursp-field" };
+const HookMask Do_remove_ursp_field::HOOKS { MaskFor(Hook::URSP) };
+
+Errata Do_remove_ursp_field::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.ursp_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    hdr.field_remove(name);
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_remove_ursp_field::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  // Load up the field name.
+  auto &&[name_fmt, name_errata]{cfg.parse_feature(key_node)};
+  if (!name_errata.is_ok()) {
+    return { {}, std::move(
+        name_errata.error(R"(While parsing field name for "{}" key at {}.)", KEY
+                          , key_node.Mark())) };
+  }
+  if (name_fmt._feature_type != STRING) {
+    return { {}, Errata().error(
+        R"(The field name for "{}" key at {} is not a string type as required.)", KEY
+        , key_node.Mark()) };
+  }
+
+  auto * self = new self_type;
+  Handle handle(self);
+  self->_name_fmt = std::move(name_fmt);
+
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/// Remove a field from the proxy response.
 class Do_remove_prsp_field : public Directive {
   using self_type = Do_remove_prsp_field; ///< Self reference type.
 public:
@@ -1124,6 +1174,7 @@ namespace {
   Config::define(With::KEY, With::HOOKS, With::load);
   Config::define(Do_set_creq_field_default::KEY, Do_set_creq_field_default::HOOKS, Do_set_creq_field_default::load);
   Config::define(Do_remove_creq_field::KEY, Do_remove_creq_field::HOOKS, Do_remove_creq_field::load);
+  Config::define(Do_remove_ursp_field::KEY, Do_remove_ursp_field::HOOKS, Do_remove_ursp_field::load);
   Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);

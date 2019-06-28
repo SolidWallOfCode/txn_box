@@ -101,12 +101,13 @@ public:
   /// Construct from TS data.
   URL(TSMBuffer buff, TSMLoc loc);
 
-  swoc::TextView view(); ///< View of entire URL.
-  swoc::TextView host(); ///< View of the URL host.
-  swoc::TextView scheme() const;
+  swoc::TextView view() const; ///< View of entire URL.
+  swoc::TextView host() const; ///< View of the URL host.
+  swoc::TextView scheme() const; ///< View of the URL scheme.
+  swoc::TextView path() const; ///< View of the URL path.
 protected:
-  IOBuffer _iobuff; ///< IO buffer with the URL text.
-  swoc::TextView _view; ///< View of the URL in @a _iobuff.
+  mutable IOBuffer _iobuff; ///< IO buffer with the URL text.
+  mutable swoc::TextView _view; ///< View of the URL in @a _iobuff.
 };
 
 class HttpField : public HeapObject {
@@ -265,6 +266,8 @@ inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nu
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
 inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+
+inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline HttpField::HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc) : super_type(buff, field_loc), _hdr(hdr_loc) {}
 

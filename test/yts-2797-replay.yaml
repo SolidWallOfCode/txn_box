@@ -8,7 +8,7 @@ sessions:
       version: "1.1"
       scheme: "https"
       method: "GET"
-      url: "http://example.one/first"
+      url: "http://example.one/config/settings.yaml"
       headers:
         encoding: "esc-json"
         fields:
@@ -26,3 +26,25 @@ sessions:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 234 ]
         - [ uuid, 1 ]
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - proxy-request:
+      version: "1.1"
+      scheme: "https"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        encoding: "esc-json"
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 2 ]
+    server-response:
+      status: 204
+      reason: No content
+      content:
+        encoding: plain
+        size: 0
+      headers:
+        encoding: "esc-json"
+        fields:
+        - [ uuid, 2 ]
