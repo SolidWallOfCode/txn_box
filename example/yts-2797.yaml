@@ -15,11 +15,11 @@ txn_box:
               do:
               - set-ursp-status: 204
               - set-ursp-reason: "Config file not present"
-#              - when: prsp
-#                do:
-#                - remove-prsp-field: Content-Type
-#                - remove-prsp-field: Content-Length
-#                - remove-prsp-field: Connection
+              - when: prsp
+                do:
+                - remove-prsp-field: Content-Type
+                - remove-prsp-field: Content-Length
+                - remove-prsp-field: Connection
 
 # Curl test command
 # ATS is at localhost:8443, replay-server is at localhost:9443, running yts-2797-replay.yaml.
