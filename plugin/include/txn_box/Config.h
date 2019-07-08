@@ -128,6 +128,10 @@ public:
    */
   self_type & localize(Extractor::Format & fmt);
 
+  template < typename T > swoc::MemSpan<T> span(unsigned count) {
+    return _arena.alloc(sizeof(T) * count).rebind<T>();
+  }
+
   /** Hook for which the directives are being loaded.
    *
    * @return The current hook.

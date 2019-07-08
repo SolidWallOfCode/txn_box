@@ -128,8 +128,8 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
 }
 /* ---------------------------------------------------------------------------------------------- */
 auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
-  Info * spot  = std::find_if(_info, _info + _size, [&](auto & t) { return 0 == strcasecmp(t._name, name); });
-  return spot == _info_end ? nullptr : &*spot;
+  Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
+  return spot == _info.end() ? nullptr : &*spot;
 }
 
 Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
@@ -206,7 +206,7 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
     tinfo->_mark = MULTI_VALUED;
   } else {
     tinfo->_mark = DONE;
-    tinfo->_idx = info._order_idx++;
+    tinfo->_idx = info._idx++;
   }
   return std::move(errata);
 }
@@ -236,7 +236,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   }
 
   // Final ordering is set, create extraction array.
-
+  _exf_data = cfg.span<ExfData>(tracking._idx);
 
   return {};
 }

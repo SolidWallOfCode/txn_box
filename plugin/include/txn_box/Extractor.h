@@ -369,11 +369,9 @@ protected:
     };
 
     YAML::Node const& _node; ///< Node containing the keys.
-    Info* _info; ///< Start of tracking array.
-    Info* _info_end; ///< One past end of array.
-    unsigned _capacity; ///< Array size.
-    unsigned _size = 0; ///< # of valid items in array.
-    unsigned _order_idx = 1; ///< Next position in the complete ordering.
+    swoc::MemSpan<Info> _info;
+    unsigned _count = 0; ///< # of valid items in array.
+    unsigned _idx = 1; ///< Next position in the complete ordering.
 
     /** Construct a wrapper on a tracking array.
      *
@@ -381,12 +379,11 @@ protected:
      * @param info Array.
      * @param n # of elements in @a info.
      */
-    Tracking(YAML::Node const& node, Info * info, unsigned n) : _node(node), _info(info), _capacity(n), _info_end(_info + n) {
-      memset(_info, 0, sizeof(Info) * n);
+    Tracking(YAML::Node const& node, Info * info, unsigned n) : _node(node), _info(info, n) {
     }
 
     /// Allocate an array entry and return a pointer to it.
-    Info * alloc() { return _info + _size++; }
+    Info * alloc() { return &_info[_count++]; }
 
     /// Find an array element by @a name.
     /// @return A pointer to the element or @c nullptr if not found.
@@ -395,12 +392,11 @@ protected:
 
   /// Information about a specific extractor format.
   /// This is per configuration data.
-  struct ExData {
+  struct ExfData {
     swoc::TextView _name; ///< Key name.
-    Extractor::Format _exfmt; ///< Extractor format.
+    Extractor::Format _fmt; ///< Extractor format.
   };
-  ExData* _data = nullptr; ///< Array of instances.
-  unsigned _n_data = 0; ///< Number of elements in the array.
+  swoc::MemSpan<ExfData> _exf_data;
 
   /** Load an extractor format.
    *
