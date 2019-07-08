@@ -81,6 +81,9 @@ public:
 
     /// Condensed format string.
     using Specifiers = std::vector<Spec>;
+    using iterator = Specifiers::iterator;
+    using const_iterator = Specifiers::const_iterator;
+
     /// Modifiers
     using Modifers = std::vector<FeatureMod::Handle>;
 
@@ -95,6 +98,11 @@ public:
 
     /// The number of elements in the format.
     size_t size() const;
+
+    iterator begin() { return _specs.begin(); }
+    iterator end() { return _specs.end(); }
+    const_iterator begin() const { return _specs.begin(); }
+    const_iterator end() const { return _specs.end(); }
 
     /** Access a format element by index.
      *
@@ -161,7 +169,7 @@ public:
    */
   virtual Type feature_type() const = 0;
 
-  /** Whether the extractor uses data from the contest.
+  /** Whether the extractor uses data from the context.
    *
    * This is important for @c DIRECT features - if there is a potential reference to that value
    * in another directive, it must be "upgraded" to a @c VIEW to avoid using changed or invalid data.
@@ -208,9 +216,22 @@ protected:
   static Table _ex_table;
 };
 
+/** Cross reference extractor.
+ * This requires special handling and therefore needs to be externally visible.
+ */
+class Ex_this : public Extractor {
+public:
+  static constexpr swoc::TextView NAME { "this" }; ///< Extractor name.
+
+  Type feature_type() const override;
+
+  /// Required text formatting access.
+  swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
+};
+
+extern Ex_this ex_this;
+
 /** A string expressed as a view.
- *
- * @internal Is this still useful?
  */
 class StringFeature : public Extractor {
 public:
@@ -268,3 +289,71 @@ public:
 inline Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }
+
+/* ---------------------------------------------------------------------------------------------- */
+/** Mixin for more convenient feature extraction.
+ * This provides a general framework for feature extraction and potential cross dependencies.
+ */
+class FeatureGroup {
+  using self_type = FeatureGroup; ///< Self reference type.
+public:
+  /// Initialization flags.
+  enum Flag {
+    NONE, ///< No flags
+    REQUIRED, ///< Key must exist and have a valid format.
+    MULTI, ///< Key can be a list of formats.
+  };
+
+  /// Description of a key with a feature to extract.
+  struct Descriptor {
+    swoc::TextView _name; ///< Key name
+    std::initializer_list<Flag> _flags; ///< Key flags.
+
+    // Convenience constructors.
+    /// Construct with only a name, no flags.
+    Descriptor(swoc::TextView const& name) : _name(name)  {}
+    /// Construct with a name and a single flag.
+    Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags = { flag }; };
+    /// Construct with a name and a list of flags.
+    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> flags) : _name(name), _flags(flags) {}
+  };
+
+  /** Load the extractor formats from @a node.
+   *
+   * @param cfg Configuration context.
+   * @param node Node with key that have extractors.
+   * @param ex_keys Keys expected to have extractor formats.
+   * @return Errors, if any.
+   *
+   * The @a ex_keys are loaded and if those refer to other keys, those other keys are transitively
+   * loaded. The loading order is a linear ordering of the dependencies between keys. A circular
+   * dependency is an error and reported. If a key is multi-valued then it creates a format
+   * entry for each value. It is not allowed for a format to be dependent on a multi-valued key.
+   *
+   * @internal The restriction on dependencies on multi-valued keys is a performance issue. I
+   * currently do not know how to support that and allow lazy extraction for multi-valued keys. It's
+   * not even clear what that would mean in practice - is the entire multivalue extracted? Obscure
+   * enough I'll leave that for when a use case becomes known.
+   */
+  swoc::Errata load(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
+
+  FeatureData operator [] (unsigned n) {
+    return {};
+  }
+
+  self_type & extract(FeatureData * features, unsigned count);
+
+protected:
+  /// Information about a specific extractor format.
+  /// This is per configuration data.
+  struct ExData {
+    swoc::TextView _name; ///< Key name.
+    Extractor::Format _exfmt; ///< Extractor format.
+  };
+  ExData* _data = nullptr; ///< Array of instances.
+  unsigned _n_data = 0; ///< Number of elements in the array.
+
+  void extract(FeatureData & feature);
+  void extract(FeatureData*, size_t count);
+};
+/* ---------------------------------------------------------------------------------------------- */

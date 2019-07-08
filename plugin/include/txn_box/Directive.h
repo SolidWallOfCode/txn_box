@@ -131,45 +131,6 @@ protected:
   CfgInfo const* _rtti; ///< Run time (per Config) information.
 };
 
-/** Directive that uses features.
- * This provides a general framework for feature extraction and potential cross dependencies.
- * This should be the base class for directives that use feature data.
- */
-class FeatureDirective : public Directive {
-  using self_type = FeatureDirective; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
-public:
-  using super_type::super_type; // Delegate to parent constructors.
-
-  /// Initialization flags.
-  enum Flag {
-    NONE, ///< No flags
-    REQUIRED, ///< Key must exist and have a valid format.
-    MULTI, ///< Key can be a list of formats.
-  };
-
-  /// Description of a key with a feature to extract.
-  struct Descriptor {
-    swoc::TextView _name; ///< Key name
-    std::initializer_list<Flag> _flags; ///< Key flags.
-
-    // Convenience constructors.
-    /// Construct with only a name, no flags.
-    Descriptor(swoc::TextView const& name) : _name(name)  {}
-    /// Construct with a name and a single flag.
-    Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags = { flag }; };
-    /// Construct with a name and a list of flags.
-    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> flags) : _name(name), _flags(flags) {}
-  };
-
-protected:
-  /// Information about a specific extractor format.
-  struct ExData {
-    swoc::TextView _name; ///< Key name.
-    Extractor::Format _exfmt; ///< Extractor format.
-  };
-};
-
 /** An ordered list of directives.
  *
  * This has no action of its own, it contains a list of other directives which are performed.

@@ -272,6 +272,14 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 }
 
 /* ------------------------------------------------------------------------------------ */
+BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
+  return w;
+}
+
+Extractor::Type Ex_this::feature_type() const { return STRING; }
+/* ------------------------------------------------------------------------------------ */
+// Needs to be external visible.
+Ex_this ex_this;
 
 namespace {
 // Extractors aren't constructed, they are always named references to singletons.
@@ -287,6 +295,7 @@ Ex_ursp_status ursp_status;
 Ex_is_internal is_internal;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Extractor::define(Ex_this::NAME, &ex_this);
   Extractor::define(Ex_creq_url::NAME, &creq_url);
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_scheme::NAME, &creq_method);
