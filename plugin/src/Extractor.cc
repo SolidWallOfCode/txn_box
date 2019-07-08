@@ -127,108 +127,117 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
   return zret;
 }
 /* ---------------------------------------------------------------------------------------------- */
+auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
+  Info * spot  = std::find_if(_info, _info + _size, [&](auto & t) { return 0 == strcasecmp(t._name, name); });
+  return spot == _info_end ? nullptr : &*spot;
+}
+
+Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
+  auto && [ fmt, errata ] { cfg.parse_feature(node) };
+  if (errata.is_ok()) {
+    // Walk the items to see if any are cross references.
+    for ( auto const& item : fmt ) {
+      if (item._extractor == &ex_this) {
+        errata = this->load_key(cfg, info, item._ext);
+        if (! errata.is_ok()) {
+          break;
+        }
+      }
+    }
+  }
+  return std::move(errata);
+}
+
+Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::TextView name)
+{
+  Errata errata;
+
+  auto tinfo = info.find(name);
+  if (tinfo->_mark == DONE) {
+    return std::move(errata);
+  }
+
+  if (tinfo->_mark == IN_PLAY) {
+    errata.error(R"(Circular dependency for key "{}" at {}.)", name, info._node.Mark());
+    return std::move(errata);
+  }
+
+  if (tinfo->_mark == MULTI_VALUED) {
+    errata.error(R"(A multi-valued key cannot be referenced - "{}" at {}.)", name, info._node.Mark());
+    return std::move(errata);
+  }
+
+  tinfo->_mark = IN_PLAY;
+  if (auto n { info._node[name] } ; n) {
+    if (n.IsScalar()) {
+      errata = this->load_fmt(cfg, info, n);
+    } else if (n.IsSequence()) {
+      if (n.size() == 0) {
+        if (tinfo->_required_p) {
+          errata.error(R"(Required key "{}" at {} has an empty list with no extraction formats.)", name, info._node.Mark());
+        }
+      } else if (n.size() == 1) {
+        errata = this->load_fmt(cfg, info, n);
+      } else { // > 1
+        if (n[1].IsMap()) {
+          errata = this->load_fmt(cfg, info, n);
+        } else { // list of formats.
+          tinfo->_multi_found_p = true;
+          for ( auto const& child : n ) {
+            errata = this->load_fmt(cfg, info, n);
+            if (!errata.is_ok()) {
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      errata.error(R"(extraction format expected but is not a scalar nor a list.)", name, info._node.Mark());
+    }
+
+    if (! errata.is_ok()) {
+      errata.info(R"(While loading extraction format for key "{}" at {}.)", name, info._node.Mark());
+    }
+  } else if (tinfo->_required_p) {
+    errata.error(R"(Required key "{}" not found in value at {}.)", name, info._node.Mark());
+  }
+
+  if (tinfo->_multi_found_p) {
+    tinfo->_mark = MULTI_VALUED;
+  } else {
+    tinfo->_mark = DONE;
+    tinfo->_idx = info._order_idx++;
+  }
+  return std::move(errata);
+}
+
 Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer_list<FeatureGroup::Descriptor> const &ex_keys) {
-  static constexpr uint8_t DONE = 1;
-  static constexpr uint8_t IN_PLAY = 2;
-  static constexpr uint8_t MULTI_VALUED = 3;
   unsigned idx = 0;
   unsigned n_keys = node.size(); // Number of keys in @a node.
 
-  // Initial tracking - must track data about each key before that key's order is finalized.
-  // The first time a key is encountered at all it is put in this array.
-  struct Tracking {
-    TextView _name; ///< Name.
-    unsigned _idx; ///< Index in final ordering.
-    uint8_t _mark; ///< Ordering search march.
-    uint8_t _required_p : 1; ///< Key must exist and have a valid format.
-    uint8_t _multi_allowed_p : 1; ///< Format can be a list of formats.
-    uint8_t _multi_found_p : 1; ///< Format was parsed and was a list of formats.
-  };
   unsigned t_idx = 0; // # of valid entries in Tracking, index of next element to use.
-  Tracking tracking[n_keys];
-  Tracking * tracking_limit = tracking + n_keys;
-  memset(tracking, 0, sizeof(tracking[0]) * n_keys);
-  // Find the tracking entry by key name.
-  // It is a basic assumption that the number of keys is small and it's faster to linear search
-  // than to pay the costs (particularly allocation) of a more complex data structure.
-  auto find_tracking_by_name = [&](TextView const& name) {
-    Tracking * spot  = std::find_if(tracking, tracking_limit, [&](auto & t) { return 0 == strcasecmp(t._name, name); });
-    return spot == tracking_limit ? nullptr : &*spot;
-  };
+  Tracking::Info tracking_info[n_keys];
+  Tracking tracking(node, tracking_info, n_keys);
 
-  // This is the final ordered array. It will be copied in to configuration storage once the
-  // size and order is fixed. It is allocated as the number of keys in the node, but most of the time
-  // not every key will have a format to extact and the final array will be shorter.
-  unsigned ex_idx = 0; ///< # of valid items in @a exdata
-  ExData exdata[n_keys];
-  for ( ExData & ex : exdata ) {
-    new(&ex) ExData;
-  }
-
-  // Do the explicit keys.
-  // This handles all keys because a key is implicit only if it is reached from an explicit key.
+  // Seed tracking info with the explicit keys.
   for ( auto & d : ex_keys ) {
-    // Put it in the tracking if it's not already there.
-    Tracking * tinfo = find_tracking_by_name(d._name);
-    if (nullptr == tinfo) {
-      tinfo = tracking + t_idx++;
-      tinfo->_name = d._name;
-      for ( auto const& flag : d._flags ) {
-        switch (flag) {
-          case NONE: break;
-          case REQUIRED: tinfo->_required_p = true;
-            break;
-          case MULTI: tinfo->_multi_allowed_p = true;
-            break;
-        }
-      }
-    } else if (tinfo->_mark == IN_PLAY) {
-        // Circular dependency, FAIL.
-    } else if (tinfo->_mark == DONE) {
-      // ?? In the list twice ??
-    }
-
-    // Time to get the formats and walk the references.
-    tinfo->_mark = IN_PLAY;
-    if (auto n { node[d._name] } ; n) {
-      if (n.IsScalar()) {
-        auto && [ fmt, errata ] { cfg.parse_feature(n) };
-        if (errata.is_ok()) {
-          for ( auto const& item : fmt ) {
-            if (item._extractor == &ex_this) {
-              Tracking * rinfo = find_tracking_by_name(item._ext);
-              if (nullptr == rinfo) {
-                // Recurse here?
-              }
-              if (rinfo->_mark != DONE) {
-                // Circular reference, FAIL.
-              }
-            }
-          }
-        }
-      } else if (n.IsSequence()) {
-        if (n.size() == 1) {
-        } else if (n.size() > 1) {
-          if (n[1].IsMap()) {
-            auto &&[fmt, errata]{cfg.parse_feature(n)};
-          } else { // list of formats.
-            for ( auto const& child : n ) {
-              auto && [ fmt, errata] { cfg.parse_feature(child) };
-            }
-          }
-        } else {
-        }
-      } else {
-        // FAIL
-      }
-    } else if (tinfo->_required_p) {
-      // required but not found. FAIL.
-    }
-    // Get format.
-    // Walk format for references.
-    // Recurse on any reference.
-    tinfo->_mark = DONE;
-    // Order for this key finalized, put it in @a exdata.
+    auto tinfo = tracking.alloc();
+    tinfo->_name = d._name;
+    tinfo->_required_p = d._flags[REQUIRED];
+    tinfo->_multi_allowed_p = d._flags[MULTI];
   }
+
+  // Time to get the formats and walk the references.
+  for ( auto & d : ex_keys ) {
+    auto errata { this->load_key(cfg, tracking, d._name) };
+    if (! errata.is_ok()) {
+      return std::move(errata);
+    }
+  }
+
+  // Final ordering is set, create extraction array.
+
+
+  return {};
 }
 /* ---------------------------------------------------------------------------------------------- */

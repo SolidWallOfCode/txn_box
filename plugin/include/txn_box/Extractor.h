@@ -307,15 +307,19 @@ public:
   /// Description of a key with a feature to extract.
   struct Descriptor {
     swoc::TextView _name; ///< Key name
-    std::initializer_list<Flag> _flags; ///< Key flags.
+    std::bitset<2> _flags; ///< Flags.
 
     // Convenience constructors.
     /// Construct with only a name, no flags.
     Descriptor(swoc::TextView const& name) : _name(name)  {}
     /// Construct with a name and a single flag.
-    Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags = { flag }; };
+    Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags[flag] = true ; };
     /// Construct with a name and a list of flags.
-    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> flags) : _name(name), _flags(flags) {}
+    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> const& flags) : _name(name) {
+      for ( auto f : flags ) {
+        _flags[f] = true;
+      }
+    }
   };
 
   /** Load the extractor formats from @a node.
@@ -344,6 +348,51 @@ public:
   self_type & extract(FeatureData * features, unsigned count);
 
 protected:
+  static constexpr uint8_t DONE = 1;
+  static constexpr uint8_t IN_PLAY = 2;
+  static constexpr uint8_t MULTI_VALUED = 3;
+
+  /** Wrapper for tracking array.
+   * This wraps a stack allocated variable sized array, which is otherwise inconvenient to use.
+   * @note It is assumed the total number of keys is small enough that linear searching is overall
+   * faster compared to better search structures that require memory allocation.
+   */
+  struct Tracking {
+    /// Per tracked item information.
+    struct Info {
+      swoc::TextView _name; ///< Name.
+      unsigned _idx; ///< Index in final ordering.
+      uint8_t _mark; ///< Ordering search march.
+      uint8_t _required_p : 1; ///< Key must exist and have a valid format.
+      uint8_t _multi_allowed_p : 1; ///< Format can be a list of formats.
+      uint8_t _multi_found_p : 1; ///< Format was parsed and was a list of formats.
+    };
+
+    YAML::Node const& _node; ///< Node containing the keys.
+    Info* _info; ///< Start of tracking array.
+    Info* _info_end; ///< One past end of array.
+    unsigned _capacity; ///< Array size.
+    unsigned _size = 0; ///< # of valid items in array.
+    unsigned _order_idx = 1; ///< Next position in the complete ordering.
+
+    /** Construct a wrapper on a tracking array.
+     *
+     * @param node Node containing keys.
+     * @param info Array.
+     * @param n # of elements in @a info.
+     */
+    Tracking(YAML::Node const& node, Info * info, unsigned n) : _node(node), _info(info), _capacity(n), _info_end(_info + n) {
+      memset(_info, 0, sizeof(Info) * n);
+    }
+
+    /// Allocate an array entry and return a pointer to it.
+    Info * alloc() { return _info + _size++; }
+
+    /// Find an array element by @a name.
+    /// @return A pointer to the element or @c nullptr if not found.
+    Info * find(swoc::TextView const& name);
+  };
+
   /// Information about a specific extractor format.
   /// This is per configuration data.
   struct ExData {
@@ -352,6 +401,17 @@ protected:
   };
   ExData* _data = nullptr; ///< Array of instances.
   unsigned _n_data = 0; ///< Number of elements in the array.
+
+  /** Load an extractor format.
+   *
+   * @param cfg Configuration state.
+   * @param info Tracking info.
+   * @param node Node that has the format as a value.
+   * @return Errors, if any.
+   */
+  swoc::Errata load_fmt(Config & cfg, Tracking & info, YAML::Node const& node);
+
+  swoc::Errata load_key(Config & cfg, Tracking& info, swoc::TextView name);
 
   void extract(FeatureData & feature);
   void extract(FeatureData*, size_t count);
