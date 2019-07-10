@@ -409,7 +409,5 @@ protected:
 
   swoc::Errata load_key(Config & cfg, Tracking& info, swoc::TextView name);
 
-  void extract(FeatureData & feature);
-  void extract(FeatureData*, size_t count);
 };
 /* ---------------------------------------------------------------------------------------------- */

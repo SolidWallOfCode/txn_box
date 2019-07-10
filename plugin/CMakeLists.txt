@@ -6,7 +6,7 @@ include(GNUInstallDirs)
 
 find_package(swoc++ CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
-find_package(canned-yaml CONFIG REQUIRED)
+#find_package(canned-yaml CONFIG REQUIRED)
 
 add_library(plugin SHARED
 	src/txn_box.cc

@@ -172,6 +172,7 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
     if (n.IsScalar()) {
       errata = this->load_fmt(cfg, info, n);
     } else if (n.IsSequence()) {
+      // many possibilities - empty, singleton, modifier, list of formats.
       if (n.size() == 0) {
         if (tinfo->_required_p) {
           errata.error(R"(Required key "{}" at {} has an empty list with no extraction formats.)", name, info._node.Mark());
@@ -183,7 +184,7 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
           errata = this->load_fmt(cfg, info, n);
         } else { // list of formats.
           tinfo->_multi_found_p = true;
-          for ( auto const& child : n ) {
+          for (auto const &child : n) {
             errata = this->load_fmt(cfg, info, n);
             if (!errata.is_ok()) {
               break;
