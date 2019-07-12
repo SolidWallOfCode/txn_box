@@ -341,7 +341,7 @@ public:
   /** Load the extractor formats from @a node.
    *
    * @param cfg Configuration context.
-   * @param node Node with key that have extractors.
+   * @param node Node with keys that have extractors (must be a Map)
    * @param ex_keys Keys expected to have extractor formats.
    * @return Errors, if any.
    *
@@ -356,6 +356,19 @@ public:
    * enough I'll leave that for when a use case becomes known.
    */
   swoc::Errata load(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
+
+  /** Load the extractor formats from @a node
+   *
+   * @param cfg Configuration context.
+   * @param node Node - must be a scalar or sequence.
+   * @param ex_keys Elements to extract
+   * @return Errors, if any.
+   *
+   * @a node is required to be a sequence, or a scalar which is treated as a sequence of length 1.
+   * The formats are extracted in order. If any format is @c REQUIRED then all preceeding ones are
+   * also required, even if not marked as such.
+   */
+  swoc::Errata load_as_tuple(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
 
   /** Get the format extaction infomration for @a name.
    *

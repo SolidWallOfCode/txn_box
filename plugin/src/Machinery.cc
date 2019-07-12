@@ -583,6 +583,7 @@ public:
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
 
 protected:
+  FeatureGroup _fg;
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
   Extractor::Format _status_fmt; ///< Return status.
   Extractor::Format _reason_fmt; ///< Status reason text.
@@ -721,64 +722,32 @@ Errata Do_redirect::load_body(Config &cfg, YAML::Node const &node) {
     return std::move(errata);
   }
   _body_fmt = std::move(fmt);
-  _loc_fmt._feature_type = STRING;
+  _body_fmt._feature_type = STRING;
   return {};
 }
 
 Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML::Node key_node) {
   Handle handle{new self_type{cfg}};
+  Errata errata;
   auto self = static_cast<self_type *>(handle.get());
   if (key_node.IsScalar()) {
-    auto errata { self->load_location(cfg, key_node) };
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(errata) };
-    }
+    errata = self->_fg.load_as_tuple(cfg, key_node, {{LOCATION_KEY, FeatureGroup::REQUIRED}});
     self->_status = DEFAULT_STATUS;
   } else if (key_node.IsSequence()) {
-    if (key_node.size() < 1) {
-      return { {}, Errata().error(R"(Empty list for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };
-    } else if (key_node.size() > 2) {
-      return { {}, Errata().error(R"(Too many items for "{}" directive at {} which requires a list of status and location.)", KEY, key_node.Mark()) };
-    }
-    if (!key_node[0].IsScalar()) {
-      return { {}, Errata().error(R"(Status at {} for "{}" directive at {} not a string as required.)", key_node[0].Mark(), KEY, key_node.Mark()) };
-    }
-
-    Errata errata { self->load_status(cfg, key_node[0]) };
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(errata) };
-    }
-
-    errata = self->load_location(cfg, key_node[1]);
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing "{}" directive at {}.)", KEY, key_node.Mark());
-      return { {}, std::move(errata) };
-    }
+    errata = self->_fg.load_as_tuple(cfg, key_node, { { STATUS_KEY, FeatureGroup::REQUIRED } , { LOCATION_KEY, FeatureGroup::REQUIRED } });
   } else if (key_node.IsMap()) {
-    Errata errata;
-    if (auto node { key_node[BODY_KEY] } ; node) {
-      errata.note(self->load_body(cfg, node));
-    }
-    if (auto node { key_node[LOCATION_KEY] } ; node) {
-      errata.note(self->load_location(cfg, node));
-    }
-    if (auto node { key_node[REASON_KEY] } ; node) {
-      errata.note(self->load_reason(cfg, node));
-    }
-    if (auto node { key_node[STATUS_KEY] } ; node) {
-      errata.note(self->load_status(cfg, node));
-    }
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing "{}" directive at {}.)", key_node.Mark());
-      return {{}, std::move(errata)};
-    }
+    Errata errata = self->_fg.load(cfg, key_node, { { LOCATION_KEY, FeatureGroup::REQUIRED }, { STATUS_KEY }, { REASON_KEY }, { BODY_KEY } });
   } else {
     return {{}, Errata().error(
-        R"(Value for "{}" key at {} is not a string or a list of status, string as required.)", KEY
+        R"(Value for "{}" key at {} is must be a scalar, a 2-tuple, or a map and is not.)", KEY
         , key_node.Mark())};
   }
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", key_node.Mark());
+    return {{}, std::move(errata)};
+  }
+  // Force extraction types.
+
   return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
