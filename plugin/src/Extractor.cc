@@ -136,12 +136,14 @@ Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &no
   auto && [ fmt, errata ] { cfg.parse_feature(node) };
   if (errata.is_ok()) {
     // Walk the items to see if any are cross references.
-    for ( auto const& item : fmt ) {
+    for ( auto & item : fmt ) {
       if (item._extractor == &ex_this) {
         errata = this->load_key(cfg, info, item._ext);
         if (! errata.is_ok()) {
           break;
         }
+        // replace the raw "this" extractor the localized one.
+        item._extractor = &_ex_this;
       }
     }
   }
@@ -229,7 +231,22 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   }
 
   // Time to get the formats and walk the references.
+  // Do the single valued, then the multi-valued, so that single valued are always earlier in the
+  // final ordering.
   for ( auto & d : ex_keys ) {
+    if (d._flags[MULTI]) {
+      continue;
+    }
+    auto errata { this->load_key(cfg, tracking, d._name) };
+    if (! errata.is_ok()) {
+      return std::move(errata);
+    }
+  }
+  _sv_count = tracking._idx; // remember this.
+  for ( auto & d : ex_keys ) {
+    if (! d._flags[MULTI]) {
+      continue;
+    }
     auto errata { this->load_key(cfg, tracking, d._name) };
     if (! errata.is_ok()) {
       return std::move(errata);
@@ -237,7 +254,20 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   }
 
   // Final ordering is set, create extraction array.
-  _exf_data = cfg.span<ExfData>(tracking._idx);
+  _exf_info = cfg.span<ExfInfo>(tracking._idx);
+  // And the edge array
+  _edge = cfg.span<unsigned short>(tracking._edge_count);
+  for ( unsigned short idx = 0 ; idx < tracking._edge_count ; ++idx ) {
+    _edge[idx] = tracking._info[idx]._edge;
+  }
+  // Persist the keys.
+  for ( unsigned short idx = 0 ; idx < tracking._idx ; ++idx ) {
+    auto & src = tracking._info[idx];
+    auto & dst = _exf_info[src._idx];
+    dst._name = src._name;
+    dst._fmt.assign(&_fmt_array[src._fmt_idx], src._fmt_count);
+    dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
+  };
 
   return {};
 }

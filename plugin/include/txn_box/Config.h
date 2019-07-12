@@ -128,6 +128,14 @@ public:
    */
   self_type & localize(Extractor::Format & fmt);
 
+  /** Allocate config space for an array of @a T.
+   *
+   * @tparam T Element type.
+   * @param count # of elements.
+   * @return A span covering the allocated array.
+   *
+   * This allocates in the config storage. No destructors are called when the config is destructed.
+   */
   template < typename T > swoc::MemSpan<T> span(unsigned count) {
     return _arena.alloc(sizeof(T) * count).rebind<T>();
   }

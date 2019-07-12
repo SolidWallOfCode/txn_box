@@ -273,6 +273,7 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
+  FeatureData feature { _fg->exf_info(spec._ext) };
   return w;
 }
 

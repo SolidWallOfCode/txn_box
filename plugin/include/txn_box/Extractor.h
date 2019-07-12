@@ -29,6 +29,7 @@
 #include "txn_box/FeatureMod.h"
 
 class Context;
+class FeatureGroup;
 
 /** Feature extraction.
  *
@@ -223,10 +224,15 @@ class Ex_this : public Extractor {
 public:
   static constexpr swoc::TextView NAME { "this" }; ///< Extractor name.
 
+  Ex_this() = default;
+  explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
+
   Type feature_type() const override;
 
   /// Required text formatting access.
   swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
+protected:
+  FeatureGroup* _fg = nullptr; ///< FeatureGroup for name lookup.
 };
 
 extern Ex_this ex_this;
@@ -306,12 +312,13 @@ public:
 
   /// Description of a key with a feature to extract.
   struct Descriptor {
+    using self_type = Descriptor; ///< Self reference type.
     swoc::TextView _name; ///< Key name
     std::bitset<2> _flags; ///< Flags.
 
     // Convenience constructors.
     /// Construct with only a name, no flags.
-    Descriptor(swoc::TextView const& name) : _name(name)  {}
+    Descriptor(swoc::TextView const& name) : _name(name) {}
     /// Construct with a name and a single flag.
     Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags[flag] = true ; };
     /// Construct with a name and a list of flags.
@@ -320,6 +327,15 @@ public:
         _flags[f] = true;
       }
     }
+  };
+
+  /// Information about a specific extractor format.
+  /// This is per configuration data.
+  struct ExfInfo {
+    swoc::TextView _name; ///< Key name.
+    swoc::MemSpan<Extractor::Format> _fmt; ///< Format span.
+    /// Indices of immediate reference dependencies.
+    swoc::MemSpan<unsigned short> _edge;
   };
 
   /** Load the extractor formats from @a node.
@@ -341,11 +357,14 @@ public:
    */
   swoc::Errata load(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
 
-  FeatureData operator [] (unsigned n) {
-    return {};
-  }
+  /** Get the format extaction infomration for @a name.
+   *
+   * @param name Name of the key.
+   * @return The extraction format data, or @c nullptr if @a name is not found.
+   */
+  ExfInfo * exf_info(swoc::TextView name);
 
-  self_type & extract(FeatureData * features, unsigned count);
+  self_type & invoke(Context & ctx);
 
 protected:
   static constexpr uint8_t DONE = 1;
@@ -356,22 +375,59 @@ protected:
    * This wraps a stack allocated variable sized array, which is otherwise inconvenient to use.
    * @note It is assumed the total number of keys is small enough that linear searching is overall
    * faster compared to better search structures that require memory allocation.
+   *
+   * Essentially this serves as yet another context object, which tracks the reference context
+   * as the dependency chains are traced during format loading, to avoid methods with massive
+   * and identical parameter lists.
+   *
+   * This is a temporary data structure used only during configuration load. The data that needs
+   * to be persisted is copied to member variables at the end of parsing when all the sizes and
+   * info are known.
+   *
+   * @note - This is a specialized internal class and much care should be used by any sublcass
+   * touching it.
+   *
+   * @internal Move @c Config in here as well?
    */
   struct Tracking {
+
     /// Per tracked item information.
+    /// Vector data is kept as indices so it is stable over vector resizes.
     struct Info {
       swoc::TextView _name; ///< Name.
-      unsigned _idx; ///< Index in final ordering.
+      unsigned short _idx; ///< Index in final ordering.
+      unsigned short _fmt_idx; ///< Index in format vector, start.
+      unsigned short _fmt_count; ///< # of formats.
+      unsigned short _edge_idx; ///< Index in reference dependency vector, start.
+      unsigned short _edge_count; ///< # of immediate dependent references.
       uint8_t _mark; ///< Ordering search march.
       uint8_t _required_p : 1; ///< Key must exist and have a valid format.
       uint8_t _multi_allowed_p : 1; ///< Format can be a list of formats.
       uint8_t _multi_found_p : 1; ///< Format was parsed and was a list of formats.
+
+      /// Cross reference (dependency graph edge)
+      /// @note THIS IS NOT PART OF THE NODE VALUE!
+      /// This is in effect a member of a parallel array and is connected to the node info via
+      /// the @a ref_idx and @a _ref_count members. It is a happy circumstance that the number of
+      /// elements for this array happens to be just one less than required for the node array, so
+      /// it can be overloaded without having to pass in a separate array. This abuses the fact
+      /// that a POset can be modeled as a directed acyclic graph, which on N nodes has at most
+      /// N-1 edges. It is the edges that are stored here, therefore at most N-1 elements are
+      /// required.
+      unsigned short _edge;
     };
 
     YAML::Node const& _node; ///< Node containing the keys.
+
+    /// External provided array used to track the keys.
+    /// Generally stack allocated, it should be the number of keys in the node as this is an
+    /// upper bound of the amount of elements needed.
     swoc::MemSpan<Info> _info;
-    unsigned _count = 0; ///< # of valid items in array.
-    unsigned _idx = 1; ///< Next position in the complete ordering.
+    /// The number of valid elements in the array.
+    unsigned short _count = 0;
+
+    unsigned short _idx = 0; ///< # of elements assigned a place in the complete ordering.
+    unsigned short _edge_count = 0; ///< # of edges (direct dependencies) stored in @a _info
 
     /** Construct a wrapper on a tracking array.
      *
@@ -382,7 +438,7 @@ protected:
     Tracking(YAML::Node const& node, Info * info, unsigned n) : _node(node), _info(info, n) {
     }
 
-    /// Allocate an array entry and return a pointer to it.
+    /// Allocate an entry and return a pointer to it.
     Info * alloc() { return &_info[_count++]; }
 
     /// Find an array element by @a name.
@@ -390,13 +446,29 @@ protected:
     Info * find(swoc::TextView const& name);
   };
 
-  /// Information about a specific extractor format.
-  /// This is per configuration data.
-  struct ExfData {
-    swoc::TextView _name; ///< Key name.
-    Extractor::Format _fmt; ///< Extractor format.
-  };
-  swoc::MemSpan<ExfData> _exf_data;
+  /// Number of single feature keys.
+  unsigned _sv_count = 0;
+
+  /// Context storage for singleton feature extraction.
+  /// The point of this is to hold extracted features on which other features are dependent.
+  /// Since it is forbidden for a feature to depend on a multi-valued feature, this covers only
+  /// the single features.
+  swoc::MemSpan<FeatureData> _features;
+
+  /// Immediate dependencies of the references.
+  /// A representation of the edges in the dependency graph.
+  swoc::MemSpan<unsigned short> _edge;
+
+  /// Shared vector of formats - each key has a span that covers part of this vector.
+  /// @internal Not allocated in the config data because of clean up issues - these can contain
+  /// other allocated data that needs destructors to be invoked.
+  std::vector<Extractor::Format> _fmt_array;
+
+  /// Storage for keys to extract.
+  swoc::MemSpan<ExfInfo> _exf_info;
+
+  /// Extractor specialized for this feature group.
+  Ex_this _ex_this{*this};
 
   /** Load an extractor format.
    *
@@ -407,6 +479,16 @@ protected:
    */
   swoc::Errata load_fmt(Config & cfg, Tracking & info, YAML::Node const& node);
 
+  /** Load the format at key @a name from the tracking node.
+   *
+   * @param cfg Configuration state.
+   * @param info Tracking info.
+   * @param name Key name.
+   * @return Errors, if any.
+   *
+   * The base node is contained in @a info. The key for @a name is selected and the
+   * format there loaded.
+   */
   swoc::Errata load_key(Config & cfg, Tracking& info, swoc::TextView name);
 
 };
