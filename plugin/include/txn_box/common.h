@@ -34,13 +34,14 @@ namespace YAML { class Node; }
 
 /// Supported feature types.
 enum FeatureType {
+  NIL, ///< No data.
   STRING, ///< View of a string.
   INTEGER, ///< An integer.
   IP_ADDR, ///< IP Address
   BOOLEAN, ///< Boolean.
 };
 
-static constexpr std::initializer_list<FeatureType> FeatureType_LIST { STRING, INTEGER, IP_ADDR, BOOLEAN };
+static constexpr std::initializer_list<FeatureType> FeatureType_LIST { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN };
 
 /// Number of feature types.
 /// @internal @b MUST update this if @c FeatureType is changed.
@@ -80,7 +81,7 @@ static constexpr swoc::TextView LITERAL_TAG { "literal" };
 
 /// Feature descriptor storage.
 /// @note view types have only the view stored here, the string memory is elsewhere.
-using FeatureData = std::variant<FeatureView, intmax_t, swoc::IPAddr, bool>;
+using FeatureData = std::variant<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool>;
 
 /// A mask indicating a set of @c FeatureType.
 using FeatureMask = std::bitset<N_FEATURE_TYPE>;
@@ -91,7 +92,7 @@ using FeatureMask = std::bitset<N_FEATURE_TYPE>;
  * @return Index in @c FeatureData for that feature type.
  */
 inline constexpr unsigned IndexFor(FeatureType type) {
-  constexpr std::array<unsigned, N_FEATURE_TYPE> IDX { 0, 1, 2, 3, };
+  constexpr std::array<unsigned, N_FEATURE_TYPE> IDX { 0, 1, 2, 3, 4 };
   return IDX[static_cast<unsigned>(type)];
 };
 

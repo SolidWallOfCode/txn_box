@@ -303,6 +303,9 @@ inline size_t Extractor::Format::size() const { return _specs.size(); }
 class FeatureGroup {
   using self_type = FeatureGroup; ///< Self reference type.
 public:
+  using index_type = unsigned short;
+  static constexpr index_type INVALID_IDX = std::numeric_limits<index_type>::max();
+
   /// Initialization flags.
   enum Flag {
     NONE, ///< No flags
@@ -332,10 +335,17 @@ public:
   /// Information about a specific extractor format.
   /// This is per configuration data.
   struct ExfInfo {
+    struct Single {
+      Extractor::Format _fmt;
+      FeatureData _feature;
+    };
+    struct Multi {
+      swoc::MemSpan<Extractor::Format> _fmt; ///< Format span.
+    };
     swoc::TextView _name; ///< Key name.
-    swoc::MemSpan<Extractor::Format> _fmt; ///< Format span.
     /// Indices of immediate reference dependencies.
-    swoc::MemSpan<unsigned short> _edge;
+    swoc::MemSpan<index_type> _edge;
+    std::variant<Single, Multi> _ex;
   };
 
   /** Load the extractor formats from @a node.
@@ -370,14 +380,19 @@ public:
    */
   swoc::Errata load_as_tuple(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
 
-  /** Get the format extaction infomration for @a name.
+  /** Get the index of extraction information for @a name.
    *
    * @param name Name of the key.
-   * @return The extraction format data, or @c nullptr if @a name is not found.
+   * @return The index for the extraction info for @a name or @c INVALID_IDX if not found.
    */
-  ExfInfo * exf_info(swoc::TextView name);
+  index_type exf_index(swoc::TextView name);
+
+  ExfInfo & operator [] (index_type idx);
 
   self_type & invoke(Context & ctx);
+
+  FeatureData extract(Context &ctx, swoc::TextView const &name);
+  FeatureData extract(Context &ctx, index_type idx);
 
 protected:
   static constexpr uint8_t DONE = 1;
@@ -408,11 +423,13 @@ protected:
     /// Vector data is kept as indices so it is stable over vector resizes.
     struct Info {
       swoc::TextView _name; ///< Name.
-      unsigned short _idx; ///< Index in final ordering.
-      unsigned short _fmt_idx; ///< Index in format vector, start.
-      unsigned short _fmt_count; ///< # of formats.
-      unsigned short _edge_idx; ///< Index in reference dependency vector, start.
-      unsigned short _edge_count; ///< # of immediate dependent references.
+      /// Index in feature data array.
+      /// Not valid if @c multi_found_p.
+      index_type _feature_idx;
+      index_type _fmt_idx; ///< Index in format vector, start.
+      index_type _fmt_count; ///< # of formats.
+      index_type _edge_idx; ///< Index in reference dependency vector, start.
+      index_type _edge_count; ///< # of immediate dependent references.
       uint8_t _mark; ///< Ordering search march.
       uint8_t _required_p : 1; ///< Key must exist and have a valid format.
       uint8_t _multi_allowed_p : 1; ///< Format can be a list of formats.
@@ -427,7 +444,7 @@ protected:
       /// that a POset can be modeled as a directed acyclic graph, which on N nodes has at most
       /// N-1 edges. It is the edges that are stored here, therefore at most N-1 elements are
       /// required.
-      unsigned short _edge;
+      index_type _edge;
     };
 
     YAML::Node const& _node; ///< Node containing the keys.
@@ -436,11 +453,14 @@ protected:
     /// Generally stack allocated, it should be the number of keys in the node as this is an
     /// upper bound of the amount of elements needed.
     swoc::MemSpan<Info> _info;
-    /// The number of valid elements in the array.
-    unsigned short _count = 0;
 
-    unsigned short _idx = 0; ///< # of elements assigned a place in the complete ordering.
-    unsigned short _edge_count = 0; ///< # of edges (direct dependencies) stored in @a _info
+    /// The number of valid elements in the array.
+    index_type _count = 0;
+
+    /// Number of single value features that need feature data.
+    index_type _feature_count = 0;
+
+    index_type _edge_count = 0; ///< # of edges (direct dependencies) stored in @a _info
 
     /** Construct a wrapper on a tracking array.
      *
@@ -454,13 +474,15 @@ protected:
     /// Allocate an entry and return a pointer to it.
     Info * alloc() { return &_info[_count++]; }
 
-    /// Find an array element by @a name.
-    /// @return A pointer to the element or @c nullptr if not found.
+    /// Find the array element with @a name.
+    /// @return A pointer to the element, or @c nullptr if not found.
     Info * find(swoc::TextView const& name);
-  };
 
-  /// Number of single feature keys.
-  unsigned _sv_count = 0;
+    /// Obtain an array element for @a name.
+    /// @return A pointer to the element.
+    /// If @a name is not in the array, an element is allocated and set to @a name.
+    Info * obtain(swoc::TextView const& name);
+  };
 
   /// Context storage for singleton feature extraction.
   /// The point of this is to hold extracted features on which other features are dependent.
@@ -470,7 +492,7 @@ protected:
 
   /// Immediate dependencies of the references.
   /// A representation of the edges in the dependency graph.
-  swoc::MemSpan<unsigned short> _edge;
+  swoc::MemSpan<index_type> _edge;
 
   /// Shared vector of formats - each key has a span that covers part of this vector.
   /// @internal Not allocated in the config data because of clean up issues - these can contain

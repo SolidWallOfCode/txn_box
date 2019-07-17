@@ -14,6 +14,8 @@
 
 */
 
+#include "txn_box/common.h"
+
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
@@ -162,9 +164,9 @@ const HookMask Do_set_preq_field::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, 
 
 Errata Do_set_preq_field::invoke(Context &ctx) {
   if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
-    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    TextView name = std::get<IndexFor(STRING)>(ctx.extract(_name_fmt));
     if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
-      TextView value = std::get<STRING>(ctx.extract(_value_fmt));
+      TextView value = std::get<IndexFor(STRING)>(ctx.extract(_value_fmt));
       field.assign(value);
     }
     return Errata().error(R"(Failed to find or create field "{}")", name);
@@ -205,9 +207,9 @@ const HookMask Do_set_creq_field_default::HOOKS { MaskFor({Hook::CREQ, Hook::PRE
 
 Errata Do_set_creq_field_default::invoke(Context &ctx) {
   if (ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
-    if (auto field { hdr.field_obtain(name) } ; field.is_valid()) {
-      TextView value = std::get<STRING>(ctx.extract(_value_fmt));
+    TextView name = std::get<IndexFor(STRING)>(ctx.extract(_name_fmt));
+    if (ts::HttpField field { hdr.field_obtain(name) } ; field.is_valid()) {
+      TextView value = std::get<IndexFor(STRING)>(ctx.extract(_value_fmt));
       field.assign_if_not_set(value);
     }
     return Errata().error(R"(Failed to find or create field "{}")", name);
@@ -248,7 +250,7 @@ const HookMask Do_remove_creq_field::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Ho
 
 Errata Do_remove_creq_field::invoke(Context &ctx) {
   if (ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    TextView name = std::get<STRING>(ctx.extract(_name_fmt));
+    TextView name = std::get<IndexFor(STRING)>(ctx.extract(_name_fmt));
     hdr.field_remove(name);
   }
   return {};
@@ -573,6 +575,7 @@ public:
   static const int DEFAULT_STATUS = TS_HTTP_STATUS_MOVED_PERMANENTLY;
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
+
   /** Load from YAML configuration.
    *
    * @param cfg Configuration data.
@@ -585,10 +588,10 @@ public:
 protected:
   FeatureGroup _fg;
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
-  Extractor::Format _status_fmt; ///< Return status.
-  Extractor::Format _reason_fmt; ///< Status reason text.
-  Extractor::Format _loc_fmt; ///< Location field value.
-  Extractor::Format _body_fmt; ///< Body content of respons.
+  unsigned short _status_fmt; ///< Return status.
+  unsigned short _reason_fmt; ///< Status reason text.
+  unsigned short _loc_fmt; ///< Location field value.
+  unsigned short _body_fmt; ///< Body content of respons.
   /// Bounce from fixup hook directive back to @a this.
   Directive::Handle _set_location{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
 
@@ -621,10 +624,11 @@ Do_redirect::Do_redirect(Config &cfg) {
 
 Errata Do_redirect::invoke(Context& ctx) {
   // Finalize the location and stash it in context storage.
-  auto value = ctx.extract(_loc_fmt);
+  auto value = ctx.extract(_fg[_loc_fmt]._fmt[0]);
   ctx.commit(value);
   // Remember where it is so the fix up can find it.
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
+  auto debug = std::get<IndexFor(STRING)>(value);
   *view = std::get<IndexFor(STRING)>(value);
 
   // Set the status to prevent the upstream request.

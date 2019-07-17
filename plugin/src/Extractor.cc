@@ -24,6 +24,7 @@
 #include "txn_box/Config.h"
 
 using swoc::TextView;
+using swoc::MemSpan;
 using swoc::Errata;
 using swoc::Rv;
 using namespace swoc::literals;
@@ -127,9 +128,13 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
   return zret;
 }
 /* ---------------------------------------------------------------------------------------------- */
-auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
+auto FeatureGroup::Tracking::obtain(swoc::TextView const &name) -> Tracking::Info * {
   Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
-  return spot == _info.end() ? nullptr : &*spot;
+  if (spot == _info.end()) {
+    spot = this->alloc();
+    spot->_name = name;
+  }
+  return spot;
 }
 
 Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
@@ -142,7 +147,7 @@ Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &no
         if (! errata.is_ok()) {
           break;
         }
-        // replace the raw "this" extractor the localized one.
+        // replace the raw "this" extractor with the localized one.
         item._extractor = &_ex_this;
       }
     }
@@ -154,7 +159,7 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
 {
   Errata errata;
 
-  auto tinfo = info.find(name);
+  auto tinfo = info.obtain(name);
   if (tinfo->_mark == DONE) {
     return std::move(errata);
   }
@@ -166,6 +171,11 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
 
   if (tinfo->_mark == MULTI_VALUED) {
     errata.error(R"(A multi-valued key cannot be referenced - "{}" at {}.)", name, info._node.Mark());
+    return std::move(errata);
+  }
+
+  if (! info._node[name]) {
+    errata.error(R"("{}" is referenced but no such key was found.)", name);
     return std::move(errata);
   }
 
@@ -209,7 +219,7 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
     tinfo->_mark = MULTI_VALUED;
   } else {
     tinfo->_mark = DONE;
-    tinfo->_idx = info._idx++;
+    tinfo->_feature_idx = info._feature_count++;
   }
   return std::move(errata);
 }
@@ -218,57 +228,113 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   unsigned idx = 0;
   unsigned n_keys = node.size(); // Number of keys in @a node.
 
-  unsigned t_idx = 0; // # of valid entries in Tracking, index of next element to use.
   Tracking::Info tracking_info[n_keys];
   Tracking tracking(node, tracking_info, n_keys);
 
   // Seed tracking info with the explicit keys.
+  // Need to do this explicitly to transfer the flags, and to check for duplicates in @a ex_keys.
   for ( auto & d : ex_keys ) {
-    auto tinfo = tracking.alloc();
+    auto tinfo = tracking.find(d._name);
+    if (nullptr != tinfo) {
+      return Errata().error(R"("INTERNAL ERROR: "{}" is used more than once in the extractor key list of the feature group for the node {}.)", d._name, node.Mark());
+    }
+    tinfo = tracking.alloc();
     tinfo->_name = d._name;
     tinfo->_required_p = d._flags[REQUIRED];
     tinfo->_multi_allowed_p = d._flags[MULTI];
   }
 
   // Time to get the formats and walk the references.
-  // Do the single valued, then the multi-valued, so that single valued are always earlier in the
-  // final ordering.
   for ( auto & d : ex_keys ) {
-    if (d._flags[MULTI]) {
-      continue;
-    }
-    auto errata { this->load_key(cfg, tracking, d._name) };
-    if (! errata.is_ok()) {
-      return std::move(errata);
-    }
-  }
-  _sv_count = tracking._idx; // remember this.
-  for ( auto & d : ex_keys ) {
-    if (! d._flags[MULTI]) {
-      continue;
-    }
     auto errata { this->load_key(cfg, tracking, d._name) };
     if (! errata.is_ok()) {
       return std::move(errata);
     }
   }
 
-  // Final ordering is set, create extraction array.
-  _exf_info = cfg.span<ExfInfo>(tracking._idx);
-  // And the edge array
+  // Persist the tracking info, now that all the sizes are known.
+  _exf_info = cfg.span<ExfInfo>(tracking._count);
   _edge = cfg.span<unsigned short>(tracking._edge_count);
   for ( unsigned short idx = 0 ; idx < tracking._edge_count ; ++idx ) {
     _edge[idx] = tracking._info[idx]._edge;
   }
+  _features = cfg.span<FeatureData>(tracking._feature_count);
+
   // Persist the keys.
-  for ( unsigned short idx = 0 ; idx < tracking._idx ; ++idx ) {
-    auto & src = tracking._info[idx];
-    auto & dst = _exf_info[src._idx];
+  for ( unsigned short idx = 0 ; idx < tracking._count ; ++idx ) {
+    auto &src = tracking._info[idx];
+    auto &dst = _exf_info[idx];
     dst._name = src._name;
-    dst._fmt.assign(&_fmt_array[src._fmt_idx], src._fmt_count);
+    if (src._fmt_count > 1) {
+      dst._ex = ExfInfo::Multi{MemSpan{&_fmt_array[src._fmt_idx], src._fmt_count}};
+    } else {
+      dst._ex = ExfInfo::Single{std::move(_fmt_array[src._fmt_idx])};
+    }
     dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
   };
 
   return {};
+}
+
+Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
+                                  , std::initializer_list<FeatureGroup::Descriptor> const &ex_keys) {
+  unsigned idx = 0;
+  unsigned n_keys = ex_keys.size();
+  unsigned n_elts = node.size();
+  ExfInfo info[n_keys];
+
+  _fmt_array.reserve(std::min(n_keys, n_elts));
+
+  for ( auto const& key : ex_keys ) {
+
+    if (idx >= n_elts) {
+      if (key._flags[REQUIRED]) {
+        return Errata().error(R"(to be done)");
+      }
+      continue; // it was optional, skip it and keep checking for REQUIRED keys.
+    }
+
+    // Not handling MULTI correctly - need to check if element is a list that is not a format
+    // with modifiers, and gather the multi-values.
+    auto && [ fmt, errata ] = cfg.parse_feature(node[idx]);
+    if (! errata.is_ok()) {
+      return std::move(errata);
+    }
+    info[idx]._name = key._name;
+    _fmt_array.emplace_back(std::move(fmt));
+    info[idx]._fmt.assign(&_fmt_array[idx], 1); // safe because of the @c reserve
+    ++idx;
+  }
+  // Localize feature info, now that the size is determined.
+  _exf_info = cfg.span<ExfInfo>(idx);
+  memcpy(_exf_info.data(), info, sizeof(ExfInfo) * idx);
+  // No dependencies for tuple loads.
+  // No feature data because no dependencies.
+
+  return {};
+}
+
+FeatureData FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
+  auto idx = this->exf_index(name);
+  if (idx == INVALID_IDX) {
+    return {};
+  }
+  return this->extract(ctx, idx);
+}
+
+FeatureData FeatureGroup::extract(Context &ctx, index_type idx) {
+  auto& info = _exf_info[idx];
+  auto & feature = _features[info._feature_idx];
+  if (feature.index() != IndexFor(NIL)) {
+    return feature;
+  }
+
+  for ( auto edge_idx : info._edge ) {
+    if (_features[edge_idx].index() == NIL) {
+      _features[edge_idx] = this->extract(ctx, edge_idx);
+    }
+  }
+  feature = ctx.extract(info._fmt.front());
+  return feature;
 }
 /* ---------------------------------------------------------------------------------------------- */
