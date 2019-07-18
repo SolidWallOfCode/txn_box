@@ -59,7 +59,7 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 }
 
 namespace {
- Config Plugin_Config;
+ std::unique_ptr<Config> Plugin_Config;
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -252,7 +252,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
     if (Hook::INVALID != hook) {
       ctx->_cur_hook = hook;
       // Run the top level directives first.
-      for (auto const &handle : Plugin_Config.hook_directives(hook)) {
+      for (auto const &handle : Plugin_Config->hook_directives(hook)) {
         handle->invoke(*ctx); // need to log errors here.
       }
       // Run any accumulated directives for the hook.
@@ -268,7 +268,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
 // protected by a mutex. This hook isn't set if there are no top level directives.
 int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   auto txn {reinterpret_cast<TSHttpTxn>(payload) };
-  Context* ctx = new Context(Plugin_Config);
+  Context* ctx = new Context(*Plugin_Config);
   TSCont txn_cont { TSContCreate(CB_Directive, TSMutexCreate()) };
   TSContDataSet(txn_cont, ctx);
   ctx->_cont = txn_cont;
@@ -276,7 +276,7 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
 
   // set hooks for top level directives.
   for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
-    auto const& drtv_list { Plugin_Config.hook_directives(static_cast<Hook>(idx)) };
+    auto const& drtv_list { Plugin_Config->hook_directives(static_cast<Hook>(idx)) };
     if (! drtv_list.empty()) {
       TSHttpTxnHookAdd(txn, TS_Hook[idx], txn_cont);
       ctx->_directives[idx]._hook_set = true;
@@ -300,6 +300,7 @@ TSPluginInit(int argc, char const *argv[]) {
   TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media"
                                 , "solidwallofcode@verizonmedia.com"};
 
+  Plugin_Config.reset(new Config);
   int opt;
   int idx;
   optind = 0; // Reset options in case of other plugins.
@@ -307,7 +308,7 @@ TSPluginInit(int argc, char const *argv[]) {
     switch (opt) {
       case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c':errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind-1]}));
+      case 'c':errata.note(Plugin_Config->load_file(swoc::file::path{argv[optind - 1]}));
         break;
       default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
         break;
@@ -315,7 +316,7 @@ TSPluginInit(int argc, char const *argv[]) {
   }
   if (errata.is_ok()) {
     if (TSPluginRegister(&info) == TS_SUCCESS) {
-      if (Plugin_Config.has_top_level_directive()) {
+      if (Plugin_Config->has_top_level_directive()) {
         TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
         TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
       }

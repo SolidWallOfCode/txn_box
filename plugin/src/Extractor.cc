@@ -128,15 +128,23 @@ bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &sp
   return zret;
 }
 /* ---------------------------------------------------------------------------------------------- */
-auto FeatureGroup::Tracking::obtain(swoc::TextView const &name) -> Tracking::Info * {
+auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
   Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
-  if (spot == _info.end()) {
+  return spot == _info.end() ? nullptr : spot;
+}
+auto FeatureGroup::Tracking::obtain(swoc::TextView const &name) -> Tracking::Info * {
+  Info * spot  = this->find(name);
+  if (nullptr == spot) {
     spot = this->alloc();
     spot->_name = name;
   }
   return spot;
 }
 
+FeatureGroup::index_type FeatureGroup::exf_index(swoc::TextView const &name) {
+  auto spot = std::find_if(_exf_info.begin(), _exf_info.end(), [&name](ExfInfo const& info) { return 0 == strcasecmp(info._name, name); });
+  return spot == _exf_info.end() ? INVALID_IDX : spot - _exf_info.begin();
+}
 Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
   auto && [ fmt, errata ] { cfg.parse_feature(node) };
   if (errata.is_ok()) {
@@ -152,6 +160,7 @@ Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &no
       }
     }
   }
+  info._fmt_array.emplace_back(std::move(fmt));
   return std::move(errata);
 }
 
@@ -159,7 +168,13 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
 {
   Errata errata;
 
+  if (! info._node[name]) {
+    errata.error(R"("{}" is referenced but no such key was found.)", name);
+    return std::move(errata);
+  }
+
   auto tinfo = info.obtain(name);
+
   if (tinfo->_mark == DONE) {
     return std::move(errata);
   }
@@ -174,12 +189,8 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
     return std::move(errata);
   }
 
-  if (! info._node[name]) {
-    errata.error(R"("{}" is referenced but no such key was found.)", name);
-    return std::move(errata);
-  }
-
   tinfo->_mark = IN_PLAY;
+  tinfo->_fmt_idx = info._fmt_array.size();
   if (auto n { info._node[name] } ; n) {
     if (n.IsScalar()) {
       errata = this->load_fmt(cfg, info, n);
@@ -195,7 +206,6 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
         if (n[1].IsMap()) {
           errata = this->load_fmt(cfg, info, n);
         } else { // list of formats.
-          tinfo->_multi_found_p = true;
           for (auto const &child : n) {
             errata = this->load_fmt(cfg, info, n);
             if (!errata.is_ok()) {
@@ -215,11 +225,11 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
     errata.error(R"(Required key "{}" not found in value at {}.)", name, info._node.Mark());
   }
 
-  if (tinfo->_multi_found_p) {
+  tinfo->_fmt_count = info._fmt_array.size() - tinfo->_fmt_idx;
+  if (tinfo->_fmt_count > 1) {
     tinfo->_mark = MULTI_VALUED;
   } else {
     tinfo->_mark = DONE;
-    tinfo->_feature_idx = info._feature_count++;
   }
   return std::move(errata);
 }
@@ -238,10 +248,14 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     if (nullptr != tinfo) {
       return Errata().error(R"("INTERNAL ERROR: "{}" is used more than once in the extractor key list of the feature group for the node {}.)", d._name, node.Mark());
     }
-    tinfo = tracking.alloc();
-    tinfo->_name = d._name;
-    tinfo->_required_p = d._flags[REQUIRED];
-    tinfo->_multi_allowed_p = d._flags[MULTI];
+    if (node[d._name]) {
+      tinfo = tracking.alloc();
+      tinfo->_name = d._name;
+      tinfo->_required_p = d._flags[REQUIRED];
+      tinfo->_multi_p = d._flags[MULTI];
+    } else if (d._flags[REQUIRED]) {
+      return Errata().error(R"(The required key "{}" was not found in the node {}.)", d._name, node.Mark());
+    }
   }
 
   // Time to get the formats and walk the references.
@@ -254,23 +268,34 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
 
   // Persist the tracking info, now that all the sizes are known.
   _exf_info = cfg.span<ExfInfo>(tracking._count);
-  _edge = cfg.span<unsigned short>(tracking._edge_count);
-  for ( unsigned short idx = 0 ; idx < tracking._edge_count ; ++idx ) {
-    _edge[idx] = tracking._info[idx]._edge;
-  }
-  _features = cfg.span<FeatureData>(tracking._feature_count);
+  _exf_info.apply([](ExfInfo & info) { new (&info) ExfInfo; });
 
-  // Persist the keys.
+  // If there are dependency edges, copy those over.
+  if (tracking._edge_count) {
+    _edge = cfg.span<unsigned short>(tracking._edge_count);
+    for (unsigned short idx = 0; idx < tracking._edge_count; ++idx) {
+      _edge[idx] = tracking._info[idx]._edge;
+    }
+  }
+
+  // Persist the keys by copying persistent data from the tracking data to config allocated space.
   for ( unsigned short idx = 0 ; idx < tracking._count ; ++idx ) {
     auto &src = tracking._info[idx];
     auto &dst = _exf_info[idx];
     dst._name = src._name;
     if (src._fmt_count > 1) {
-      dst._ex = ExfInfo::Multi{MemSpan{&_fmt_array[src._fmt_idx], src._fmt_count}};
+      dst._ex = ExfInfo::Multi{};
+      ExfInfo::Multi & m = std::get<ExfInfo::MULTI>(dst._ex);
+      m._fmt.reserve(src._fmt_count);
+      for ( auto & fmt : MemSpan<Extractor::Format>{ &tracking._fmt_array[src._fmt_idx], src._fmt_count } ) {
+        m._fmt.emplace_back(std::move(fmt));
+      }
     } else {
-      dst._ex = ExfInfo::Single{std::move(_fmt_array[src._fmt_idx])};
+      dst._ex = ExfInfo::Single{std::move(tracking._fmt_array[src._fmt_idx])};
     }
-    dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
+    if (src._edge_count) {
+      dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
+    }
   };
 
   return {};
@@ -283,8 +308,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
   unsigned n_elts = node.size();
   ExfInfo info[n_keys];
 
-  _fmt_array.reserve(std::min(n_keys, n_elts));
-
+  // No dependency in tuples, can just walk the keys and load them.
   for ( auto const& key : ex_keys ) {
 
     if (idx >= n_elts) {
@@ -301,13 +325,15 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
       return std::move(errata);
     }
     info[idx]._name = key._name;
-    _fmt_array.emplace_back(std::move(fmt));
-    info[idx]._fmt.assign(&_fmt_array[idx], 1); // safe because of the @c reserve
+    info[idx]._ex = ExfInfo::Single{std::move(fmt)}; // safe because of the @c reserve
     ++idx;
   }
   // Localize feature info, now that the size is determined.
   _exf_info = cfg.span<ExfInfo>(idx);
-  memcpy(_exf_info.data(), info, sizeof(ExfInfo) * idx);
+  index_type i = 0;
+  for ( auto & item : _exf_info ) {
+    new (&item) ExfInfo{ std::move(info[i++]) };
+  }
   // No dependencies for tuple loads.
   // No feature data because no dependencies.
 
@@ -324,17 +350,26 @@ FeatureData FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
 
 FeatureData FeatureGroup::extract(Context &ctx, index_type idx) {
   auto& info = _exf_info[idx];
-  auto & feature = _features[info._feature_idx];
-  if (feature.index() != IndexFor(NIL)) {
-    return feature;
-  }
-
-  for ( auto edge_idx : info._edge ) {
-    if (_features[edge_idx].index() == NIL) {
-      _features[edge_idx] = this->extract(ctx, edge_idx);
+  if (info._ex.index() == ExfInfo::SINGLE) {
+    ExfInfo::Single &data = std::get<ExfInfo::SINGLE>(info._ex);
+    if (data._feature.index() != IndexFor(NIL)) {
+      return data._feature;
     }
+
+    for (index_type edge_idx : info._edge) {
+      ExfInfo::Single& precursor = std::get<ExfInfo::SINGLE>(_exf_info[edge_idx]._ex);
+      if (precursor._feature.index() == NIL) {
+        precursor._feature = this->extract(ctx, edge_idx);
+      }
+    }
+    data._feature = ctx.extract(data._fmt);
+    return data._feature;
   }
-  feature = ctx.extract(info._fmt.front());
-  return feature;
+  return {};
 }
+
+FeatureGroup::~FeatureGroup() {
+  _exf_info.apply([](ExfInfo & info) { delete &info; });
+}
+
 /* ---------------------------------------------------------------------------------------------- */

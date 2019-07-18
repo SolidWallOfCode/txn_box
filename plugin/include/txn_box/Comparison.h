@@ -61,6 +61,7 @@ public:
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// The feature is passed by reference because comparisons are allowed to perform updates.
   /// @{
+  virtual bool operator()(Context&, std::monostate& nil) const { return false; }
   virtual bool operator()(Context&, FeatureView& view) const { return false; }
   virtual bool operator()(Context&, intmax_t& n) const { return false; }
   virtual bool operator()(Context&, bool& f) const { return false; }

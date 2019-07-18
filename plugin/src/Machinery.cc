@@ -586,20 +586,22 @@ public:
   static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
 
 protected:
+  using index_type = FeatureGroup::index_type;
   FeatureGroup _fg;
+
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
-  unsigned short _status_fmt; ///< Return status.
-  unsigned short _reason_fmt; ///< Status reason text.
-  unsigned short _loc_fmt; ///< Location field value.
-  unsigned short _body_fmt; ///< Body content of respons.
+  index_type _status_idx; ///< Return status.
+  index_type _reason_idx; ///< Status reason text.
+  index_type _location_idx; ///< Location field value.
+  index_type _body_idx; ///< Body content of respons.
   /// Bounce from fixup hook directive back to @a this.
   Directive::Handle _set_location{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
 
   /// Construct and do configuration related initialization.
   explicit Do_redirect(Config & cfg);
 
-  /// Load the status value from configuration.
-  Errata load_status(Config& cfg, YAML::Node const& node);
+  Errata load_status();
+
   /// Load the location value from configuration.
   Errata load_location(Config& cfg, YAML::Node const& node);
   Errata load_reason(Config& cfg, YAML::Node const& node);
@@ -624,18 +626,17 @@ Do_redirect::Do_redirect(Config &cfg) {
 
 Errata Do_redirect::invoke(Context& ctx) {
   // Finalize the location and stash it in context storage.
-  auto value = ctx.extract(_fg[_loc_fmt]._fmt[0]);
-  ctx.commit(value);
+  FeatureData location = _fg.extract(ctx, _location_idx);
+  ctx.commit(location);
   // Remember where it is so the fix up can find it.
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
-  auto debug = std::get<IndexFor(STRING)>(value);
-  *view = std::get<IndexFor(STRING)>(value);
+  *view = std::get<IndexFor(STRING)>(location);
 
   // Set the status to prevent the upstream request.
   if (_status) {
     ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
   } else {
-    value = ctx.extract(_status_fmt);
+    FeatureData value = _fg.extract(ctx, _status_idx);
     int status;
     if (value.index() == IndexFor(INTEGER)) {
       status = std::get<IndexFor(INTEGER)>(value);
@@ -665,68 +666,41 @@ Errata Do_redirect::fixup(Context &ctx) {
   field.assign(*view);
 
   // Set the reason.
-  if (! _reason_fmt.empty()) {
-    auto reason{ctx.extract(_reason_fmt)};
+  if (_reason_idx != FeatureGroup::INVALID_IDX) {
+    auto reason{_fg.extract(ctx, _reason_idx)};
     hdr.reason_set(std::get<IndexFor(STRING)>(reason));
   }
   // Set the body.
-  if (! _body_fmt.empty()) {
-    auto body{ctx.extract(_body_fmt)};
+  if (_body_idx != FeatureGroup::INVALID_IDX) {
+    auto body{_fg.extract(ctx, _body_idx)};
     ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
   }
   return {};
 }
 
-Errata Do_redirect::load_status(Config& cfg, YAML::Node const &node) {
-  auto &&[fmt, errata]{cfg.parse_feature(node)};
-  if (! errata.is_ok()) {
-    return std::move(errata);
+Errata Do_redirect::load_status() {
+  _status_idx = _fg.exf_index(STATUS_KEY);
+
+  if (_status_idx == FeatureGroup::INVALID_IDX) { // not present, use default value.
+    _status = DEFAULT_STATUS;
+    return {};
   }
 
-  if (fmt.is_literal()) {
-    TextView src{fmt.literal()}, parsed;
+  FeatureGroup::ExfInfo & info = _fg[_status_idx];
+  FeatureGroup::ExfInfo::Single & ex = std::get<FeatureGroup::ExfInfo::SINGLE>(info._ex);
+
+  if (ex._fmt.is_literal()) {
+    TextView src{ex._fmt.literal()}, parsed;
     auto status = swoc::svtou(src, &parsed);
     if (parsed.size() != src.size() || status < 100 || status > 599) {
-      return Errata().error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)"
-                            , node.Scalar(), node.Mark());
+      return Errata().error(R"({} "{}" at {} is not a positive integer 100..599 as required.)", STATUS_KEY, src);
     }
     _status = status;
   } else {
-    if (fmt._feature_type != STRING && fmt._feature_type != INTEGER) {
-      return Errata().error(R"(Status "{}" at {} is not an integer nor string as required.)", node.Scalar(), node.Mark());
+    if (ex._fmt._feature_type != STRING && ex._fmt._feature_type != INTEGER) {
+      return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
     }
-    _status_fmt = std::move(fmt);
   }
-  return {};
-}
-
-Errata Do_redirect::load_location(Config &cfg, YAML::Node const &node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(node) };
-  if (! errata.is_ok()) {
-    return std::move(errata);
-  }
-  _loc_fmt = std::move(fmt);
-  _loc_fmt._feature_type = STRING;
-  return {};
-}
-
-Errata Do_redirect::load_reason(Config &cfg, YAML::Node const &node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(node) };
-  if (! errata.is_ok()) {
-    return std::move(errata);
-  }
-  _reason_fmt = std::move(fmt);
-  _loc_fmt._feature_type = STRING;
-  return {};
-}
-
-Errata Do_redirect::load_body(Config &cfg, YAML::Node const &node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(node) };
-  if (! errata.is_ok()) {
-    return std::move(errata);
-  }
-  _body_fmt = std::move(fmt);
-  _body_fmt._feature_type = STRING;
   return {};
 }
 
@@ -736,7 +710,6 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
   auto self = static_cast<self_type *>(handle.get());
   if (key_node.IsScalar()) {
     errata = self->_fg.load_as_tuple(cfg, key_node, {{LOCATION_KEY, FeatureGroup::REQUIRED}});
-    self->_status = DEFAULT_STATUS;
   } else if (key_node.IsSequence()) {
     errata = self->_fg.load_as_tuple(cfg, key_node, { { STATUS_KEY, FeatureGroup::REQUIRED } , { LOCATION_KEY, FeatureGroup::REQUIRED } });
   } else if (key_node.IsMap()) {
@@ -747,10 +720,19 @@ Rv<Directive::Handle> Do_redirect::load(Config &cfg, YAML::Node drtv_node, YAML:
         , key_node.Mark())};
   }
   if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", key_node.Mark());
+    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_node.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(errata)};
   }
-  // Force extraction types.
+
+  self->_reason_idx = self->_fg.exf_index(REASON_KEY);
+  self->_body_idx = self->_fg.exf_index(BODY_KEY);
+  self->_location_idx = self->_fg.exf_index(LOCATION_KEY);
+  errata.note(self->load_status());
+
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_node.Mark(), KEY, drtv_node.Mark());
+    return { {}, std::move(errata) };
+  }
 
   return { std::move(handle), {} };
 }

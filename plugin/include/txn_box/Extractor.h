@@ -303,14 +303,16 @@ inline size_t Extractor::Format::size() const { return _specs.size(); }
 class FeatureGroup {
   using self_type = FeatureGroup; ///< Self reference type.
 public:
+  /// Index type for the various indices.
   using index_type = unsigned short;
+  /// Value to mark uninitialized / invalid index.
   static constexpr index_type INVALID_IDX = std::numeric_limits<index_type>::max();
 
   /// Initialization flags.
-  enum Flag {
-    NONE, ///< No flags
-    REQUIRED, ///< Key must exist and have a valid format.
-    MULTI, ///< Key can be a list of formats.
+  enum Flag : int8_t {
+    NONE = -1, ///< No flags
+    REQUIRED = 0, ///< Key must exist and have a valid format.
+    MULTI = 1, ///< Key can be a list of formats.
   };
 
   /// Description of a key with a feature to extract.
@@ -321,32 +323,42 @@ public:
 
     // Convenience constructors.
     /// Construct with only a name, no flags.
-    Descriptor(swoc::TextView const& name) : _name(name) {}
+    Descriptor(swoc::TextView const& name);
     /// Construct with a name and a single flag.
-    Descriptor(swoc::TextView const& name, Flag flag) : _name(name) { _flags[flag] = true ; };
+    Descriptor(swoc::TextView const& name, Flag flag);;
     /// Construct with a name and a list of flags.
-    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> const& flags) : _name(name) {
-      for ( auto f : flags ) {
-        _flags[f] = true;
-      }
-    }
+    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> const& flags);
   };
 
   /// Information about a specific extractor format.
   /// This is per configuration data.
   struct ExfInfo {
+    /// Information for a feature with a single extraction format.
     struct Single {
-      Extractor::Format _fmt;
-      FeatureData _feature;
+      Extractor::Format _fmt; ///< The format.
+      FeatureData _feature; ///< Retrieved feature data.
     };
+
+    /// Information for a feature with multiple extraction formats.
     struct Multi {
-      swoc::MemSpan<Extractor::Format> _fmt; ///< Format span.
+      std::vector<Extractor::Format> _fmt; ///< Extractor formats.
     };
+
     swoc::TextView _name; ///< Key name.
     /// Indices of immediate reference dependencies.
     swoc::MemSpan<index_type> _edge;
-    std::variant<Single, Multi> _ex;
+
+    /// Variant indices for the format data.
+    enum {
+      NIL, SINGLE, MULTI
+    };
+    /// Allow uninitialized, single, or multiple values.
+    using Ex = std::variant<std::monostate, Single, Multi>;
+    /// Extraction data, single or multiple.
+    Ex _ex;
   };
+
+  ~FeatureGroup();
 
   /** Load the extractor formats from @a node.
    *
@@ -385,19 +397,35 @@ public:
    * @param name Name of the key.
    * @return The index for the extraction info for @a name or @c INVALID_IDX if not found.
    */
-  index_type exf_index(swoc::TextView name);
+  index_type exf_index(swoc::TextView const& name);
 
+  /** Get the extraction information for @a idx.
+   *
+   * @param idx Key index.
+   * @return The extraction information.
+   */
   ExfInfo & operator [] (index_type idx);
 
-  self_type & invoke(Context & ctx);
-
+  /** Extract the feature.
+   *
+   * @param ctx Context for extraction.
+   * @param name Name of the feature key.
+   * @return The extracted data.
+   */
   FeatureData extract(Context &ctx, swoc::TextView const &name);
+
+  /** Extract the feature.
+   *
+   * @param ctx Context for extraction.
+   * @param idx Index of the feature key.
+   * @return The extracted data.
+   */
   FeatureData extract(Context &ctx, index_type idx);
 
 protected:
-  static constexpr uint8_t DONE = 1;
-  static constexpr uint8_t IN_PLAY = 2;
-  static constexpr uint8_t MULTI_VALUED = 3;
+  static constexpr uint8_t DONE = 1; ///< All dependencies computed.
+  static constexpr uint8_t IN_PLAY = 2; ///< Dependencies currently being computed.
+  static constexpr uint8_t MULTI_VALUED = 3; ///< Multi-valued with all dependencies computed.
 
   /** Wrapper for tracking array.
    * This wraps a stack allocated variable sized array, which is otherwise inconvenient to use.
@@ -427,13 +455,12 @@ protected:
       /// Not valid if @c multi_found_p.
       index_type _feature_idx;
       index_type _fmt_idx; ///< Index in format vector, start.
-      index_type _fmt_count; ///< # of formats.
+      index_type _fmt_count = 0; ///< # of formats.
       index_type _edge_idx; ///< Index in reference dependency vector, start.
-      index_type _edge_count; ///< # of immediate dependent references.
-      uint8_t _mark; ///< Ordering search march.
+      index_type _edge_count = 0; ///< # of immediate dependent references.
+      uint8_t _mark = NONE; ///< Ordering search march.
       uint8_t _required_p : 1; ///< Key must exist and have a valid format.
-      uint8_t _multi_allowed_p : 1; ///< Format can be a list of formats.
-      uint8_t _multi_found_p : 1; ///< Format was parsed and was a list of formats.
+      uint8_t _multi_p : 1; ///< Format can be a list of formats.
 
       /// Cross reference (dependency graph edge)
       /// @note THIS IS NOT PART OF THE NODE VALUE!
@@ -444,15 +471,20 @@ protected:
       /// that a POset can be modeled as a directed acyclic graph, which on N nodes has at most
       /// N-1 edges. It is the edges that are stored here, therefore at most N-1 elements are
       /// required.
-      index_type _edge;
+      index_type _edge = 0;
     };
-
-    YAML::Node const& _node; ///< Node containing the keys.
 
     /// External provided array used to track the keys.
     /// Generally stack allocated, it should be the number of keys in the node as this is an
     /// upper bound of the amount of elements needed.
     swoc::MemSpan<Info> _info;
+
+    YAML::Node const& _node; ///< Node containing the keys.
+
+    /// Shared vector of formats - each key has a span that covers part of this vector.
+    /// @internal Not allocated in the config data because of clean up issues - these can contain
+    /// other allocated data that needs destructors to be invoked.
+    std::vector<Extractor::Format> _fmt_array;
 
     /// The number of valid elements in the array.
     index_type _count = 0;
@@ -484,20 +516,9 @@ protected:
     Info * obtain(swoc::TextView const& name);
   };
 
-  /// Context storage for singleton feature extraction.
-  /// The point of this is to hold extracted features on which other features are dependent.
-  /// Since it is forbidden for a feature to depend on a multi-valued feature, this covers only
-  /// the single features.
-  swoc::MemSpan<FeatureData> _features;
-
   /// Immediate dependencies of the references.
   /// A representation of the edges in the dependency graph.
   swoc::MemSpan<index_type> _edge;
-
-  /// Shared vector of formats - each key has a span that covers part of this vector.
-  /// @internal Not allocated in the config data because of clean up issues - these can contain
-  /// other allocated data that needs destructors to be invoked.
-  std::vector<Extractor::Format> _fmt_array;
 
   /// Storage for keys to extract.
   swoc::MemSpan<ExfInfo> _exf_info;
@@ -527,4 +548,17 @@ protected:
   swoc::Errata load_key(Config & cfg, Tracking& info, swoc::TextView name);
 
 };
+
+inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name) : _name(name) {}
+
+inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name, FeatureGroup::Flag flag) : _name(name) { if (flag != NONE) { _flags[flag] = true ; } }
+
+inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name
+                                     , std::initializer_list<FeatureGroup::Flag> const &flags) : _name(name) {
+  for ( auto f : flags ) {
+    if (f != NONE) { _flags[f] = true; }
+  }
+}
+
+inline FeatureGroup::ExfInfo &FeatureGroup::operator[](FeatureGroup::index_type idx) { return _exf_info[idx]; }
 /* ---------------------------------------------------------------------------------------------- */
