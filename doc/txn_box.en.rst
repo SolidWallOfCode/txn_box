@@ -138,16 +138,19 @@ HTTP header
 creq-url
    The URL in the client request.
 
-creq-url-method
+creq-method
    The method in the client request.
 
-creq-url-scheme
+creq-scheme
    The scheme in the client request.
+
+creq-host
+   The host for the client request.
 
 creq-url-host
    The host of the client request URL.
 
-creq-url-path
+creq-path
    The path in the client request URL.
 
 creq-field
@@ -157,6 +160,9 @@ creq-field
 
    If the field is multi-valued, a single value can be accessed by adding brackets and an index to
    the field name. E.g "{creq.field::Forward[1]}" to get the first value in the "Forward" field.
+
+ursp-status [integer]
+   Status code for the upstream response.
 
 Regular Expression
 ------------------
@@ -169,9 +175,9 @@ is larger than the available capture groups, or when no regular expression is ac
 a header named "mail-check" should be set if the host contains the domain "mail", it could be done
 as ::
 
-    with: "{creq-host}"
-    select:
-    - regex: "^(?:(.*?)[.])?mail[.](.*?)$"
+   with: "{creq-host}"
+   select:
+   - regex: "^(?:(.*?)[.])?mail[.](.*?)$"
       do:
       - set-preq-field: [ mail-check, "You've got mail from {2}!" ]
 
@@ -180,6 +186,9 @@ Session
 
 Other
 -----
+
+is-internal [boolean]
+   ``true`` if the transaction is an internal transaction, ``false`` if not.
 
 Comparisons
 +++++++++++
@@ -211,6 +220,15 @@ regex
 regex-nocase
    Regular expression matching that is case insensitive. Otherwise this is identical to :code:`regex`.
 
+true
+   For boolean features, this matches if the boolean value is true.
+
+false
+   For boolean features, this matchs if the boolean value is false.
+
+eq
+   Equality for numeric values.
+
 
 Directives
 ==========
@@ -222,21 +240,73 @@ when
    See `Hook Control`_.
 
 set-preq-field
-   :code:`set-preq-field: [ "name", "value" ]`
+   :code:`set-preq-field: [ <name>, <value> ]`
 
    Set the value of a field in the proxy request to the upstream. The value should be a list of
    two elements, a field name and a field value. Any existing value for the field is overwritten
    and the field created if it does not exist.
-   
+
+set-preq-host
+   :code:`set-preq-host: <name>`
+
+   The the host for the proxy request. This updates the URL and :code:`Host` field as appropriate.
+
+set-preq-url-host
+   :code:`set-preq-url-host: <name>`
+
+   This set the host in the proxy request URL.
+
+remove-creq-field
+   :code:`remove-creq-field: <name>`
+
+   Remove the field ``name`` if it exists in the client request.
+
+set-creq-field-default
+   :code:`set-creq-field-default: [ <name>, <value> ]`
+
+   Conditionally Set the value of a field in the client request. The field ``name`` is set to
+   ``value`` if the field doesn't exist or is empty. If there is already a value this directive
+   is ignored.
+
+set-ursp-status
+   :code:`set-ursp-status: <status>`
+
+   This sets the status code for the upstream response. This should be used cautiously because the
+   upstream response will have been sent with a specific status code and this will change that.
+
+redirect
+   :code:`redirect <location>`
+
+   :code:`redirect [ <status>, <location> ]`
+
+   .. code-block:: YAML
+
+      redirect:
+         to: <location>
+         status: <status>
+         reason: <reason phrase>
+         body: <response body>
+
+   This directive generates a redirect response to the user agent without an upstream request.
+
+
+debug
+   :code:`debug: <message>`
+
+   :code:`debug: [ <tag>, <message> ]`
+
+   Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
+   the plugin tag "txn_box" is used.
+
 Formatting
 ==========
 
 The second part of an extractor supports controlling the format of the output. This is not generally
 requried, but in some cases it is quite useful. A good example is the extractor
-:code:`creq-is-internal`. This returns a true or false value, which is in the C style mapped to 1
+:code:`is-internal`. This returns a true or false value, which is in the C style mapped to 1
 and 0. However, it can be changed to "true" and "false" by specifying the output as a string. ::
 
-   set-preq-field: [ Carp-Internal, "{creq-is-internal:s}" ]
+   set-preq-field: [ Carp-Internal, "{is-internal:s}" ]
 
 Formatting is most commonly useful when setting values, such as field values. The extracted strings
 can be justified, limited in width, and in particular IP addresses can be formatted in a variety of
@@ -249,14 +319,18 @@ The directive key :code:`when` can be used to specify on which hook directives s
 The "when" must also have a :code:`do` key which contains the directives. The value of :code:`when`
 is the hook name, which must be one of
 
-================== ====
-Hook               when
-================== ====
-Client Request     creq
-Proxy Request      preq
-Upstream Response  ursp
-Proxy Response     prsp
-================== ====
+================== =============  ============
+Hook               when           Abbreviation
+================== =============  ============
+Client Request     read-request   creq
+Proxy Request      send-request   preq
+Upstream Response  read-response  ursp
+Proxy Response     send-response  prsp
+Pre remap          pre-remap
+Post remap         post-remap
+================== =============  ============
+
+The abbreviations are primarly to allow consistency between hook tags, extractors, and directives.
 
 The top level directives, those in the :code:`txn_box` key, must be :code:`when` directives so that
 every directive is associated with a specific hook. To set the HTTP header field ``directive`` to
@@ -270,15 +344,15 @@ every directive is associated with a specific hook. To set the HTTP header field
 Issues
 ******
 
-#  What happens to the remap requirement? What counts as a remap match? Currently adding a
+#. What happens to the remap requirement? What counts as a remap match? Currently adding a
    comparison "always" which always matches, so that can count as a match.
 
-#  There are some use cases that want to check just for an extract string to be empty or non-empty.
+#. There are some use cases that want to check just for an extract string to be empty or non-empty.
    Should there be a forcing to the ``bool`` type for these, which are then ``true`` for non-empty
    and ``false`` for empty? Specific match operators for empty and non-empty (although this can be
    done with regular expressions)?
 
-#  How optional should ``do`` nodes be? For instance, for selection cases is it OK to omit the
+#. How optional should ``do`` nodes be? For instance, for selection cases is it OK to omit the
    node entirely if there's nothing to actually do, it's just a match for some other reason (e.g.
    to prevent requests that match from matching subsequent cases)?
 

@@ -29,10 +29,10 @@ using namespace swoc::literals;
 
 Context::Context(Config & cfg) {
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
-  _arena.reset(swoc::MemArena::construct_self_contained(4000));
+  _arena.reset(swoc::MemArena::construct_self_contained(4000 + cfg._ctx_storage_required));
 
   // Provide array storage for each potential conditional directive for each hook.
-  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx) {
+  for (unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx) {
      MemSpan<Directive*> drtv_list = _arena->alloc(sizeof(Directive*) * cfg._directive_count[idx]).rebind<Directive*>();
      _directives[idx] = { 0, 0, drtv_list.data() };
   };
@@ -42,15 +42,18 @@ Context::Context(Config & cfg) {
   , [] (void*, void*) -> void {}, this);
   _rxp_capture = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
   _rxp_working = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
+
+  // Directive shared storage
+  _ctx_store = _arena->alloc(cfg._ctx_storage_required);
 }
 
-Errata Context::when_do(Hook hook, Directive* drtv) {
-  auto & hd { _directives[static_cast<unsigned>(hook)] };
+Errata Context::on_hook_do(Hook hook_idx, Directive *drtv) {
+  auto & hd { _directives[static_cast<unsigned>(hook_idx)] };
   if (! hd._hook_set) { // no hook to invoke this directive, set one up.
-    if (hook > _cur_hook) {
-      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook)], _cont);
+    if (hook_idx > _cur_hook) {
+      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook_idx)], _cont);
       hd._hook_set = true;
-    } else if (hook < _cur_hook) {
+    } else if (hook_idx < _cur_hook) {
       // error condition - should report. Also, should detect this on config load.
     }
   }
@@ -73,8 +76,11 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
 
 FeatureData Context::extract(Extractor::Format const &fmt) {
   if (fmt._direct_p) {
-    return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this);
+    return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this, fmt[0]);
   } else if (fmt._literal_p) {
+    if (fmt._feature_type == INTEGER) {
+      return fmt._number;
+    }
     return FeatureView::Literal(fmt[0]._ext);
   } else {
     switch (fmt._feature_type) {
@@ -83,6 +89,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         // double write - try in the remnant first. If that suffices, done.
         // Otherwise the size is now known and the needed space can be correctly allocated.
         w.print_nfv(*this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
+        if (fmt._force_c_string_p) {
+          w.write('\0');
+        }
         if (!w.error()) {
           return w.view();
         } else {
@@ -93,8 +102,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: break;
-      case BOOL: break;
+      case INTEGER: return static_cast<IntegerFeature*>(fmt[0]._extractor)->extract(*this);
+      case BOOLEAN:
+        return static_cast<BooleanFeature*>(fmt[0]._extractor)->extract(*this);
     }
   }
   return {};
@@ -105,6 +115,13 @@ Context& Context::commit(FeatureData const &feature) {
     _arena->alloc(fv->size());
   }
   return *this;
+}
+
+swoc::MemSpan<void> Context::storage_for(Directive *drtv) {
+  auto zret { _ctx_store };
+  zret.remove_prefix(drtv->_rtti->_ctx_storage_offset);
+  zret.remove_suffix(zret.size() - drtv->_rtti->_ctx_storage_offset);
+  return zret;
 }
 
 ts::HttpHeader Context::creq_hdr() {
@@ -119,6 +136,20 @@ ts::HttpHeader Context::preq_hdr() {
     _preq = _txn.preq_hdr();
   }
   return _preq;
+}
+
+ts::HttpHeader Context::ursp_hdr() {
+  if (!_ursp.is_valid()) {
+    _ursp = _txn.ursp_hdr();
+  }
+  return _ursp;
+}
+
+ts::HttpHeader Context::prsp_hdr() {
+  if (!_prsp.is_valid()) {
+    _prsp = _txn.prsp_hdr();
+  }
+  return _prsp;
 }
 
 unsigned Context::ArgPack::count() const {

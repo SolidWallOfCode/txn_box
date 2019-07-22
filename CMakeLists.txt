@@ -30,7 +30,7 @@ ExternalProject_Add(lib-yaml-cpp
 
 ExternalProject_Add(lib-swoc++
     GIT_REPOSITORY https://github.com/solidwallofcode/libswoc.git
-    GIT_TAG txnbox-1
+    GIT_TAG 1.0.7
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR swoc++
     INSTALL_DIR ${INSTALL_DIR}
@@ -38,16 +38,16 @@ ExternalProject_Add(lib-swoc++
     STEP_TARGETS install
     )
 
-ExternalProject_Add(canned-yaml
-    GIT_REPOSITORY https://github.com/solidwallofcode/canned-yaml.git
-    GIT_TAG cmake
-    GIT_SHALLOW TRUE
-    SOURCE_SUBDIR canner
-    INSTALL_DIR ${INSTALL_DIR}
-    CMAKE_ARGS "${_CMAKE_ARGS}"
-    DEPENDS lib-yaml-cpp-install lib-swoc++-install
-    STEP_TARGETS install
-    )
+#ExternalProject_Add(canned-yaml
+#    GIT_REPOSITORY https://github.com/solidwallofcode/canned-yaml.git
+#    GIT_TAG cmake
+#    GIT_SHALLOW TRUE
+#    SOURCE_SUBDIR canner
+#    INSTALL_DIR ${INSTALL_DIR}
+#    CMAKE_ARGS "${_CMAKE_ARGS}"
+#    DEPENDS lib-yaml-cpp-install lib-swoc++-install
+#    STEP_TARGETS install
+#    )
 
 # Riding serendipity - there's no package description for this, but because everything is installed
 # in the same directories, the paths from the other packages makes this one work too.

@@ -1,0 +1,29 @@
+txn_box:
+- when: ursp
+  do:
+  - with: "{ursp-status}"
+    select:
+    - eq: 403
+      do:
+      - with: "{creq-host}"
+        select:
+        - match-nocase: "localhost"
+          do:
+          - with: "{creq-path}"
+            select:
+            - prefix: "config/"
+              do:
+              - set-ursp-status: 204
+              - set-ursp-reason: "Config file not present"
+              - when: prsp
+                do:
+                - remove-prsp-field: Content-Type
+                - remove-prsp-field: Content-Length
+                - remove-prsp-field: Connection
+
+# Curl test command
+# ATS is at localhost:8443, replay-server is at localhost:9443, running yts-2797-replay.yaml.
+# curl --verbose -o /tmp/content.txt --connect-to localhost:9443:localhost:8443 -k https://localhost:9443/config/settings.yaml --header "uuid: 1"
+# HTTP replay server setup
+# ~/git/http-replay/bin/replay-server run ~/git/txn-box/test/ --verbose --listen 127.0.0.1:9090 --cert ~/git/txn-box/etc/trafficserver/ssl/server.pem --listen-https 127.0.0.1:9443 --key "{field.uuid}
+# Get the certs from ats/tests/gold/http2/ssl

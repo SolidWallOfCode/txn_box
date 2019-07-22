@@ -1,4 +1,4 @@
-/* 
+/*
    Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
    See the NOTICE file distributed with this work for additional information regarding copyright
    ownership.  The ASF licenses this file to you under the Apache License, Version 2.0 (the
@@ -11,7 +11,7 @@
    is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
    or implied. See the License for the specific language governing permissions and limitations under
    the License.
-   
+
 */
 
 #include <string>
@@ -43,45 +43,14 @@ using namespace swoc::literals;
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
-swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::STRING, "string"}
-                                            , {FeatureType::INTEGER, "integer"}
-                                            , {FeatureType::BOOL, "boolean"}
-                                            , {FeatureType::IP_ADDR, "IP address"}
-                                           }};
-
-BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, FeatureType type) {
-  if (spec.has_numeric_type()) {
-    return bwformat(w, spec, static_cast<unsigned>(type));
-  }
-  return bwformat(w, spec, FeatureTypeName[type]);
-}
-
-swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
-                              , {Hook::PREQ, {"send-request", "preq"}}
-                              , {Hook::URSP, {"read-response", "ursp"}}
-                              , {Hook::PRSP, {"send-response", "prsp"}}
-                              }};
-
-std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
-
-namespace {
-[[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  HookName.set_default(Hook::INVALID);
-
-  TS_Hook[static_cast<unsigned>(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
-  TS_Hook[static_cast<unsigned>(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
-
-  return true;
-} ();
-}; // namespace
-
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
-  static const std::map<TSEvent, Hook> table{{TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ},
-                                                  {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ},
-                                                  {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP},
-                                                  {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP},
+  static const std::map<TSEvent, Hook> table{
+    {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
+  , {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ}
+  , {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP}
+  , {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP}
+  , {TS_EVENT_HTTP_PRE_REMAP, Hook::PRE_REMAP}
+  , {TS_EVENT_HTTP_POST_REMAP, Hook::POST_REMAP}
   };
   if (auto spot{table.find(ev)}; spot != table.end()) {
     return spot->second;
@@ -89,15 +58,12 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   return Hook::INVALID;
 }
 
-Config Plugin_Config;
-
-template < typename F > struct scope_exit {
-  F _f;
-  explicit scope_exit(F &&f) : _f(std::move(f)) {}
-  ~scope_exit() { _f(); }
-};
+namespace {
+ std::unique_ptr<Config> Plugin_Config;
+}
 /* ------------------------------------------------------------------------------------ */
-TextView ts::URL::host() {
+
+TextView ts::URL::host() const {
   char const* text;
   int size;
   if (this->is_valid() && nullptr != (text = TSUrlHostGet(_buff, _loc, &size))) {
@@ -106,10 +72,29 @@ TextView ts::URL::host() {
   return {};
 }
 
+TextView ts::URL::view() const {
+  // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
+  // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
+  if (! _iobuff) {
+    _iobuff.reset(TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K));
+    auto reader = TSIOBufferReaderAlloc(_iobuff.get());
+    TSUrlPrint(_buff, _loc, _iobuff.get());
+    int64_t avail = 0;
+    auto block = TSIOBufferReaderStart(reader);
+    auto ptr = TSIOBufferBlockReadStart(block, reader, &avail);
+    _view.assign(ptr, avail);
+  }
+  return _view;
+}
+
+ts::HttpField::~HttpField() {
+  TSHandleMLocRelease(_buff, _hdr, _loc);
+}
+
 TextView ts::HttpField::value() {
   int size;
   char const* text;
-  if (this->is_valid() && nullptr != (text = TSMimeHdrFieldValueStringGet(_buff, _loc, _hdr, -1, &size))) {
+  if (this->is_valid() && nullptr != (text = TSMimeHdrFieldValueStringGet(_buff, _hdr, _loc, -1, &size))) {
     return { text, static_cast<size_t>(size) };
   }
   return {};
@@ -118,6 +103,14 @@ TextView ts::HttpField::value() {
 bool ts::HttpField::assign(swoc::TextView value) {
   return this->is_valid() &&
     TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size());
+}
+
+bool ts::HttpField::assign_if_not_set(swoc::TextView value) {
+  return this->is_valid() && ( ! this->value().empty() || this->assign(value) );
+}
+
+bool ts::HttpField::destroy() {
+  return TS_SUCCESS == TSMimeHdrFieldDestroy(_buff, _hdr, _loc);
 }
 
 ts::URL ts::HttpHeader::url() {
@@ -154,6 +147,24 @@ ts::HttpHeader ts::HttpTxn::preq_hdr() {
   return {};
 }
 
+ts::HttpHeader ts::HttpTxn::ursp_hdr() {
+  TSMBuffer buff;
+  TSMLoc loc;
+  if (_txn != nullptr && TS_SUCCESS == TSHttpTxnServerRespGet(_txn, &buff, &loc)) {
+    return { buff, loc };
+  }
+  return {};
+}
+
+ts::HttpHeader ts::HttpTxn::prsp_hdr() {
+  TSMBuffer buff;
+  TSMLoc loc;
+  if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientRespGet(_txn, &buff, &loc)) {
+    return { buff, loc };
+  }
+  return {};
+}
+
 ts::HttpField ts::HttpHeader::field_create(TextView name) {
   if (this->is_valid()) {
     TSMLoc field_loc;
@@ -177,214 +188,58 @@ ts::HttpField ts::HttpHeader::field_obtain(TextView name) {
   }
   return {};
 }
-/* ------------------------------------------------------------------------------------ */
-Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node) {
-  if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
-    if (! fmt_node.IsScalar()) {
-      return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
-    }
-    return Extractor::literal(fmt_node.Scalar());
-  }
 
-  // Handle simple string.
-  if (fmt_node.IsScalar()) {
-
-    auto &&[fmt, errata]{Extractor::parse(fmt_node.Scalar())};
-    if (errata.is_ok()) {
-
-      if (fmt._max_arg_idx >= 0) {
-        if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
-          return { {}, Errata().error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark()) };
-        } else if (fmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
-          return { {}, Errata().error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", fmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line) };
-        }
-      }
-
-      if (fmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
-        _feature_state->_feature_ref_p = true;
-      }
-
-      this->localize(fmt);
-    }
-    return {std::move(fmt), std::move(errata)};
-  } else if (fmt_node.IsSequence()) {
-    // empty list is treated as an empty string.
-    if (fmt_node.size() < 1) {
-      return Extractor::literal(TextView{});
-    }
-
-    auto str_node { fmt_node[0] };
-    if (! str_node.IsScalar()) {
-      return { {}, Errata().error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark()) };
-    }
-
-    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
-      return { {}, std::move(errata) };
-    }
-
-    for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
-      auto child { fmt_node[idx] };
-      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
-      if (! mod_errata.is_ok()) {
-        mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
-        return { {}, std::move(mod_errata) };
-      }
-      if (_feature_state) {
-        _feature_state->_type = mod->output_type();
-      }
-      fmt._mods.emplace_back(std::move(mod));
-    }
-    return { std::move(fmt), {} };
-  }
-
-  return { {}, Errata().error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark()) };
-}
-
-// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
-// all paths must be explored and so the active feature needs to be stacked up so it can be restored
-// after a tree descent. During runtime, only one path is followed and therefore this isn't
-// required.
-Rv<Directive::Handle>
-Config::load_directive(YAML::Node drtv_node, FeatureRefState &state) {
-  auto saved_feature = _feature_state;
-  auto saved_rxp = _rxp_group_state;
-  if (state._feature_active_p) {
-    _feature_state = &state;
-  }
-  if (state._rxp_group_count > 0) {
-    _rxp_group_state = &state;
-  }
-  scope_exit cleanup([&] () { _feature_state = saved_feature; _rxp_group_state = saved_rxp; });
-
-  return this->load_directive(drtv_node);
-}
-
-Rv<Directive::Handle> Config::load_directive(YAML::Node drtv_node) {
-  if (drtv_node.IsMap()) {
-    return { Directive::load(*this, drtv_node) };
-  } else if (drtv_node.IsSequence()) {
-    Errata zret;
-    auto list { new DirectiveList };
-    Directive::Handle drtv_list{list};
-    for (auto child : drtv_node) {
-      auto && [handle, errata] {this->load_directive(child)};
-      if (errata.is_ok()) {
-        list->push_back(std::move(handle));
-      } else {
-        return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
-      }
-    }
-    return {std::move(drtv_list), {}};
-  } else if (drtv_node.IsNull()) {
-    return {Directive::Handle(new NilDirective)};
-  }
-  return { {}, Errata().error(R"(Directive at {} is not an object or a sequence as required.)",
-      drtv_node.Mark()) };
-}
-
-Errata Config::load_top_level_directive(YAML::Node drtv_node) {
-  Errata zret;
-  if (drtv_node.IsMap()) {
-    YAML::Node key_node { drtv_node[When::KEY] };
-    if (key_node) {
-      try {
-        auto hook_idx{HookName[key_node.Scalar()]};
-        auto && [ handle, errata ]{ When::load(*this, drtv_node, key_node) };
-        if (errata.is_ok()) {
-          _roots[static_cast<unsigned>(hook_idx)].emplace_back(std::move(handle));
-          _has_top_level_directive_p = true;
-        } else {
-          zret.note(errata);
-        }
-      } catch (std::exception& ex) {
-        zret.error(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_node.Scalar(),
-            When::KEY, key_node.Mark());
-      }
-    } else {
-      zret.error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
-    }
-  } else {
-    zret.error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
-  }
-  return std::move(zret);
-}
-
-TextView Config::localize(swoc::TextView text) {
-  auto span { _arena.alloc(text.size()).rebind<char>() };
-  memcpy(span, text);
-  return span.view();
-};
-
-Config& Config::localize(Extractor::Format &fmt) {
-  // Special case a "pure" literal - it's a format but all of the specifiers are literals.
-  // This can be consolidated into a single specifier with a single literal.
-  if (fmt._literal_p) {
-    size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
-                                                                                   , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
-    auto span{_arena.alloc(n).rebind<char>()};
-    Extractor::Spec literal_spec;
-    literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
-    literal_spec._ext = {span.data(), span.size()};
-    for (auto const &spec : fmt._specs) {
-      memcpy(span.data(), spec._ext.data(), spec._ext.size());
-      span.remove_prefix(spec._ext.size());
-    }
-    fmt._specs.resize(1);
-    fmt._specs[0] = literal_spec;
-  } else {
-    // Localize and update the names and extensions.
-    for (auto &spec : fmt._specs) {
-      if (! spec._name.empty()) {
-        spec._name = this->localize(spec._name);
-      }
-      if (! spec._ext.empty()) {
-        spec._ext = this->localize(spec._ext);
-      }
+ts::HttpHeader& ts::HttpHeader::field_remove(swoc::TextView name) {
+  if (this->is_valid()) {
+    if (HttpField field { this->field(name) } ; field.is_valid()) {
+      field.destroy();
     }
   }
   return *this;
 }
 
-Errata Config::load_file(swoc::file::path const& file_path) {
-  Errata zret;
-  std::error_code ec;
-  std::string content = swoc::file::load(file_path, ec);
+bool ts::HttpHeader::status_set(TSHttpStatus status) {
+  return TS_SUCCESS == TSHttpHdrStatusSet(_buff, _loc, status);
+}
 
-  if (ec) {
-    return zret.error(R"(Unable to load file "{}" - {}.)", file_path, ec);
-  }
+bool ts::HttpHeader::reason_set(swoc::TextView reason) {
+  return this->is_valid() && TS_SUCCESS == TSHttpHdrReasonSet(_buff, _loc, reason.data(), reason.size());
+}
 
-  YAML::Node root;
-  try {
-    root = YAML::Load(content);
-  } catch (std::exception &ex) {
-    return zret.error(R"(YAML parsing of "{}" failed - {}.)", file_path, ex.what());
-  }
+bool ts::HttpTxn::is_internal() const {
+  return static_cast<bool>(TSHttpTxnIsInternal(_txn));
+}
 
-  YAML::Node base_node { root[ROOT_KEY] };
-  if (! base_node) {
-    return zret.error(R"(Base key "{}" for plugin "{}" not found in "{}".)", ROOT_KEY,
-        PLUGIN_NAME, file_path);
-  }
+void ts::HttpTxn::error_body_set(swoc::TextView body, swoc::TextView content_type) {
+  auto body_double { ts_dup(body) };
+  TSHttpTxnErrorBodySet(_txn, body_double.data(), body_double.size(), ts_dup(content_type).data());
+}
 
-  if (base_node.IsSequence()) {
-    for ( auto child : base_node ) {
-      zret.note(this->load_top_level_directive(child));
-    }
-    if (! zret.is_ok()) {
-      zret.error(R"(Failure while loading list of top level directives for "{}" at {}.)",
-      ROOT_KEY, base_node.Mark());
-    }
-  } else if (base_node.IsMap()) {
-    zret = this->load_top_level_directive(base_node);
-  } else {
-  }
-  return std::move(zret);
-};
+swoc::MemSpan<char> ts::HttpTxn::ts_dup(swoc::TextView const &text) {
+  auto dup = static_cast<char*>(TSmalloc(text.size() + 1));
+  memcpy(dup, text.data(), text.size());
+  dup[text.size()] = '\0';
+  return {dup, text.size()};
+}
+
+void ts::HttpTxn::status_set(int status) {
+  TSHttpTxnStatusSet(_txn, static_cast<TSHttpStatus>(status));
+}
+
+ts::String ts::HttpTxn::effective_url_get() const {
+  int size;
+  auto s = TSHttpTxnEffectiveUrlStringGet(_txn, &size);
+  return {s, size};
+}
+
+namespace swoc {
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status) {
+  return bwformat(w, spec, static_cast<unsigned>(status));
+}
+} // namespace swoc
 
 /* ------------------------------------------------------------------------------------ */
+
 int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
   Context* ctx = static_cast<Context*>(TSContDataGet(cont));
   /// TXN Close is special
@@ -397,7 +252,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
     if (Hook::INVALID != hook) {
       ctx->_cur_hook = hook;
       // Run the top level directives first.
-      for (auto const &handle : Plugin_Config.hook_directives(hook)) {
+      for (auto const &handle : Plugin_Config->hook_directives(hook)) {
         handle->invoke(*ctx); // need to log errors here.
       }
       // Run any accumulated directives for the hook.
@@ -413,7 +268,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
 // protected by a mutex. This hook isn't set if there are no top level directives.
 int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   auto txn {reinterpret_cast<TSHttpTxn>(payload) };
-  Context* ctx = new Context(Plugin_Config);
+  Context* ctx = new Context(*Plugin_Config);
   TSCont txn_cont { TSContCreate(CB_Directive, TSMutexCreate()) };
   TSContDataSet(txn_cont, ctx);
   ctx->_cont = txn_cont;
@@ -421,7 +276,7 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
 
   // set hooks for top level directives.
   for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
-    auto const& drtv_list { Plugin_Config.hook_directives(static_cast<Hook>(idx)) };
+    auto const& drtv_list { Plugin_Config->hook_directives(static_cast<Hook>(idx)) };
     if (! drtv_list.empty()) {
       TSHttpTxnHookAdd(txn, TS_Hook[idx], txn_cont);
       ctx->_directives[idx]._hook_set = true;
@@ -433,8 +288,10 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   return TS_SUCCESS;
 };
 
+namespace {
 std::array<option, 2> Options = {
     {{"config", 1, nullptr, 'c'}, {nullptr, 0, nullptr, 0}}};
+}
 
 void
 TSPluginInit(int argc, char const *argv[]) {
@@ -443,6 +300,7 @@ TSPluginInit(int argc, char const *argv[]) {
   TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media"
                                 , "solidwallofcode@verizonmedia.com"};
 
+  Plugin_Config.reset(new Config);
   int opt;
   int idx;
   optind = 0; // Reset options in case of other plugins.
@@ -450,7 +308,7 @@ TSPluginInit(int argc, char const *argv[]) {
     switch (opt) {
       case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c':errata.note(Plugin_Config.load_file(swoc::file::path{argv[optind-1]}));
+      case 'c':errata.note(Plugin_Config->load_file(swoc::file::path{argv[optind - 1]}));
         break;
       default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
         break;
@@ -458,7 +316,7 @@ TSPluginInit(int argc, char const *argv[]) {
   }
   if (errata.is_ok()) {
     if (TSPluginRegister(&info) == TS_SUCCESS) {
-      if (Plugin_Config.has_top_level_directive()) {
+      if (Plugin_Config->has_top_level_directive()) {
         TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
         TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
       }

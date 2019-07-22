@@ -37,7 +37,7 @@ public:
 
   /// Factory functor that creates an instance from a configuration node.
   /// Arguments are the comparison node and the value for the comparison identity key.
-  using Worker = std::function<swoc::Rv<Handle> (Config&, YAML::Node, YAML::Node)>;
+  using Worker = std::function<swoc::Rv<Handle> (Config&, YAML::Node const& cmp_node, YAML::Node const& key_node)>;
 
   // Factory that maps from names to assemblers.
   using Factory = std::unordered_map<swoc::TextView, std::tuple<Worker, FeatureMask>, std::hash<std::string_view>>;
@@ -61,7 +61,8 @@ public:
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// The feature is passed by reference because comparisons are allowed to perform updates.
   /// @{
-  virtual bool operator()(Context&, swoc::TextView& view) const { return false; }
+  virtual bool operator()(Context&, std::monostate& nil) const { return false; }
+  virtual bool operator()(Context&, FeatureView& view) const { return false; }
   virtual bool operator()(Context&, intmax_t& n) const { return false; }
   virtual bool operator()(Context&, bool& f) const { return false; }
   virtual bool operator()(Context&, swoc::IPAddr & addr) const { return false; }

@@ -15,12 +15,15 @@
 */
 
 #include <string>
-#include <txn_box/Context.h>
 
+#include <swoc/bwf_base.h>
+
+#include "txn_box/common.h"
 #include "txn_box/Rxp.h"
 #include "txn_box/Comparison.h"
 #include "txn_box/Directive.h"
 #include "txn_box/Config.h"
+#include "txn_box/Context.h"
 
 using swoc::TextView;
 using namespace swoc::literals;
@@ -75,7 +78,7 @@ public:
   static const FeatureMask TYPES;
 
 protected:
-  Extractor::Format _exfmt; ///< Suffix value to compare.
+  Extractor::Format _exfmt; ///< String for comparison.
 
   /// Load up the string, accounting for extraction and types.
   static Rv<Extractor::Format> load_exfmt(Config& cfg, YAML::Node cmp_node, YAML::Node key_node, std::string const& KEY);
@@ -127,7 +130,7 @@ public:
    * @param text The feature to compare.
    * @return @c true if @a text matches, @c false otherwise.
    */
-  bool operator() (Context& ctx, TextView& text) const override;
+  bool operator() (Context& ctx, FeatureView& text) const override;
 
 protected:
   using super_type::super_type;
@@ -135,7 +138,7 @@ protected:
 
 const std::string Cmp_Match::KEY { "match" };
 
-bool Cmp_Match::operator()(Context& ctx, TextView& text) const {
+bool Cmp_Match::operator()(Context& ctx, FeatureView& text) const {
   FeatureData feature { ctx.extract(_exfmt) };
   return text == std::get<STRING>(feature);
 }
@@ -172,7 +175,7 @@ public:
    * @param text The feature to compare.
    * @return @c true if @a text matches, @c false otherwise.
    */
-  bool operator() (Context& ctx, TextView& text) const override;
+  bool operator() (Context& ctx, FeatureView& text) const override;
 
 protected:
   using super_type::super_type;
@@ -180,7 +183,7 @@ protected:
 
 const std::string Cmp_MatchNocase::KEY { "match-nocase" };
 
-bool Cmp_MatchNocase::operator()(Context& ctx, TextView& text) const {
+bool Cmp_MatchNocase::operator()(Context& ctx, FeatureView& text) const {
   FeatureData feature { ctx.extract(_exfmt) };
   return 0 == strcasecmp(text, std::get<STRING>(feature));
 }
@@ -194,7 +197,6 @@ Rv<Comparison::Handle> Cmp_MatchNocase::load(Config& cfg, YAML::Node cmp_node, Y
 }
 
 /* ------------------------------------------------------------------------------------ */
-
 /** Compare a suffix.
  * This matches if the suffix of the feature is the same as the static value.
  */
@@ -206,7 +208,7 @@ public:
   static const std::string KEY;
 
   /// Test for suffix being @a text.
-  bool operator() (Context& ctx, TextView& text) const override;
+  bool operator() (Context& ctx, FeatureView& text) const override;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
@@ -217,7 +219,7 @@ protected:
 
 const std::string Cmp_Suffix::KEY { "suffix" };
 
-bool Cmp_Suffix::operator()(Context &ctx, TextView &text) const {
+bool Cmp_Suffix::operator()(Context &ctx, FeatureView &text) const {
   FeatureData feature { ctx.extract(_exfmt) };
   return text.ends_with(std::get<IndexFor(STRING)>(feature));
 }
@@ -242,7 +244,7 @@ public:
   static const std::string KEY;
 
   /// Test for suffix being @a text.
-  bool operator() (Context& ctx, TextView& text) const override;
+  bool operator() (Context& ctx, FeatureView& text) const override;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
@@ -253,12 +255,84 @@ protected:
 
 const std::string Cmp_SuffixNocase::KEY { "suffix-nocase" };
 
-bool Cmp_SuffixNocase::operator()(Context &ctx, TextView &text) const {
+bool Cmp_SuffixNocase::operator()(Context &ctx, FeatureView &text) const {
   FeatureData feature { ctx.extract(_exfmt) };
   return text.ends_with_nocase(std::get<IndexFor(STRING)>(feature));
 }
 
 Rv<Comparison::Handle> Cmp_SuffixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  return { Handle{new self_type(std::move(exfmt))}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+/** Compare a prefix.
+ * This matches if the prefix of the feature is the same as the static value.
+ */
+class Cmp_Prefix : public StringComparison {
+  using self_type = Cmp_Prefix; ///< Self reference type.
+  using super_type = StringComparison; ///< Parent type.
+public:
+  /// Name of comparison.
+  static const std::string KEY;
+
+  /// Test for prefix being @a text.
+  bool operator() (Context& ctx, FeatureView& text) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  using super_type::super_type;
+};
+
+const std::string Cmp_Prefix::KEY { "prefix" };
+
+bool Cmp_Prefix::operator()(Context &ctx, FeatureView &text) const {
+  FeatureData feature { ctx.extract(_exfmt) };
+  return text.starts_with(std::get<IndexFor(STRING)>(feature));
+}
+
+Rv<Comparison::Handle> Cmp_Prefix::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata) };
+  }
+  return { Handle{new self_type(std::move(exfmt))}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+/** Compare a prefix.
+ * This matches if the prefix of the feature is the same as the static value.
+ */
+class Cmp_PrefixNocase : public StringComparison {
+  using self_type = Cmp_PrefixNocase; ///< Self reference type.
+  using super_type = StringComparison; ///< Parent type.
+public:
+  /// Name of comparison.
+  static const std::string KEY;
+
+  /// Test for prefix being @a text.
+  bool operator() (Context& ctx, FeatureView& text) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  using super_type::super_type;
+};
+
+const std::string Cmp_PrefixNocase::KEY { "prefix-nocase" };
+
+bool Cmp_PrefixNocase::operator()(Context &ctx, FeatureView &text) const {
+  FeatureData feature { ctx.extract(_exfmt) };
+  return text.starts_with_nocase(std::get<IndexFor(STRING)>(feature));
+}
+
+Rv<Comparison::Handle> Cmp_PrefixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
   auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
   if (! errata.is_ok()) {
     return { {}, std::move(errata) };
@@ -278,7 +352,7 @@ public:
   /// Valid types for this comparison.
   static const FeatureMask TYPES;
 
-  bool operator() (Context& ctx, TextView& text) const override;
+  bool operator() (Context& ctx, FeatureView& text) const override;
   unsigned rxp_group_count() const override;
 
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
@@ -316,11 +390,11 @@ Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YA
     return { {}, std::move(rxp_errata) };
   }
 
-  cfg.require_capture_count(rxp.capture_count());
+  cfg.require_rxp_group_count(rxp.capture_count());
   return { Handle(new self_type(std::move(rxp))), {} };
 }
 
-bool Cmp_RegexMatch::operator()(Context& ctx, TextView &text) const {
+bool Cmp_RegexMatch::operator()(Context& ctx, FeatureView &text) const {
   auto result = _rxp(text, ctx._rxp_working);
   if (result > 0) {
     // Update context to have this match as the active capture groups.
@@ -332,15 +406,142 @@ bool Cmp_RegexMatch::operator()(Context& ctx, TextView &text) const {
 }
 
 /* ------------------------------------------------------------------------------------ */
+swoc::Lexicon<bool> PredicateNames { { true, { "true", "1", "on", "enable" }}
+                                   , { false, { "false", "0", "off", "disable" }}
+};
+
+/** Compare a boolean value.
+ * Check if a value is true.
+ */
+class Cmp_true: public Comparison {
+  using self_type = Cmp_true; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const FeatureMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData>& text) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData >& data) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  Cmp_true() = default;
+};
+
+const std::string Cmp_true::KEY { "true" };
+const FeatureMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+  return true == PredicateNames[text];
+}
+
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+  return data;
+}
+
+bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+  return data != 0;
+}
+
+Rv<Comparison::Handle> Cmp_true::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  return { Handle{new self_type}, {} };
+}
+
+/** Compare a boolean value.
+ * Check if a value is false.
+ */
+class Cmp_false: public Comparison {
+  using self_type = Cmp_false; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const FeatureMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData>& text) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData >& data) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  Cmp_false() = default;
+};
+
+const std::string Cmp_false::KEY { "false" };
+const FeatureMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+  return false == PredicateNames[text];
+}
+
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+  return ! data;
+}
+
+bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+  return data == 0;
+}
+
+Rv<Comparison::Handle> Cmp_false::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
+  return { Handle{new self_type}, {} };
+}
+/* ------------------------------------------------------------------------------------ */
+class Cmp_eq : public Comparison {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const FeatureMask TYPES; ///< Support types.
+
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override {
+    auto value = ctx.extract(_value_fmt);
+    return std::get<IndexFor(INTEGER)>(value) == data;
+  }
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node);
+
+protected:
+  Extractor::Format _value_fmt;
+
+  Cmp_eq(Extractor::Format && fmt) : _value_fmt(std::move(fmt)) {}
+};
+
+const std::string Cmp_eq::KEY { "eq" };
+const FeatureMask Cmp_eq::TYPES { MaskFor(INTEGER) };
+
+Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node) {
+  auto && [ fmt, errata ] = cfg.parse_feature(key_node);
+  if (!errata.is_ok()) {
+    return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
+  }
+  if (!TYPES[fmt._feature_type]) {
+    return { {}, Errata().error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES) };
+  }
+  return { Handle(new self_type(std::move(fmt))), {} };
+}
+/* ------------------------------------------------------------------------------------ */
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Comparison::define(Cmp_Match::KEY, Cmp_Match::TYPES, &Cmp_Match::load);
-  Comparison::define(Cmp_MatchNocase::KEY, Cmp_MatchNocase::TYPES, &Cmp_MatchNocase::load);
+  Comparison::define(Cmp_Match::KEY, Cmp_Match::TYPES, Cmp_Match::load);
+  Comparison::define(Cmp_MatchNocase::KEY, Cmp_MatchNocase::TYPES, Cmp_MatchNocase::load);
   Comparison::define(Cmp_Suffix::KEY, Cmp_Suffix::TYPES, &Cmp_Suffix::load);
-  Comparison::define(Cmp_SuffixNocase::KEY, Cmp_SuffixNocase::TYPES, &Cmp_SuffixNocase::load);
-  Comparison::define(Cmp_RegexMatch::KEY, Cmp_RegexMatch::TYPES, &Cmp_RegexMatch::load);
-  Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, &Cmp_RegexMatch::load);
+  Comparison::define(Cmp_SuffixNocase::KEY, Cmp_SuffixNocase::TYPES, Cmp_SuffixNocase::load);
+  Comparison::define(Cmp_Prefix::KEY, Cmp_Prefix::TYPES, &Cmp_Prefix::load);
+  Comparison::define(Cmp_PrefixNocase::KEY, Cmp_PrefixNocase::TYPES, Cmp_PrefixNocase::load);
+  Comparison::define(Cmp_RegexMatch::KEY, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
+  Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
+  Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
+  Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+  Comparison::define(Cmp_eq::KEY, Cmp_eq::TYPES, Cmp_eq::load);
+
+  // Other file scope initializations.
+  PredicateNames.set_default(false);
 
   return true;
 } ();
