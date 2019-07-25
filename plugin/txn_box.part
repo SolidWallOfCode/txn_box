@@ -1,0 +1,15 @@
+Import('*')
+PartName("txn_box")
+PartVersion("1.0.0")
+
+DependsOn([
+    Component("trafficserver", version_range='7.*-*'),
+    Component("swoc++"),
+    Component("yaml-cpp")
+])
+
+
+files = Pattern(src_dir="src",includes=["*.cc"]).files()
+env.Append(CPPPATH="include")
+out = env.SharedLibrary("txn_box", files, SHLIBPREFIX='')
+env.InstallPrivateBin(env.SetRPath(out))
