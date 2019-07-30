@@ -157,6 +157,16 @@ public:
     return _rxp_capture;
   }
 
+  /** Clear cached data.
+   *
+   */
+  void clear_cache() {
+    _creq = {};
+    _preq = {};
+    _ursp = {};
+    _prsp = {};
+  }
+
 protected:
   // HTTP header objects for the transaction.
   ts::HttpHeader _creq; ///< Client request header.

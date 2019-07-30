@@ -116,6 +116,20 @@ class HttpField : public HeapObject {
   using super_type = HeapObject; ///< Parent type.
 public:
   HttpField() = default;
+  HttpField(self_type const&) = delete;
+  HttpField(self_type && that) : super_type(that), _hdr(that._hdr) {
+    that._buff = nullptr;
+    that._hdr = nullptr;
+    that._loc = nullptr;
+  }
+
+  self_type & operator = (self_type const&) = delete;
+  self_type &operator = (self_type && that) {
+    this->~self_type();
+    new (this) self_type(std::move(that));
+    return *this;
+  }
+
   ~HttpField();
 
   /// Return the current value for the field.
@@ -150,6 +164,9 @@ class HttpHeader : public HeapObject {
   using self_type = HttpHeader; ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
+  HttpHeader() = default;
+  HttpHeader(TSMBuffer buff, TSMLoc loc);
+
   /** Retrieve the URL object from the header.
    *
    * @return A URL object wrapper.
@@ -190,7 +207,7 @@ public:
   TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
   swoc::TextView method() const { int length; auto text = TSHttpHdrMethodGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
-  bool status_set(TSHttpStatus status);
+  bool status_set(TSHttpStatus status) const;
 
   /** Set the reason field in the header.
    *
@@ -198,10 +215,6 @@ public:
    * @return @c true if success, @c false if not.
    */
   bool reason_set(swoc::TextView reason);
-
-public:
-  HttpHeader() = default;
-  HttpHeader(TSMBuffer buff, TSMLoc loc);
 };
 
 /** Wrapper for a TS C API transaction.

@@ -6,6 +6,7 @@ include(GNUInstallDirs)
 
 find_package(swoc++ CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
+find_package(traffic-server CONFIG REQUIRED)
 #find_package(canned-yaml CONFIG REQUIRED)
 
 add_library(plugin SHARED
@@ -25,6 +26,6 @@ set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")
 
 target_link_libraries(plugin PUBLIC swoc++::swoc++ yaml-cpp pcre2-8)
 target_include_directories(plugin PUBLIC include)
-target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include)
+target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include ${TRAFFIC_SERVER_INCLUDE_DIR})
 
 install(TARGETS plugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

@@ -277,6 +277,48 @@ Rv<Directive::Handle> Do_remove_creq_field::load(Config & cfg, YAML::Node drtv_n
   return { std::move(handle), {} };
 }
 /* ------------------------------------------------------------------------------------ */
+/// Set a field in the client request if not already set.
+class Do_set_preq_field_default : public Directive, FieldDirective {
+  using self_type = Do_set_preq_field_default; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /// Perform directive.
+  Errata invoke(Context & ctx) override;
+  /// Load from YAML configuration.
+  static Rv<Handle> load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node);
+
+protected:
+  Do_set_preq_field_default() = default;
+  TextView key() const override { return KEY; }
+};
+
+const std::string Do_set_preq_field_default::KEY { "set-preq-field-default" };
+const HookMask Do_set_preq_field_default::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::PREQ}) };
+
+Errata Do_set_preq_field_default::invoke(Context &ctx) {
+  if (ts::HttpHeader hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    TextView name = std::get<IndexFor(STRING)>(ctx.extract(_name_fmt));
+    if (ts::HttpField field { hdr.field_obtain(name) } ; field.is_valid()) {
+      TextView value = std::get<IndexFor(STRING)>(ctx.extract(_value_fmt));
+      field.assign_if_not_set(value);
+    }
+    return Errata().error(R"(Failed to find or create field "{}")", name);
+  }
+  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+}
+
+Rv<Directive::Handle> Do_set_preq_field_default::load(Config & cfg, YAML::Node drtv_node, YAML::Node key_node) {
+  auto * self = new self_type;
+  Handle handle(self);
+  Errata errata { self->FieldDirective::load(cfg, key_node) };
+  if (! errata.is_ok()) {
+    return { {}, std::move(errata.info(R"(While parsing directive at {}.)", drtv_node.Mark()))};
+  }
+  return { std::move(handle), {} };
+}
+/* ------------------------------------------------------------------------------------ */
 /// Remove a field from the upstream response.
 class Do_remove_ursp_field : public Directive {
   using self_type = Do_remove_ursp_field; ///< Self reference type.
@@ -1132,6 +1174,7 @@ namespace {
   Config::define(Do_remove_ursp_field::KEY, Do_remove_ursp_field::HOOKS, Do_remove_ursp_field::load);
   Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
+  Config::define(Do_set_preq_field_default::KEY, Do_set_preq_field_default::HOOKS, Do_set_preq_field_default::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);

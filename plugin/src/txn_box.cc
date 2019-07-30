@@ -121,14 +121,6 @@ ts::URL ts::HttpHeader::url() {
   return {};
 }
 
-ts::HttpField ts::HttpHeader::field(TextView name) {
-  TSMLoc field_loc;
-  if (this->is_valid() && nullptr != (field_loc = TSMimeHdrFieldFind(_buff, _loc, name.data(), name.size()))) {
-    return { _buff, _loc, field_loc};
-  }
-  return {};
-}
-
 ts::HttpHeader ts::HttpTxn::creq_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
@@ -161,6 +153,14 @@ ts::HttpHeader ts::HttpTxn::prsp_hdr() {
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientRespGet(_txn, &buff, &loc)) {
     return { buff, loc };
+  }
+  return {};
+}
+
+ts::HttpField ts::HttpHeader::field(TextView name) {
+  TSMLoc field_loc;
+  if (this->is_valid() && nullptr != (field_loc = TSMimeHdrFieldFind(_buff, _loc, name.data(), name.size()))) {
+    return { _buff, _loc, field_loc};
   }
   return {};
 }
@@ -198,7 +198,7 @@ ts::HttpHeader& ts::HttpHeader::field_remove(swoc::TextView name) {
   return *this;
 }
 
-bool ts::HttpHeader::status_set(TSHttpStatus status) {
+bool ts::HttpHeader::status_set(TSHttpStatus status) const {
   return TS_SUCCESS == TSHttpHdrStatusSet(_buff, _loc, status);
 }
 
@@ -222,8 +222,21 @@ swoc::MemSpan<char> ts::HttpTxn::ts_dup(swoc::TextView const &text) {
   return {dup, text.size()};
 }
 
+// API changed.
+namespace detail {
+template < typename S > auto
+ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<0>) -> bool {
+  return txn.prsp_hdr().status_set(status);
+}
+
+// New for ATS 9, prefer this if available.
+template < typename S > auto ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn._txn, status), bool()) {
+  return TSHttpTxnStatusSet(txn._txn, status) == TS_SUCCESS;
+}
+} // namespace detail
+
 void ts::HttpTxn::status_set(int status) {
-  TSHttpTxnStatusSet(_txn, static_cast<TSHttpStatus>(status));
+  detail::ts_status_set(*this, static_cast<TSHttpStatus>(status), swoc::meta::CaseArg);
 }
 
 ts::String ts::HttpTxn::effective_url_get() const {
@@ -251,6 +264,7 @@ int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
     Hook hook { Convert_TS_Event_To_TxB_Hook(ev) };
     if (Hook::INVALID != hook) {
       ctx->_cur_hook = hook;
+      ctx->clear_cache();
       // Run the top level directives first.
       for (auto const &handle : Plugin_Config->hook_directives(hook)) {
         handle->invoke(*ctx); // need to log errors here.

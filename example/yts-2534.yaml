@@ -1,4 +1,4 @@
 txn_box:
-  when: creq
+  when: preq
   do:
-    set-creq-field-default: [ "Accept-Encoding", "plaintext" ]
+    set-preq-field-default: [ "Accept-Encoding", "identity" ]
