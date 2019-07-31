@@ -24,11 +24,17 @@
 
 // Structured binding support for nodes. E.g.
 // YAML::Node node;
-// for ( auto const& [ key, value ] : node ] { ... }
+// for ( auto const& [ key, value ] : node ) { ... }
+// for ( auto [ key, value ] : node) { ... }
+// lvalue reference doesn't work because the iterator returns a value, not a reference.
 namespace std {
 template<> class tuple_size<YAML::const_iterator::value_type> : public std::integral_constant<size_t, 2> {};
 template<> class tuple_element<0, YAML::const_iterator::value_type> { public: using type = const YAML::Node; };
 template<> class tuple_element<1, YAML::const_iterator::value_type> { public: using type = const YAML::Node; };
+
+template<> class tuple_size<YAML::iterator::value_type> : public std::integral_constant<size_t, 2> {};
+template<> class tuple_element<0, YAML::iterator::value_type> { public: using type = YAML::Node; };
+template<> class tuple_element<1, YAML::iterator::value_type> { public: using type = YAML::Node; };
 } // namespace std
 
 template < size_t IDX > YAML::Node const& get(YAML::const_iterator::value_type const& v);
@@ -36,6 +42,10 @@ template <> inline YAML::Node const& get<0>(YAML::const_iterator::value_type con
 .first; }
 template <> inline YAML::Node const& get<1>(YAML::const_iterator::value_type const& v) { return v
 .second; }
+
+template < size_t IDX > YAML::Node get(YAML::iterator::value_type& v);
+template <> inline YAML::Node get<0>(YAML::iterator::value_type& v) { return v.first; }
+template <> inline YAML::Node get<1>(YAML::iterator::value_type& v) { return v.second; }
 
 // Providing formatting for the node mark - this prints out just the line.
 namespace swoc {

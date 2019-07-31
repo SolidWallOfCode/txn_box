@@ -11,20 +11,22 @@ extra:
 - &response
   status: 200
   reason: OK
+
 meta:
   version: "1.0"
   global-field-rules:
     fields: []
+
 sessions:
-- protocols: [ "tcp", "ipv6" ]
-  transactions:
-  - client-request:
-      <<: *request
-  - proxy-request:
-      <<: *request
-  - server-response:
-      content:
-        size: 6128
-      <<: *response
-  - proxy-response:
-      <<: *response
+  - protocols: [ "tcp", "ipv6" ]
+    transactions:
+    - client-request:
+        <<: *request
+      proxy-request:
+        <<: *request
+      server-response:
+        content:
+          size: 6128
+        <<: *response
+      proxy-response:
+        <<: *response
