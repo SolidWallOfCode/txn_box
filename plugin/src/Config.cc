@@ -339,6 +339,8 @@ Errata Config::load_file(swoc::file::path const& file_path) {
         PLUGIN_NAME, file_path);
   }
 
+  yaml_merge(root);
+
   if (base_node.IsSequence()) {
     for ( auto const& child : base_node ) {
       zret.note(this->load_top_level_directive(child));

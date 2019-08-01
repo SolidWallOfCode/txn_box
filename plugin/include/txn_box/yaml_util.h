@@ -53,7 +53,22 @@ inline BufferWriter &
 bwformat(BufferWriter &w, bwf::Spec const &spec, YAML::Mark const &mark) {
   return w.print("Line {}", mark.line);
 }
+
 } // namespace swoc
+
+/// Merge key value for YAML map merging.
+static const std::string YAML_MERGE_KEY { "<<" };
+/** Perform YAML merging on the tree starting at @a root.
+ *
+ * @param root Root node.
+ * @return The updated @a root node.
+ *
+ * This does a resursive descent and updates all nodes that are descendants of @a root.
+ * The merge keys are removed and replaced with the promoted keys and values.
+ *
+ * See https://yaml.org/type/merge.html
+ */
+YAML::Node yaml_merge(YAML::Node & root);
 
 namespace YAML {
 
