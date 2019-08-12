@@ -185,7 +185,7 @@ ts::HttpHeader ts::HttpTxn::prsp_hdr() {
   return {};
 }
 
-ts::HttpField ts::HttpHeader::field(TextView name) {
+ts::HttpField ts::HttpHeader::field(TextView name) const {
   TSMLoc field_loc;
   if (this->is_valid() && nullptr != (field_loc = TSMimeHdrFieldFind(_buff, _loc, name.data(), name.size()))) {
     return { _buff, _loc, field_loc};

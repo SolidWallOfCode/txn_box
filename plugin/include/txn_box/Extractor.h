@@ -41,8 +41,9 @@ public:
    * the extractor, if any, for the specifier.
    */
   struct Spec : public swoc::bwf::Spec {
+    swoc::TextView _arg; ///< Argument part of the name.
     /// Extractor used in the spec, if any.
-    Extractor * _extractor = nullptr;
+    Extractor * _exf = nullptr;
   };
 
   /// Parsed extractor string.
@@ -192,13 +193,22 @@ public:
    */
   static swoc::Rv<Format> parse(swoc::TextView format_string);
 
+  /** Parse a string as a raw extractor.
+   *
+   * @param text Extractor text.
+   * @return A format for the extractor, or errors.
+   *
+   * This is useful for parsing a string which is presumed to be a single extractor.
+   */
+  static swoc::Rv<Format> parse_extractor(swoc::TextView text);
+
   /** Create a format string as a literal.
    *
    * @param format_string Format string.
    * @return The format instance.
    *
    * This does no parsing of @a format_string. It will return a format that outputs @a format_string
-   * literally.
+   * literally. This format will always have default formatting and no extension.
    */
   static Format literal(swoc::TextView format_string);
 
@@ -483,7 +493,7 @@ protected:
     /// Number of single value features that need feature data.
     index_type _feature_count = 0;
 
-    index_type _edge_count = 0; ///< # of edges (direct dependencies) stored in @a _info
+    index_type _edge_count = 0; ///< number of edges (direct dependencies) stored in @a _info
 
     /** Construct a wrapper on a tracking array.
      *

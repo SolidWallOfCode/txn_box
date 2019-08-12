@@ -1,9 +1,9 @@
-/* @file
-   Common types and utilities needed by all compilation units.
-
- * Copyright 2019, Oath Inc.
- * SPDX-License-Identifier: Apache-2.0
-*/
+/** @file
+  * Common types and utilities needed by all compilation units.
+  *
+  * Copyright 2019, Oath Inc.
+  * SPDX-License-Identifier: Apache-2.0
+  */
 
 #pragma once
 
@@ -20,6 +20,9 @@ class Config;
 class Context;
 
 namespace YAML { class Node; }
+
+/// Separator character for names vs. argument.
+static constexpr char ARG_SEP = '.';
 
 /// Supported feature types.
 enum FeatureType {
@@ -103,7 +106,7 @@ inline constexpr unsigned IndexFor(FeatureType type) {
 inline FeatureMask MaskFor(FeatureType type) {
   FeatureMask mask;
   mask[IndexFor(type)] = true;
-  return std::move(mask);
+  return mask;
 }
 
 /** Create a @c FeatureMask containing @a types.
@@ -128,7 +131,7 @@ inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
   for (auto type : types) {
     mask[IndexFor(type)] = true;
   }
-  return std::move(mask);
+  return mask;
 }
 
 /// Conversion between @c FeatureType and printable names.
@@ -138,6 +141,7 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type)
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureData const &feature);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask);
 }
+
 /// Supported hooks.
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
@@ -151,15 +155,21 @@ enum class Hook {
   END = PRSP + 1 ///< Iteration support.
 };
 
+/** Convert a @c Hook enumeration to an unsigned value.
+ *
+ * @param id Enumeration to convert.
+ * @return Numeric value of @a id.
+ */
 inline constexpr unsigned IndexFor(Hook id) {
   return static_cast<unsigned>(id);
 }
 
+/// Set of enabled hooks.
 using HookMask = std::bitset<IndexFor(Hook::END)>;
 
 /** Create a @c HookMask containing a single @a type.
  *
- * @param type Type to put in the mask.
+ * @param hook Enumeration value for the hook to mark.
  * @return A mask with only @a type set.
  *
  * This is useful for initializing @c const instance of @c HookMask. For example, if the mask
@@ -168,19 +178,16 @@ using HookMask = std::bitset<IndexFor(Hook::END)>;
  * @code
  *   static const HookMask Mask { MaskFor(Hook::PRE_REMAP) };
  * @endcode
- *
- * @see FeatureType
- * @see HookMask
  */
 inline HookMask MaskFor(Hook hook) {
   HookMask mask;
   mask[IndexFor(hook)] = true;
-  return std::move(mask);
+  return mask;
 }
 
 /** Create a @c HookMask containing @a types.
  *
- * @param types List of types to put in the mask.
+ * @param hooks Enumeration values to hooks to mark.
  * @return A mask with the specified @a types set.
  *
  * @a types is an initializer list. For example, if the mask should have @c CREQ and @c PREQ
@@ -200,7 +207,7 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
   for (auto hook : hooks) {
     mask[IndexFor(hook)] = true;
   }
-  return std::move(mask);
+  return mask;
 }
 
 /// Make @c tuple_size work for the @c Hook enum.

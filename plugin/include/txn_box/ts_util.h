@@ -54,7 +54,7 @@ inline String::~String() { if (_view.data()) { TSfree(const_cast<char*>(_view.da
 
 inline String::operator swoc::TextView() const { return _view; }
 
-/// Clean up an TS @C TSIOBuffer
+/// Clean up an TS @c TSIOBuffer
 struct IOBufferDeleter {
   void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); } }
 };
@@ -94,6 +94,13 @@ public:
   swoc::TextView host() const; ///< View of the URL host.
   swoc::TextView scheme() const; ///< View of the URL scheme.
   swoc::TextView path() const; ///< View of the URL path.
+
+  /** Set the host in the URL.
+   *
+   * @param host Host.
+   * @return @a this.
+   */
+  self_type & set_host(swoc::TextView host);
 protected:
   mutable IOBuffer _iobuff; ///< IO buffer with the URL text.
   mutable swoc::TextView _view; ///< View of the URL in @a _iobuff.
@@ -167,7 +174,7 @@ public:
    * @param name Field name.
    * @return The field if found, an invalid field if not.
    */
-  HttpField field(swoc::TextView name);
+  HttpField field(swoc::TextView name) const;
 
   /** Create a field with @a name and no value.
    *
@@ -270,6 +277,13 @@ inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+
+inline URL &URL::set_host(swoc::TextView host) {
+  if (this->is_valid()) {
+    TSUrlHostSet(_buff, _loc, host.data(), host.size());
+  }
+  return *this;
+}
 
 inline HttpField::HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc) : super_type(buff, field_loc), _hdr(hdr_loc) {}
 

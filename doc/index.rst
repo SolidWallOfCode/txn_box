@@ -11,6 +11,7 @@ Transaction Box
 
    txn_box.en
    arch.en
+   directive.en
    design.en
    future.en
 

@@ -33,6 +33,20 @@ Extractor::Format Extractor::literal(TextView format_string) {
   return std::move(fmt);
 }
 
+Rv<Extractor::Format> Extractor::parse_extractor(TextView text) {
+  auto key = text.prefix_at(ARG_SEP);
+  if ( auto ex { _ex_table.find(key) } ; ex != _ex_table.end() ) {
+    Spec spec;
+    Format fmt;
+    spec._exf = ex->second;
+    spec._name = key;
+    spec._arg = text.remove_prefix(key.size() + 1);
+    fmt.push_back(spec);
+    return { std::move(fmt), {} };
+  }
+  return  { {}, Errata().error(R"(Extractor "{}" not found.)", key) };
+}
+
 Rv<Extractor::Format> Extractor::parse(TextView format_string) {
   Spec literal_spec; // used to handle literals as spec instances.
   auto parser { swoc::bwf::Format::bind(format_string) };
@@ -58,12 +72,17 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
         if (spec._idx >= 0) {
           fmt.push_back(spec);
           fmt._max_arg_idx = std::max(fmt._max_arg_idx, spec._idx);
-        } else if ( auto ex { _ex_table.find(spec._name) } ; ex != _ex_table.end() ) {
-          spec._extractor = ex->second;
-          fmt.push_back(spec);
         } else {
-          zret.error(R"(Extractor "{}" not found at offset {}.)", spec._name, format_string.size
-          () - parser._fmt.size());
+          auto arg = TextView{spec._name};
+          auto key = arg.take_prefix_at(ARG_SEP);
+          if ( auto ex { _ex_table.find(key) } ; ex != _ex_table.end() ) {
+            spec._exf = ex->second;
+            spec._name = key;
+            spec._arg = arg;
+            fmt.push_back(spec);
+          } else {
+            zret.error(R"(Extractor "{}" not found at offset {}.)", key, format_string.size() - parser._fmt.size());
+          }
         }
       }
     }
@@ -90,9 +109,9 @@ Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec cons
   } else {
     _literal_p = false;
     if (_specs.size() == 1) {
-      if (spec._extractor) {
-        _feature_type = spec._extractor->feature_type();
-        if (nullptr == dynamic_cast<DirectFeature*>(spec._extractor)) {
+      if (spec._exf) {
+        _feature_type = spec._exf->feature_type();
+        if (nullptr == dynamic_cast<DirectFeature*>(spec._exf)) {
           _direct_p = false;
         }
       }
@@ -141,13 +160,13 @@ Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &no
   if (errata.is_ok()) {
     // Walk the items to see if any are cross references.
     for ( auto & item : fmt ) {
-      if (item._extractor == &ex_this) {
+      if (item._exf == &ex_this) {
         errata = this->load_key(cfg, info, item._ext);
         if (! errata.is_ok()) {
           break;
         }
         // replace the raw "this" extractor with the localized one.
-        item._extractor = &_ex_this;
+        item._exf = &_ex_this;
       }
     }
   }

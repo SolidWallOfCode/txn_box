@@ -88,14 +88,17 @@ public:
    */
   swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node, FeatureRefState& state);
 
-  /** Parse a string as a feature extractor.
+  /** Parse a node as a feature extractor.
    *
    * @param fmt_node The node with the extractor.
    * @param str_type Standard view or C string.
    * @return The condensed extractor format or errors on failure.
    *
-   * This must be called to parse extractors, rather than direct comparison because this does a
-   * lot of required checks on the input.
+   * This does extensive work for handle the various feature extraction capabilities. This should
+   * be bypassed only in extreme cases where very specialized handling is needed. The result of
+   * this can be passed to @c Context::extract to get the actual value at runtime.
+   *
+   * @see Context::extract
    */
   swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node, StrType str_type = StrType::VIEW);
 

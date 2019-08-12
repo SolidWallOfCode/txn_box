@@ -397,8 +397,8 @@ bool Cmp_RegexMatch::operator()(Context& ctx, FeatureView &text) const {
 }
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<bool> PredicateNames { { true, { "true", "1", "on", "enable" }}
-                                   , { false, { "false", "0", "off", "disable" }}
+swoc::Lexicon<bool> PredicateNames { { true, { "true", "1", "on", "enable", "Y", "yes" }}
+                                   , { false, { "false", "0", "off", "disable", "N", "no" }}
 };
 
 /** Compare a boolean value.
