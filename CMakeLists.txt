@@ -11,7 +11,5 @@ pkg_check_modules(yaml-cpp REQUIRED IMPORTED_TARGET yaml-cpp)
 pkg_check_modules(libswoc++ REQUIRED IMPORTED_TARGET libswoc++)
 pkg_check_modules(trafficserver REQUIRED IMPORTED_TARGET trafficserver)
 
-# If using CLion, pass "-DENABLE_IDE_HACKS=TRUE" as a CMake argument to make the editor behave as desired.
-if(${ENABLE_IDE_HACKS})
-    add_subdirectory(plugin)
-endif()
+add_subdirectory(plugin)
+add_subdirectory(unit_tests)
