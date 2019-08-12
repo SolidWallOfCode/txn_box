@@ -3,6 +3,6 @@ txn_box:
   do:
   - with: "{creq-host}"
     select:
-    - match: httpbin.org
+    - match: "httpbin.org"
       do:
-      - set-preq-field: [ "X-swoc", "Modified" ]
+      - set-preq-field.X-swoc: "Modified"

@@ -21,6 +21,7 @@
 #include "catch.hpp"
 
 #include "txn_box/yaml_util.h"
+using namespace swoc::literals;
 
 TEST_CASE("YAML special features", "[yaml]") {
   // Verify I understand how quoted values are distinguished.
@@ -30,4 +31,23 @@ TEST_CASE("YAML special features", "[yaml]") {
   REQUIRE(n1["key"].Tag() == "!");
   YAML::Node n2 = YAML::Load(unquoted.data());
   REQUIRE(n2["key"].Tag() == "?");
+  YAML::Node n = YAML::Load("key: true");
+  REQUIRE(n["key"].Tag() == "?");
+
+  n = YAML::Load("key: null");
+  REQUIRE(n["key"].Tag().empty() == true);
+  REQUIRE(n["key"].IsNull() == true);
+  REQUIRE(n["key"].Scalar().empty() == true);
+  n = YAML::Load(R"(key: "null")");
+  REQUIRE(n["key"].Tag() == "!");
+  REQUIRE(n["key"].IsNull() == false);
+  REQUIRE(n["key"].Scalar() == "null");
+  n = YAML::Load(R"(key:)");
+  REQUIRE(n["key"].Tag().empty() == true);
+  REQUIRE(n["key"].IsNull() == true);
+  REQUIRE(n["key"].Scalar().empty() == true);
+  n = YAML::Load(R"(key: "")");
+  REQUIRE(n["key"].Tag() == "!");
+  REQUIRE(n["key"].IsNull() == false);
+  REQUIRE(n["key"].Scalar().empty() == true);
 }

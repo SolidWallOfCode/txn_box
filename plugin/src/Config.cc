@@ -89,10 +89,15 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
 
   // Handle simple string.
   if (fmt_node.IsScalar()) {
+    Rv<Extractor::Format> result;
+    if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
+      result = Extractor::parse_extractor(fmt_node.Scalar());
+    } else {
+      result = Extractor::parse(fmt_node.Scalar());
+    }
 
-    auto &&[exfmt, errata]{Extractor::parse(fmt_node.Scalar())};
-    if (errata.is_ok()) {
-
+    if (result.is_ok()) {
+      auto & exfmt = result.result();
       if (exfmt._max_arg_idx >= 0) {
         if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
           return { {}, Errata().error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark()) };
@@ -108,7 +113,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
       exfmt._force_c_string_p = StrType::C == str_type;
       this->localize(exfmt);
     }
-    return {std::move(exfmt), std::move(errata)};
+    return std::move(result);
   } else if (fmt_node.IsSequence()) {
     // empty list is treated as an empty string.
     if (fmt_node.size() < 1) {
@@ -153,21 +158,23 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 {
   YAML::Node key_node;
   for ( auto const&  [ key_name, key_value ] : drtv_node ) {
-    TextView key { key_name.Scalar() };
+    TextView arg { key_name.Scalar() };
+    TextView name = arg.take_prefix_at('.');
+
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
-    if (key == Directive::DO_KEY) {
+    if (name == Directive::DO_KEY) {
       continue;
     }
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to directives. First key that is in the factory determines the directive type.
     // If none of the keys are in the factory, that's an error and is reported after the loop.
-    if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
+    if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
       auto const& [ hooks, worker, static_info ] { spot->second };
       if (! hooks[IndexFor(this->current_hook())]) {
-        return { {}, Errata().error(R"(Directive "{}" at {} is not allowed on hook "{}".)", key, drtv_node.Mark(), this->current_hook()) };
+        return { {}, Errata().error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook()) };
       }
-      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, key_value) };
+      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, name, arg, key_value) };
       if (! drtv_errata.is_ok()) {
         drtv_errata.info(R"()");
         return { {}, std::move(drtv_errata) };
@@ -239,7 +246,7 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {
     YAML::Node key_node { drtv_node[When::KEY] };
     if (key_node) {
-      auto &&[handle, errata]{When::load(*this, drtv_node, key_node)};
+      auto &&[handle, errata]{When::load(*this, drtv_node, When::KEY, {}, key_node)};
       if (errata.is_ok()) {
         auto hook = static_cast<When*>(handle.get())->get_hook();
         _roots[IndexFor(hook)].emplace_back(std::move(handle));

@@ -62,12 +62,12 @@ Errata Context::invoke_for_hook(Hook hook) {
 }
 
 void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
-  spec._extractor->format(w, spec, *this);
+  spec._exf->format(w, spec, *this);
 }
 
 FeatureData Context::extract(Extractor::Format const &fmt) {
   if (fmt._direct_p) {
-    return dynamic_cast<DirectFeature *>(fmt[0]._extractor)->direct_view(*this, fmt[0]);
+    return dynamic_cast<DirectFeature *>(fmt[0]._exf)->direct_view(*this, fmt[0]);
   } else if (fmt._literal_p) {
     if (fmt._feature_type == INTEGER) {
       return fmt._number;
@@ -93,9 +93,9 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: return static_cast<IntegerFeature*>(fmt[0]._extractor)->extract(*this);
+      case INTEGER: return static_cast<IntegerFeature*>(fmt[0]._exf)->extract(*this);
       case BOOLEAN:
-        return static_cast<BooleanFeature*>(fmt[0]._extractor)->extract(*this);
+        return static_cast<BooleanFeature*>(fmt[0]._exf)->extract(*this);
     }
   }
   return {};
