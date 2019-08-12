@@ -1,6 +1,7 @@
 Import('*')
 PartName("txn_box")
-PartVersion("1.0.0")
+PartVersion("0.1.0")
+env.Part("txn_box.rpm.part")
 
 DependsOn([
     Component("trafficserver", version_range='7.*-*'),
@@ -10,6 +11,6 @@ DependsOn([
 
 
 files = Pattern(src_dir="src",includes=["*.cc"]).files()
-env.Append(CPPPATH="include")
+env.Append(CPPPATH="include", CCFLAGS=['-std=c++17'])
 out = env.SharedLibrary("txn_box", files, SHLIBPREFIX='')
 env.InstallPrivateBin(env.SetRPath(out))

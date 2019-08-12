@@ -38,6 +38,8 @@ __pycache__
 .sconf_temp
 .sconsign.dblite
 _install
+_build
+dist
 config.log
 cmake-build*
 include/swoc

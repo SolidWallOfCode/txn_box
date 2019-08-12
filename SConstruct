@@ -7,7 +7,7 @@ SetOptionDefault("CXXFLAGS", ['-std=c++17'])
 # control shim for trafficserver
 AddOption("--with-trafficserver",
           dest='with_trafficserver',
-          nargs=1, 
+          nargs=1,
           type='string',
           action='store',
           metavar='DIR',
@@ -16,7 +16,7 @@ AddOption("--with-trafficserver",
 
 path = GetOption("with_trafficserver")
 
-Part("plugin/txn_box.part")
+Part("plugin/txn_box.part", package_group='txn_box')
 
 # the depends
 Part("#lib/libyaml.part",vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", tag="yaml-cpp-0.6.2"))

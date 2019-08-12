@@ -1,7 +1,7 @@
 /** @file
    Non-core feature extractor implementations.
 
- * Copyright 2019 Oath, Inc.
+ * Copyright 2019, Oath Inc.
  * SPDX-License-Identifier: Apache-2.0
 */
 
