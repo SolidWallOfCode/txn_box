@@ -77,192 +77,6 @@ Config::Config() {
 
 }
 
-Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
-  if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
-    if (! fmt_node.IsScalar()) {
-      return { {}, Errata().error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark()) };
-    }
-    auto exfmt { Extractor::literal(fmt_node.Scalar()) };
-    exfmt._force_c_string_p = StrType::C == str_type;
-    return std::move(exfmt);
-  }
-
-  // Handle simple string.
-  if (fmt_node.IsScalar()) {
-    Rv<Extractor::Format> result;
-    if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
-      result = Extractor::parse_extractor(fmt_node.Scalar());
-    } else {
-      result = Extractor::parse(fmt_node.Scalar());
-    }
-
-    if (result.is_ok()) {
-      auto & exfmt = result.result();
-      if (exfmt._max_arg_idx >= 0) {
-        if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
-          return { {}, Errata().error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark()) };
-        } else if (exfmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
-          return { {}, Errata().error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", exfmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line) };
-        }
-      }
-
-      if (exfmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
-        _feature_state->_feature_ref_p = true;
-      }
-
-      exfmt._force_c_string_p = StrType::C == str_type;
-      this->localize(exfmt);
-    }
-    return std::move(result);
-  } else if (fmt_node.IsSequence()) {
-    // empty list is treated as an empty string.
-    if (fmt_node.size() < 1) {
-      auto exfmt { Extractor::literal(TextView{}) };
-      exfmt._force_c_string_p = StrType::C == str_type;
-      return std::move(exfmt);
-    }
-
-    auto str_node { fmt_node[0] };
-    if (! str_node.IsScalar()) {
-      return { {}, Errata().error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark()) };
-    }
-
-    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
-      return { {}, std::move(errata) };
-    }
-
-    fmt._force_c_string_p = StrType::C == str_type;
-    this->localize(fmt);
-
-    for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
-      auto child { fmt_node[idx] };
-      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
-      if (! mod_errata.is_ok()) {
-        mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
-        return { {}, std::move(mod_errata) };
-      }
-      if (_feature_state) {
-        _feature_state->_type = mod->output_type();
-      }
-      fmt._mods.emplace_back(std::move(mod));
-    }
-    return { std::move(fmt), {} };
-  }
-
-  return { {}, Errata().error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark()) };
-}
-
-Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
-{
-  YAML::Node key_node;
-  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
-    TextView arg { key_name.Scalar() };
-    TextView name = arg.take_prefix_at('.');
-
-    // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
-    // if there is ever more than one.
-    if (name == Directive::DO_KEY) {
-      continue;
-    }
-    // See if this is in the factory. It's not an error if it's not, to enable adding extra
-    // keys to directives. First key that is in the factory determines the directive type.
-    // If none of the keys are in the factory, that's an error and is reported after the loop.
-    if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
-      auto const& [ hooks, worker, static_info ] { spot->second };
-      if (! hooks[IndexFor(this->current_hook())]) {
-        return { {}, Errata().error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook()) };
-      }
-      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, name, arg, key_value) };
-      if (! drtv_errata.is_ok()) {
-        drtv_errata.info(R"()");
-        return { {}, std::move(drtv_errata) };
-      }
-      // Fill in config depending data and pass a pointer to it to the directive instance.
-      auto & rtti = _drtv_info[static_info._idx];
-      if (++rtti._count == 1) { // first time this directive type has been used.
-        rtti._idx = static_info._idx;
-        rtti._cfg_span = _arena.alloc(static_info._cfg_storage_required);
-        rtti._ctx_storage_offset = _ctx_storage_required;
-        _ctx_storage_required += static_info._ctx_storage_required;
-      }
-      drtv->_rtti = &rtti;
-
-      return { std::move(drtv), {} };
-    }
-  }
-  return { {}, Errata().error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark()) };
-}
-
-Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
-  if (drtv_node.IsMap()) {
-    return { this->load_directive(drtv_node) };
-  } else if (drtv_node.IsSequence()) {
-    Errata zret;
-    auto list { new DirectiveList };
-    Directive::Handle drtv_list{list};
-    for (auto child : drtv_node) {
-      auto && [handle, errata] {this->load_directive(child)};
-      if (errata.is_ok()) {
-        list->push_back(std::move(handle));
-      } else {
-        return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
-      }
-    }
-    return {std::move(drtv_list), {}};
-  } else if (drtv_node.IsNull()) {
-    return {Directive::Handle(new NilDirective)};
-  }
-  return { {}, Errata().error(R"(Directive at {} is not an object or a sequence as required.)",
-      drtv_node.Mark()) };
-}
-
-// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
-// all paths must be explored and so the active feature needs to be stacked up so it can be restored
-// after a tree descent. During runtime, only one path is followed and therefore this isn't
-// required.
-Rv<Directive::Handle>
-Config::parse_directive(YAML::Node const& drtv_node, FeatureRefState &state) {
-  // Set up state preservation.
-  auto saved_feature = _feature_state;
-  auto saved_rxp = _rxp_group_state;
-  if (state._feature_active_p) {
-    _feature_state = &state;
-  }
-  if (state._rxp_group_count > 0) {
-    _rxp_group_state = &state;
-  }
-  scope_exit cleanup([&]() {
-    _feature_state = saved_feature;
-    _rxp_group_state = saved_rxp;
-  });
-  // Now do normal parsing.
-  return this->parse_directive(drtv_node);
-}
-
-Errata Config::load_top_level_directive(YAML::Node drtv_node) {
-  Errata zret;
-  if (drtv_node.IsMap()) {
-    YAML::Node key_node { drtv_node[When::KEY] };
-    if (key_node) {
-      auto &&[handle, errata]{When::load(*this, drtv_node, When::KEY, {}, key_node)};
-      if (errata.is_ok()) {
-        auto hook = static_cast<When*>(handle.get())->get_hook();
-        _roots[IndexFor(hook)].emplace_back(std::move(handle));
-        _has_top_level_directive_p = true;
-      } else {
-        zret.note(errata);
-      }
-    } else {
-      zret.error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
-    }
-  } else {
-    zret.error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
-  }
-  return std::move(zret);
-}
-
 TextView Config::localize(swoc::TextView text) {
   auto span { _arena.alloc(text.size()).rebind<char>() };
   memcpy(span, text);
@@ -315,43 +129,242 @@ Config& Config::localize(Extractor::Format &fmt) {
   return *this;
 }
 
-Errata Config::load_file(swoc::file::path const& file_path) {
-  Errata zret;
-  std::error_code ec;
-  std::string content = swoc::file::load(file_path, ec);
-
-  if (ec) {
-    return zret.error(R"(Unable to load file "{}" - {}.)", file_path, ec);
+Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
+  if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
+    if (! fmt_node.IsScalar()) {
+      return Error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark());
+    }
+    auto exfmt { Extractor::literal(fmt_node.Scalar()) };
+    exfmt._force_c_string_p = StrType::C == str_type;
+    return std::move(exfmt);
   }
 
-  YAML::Node root;
-  try {
-    root = YAML::Load(content);
-  } catch (std::exception &ex) {
-    return zret.error(R"(YAML parsing of "{}" failed - {}.)", file_path, ex.what());
+  // Handle simple string.
+  if (fmt_node.IsScalar()) {
+    Rv<Extractor::Format> result;
+    if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
+      result = Extractor::parse_extractor(fmt_node.Scalar());
+    } else {
+      result = Extractor::parse(fmt_node.Scalar());
+    }
+
+    if (result.is_ok()) {
+      auto & exfmt = result.result();
+      if (exfmt._max_arg_idx >= 0) {
+        if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
+          return Error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark());
+        } else if (exfmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
+          return Error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", exfmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line);
+        }
+      }
+
+      if (exfmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
+        _feature_state->_feature_ref_p = true;
+      }
+
+      exfmt._force_c_string_p = StrType::C == str_type;
+      this->localize(exfmt);
+    }
+    return std::move(result);
+  } else if (fmt_node.IsSequence()) {
+    // empty list is treated as an empty string.
+    if (fmt_node.size() < 1) {
+      auto exfmt { Extractor::literal(TextView{}) };
+      exfmt._force_c_string_p = StrType::C == str_type;
+      return std::move(exfmt);
+    }
+
+    auto str_node { fmt_node[0] };
+    if (! str_node.IsScalar()) {
+      return Error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark());
+    }
+
+    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
+    if (! errata.is_ok()) {
+      errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
+      return { {}, std::move(errata) };
+    }
+
+    fmt._force_c_string_p = StrType::C == str_type;
+    this->localize(fmt);
+
+    for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
+      auto child { fmt_node[idx] };
+      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
+      if (! mod_errata.is_ok()) {
+        mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
+        return { {}, std::move(mod_errata) };
+      }
+      if (_feature_state) {
+        _feature_state->_type = mod->output_type();
+      }
+      fmt._mods.emplace_back(std::move(mod));
+    }
+    return { std::move(fmt), {} };
   }
 
-  YAML::Node base_node { root[ROOT_KEY] };
-  if (! base_node) {
-    return zret.error(R"(Base key "{}" for plugin "{}" not found in "{}".)", ROOT_KEY,
-        PLUGIN_NAME, file_path);
+  return Error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark());
+}
+
+Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
+{
+  YAML::Node key_node;
+  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
+    TextView arg { key_name.Scalar() };
+    TextView name = arg.take_prefix_at('.');
+
+    // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
+    // if there is ever more than one.
+    if (name == Directive::DO_KEY) {
+      continue;
+    }
+    // See if this is in the factory. It's not an error if it's not, to enable adding extra
+    // keys to directives. First key that is in the factory determines the directive type.
+    // If none of the keys are in the factory, that's an error and is reported after the loop.
+    if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
+      auto const& [ hooks, worker, static_info ] { spot->second };
+      if (! hooks[IndexFor(this->current_hook())]) {
+        return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
+      }
+      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, name, arg, key_value) };
+      if (! drtv_errata.is_ok()) {
+        drtv_errata.info(R"()");
+        return { {}, std::move(drtv_errata) };
+      }
+      // Fill in config depending data and pass a pointer to it to the directive instance.
+      auto & rtti = _drtv_info[static_info._idx];
+      if (++rtti._count == 1) { // first time this directive type has been used.
+        rtti._idx = static_info._idx;
+        rtti._cfg_span = _arena.alloc(static_info._cfg_storage_required);
+        rtti._ctx_storage_offset = _ctx_storage_required;
+        _ctx_storage_required += static_info._ctx_storage_required;
+      }
+      drtv->_rtti = &rtti;
+
+      return { std::move(drtv), {} };
+    }
+  }
+  return Error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark());
+}
+
+Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
+  if (drtv_node.IsMap()) {
+    return { this->load_directive(drtv_node) };
+  } else if (drtv_node.IsSequence()) {
+    Errata zret;
+    auto list { new DirectiveList };
+    Directive::Handle drtv_list{list};
+    for (auto child : drtv_node) {
+      auto && [handle, errata] {this->load_directive(child)};
+      if (errata.is_ok()) {
+        list->push_back(std::move(handle));
+      } else {
+        return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
+      }
+    }
+    return {std::move(drtv_list), {}};
+  } else if (drtv_node.IsNull()) {
+    return {Directive::Handle(new NilDirective)};
+  }
+  return Error(R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
+}
+
+// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
+// all paths must be explored and so the active feature needs to be stacked up so it can be restored
+// after a tree descent. During runtime, only one path is followed and therefore this isn't
+// required. This is used only when parsing directives in branching directives, such as
+// @c with / @c select
+Rv<Directive::Handle>
+Config::parse_directive(YAML::Node const& drtv_node, FeatureRefState &state) {
+  // Set up state preservation.
+  auto saved_feature = _feature_state;
+  auto saved_rxp = _rxp_group_state;
+  if (state._feature_active_p) {
+    _feature_state = &state;
+  }
+  if (state._rxp_group_count > 0) {
+    _rxp_group_state = &state;
+  }
+  scope_exit cleanup([&]() {
+    _feature_state = saved_feature;
+    _rxp_group_state = saved_rxp;
+  });
+  // Now do normal parsing.
+  return this->parse_directive(drtv_node);
+}
+
+Errata Config::load_top_level_directive(YAML::Node drtv_node) {
+  if (drtv_node.IsMap()) {
+    YAML::Node key_node { drtv_node[When::KEY] };
+    if (key_node) {
+      auto &&[handle, errata] {When::load(*this, drtv_node, When::KEY, {}, key_node)};
+      if (errata.is_ok()) {
+        auto when = static_cast<When*>(handle.get());
+        // Steal the directive out of the When.
+        _roots[IndexFor(when->_hook)].emplace_back(std::move(when->_directive));
+        _has_top_level_directive_p = true;
+      } else {
+        return std::move(errata);
+      }
+    } else {
+      return Error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
+    }
+  } else {
+    return Error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
+  }
+  return {};
+}
+
+Errata Config::load_remap_directive(YAML::Node drtv_node) {
+  if (drtv_node.IsMap()) {
+    auto &&[drtv, errata]{this->parse_directive(drtv_node)};
+    if (errata.is_ok()) {
+      // Don't unpack @c when - should not be that common and therefore better to defer them to the
+      // context callbacks, avoids having to cart around the remap rule config to call them later.
+      _roots[IndexFor(Hook::REMAP)].emplace_back(std::move(drtv));
+      _has_top_level_directive_p = true;
+    } else {
+      return std::move(errata);
+    }
+  } else {
+    return Error(R"(Configuration at {} is not a directive object as required.)", drtv_node.Mark());
+  }
+  return {};
+}
+
+Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
+  YAML::Node base_node { root };
+  // Walk the key path and find the target.
+  for ( auto p = path ; path ; ) {
+    auto key { p.take_prefix_at(ARG_SEP) };
+    if ( auto node { base_node[key] } ; node ) {
+      base_node = node;
+    } else {
+      return Errata().error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
+    }
   }
 
-  yaml_merge(root);
+  Errata errata;
+
+  // Special case remap loading.
+  auto drtv_loader = &self_type::load_top_level_directive; // global loader.
+  if (hook == Hook::REMAP) {
+    drtv_loader = &self_type::load_remap_directive;
+  }
 
   if (base_node.IsSequence()) {
     for ( auto const& child : base_node ) {
-      zret.note(this->load_top_level_directive(child));
+      errata.note((this->*drtv_loader)(child));
     }
-    if (! zret.is_ok()) {
-      zret.error(R"(Failure while loading list of top level directives for "{}" at {}.)",
-      ROOT_KEY, base_node.Mark());
+    if (! errata.is_ok()) {
+      errata.error(R"(Failure while loading list of top level directives for "{}" at {}.)",
+      path, base_node.Mark());
     }
   } else if (base_node.IsMap()) {
-    zret = this->load_top_level_directive(base_node);
+    errata = (this->*drtv_loader)(base_node);
   } else {
   }
-  return std::move(zret);
+  return std::move(errata);
 };
 
 Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Worker const &worker, Directive::Options const& opts) {

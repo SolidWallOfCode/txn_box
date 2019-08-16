@@ -52,12 +52,25 @@ public:
 
   Config();
 
-  /** Load the configuration from the file @a file_path.
+  /** Parse YAML from @a node to initialize @a this configuration.
    *
-   * @param file_path Path to configuration file.
+   * @param root Root node.
+   * @param path Path from root node to the configuration based node.
+   * @param hook Default hook for directives.
    * @return Errors, if any.
+   *
+   * The @a path is an @c ARG_SEP separate list of keys. The value of the last key is the
+   * node that is parsed. If the path is a single @c ARG_SEP the root node is parsed.
+   *
+   * If @a hook is @c Hook::INVALID then the directives must all be @c WHEN directives.
+   * Otherwise the directives are put in the @a hook bucket if not @c WHEN. If @c WHEN the
+   * directive is unpacked and put in the bucket specified by the @c WHEN.
+   *
+   * @note Currently only @c Hook::REMAP is used for @a hook to handle the special needs of
+   * a remap based configuration.
+   *
    */
-  Errata load_file(swoc::file::path const& file_path);
+  Errata parse_yaml(YAML::Node const& root, swoc::TextView path, Hook hook = Hook::INVALID);
 
   /** Load directives at the top level.
    *
@@ -68,6 +81,8 @@ public:
    * by this method.
    */
   Errata load_top_level_directive(YAML::Node node);
+
+  Errata load_remap_directive(YAML::Node node);
 
   /** Load / create a directive from a node.
    *

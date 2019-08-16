@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include "txn_box/common.h"
+#include <swoc/swoc_file.h>
 
 #include <ts/ts.h>
 
@@ -53,6 +54,20 @@ inline ts::String::String(char *s, int64_t size) : _view{ s, static_cast<size_t>
 inline String::~String() { if (_view.data()) { TSfree(const_cast<char*>(_view.data())); } }
 
 inline String::operator swoc::TextView() const { return _view; }
+
+inline swoc::file::path && make_absolute(swoc::file::path && path) {
+  if (path.is_relative()) {
+    path = swoc::file::path(TSConfigDirGet()) / path;
+  }
+  return std::move(path);
+}
+
+inline swoc::file::path & make_absolute(swoc::file::path & path) {
+  if (path.is_relative()) {
+    path = swoc::file::path(TSConfigDirGet()) / path;
+  }
+  return path;
+}
 
 /// Clean up an TS @c TSIOBuffer
 struct IOBufferDeleter {
@@ -101,6 +116,8 @@ public:
    * @return @a this.
    */
   self_type & set_host(swoc::TextView host);
+
+  self_type & set_query(swoc::TextView text);
 protected:
   mutable IOBuffer _iobuff; ///< IO buffer with the URL text.
   mutable swoc::TextView _view; ///< View of the URL in @a _iobuff.
@@ -281,6 +298,13 @@ inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_
 inline URL &URL::set_host(swoc::TextView host) {
   if (this->is_valid()) {
     TSUrlHostSet(_buff, _loc, host.data(), host.size());
+  }
+  return *this;
+}
+
+inline URL &URL::set_query(swoc::TextView text) {
+  if (this->is_valid()) {
+    TSUrlHttpQuerySet(_buff, _loc, host.data(), host.size());
   }
   return *this;
 }

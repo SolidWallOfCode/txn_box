@@ -18,46 +18,94 @@ using swoc::BufferWriter;
 using swoc::FixedBufferWriter;
 using namespace swoc::literals;
 
-Context::Context(Config & cfg) {
+Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
-  _arena.reset(swoc::MemArena::construct_self_contained(4000 + cfg._ctx_storage_required));
+  _arena.reset(swoc::MemArena::construct_self_contained(4000 + (cfg ? cfg->_ctx_storage_required : 0)));
 
-  // Provide array storage for each potential conditional directive for each hook.
-  for (unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx) {
-     MemSpan<Directive*> drtv_list = _arena->alloc(sizeof(Directive*) * cfg._directive_count[idx]).rebind<Directive*>();
-     _directives[idx] = { 0, 0, drtv_list.data() };
-  };
+  if (cfg) {
+    // Provide local storage for regex capture groups.
+    _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
+                                               , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
+                                            , [](void *, void *) -> void {}, this);
+    _rxp_capture = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
+    _rxp_working = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
 
-  // Provide local storage for regex capture groups.
-  _rxp_ctx = pcre2_general_context_create([] (PCRE2_SIZE size, void* ctx) -> void* { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
-  , [] (void*, void*) -> void {}, this);
-  _rxp_capture = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
-  _rxp_working = pcre2_match_data_create(cfg._capture_groups, _rxp_ctx);
-
-  // Directive shared storage
-  _ctx_store = _arena->alloc(cfg._ctx_storage_required);
+    // Directive shared storage
+    _ctx_store = _arena->alloc(cfg->_ctx_storage_required);
+  }
 }
 
 Errata Context::on_hook_do(Hook hook_idx, Directive *drtv) {
-  auto & hd { _directives[static_cast<unsigned>(hook_idx)] };
-  if (! hd._hook_set) { // no hook to invoke this directive, set one up.
-    if (hook_idx > _cur_hook) {
-      TSHttpTxnHookAdd(_txn, TS_Hook[static_cast<unsigned>(hook_idx)], _cont);
-      hd._hook_set = true;
+  auto & info { _hooks[IndexFor(hook_idx)] };
+  if (! info.hook_set_p) { // no hook to invoke this directive, set one up.
+    if (hook_idx >= _cur_hook) {
+      TSHttpTxnHookAdd(_txn, TS_Hook[IndexFor(hook_idx)], _cont);
+      info.hook_set_p = true;
     } else if (hook_idx < _cur_hook) {
       // error condition - should report. Also, should detect this on config load.
     }
   }
-  hd._drtv[hd._count++] = drtv;
+  info.cb_list.append(_arena->make<Callback>(drtv));
   return {};
-};
+}
+
+Errata Context::invoke_callbacks() {
+  // Bit of subtlety here - directives / callbacks can be added to the list due to the action
+  // of the invoked directive. However, because this is an intrusive list and items are only
+  // added to the end, the @c next pointer for the current item will be updated before the
+  // loop iteration occurs.
+  auto & info { _hooks[IndexFor(_cur_hook)] };
+  for ( auto & cb : info.cb_list ) {
+    cb.invoke(*this);
+  }
+  return {};
+}
 
 Errata Context::invoke_for_hook(Hook hook) {
-  auto & hd { _directives[static_cast<unsigned>(hook)] };
-  while (hd._idx < hd._count) {
-    Directive* drtv = hd._drtv[hd._idx++];
-    drtv->invoke(*this);
+  _cur_hook = hook;
+  this->clear_cache();
+
+  // Run the top level directives in the config first.
+  if (_cfg) {
+    for (auto const &handle : _cfg->hook_directives(hook)) {
+      handle->invoke(*this); // need to log errors here.
+    }
   }
+  this->invoke_callbacks();
+
+  _cur_hook = Hook::INVALID;
+
+  return {};
+}
+
+Errata Context::invoke_for_remap(Config& rule_cfg) {
+  _cur_hook = Hook::REMAP;
+  this->clear_cache();
+
+  // Ugly, but need to make sure the regular expression storage is sufficient.
+  if (!_cfg || rule_cfg._capture_groups > _cfg->_capture_groups) {
+    _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
+                                               , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
+                                            , [](void *, void *) -> void {}, this);
+    _rxp_capture = pcre2_match_data_create(rule_cfg._capture_groups, _rxp_ctx);
+    _rxp_working = pcre2_match_data_create(rule_cfg._capture_groups, _rxp_ctx);
+  }
+  // What about directive storage?
+
+  // Remap rule directives.
+  for (auto const &handle : rule_cfg.hook_directives(_cur_hook)) {
+    handle->invoke(*this); // need to log errors here.
+  }
+  // Now the global config directives for REMAP
+  if (_cfg) {
+    for (auto const &handle : _cfg->hook_directives(_cur_hook)) {
+      handle->invoke(*this); // need to log errors here.
+    }
+  }
+  this->invoke_callbacks(); // Any accumulated callbacks.
+
+  _cur_hook = Hook::INVALID;
+
   return {};
 }
 
@@ -141,6 +189,50 @@ ts::HttpHeader Context::prsp_hdr() {
     _prsp = _txn.prsp_hdr();
   }
   return _prsp;
+}
+
+Context::self_type &Context::enable_hooks(TSHttpTxn txn) {
+  // Create a continuation to hold the data.
+  _cont = TSContCreate(ts_callback, TSContMutexGet(reinterpret_cast<TSCont>(txn)));
+  TSContDataSet(_cont, this);
+  _txn = txn;
+
+  // set hooks for top level directives.
+  if (_cfg) {
+    for (unsigned idx = IndexFor(Hook::BEGIN); idx < IndexFor(Hook::END); ++idx) {
+      auto const &drtv_list{_cfg->hook_directives(static_cast<Hook>(idx))};
+      if (!drtv_list.empty()) {
+        TSHttpTxnHookAdd(txn, TS_Hook[idx], _cont);
+        _hooks[idx].hook_set_p = true;
+      }
+    }
+  }
+
+  // Always set a cleanup hook.
+  TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, _cont);
+  TSHttpTxnArgSet(_txn, G.TxnArgIdx, this);
+  return *this;
+}
+
+int Context::ts_callback(TSCont cont, TSEvent evt, void *payload) {
+  self_type * self = static_cast<self_type*>(TSContDataGet(cont));
+  auto txn = self->_txn; // cache in case it's a close.
+
+  // Run the directives.
+  Hook hook { Convert_TS_Event_To_TxB_Hook(evt) };
+  if (Hook::INVALID != hook) {
+    self->invoke_for_hook(hook);
+  }
+
+  /// TXN Close is special
+  if (TS_EVENT_HTTP_TXN_CLOSE == evt) {
+    TSContDataSet(cont, nullptr);
+    TSContDestroy(cont);
+    delete self;
+  }
+
+  TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
+  return TS_SUCCESS;
 }
 
 unsigned Context::ArgPack::count() const {

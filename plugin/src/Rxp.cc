@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "txn_box/common.h"
 #include "txn_box/Rxp.h"
 
 using swoc::TextView;
@@ -33,8 +34,7 @@ Rv<Rxp> Rxp::parse(TextView const& str, OptionGroup const& options) {
   if (nullptr == result) {
     PCRE2_UCHAR err_buff[128];
     auto err_size = pcre2_get_error_message(errc, err_buff, sizeof(err_buff));
-    return { {}, Errata().error(R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)", TextView(
-        reinterpret_cast<char const*>(err_buff), err_size), errc, err_off, str) };
+    return Error(R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)", TextView(reinterpret_cast<char const*>(err_buff), err_size), errc, err_off, str);
   }
   return { result, {} };
 };

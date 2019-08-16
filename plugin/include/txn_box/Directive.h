@@ -172,7 +172,15 @@ protected:
   Hook _hook { Hook::INVALID };
   Handle _directive; /// Directive to invoke in the specified hook.
 
+  /** Construct from hook and a directive.
+   *
+   * @param hook_idx The hook on which @a directive is invoked.
+   * @param directive Directive to invoke.
+   */
   When(Hook hook_idx, Directive::Handle && directive);
+
+  // Because @c When is handle in a special manner for configurations, it must be able to reach in.
+  friend Config;
 };
 
 /** Directive that explicitly does nothing.

@@ -44,7 +44,7 @@ Rv<Extractor::Format> Extractor::parse_extractor(TextView text) {
     fmt.push_back(spec);
     return { std::move(fmt), {} };
   }
-  return  { {}, Errata().error(R"(Extractor "{}" not found.)", key) };
+  return  Error(R"(Extractor "{}" not found.)", key);
 }
 
 Rv<Extractor::Format> Extractor::parse(TextView format_string) {

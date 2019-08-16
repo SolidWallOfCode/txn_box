@@ -50,7 +50,7 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 }
 
 namespace {
- std::unique_ptr<Config> Plugin_Config;
+ std::shared_ptr<Config> Plugin_Config;
 }
 /* ------------------------------------------------------------------------------------ */
 YAML::Node yaml_merge(YAML::Node & root) {
@@ -279,70 +279,41 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus stat
 }
 } // namespace swoc
 
+
+int Global::reserve_TxnArgIdx() {
+  if (G.TxnArgIdx < 0) {
+    TSHttpTxnArgIndexReserve(Config::ROOT_KEY.data(), "Transaction Box Plugin", &G.TxnArgIdx);
+  }
+  return G.TxnArgIdx;
+}
 /* ------------------------------------------------------------------------------------ */
 
-int CB_Directive(TSCont cont, TSEvent ev, void * payload) {
-  Context* ctx = static_cast<Context*>(TSContDataGet(cont));
-  /// TXN Close is special
-  if (ev == TS_EVENT_HTTP_TXN_CLOSE) {
-      TSContDataSet(cont, nullptr);
-      TSContDestroy(cont);
-      delete ctx;
-  } else {
-    Hook hook { Convert_TS_Event_To_TxB_Hook(ev) };
-    if (Hook::INVALID != hook) {
-      ctx->_cur_hook = hook;
-      ctx->clear_cache();
-      // Run the top level directives first.
-      for (auto const &handle : Plugin_Config->hook_directives(hook)) {
-        handle->invoke(*ctx); // need to log errors here.
-      }
-      // Run any accumulated directives for the hook.
-      ctx->invoke_for_hook(hook);
-    }
-  }
-  TSHttpTxnReenable(ctx->_txn, TS_EVENT_HTTP_CONTINUE);
-  return TS_SUCCESS;
-}
-
-// Global callback, not thread safe.
+// Global callback, thread safe.
 // This sets up local context for a transaction and spins up a per TXN Continuation which is
 // protected by a mutex. This hook isn't set if there are no top level directives.
 int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
   auto txn {reinterpret_cast<TSHttpTxn>(payload) };
-  Context* ctx = new Context(*Plugin_Config);
-  TSCont txn_cont { TSContCreate(CB_Directive, TSMutexCreate()) };
-  TSContDataSet(txn_cont, ctx);
-  ctx->_cont = txn_cont;
-  ctx->_txn = txn;
-
-  // set hooks for top level directives.
-  for ( unsigned idx = static_cast<unsigned>(Hook::BEGIN) ; idx < static_cast<unsigned>(Hook::END) ; ++idx ) {
-    auto const& drtv_list { Plugin_Config->hook_directives(static_cast<Hook>(idx)) };
-    if (! drtv_list.empty()) {
-      TSHttpTxnHookAdd(txn, TS_Hook[idx], txn_cont);
-      ctx->_directives[idx]._hook_set = true;
-    }
-  }
-  // Always set a cleanup hook.
-  TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, cont);
+  Context* ctx = new Context(Plugin_Config);
+  ctx->enable_hooks(txn);
   TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
   return TS_SUCCESS;
-};
-
-namespace {
-std::array<option, 2> Options = {
-    {{"config", 1, nullptr, 'c'}, {nullptr, 0, nullptr, 0}}};
 }
 
-void
-TSPluginInit(int argc, char const *argv[]) {
+Errata
+TxnBoxInit(int argc, char const *argv[]) {
+  static constexpr std::array<option, 3> Options = {
+      {{"file", 1, nullptr, 'c'}
+          , { "key", 1, nullptr, 'k' }
+          , {nullptr, 0, nullptr, 0}}};
+
   Errata errata;
 
   TSPluginRegistrationInfo info{Config::PLUGIN_TAG.data(), "Verizon Media"
                                 , "solidwallofcode@verizonmedia.com"};
 
   Plugin_Config.reset(new Config);
+  TextView cfg_path { "txn_box.yaml" };
+  TextView cfg_key { Config::ROOT_KEY };
   int opt;
   int idx;
   optind = 0; // Reset options in case of other plugins.
@@ -350,24 +321,53 @@ TSPluginInit(int argc, char const *argv[]) {
     switch (opt) {
       case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c':errata.note(Plugin_Config->load_file(swoc::file::path{argv[optind - 1]}));
+      case 'c': cfg_path.assign(argv[optind-1], strlen(argv[optind-1]));
+        break;
+      case 'k': cfg_key.assign(argv[optind-1], strlen(argv[optind-1]));
         break;
       default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
         break;
     }
   }
-  if (errata.is_ok()) {
-    if (TSPluginRegister(&info) == TS_SUCCESS) {
-      if (Plugin_Config->has_top_level_directive()) {
-        TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
-        TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
-      }
-    } else {
-      TSError("%s: plugin registration failed.", Config::PLUGIN_TAG.data());
+
+  if (!errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  // Try loading and parsing the file.
+  auto &&[root, yaml_errata ]{yaml_load(cfg_path)};
+  if (!errata.is_ok()) {
+    yaml_errata.info(R"(While loading file "{}".)", cfg_path);
+    return std::move(yaml_errata);
+  }
+
+  // Process the YAML data.
+  errata = Plugin_Config->parse_yaml(root, cfg_key);
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
+    return std::move(errata);
+  }
+
+  if (TSPluginRegister(&info) == TS_SUCCESS) {
+    if (Plugin_Config->has_top_level_directive()) {
+      TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
+      TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
+      G.reserve_TxnArgIdx();
     }
   } else {
+    errata.error(R"({}: plugin registration failed.)", Config::PLUGIN_TAG);
+    return std::move(errata);
+  }
+  return {};
+}
+
+void
+TSPluginInit(int argc, char const *argv[]) {
+  auto errata { TxnBoxInit(argc, argv) };
+  if (! errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: initialization failure.\n{}", Config::PLUGIN_NAME, errata);
     TSError("%s", err_str.c_str());
   }
-}
+};
+

@@ -11,6 +11,7 @@
 #include <variant>
 
 #include <swoc/TextView.h>
+#include <swoc/Errata.h>
 #include <swoc/swoc_ip.h>
 #include <swoc/Lexicon.h>
 #include <swoc/bwf_fwd.h>
@@ -20,6 +21,10 @@ class Config;
 class Context;
 
 namespace YAML { class Node; }
+
+template < typename ... Args > swoc::Errata && Error(std::string_view const& fmt, Args && ... args) {
+  return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
+}
 
 /// Separator character for names vs. argument.
 static constexpr char ARG_SEP = '.';
@@ -147,6 +152,7 @@ enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
   CREQ, ///< Read Request from user agent.
   PRE_REMAP, ///< Before remap.
+  REMAP, ///< Remap (special).
   POST_REMAP, ///< After remap.
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
@@ -222,3 +228,13 @@ extern swoc::Lexicon<Hook> HookName;
 extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, Hook hook);
 
 inline FeatureView::self_type FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
+
+/// Container for global data.
+struct Global {
+  int TxnArgIdx = -1;
+
+  static int reserve_TxnArgIdx();
+};
+
+/// Global data.
+extern Global G;

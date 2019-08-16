@@ -19,6 +19,9 @@
 #include "txn_box/Extractor.h"
 #include "txn_box/ts_util.h"
 
+struct _tm_remap_request_info;
+using TSRemapRequestInfo = _tm_remap_request_info;
+
 /** Per transaction context.
  *
  * This holds data associated with a specific transaction, along with pointers / references to
@@ -39,11 +42,19 @@ public:
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
 
   /// Construct based a specific configuration.
-  explicit Context(Config & cfg);
+  explicit Context(std::shared_ptr<Config> const& cfg);
 
   swoc::Errata on_hook_do(Hook hook, Directive *drtv);
 
   swoc::Errata invoke_for_hook(Hook hook);
+  swoc::Errata invoke_for_remap(Config & rule_cfg);
+
+  /** Set up to handle the hooks in the @a txn.
+   *
+   * @param txn TS transaction object.
+   * @return @a this
+   */
+  self_type & enable_hooks(TSHttpTxn txn);
 
   /** Extract a feature.
    *
@@ -78,7 +89,7 @@ public:
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
-  ts::HttpTxn _txn;
+  ts::HttpTxn _txn = nullptr;
   /// Current extracted feature data.
   FeatureData _feature;
 
@@ -115,16 +126,28 @@ public:
     Context& _ctx;
   };
 
-  /// Directives for a particular hook.
-  struct HookDirectives {
-    unsigned _count = 0; ///< Number of directives.
-    unsigned _idx = 0; ///< Index of next directive to invoke.
-    Directive** _drtv = nullptr; ///< Array of directive pointers.
-    bool _hook_set = false; ///< If a hook has already been set.
+  struct Callback {
+    using self_type = Callback;
+  protected:
+    Directive * _drtv = nullptr; ///< Directive to invoke for the callback.
+    self_type * _next = nullptr; ///< Intrusive list link.
+    self_type * _prev = nullptr; ///< Intrusive list link.
+    /// Intrusive list descriptor.
+  public:
+    using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
+    Callback(Directive* drtv) : _drtv(drtv) {}
+    swoc::Errata invoke(Context& ctx) { return _drtv->invoke(ctx); }
   };
 
-  /// State of each hook for this transaction / context.
-  std::array<HookDirectives, std::tuple_size<Hook>::value> _directives;
+  /// Directives for a particular hook.
+  struct HookInfo {
+    using List = swoc::IntrusiveDList<Callback::Linkage>;
+    List cb_list; ///< List of directives to call back.
+    bool hook_set_p = false; ///< If a hook has already been set.
+  };
+
+  /// State of each global config hook for this transaction / context.
+  std::array<HookInfo, std::tuple_size<Hook>::value> _hooks;
 
   ts::HttpHeader creq_hdr();
   ts::HttpHeader preq_hdr();
@@ -148,6 +171,8 @@ public:
     return _rxp_capture;
   }
 
+  TSRemapRequestInfo* _remap_info = nullptr;
+
   /** Clear cached data.
    *
    */
@@ -165,6 +190,13 @@ protected:
   ts::HttpHeader _ursp; ///< Upstream response header.
   ts::HttpHeader _prsp; ///< Proxy response header.
 
+  /// Base / Global configuration object.
+  std::shared_ptr<Config> _cfg;
+
   /// Directive shared storage.
   swoc::MemSpan<void> _ctx_store;
+
+  swoc::Errata invoke_callbacks();
+
+  static int ts_callback(TSCont cont, TSEvent evt, void * payload);
 };

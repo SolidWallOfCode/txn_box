@@ -23,7 +23,7 @@ Errata FeatureMod::define(swoc::TextView name, FeatureMod::Worker const &f) {
 
 Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, FeatureType ftype) {
   if (! node.IsMap()) {
-    return {{}, Errata().error(R"(Modifier at {} is not an object as required.)", node.Mark())};
+    return Error(R"(Modifier at {} is not an object as required.)", node.Mark());
   }
 
   for ( auto const& [ key_node, value_node ] : node ) {
@@ -37,13 +37,13 @@ Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, Fea
         return {{}, std::move(errata)};
       }
       if (! handle->is_valid_for(ftype)) {
-        return { {}, Errata().error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ftype) };
+        return Error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ftype);
       }
 
-      return {std::move(handle), {}};
+      return std::move(handle);
     }
   }
-  return { {}, Errata().error(R"(No valid modifier key in object at {}.)", node.Mark()) };
+  return Error(R"(No valid modifier key in object at {}.)", node.Mark());
 }
 
 class Mod_Hash : public FeatureMod {
@@ -92,13 +92,13 @@ Errata Mod_Hash::operator()(Context &ctx, FeatureData &feature) {
 
 Rv<FeatureMod::Handle> Mod_Hash::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
   if (! key_node.IsScalar()) {
-    return {{}, Errata().error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_node.Mark(), mod_node.Mark())};
+    return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_node.Mark(), mod_node.Mark());
   }
   TextView src{key_node.Scalar()}, parsed;
   src.trim_if(&isspace);
   auto n = swoc::svtou(src, &parsed);
   if (src.size() != parsed.size()) {
-    return {{}, Errata().error(R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_node.Mark(), mod_node.Mark())};
+    return Error(R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_node.Mark(), mod_node.Mark());
   }
 
   return { Handle{new self_type(n)}, {} };
