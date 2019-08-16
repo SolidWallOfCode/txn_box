@@ -20,7 +20,7 @@ Part("plugin/txn_box.part", package_group='txn_box')
 
 # the depends
 Part("#lib/libyaml.part",vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", tag="yaml-cpp-0.6.2"))
-Part("swoc++/swoc++.part",vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc"))
+Part("swoc++/swoc++.part",vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="dev-1-0-8"))
 # this is just a shim part.. it only passes info based on stuff being install on the box
 # it should have a better check for the real version of trafficserver being used
 Part("#lib/trafficserver.part",CUSTOM_PATH=path,VERSION="7.0.0"),

@@ -436,15 +436,13 @@ Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& dr
   if (fmt._feature_type == INTEGER) {
     auto status = fmt._number;
     if (status < 100 || status > 599) {
-      return { {}, Errata().error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)"
-                            , key_value.Scalar(), key_value.Mark()) };
+      return Error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)", key_value.Scalar(), key_value.Mark());
     }
     self->_status = static_cast<TSHttpStatus>(status);
   } else if (fmt._feature_type == STRING) {
     self->_status_fmt = std::move(fmt);
   } else {
-    return {{}, Errata().error(R"(Status "{}" at {} is not an integer nor string as required.)"
-                               , key_value.Scalar(), key_value.Mark())};
+    return Error(R"(Status "{}" at {} is not an integer nor string as required.)", key_value.Scalar(), key_value.Mark());
   }
   return { std::move(handle), {} };
 }
@@ -709,9 +707,7 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node const& drtv_node
   } else if (key_value.IsMap()) {
     Errata errata = self->_fg.load(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED }, { STATUS_KEY }, { REASON_KEY }, { BODY_KEY } });
   } else {
-    return {{}, Errata().error(
-        R"(Value for "{}" key at {} is must be a scalar, a 2-tuple, or a map and is not.)", KEY
-        , key_value.Mark())};
+    return Error(R"(Value for "{}" key at {} is must be a scalar, a 2-tuple, or a map and is not.)", KEY, key_value.Mark());
   }
   if (! errata.is_ok()) {
     errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
@@ -771,11 +767,9 @@ Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node const& drtv_nod
     return { Handle{new self_type{Extractor::literal(Config::PLUGIN_TAG), std::move(msg_fmt)}}, {} };
   } else if (key_value.IsSequence()) {
     if (key_value.size() > 2) {
-      return {{}, Errata().error(R"(Value for "{}" key at {} is not a list of two strings as required.)", KEY
-          , key_value.Mark())};
+      return Error(R"(Value for "{}" key at {} is not a list of two strings as required.)", KEY, key_value.Mark());
     } else if (key_value.size() < 1) {
-      return {{}, Errata().error(R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY
-          , key_value.Mark())};
+      return Error(R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY, key_value.Mark());
     }
     auto && [ tag_fmt, tag_errata ] = cfg.parse_feature(key_value[0], Config::StrType::C);
     if (!tag_errata.is_ok()) {
@@ -789,9 +783,48 @@ Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node const& drtv_nod
     }
     return { Handle(new self_type(std::move(tag_fmt), std::move(msg_fmt))), {} };
   }
-  return { {}, Errata().error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_value.Mark()) };
+  return Error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_value.Mark());
 }
 
+/* ------------------------------------------------------------------------------------ */
+class Do_set_creq_query : public Directive {
+  using self_type = Do_set_creq_query;
+  using super_type = Directive;
+public:
+  static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  TextView _arg;
+  Extractor::Format _fmt;
+
+  Do_set_creq_query(TextView arg, Extractor::Format && fmt) : _arg(arg), _fmt(std::move(fmt)) {}
+};
+
+const std::string Do_set_creq_query::KEY { "set-creq-query" };
+const HookMask Do_set_creq_query::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP}) };
+
+Errata Do_set_creq_query::invoke(Context &ctx) {
+  if (_arg.empty()) {
+    ctx.creq_hdr().url().set_query(std::get<IndexFor(STRING)>(ctx.extract(_fmt)));
+  }
+}
+
+Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drtv_node
+                                             , swoc::TextView const &name, swoc::TextView const &arg
+                                             , YAML::Node const &key_value) {
+
+  auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return { {}, std::move(errata)};
+  }
+  fmt._feature_type = STRING; // Force string value.
+  return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
+}
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
@@ -903,11 +936,9 @@ Errata WithTuple::invoke(Context &ctx) {
 swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   YAML::Node select_node { drtv_node[SELECT_KEY] };
   if (! select_node) {
-    return {{}, Errata().error(R"(Required "{}" key not found in "{}" directive at {}.)", SELECT_KEY
-                               , KEY, drtv_node.Mark())};
+    return Error(R"(Required "{}" key not found in "{}" directive at {}.)", SELECT_KEY, KEY, drtv_node.Mark());
   } else if (!(select_node.IsMap() || select_node.IsSequence()) ) {
-    return {{}, Errata().error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")"
-               , SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark()) };
+    return Error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")", SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
   }
 
   if (key_value.IsScalar()) {
@@ -915,7 +946,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
     auto && [ fmt, errata ] = cfg.parse_feature(key_value);
 
     if (!errata.is_ok()) {
-      return {{}, std::move(errata)};
+      return std::move(errata);
     }
 
     self_type * self = new self_type;
@@ -925,7 +956,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
     if (select_node.IsMap()) {
       errata = self->load_case(cfg, select_node);
       if (! errata.is_ok()) {
-        return {{}, std::move(errata)};
+        return std::move(errata);
       }
     } else {
       for (YAML::Node child : select_node) {
@@ -933,16 +964,16 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
         if (!errata.is_ok()) {
           errata.error(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark()
                      , SELECT_KEY, select_node.Mark());
-          return { {}, std::move(errata) };
+          return std::move(errata);
         }
       }
     }
-    return {std::move(handle), {}};
+    return std::move(handle);
   } else if (key_value.IsSequence()) {
     return WithTuple::load(cfg, drtv_node, name, arg, key_value);
   }
 
-  return { {}, Errata().error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_value.Mark()) };
+  return Error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_value.Mark());
 }
 
 Errata With::load_case(Config & cfg, YAML::Node node) {
@@ -996,7 +1027,7 @@ swoc::Rv<Directive::Handle> WithTuple::load(Config& cfg, YAML::Node const& drtv_
         return { {}, std::move(errata) };
       }
     } else {
-      return { {}, Errata().error(R"(Element at {} in feature tuple at {} in "{}" directive at {} is not a string as required.)", child.Mark(), key_value.Mark(), KEY, key_value.Mark()) };
+      return Error(R"(Element at {} in feature tuple at {} in "{}" directive at {} is not a string as required.)", child.Mark(), key_value.Mark(), KEY, key_value.Mark());
     }
   }
 
@@ -1019,7 +1050,7 @@ swoc::Rv<Directive::Handle> WithTuple::load(Config& cfg, YAML::Node const& drtv_
       }
     }
   } else {
-    return { {}, Errata().error(R"(Value at {} for "{}" is not an object or sequence as required.)", select_node.Mark(), SELECT_KEY) };
+    return Error(R"(Value at {} for "{}" is not an object or sequence as required.)", select_node.Mark(), SELECT_KEY);
   }
   return { std::move(handle), {}};
 }

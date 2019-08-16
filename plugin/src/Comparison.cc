@@ -41,21 +41,19 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType ftype, YAML::N
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
       auto &&[worker, types] = spot->second;
       if (! types[IndexFor(ftype)]) {
-        return {{}, Errata().error(
-            R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark()
-            , ftype)};
+        return Error(R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark(), ftype);
       }
 
       auto &&[handle, errata]{worker(cfg, node, value_node)};
 
       if (!errata.is_ok()) {
-        return {{}, std::move(errata)};
+        return std::move(errata);
       }
 
-      return {std::move(handle), {}};
+      return std::move(handle);
     }
   }
-  return { {}, Errata().error(R"(No valid comparison key in object at {}.)", node.Mark()) };
+  return Error(R"(No valid comparison key in object at {}.)", node.Mark());
 }
 /* ------------------------------------------------------------------------------------ */
 /** Utility base class for comparisons that are based on literal string matching.
@@ -368,7 +366,7 @@ Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YA
     return { {}, std::move(errata) };
   }
   if (! fmt._literal_p) {
-    return { {}, Errata().error(R"(Dynamic regular expression support is not yet implemented at {}.)", key_node.Mark()) };
+    return Error(R"(Dynamic regular expression support is not yet implemented at {}.)", key_node.Mark());
   }
   // Handle empty format / string?
   Rxp::OptionGroup rxp_opt;
@@ -511,7 +509,7 @@ Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAM
     return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
   }
   if (!TYPES[fmt._feature_type]) {
-    return { {}, Errata().error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES) };
+    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES);
   }
   return { Handle(new self_type(std::move(fmt))), {} };
 }

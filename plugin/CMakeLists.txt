@@ -6,6 +6,7 @@ include(GNUInstallDirs)
 
 add_library(plugin SHARED
 	src/txn_box.cc
+	src/txn_box_remap.cc
     	src/Comparison.cc
 	src/Config.cc
 	src/Context.cc
@@ -15,6 +16,7 @@ add_library(plugin SHARED
 	src/Features.cc
 	src/Machinery.cc
         src/Rxp.cc
+	src/yaml_util.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")
