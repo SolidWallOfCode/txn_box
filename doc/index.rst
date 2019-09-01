@@ -10,6 +10,7 @@ Transaction Box
    :maxdepth: 2
 
    txn_box.en
+   building.en
    arch.en
    directive.en
    design.en

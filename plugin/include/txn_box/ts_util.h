@@ -304,7 +304,7 @@ inline URL &URL::set_host(swoc::TextView host) {
 
 inline URL &URL::set_query(swoc::TextView text) {
   if (this->is_valid()) {
-    TSUrlHttpQuerySet(_buff, _loc, host.data(), host.size());
+    TSUrlHttpQuerySet(_buff, _loc, text.data(), text.size());
   }
   return *this;
 }
