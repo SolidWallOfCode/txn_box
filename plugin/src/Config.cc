@@ -37,6 +37,7 @@ swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PRSP, {"send-response", "prsp"}}
                               , {Hook::PRE_REMAP, {"pre-remap"}}
                               , {Hook::POST_REMAP, {"post-remap"}}
+                              , {Hook::REMAP, {"remap"}}
                               }};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
@@ -71,58 +72,58 @@ template < typename F > struct scope_exit {
   explicit scope_exit(F &&f) : _f(std::move(f)) {}
   ~scope_exit() { _f(); }
 };
+
+Config::self_type &Config::localize(Feature &feature) {
+  std::visit([&](auto & t) { this->localize(t); }, static_cast<Feature::variant_type&>(feature));
+  return *this;
+}
+
 /* ------------------------------------------------------------------------------------ */
 Config::Config() {
   _drtv_info.resize(Directive::StaticInfo::_counter + 1);
 
 }
 
-TextView Config::localize(swoc::TextView text) {
+std::string_view & Config::localize(std::string_view & text) {
   auto span { _arena.alloc(text.size()).rebind<char>() };
   memcpy(span, text);
-  return span.view();
+  return text = span.view();
 };
 
 Config& Config::localize(Extractor::Format &fmt) {
-  // Special case a "pure" literal - it's a format but all of the specifiers are literals.
-  // This can be consolidated into a single specifier with a single literal.
   if (fmt._literal_p) {
-    if (fmt.size() == 1) {
-      TextView src{fmt[0]._ext}, parsed;
-      auto n = swoc::svtoi(src, &parsed);
-      if (parsed.size() == src.size()) {
-        fmt._feature_type = INTEGER;
-        fmt._number = n;
+    // Special case a "pure" literal - it's a format but all of the specifiers are literals.
+    // This can be consolidated into a "normal" STRING literal for the format. This is only way
+    // @a _literal_p can be set and specifiers in the @a fmt.
+    if (fmt.size() >= 1) {
+      size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
+                                                                                     , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
+      if (fmt._force_c_string_p) {
+        ++n;
       }
-    }
-    size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
-                                                                                   , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
-    if (fmt._force_c_string_p) {
-      ++n;
-    }
 
-    auto span{_arena.alloc(n).rebind<char>()};
-    Extractor::Spec literal_spec;
-    literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
-    literal_spec._ext = {span.data(), span.size()};
-    for (auto const &spec : fmt._specs) {
-      memcpy(span.data(), spec._ext.data(), spec._ext.size());
-      span.remove_prefix(spec._ext.size());
+      auto span{_arena.alloc(n).rebind<char>()};
+      fmt._literal = span.view();
+      for (auto const &spec : fmt._specs) {
+        memcpy(span.data(), spec._ext.data(), spec._ext.size());
+        span.remove_prefix(spec._ext.size());
+      }
+      if (fmt._force_c_string_p) {
+        span[0] = '\0';
+      }
+      fmt._force_c_string_p = false; // Already took care of this, don't do it again.
+      fmt._specs.clear();
+    } else {
+      this->localize(fmt._literal);
     }
-    if (fmt._force_c_string_p) {
-      span[0] = '\0';
-    }
-    fmt._force_c_string_p = false; // Already took care of this, don't do it again.
-    fmt._specs.resize(1);
-    fmt._specs[0] = literal_spec;
   } else {
     // Localize and update the names and extensions.
     for (auto &spec : fmt._specs) {
       if (! spec._name.empty()) {
-        spec._name = this->localize(spec._name);
+        this->localize(spec._name);
       }
       if (! spec._ext.empty()) {
-        spec._ext = this->localize(spec._ext);
+        this->localize(spec._ext);
       }
     }
   }
@@ -130,22 +131,33 @@ Config& Config::localize(Extractor::Format &fmt) {
 }
 
 Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
+  // Unfortunately, lots of special cases here.
+
+  // If explicitly marked a literal, then no further processing should be done.
   if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
-    if (! fmt_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} but is not a string as required.)", LITERAL_TAG, fmt_node.Mark());
+    if (!fmt_node.IsScalar()) {
+      return Error(R"("!{}" tag used on value at {} which is not a string as required.)", LITERAL_TAG, fmt_node.Mark());
     }
-    auto exfmt { Extractor::literal(fmt_node.Scalar()) };
-    exfmt._force_c_string_p = StrType::C == str_type;
-    return std::move(exfmt);
+    auto const& text = fmt_node.Scalar();
+    if (StrType::C == str_type) {
+      return Extractor::literal(TextView{text.c_str(), text.size() + 1});
+    }
+    return Extractor::literal(TextView{text.data(), text.size()});
+
   }
 
-  // Handle simple string.
-  if (fmt_node.IsScalar()) {
+  if (fmt_node.IsNull()) {
+    return Extractor::literal(""_tv); // Treat as equivalent of the empty string.
+  } else if (fmt_node.IsScalar()) {
+    // Scalar case - effectively a string, primary issue is whether it's quoted.
     Rv<Extractor::Format> result;
-    if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
-      result = Extractor::parse_extractor(fmt_node.Scalar());
+    TextView text { fmt_node.Scalar() };
+    if (text.empty()) {
+      result = Extractor::literal(""_tv);
+    } else if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
+      result = Extractor::parse_raw(text);
     } else {
-      result = Extractor::parse(fmt_node.Scalar());
+      result = Extractor::parse(text);
     }
 
     if (result.is_ok()) {
@@ -335,7 +347,7 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
 Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   YAML::Node base_node { root };
   // Walk the key path and find the target.
-  for ( auto p = path ; path ; ) {
+  for ( auto p = path ; p ; ) {
     auto key { p.take_prefix_at(ARG_SEP) };
     if ( auto node { base_node[key] } ; node ) {
       base_node = node;
@@ -349,6 +361,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   // Special case remap loading.
   auto drtv_loader = &self_type::load_top_level_directive; // global loader.
   if (hook == Hook::REMAP) {
+    _hook = Hook::REMAP;
     drtv_loader = &self_type::load_remap_directive;
   }
 

@@ -35,19 +35,6 @@ rand
 Features
 ********
 
-Feature Types
-=============
-
-For better performance feature extraction which consists of only a single extractor is handled as a
-special case. In particular the feature can have a non-string type in this case. Two such types are
-currently supported.
-
-Integer
-   A integer value.
-
-IP Addressß
-   An IP address.
-
 Feature Modifiers
 =================
 

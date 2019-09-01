@@ -109,6 +109,7 @@ public:
   swoc::TextView host() const; ///< View of the URL host.
   swoc::TextView scheme() const; ///< View of the URL scheme.
   swoc::TextView path() const; ///< View of the URL path.
+  swoc::TextView query() const; ///< View of the query.
 
   /** Set the host in the URL.
    *
@@ -294,6 +295,8 @@ inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+
+inline swoc::TextView URL::query() const { int length; auto text = TSUrlHttpQueryGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline URL &URL::set_host(swoc::TextView host) {
   if (this->is_valid()) {

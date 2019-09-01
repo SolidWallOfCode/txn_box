@@ -41,7 +41,8 @@ public:
    * the extractor, if any, for the specifier.
    */
   struct Spec : public swoc::bwf::Spec {
-    swoc::TextView _arg; ///< Argument part of the name.
+    /// Argument portion of the extractor name, if any.
+    swoc::TextView _arg;
     /// Extractor used in the spec, if any.
     Extractor * _exf = nullptr;
   };
@@ -59,13 +60,13 @@ public:
     /// @defgroup Properties.
     /// @{
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
-    bool _literal_p = true; ///< @c true if the format is only literals, no extractors.
+    bool _literal_p = true; ///< @c true if the format is only literals, no extractors. @see _literal
     bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
     /// @c true if the extracted feature should be forced to a C-string.
     /// @note This only applies for @c STRING features.
     bool _force_c_string_p = false;
 
-    intmax_t _number = 0; ///< The numeric value if @a _feature_type is @c INTEGER.
+    Feature _literal; ///< If the format is a literal, this is the value. @see literal_p
     int _max_arg_idx = -1; ///< Largest argument index. -1 => no numbered arguments.
     /// @}
 
@@ -193,14 +194,14 @@ public:
    */
   static swoc::Rv<Format> parse(swoc::TextView format_string);
 
-  /** Parse a string as a raw extractor.
+  /** Parse a raw string.
    *
    * @param text Extractor text.
    * @return A format for the extractor, or errors.
    *
    * This is useful for parsing a string which is presumed to be a single extractor.
    */
-  static swoc::Rv<Format> parse_extractor(swoc::TextView text);
+  static swoc::Rv<Format> parse_raw(swoc::TextView text);
 
   /** Create a format string as a literal.
    *
@@ -211,11 +212,22 @@ public:
    * literally. This format will always have default formatting and no extension.
    */
   static Format literal(swoc::TextView format_string);
+  static Format literal(feature_type_for<INTEGER> format_string);
+  static Format literal(feature_type_for<IP_ADDR> const& format_string);
 
   static swoc::Errata define(swoc::TextView name, self_type * ex);
 
 protected:
   static Table _ex_table;
+
+  /** Update the extractor in a @a spec.
+   *
+   * @param spec Specifier to parse / update.
+   * @return Errors, if any.
+   *
+   * This updates the extractor for a just parsed specifier.
+   */
+  static swoc::Errata update_extractor(Spec & spec);
 };
 
 /** Cross reference extractor.
@@ -272,7 +284,7 @@ class IPAddrFeature {
 class IntegerFeature : public Extractor {
 public:
   /// C++ type of extracted feature.
-  using ExType = std::variant_alternative_t<IndexFor(INTEGER), FeatureData>;
+  using ExType = std::variant_alternative_t<IndexFor(INTEGER), Feature::variant_type>;
 
   /// Type of extracted feature.
   Extractor::Type feature_type() const;
@@ -285,7 +297,7 @@ inline Extractor::Type IntegerFeature::feature_type() const { return INTEGER; }
 class BooleanFeature : public Extractor {
 public:
   /// C++ type of extracted feature.
-  using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData>;
+  using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
 
   /// Type of extracted feature.
   Extractor::Type feature_type() const;
@@ -337,7 +349,7 @@ public:
     /// Information for a feature with a single extraction format.
     struct Single {
       Extractor::Format _fmt; ///< The format.
-      FeatureData _feature; ///< Retrieved feature data.
+      Feature _feature; ///< Retrieved feature data.
     };
 
     /// Information for a feature with multiple extraction formats.
@@ -413,7 +425,7 @@ public:
    * @param name Name of the feature key.
    * @return The extracted data.
    */
-  FeatureData extract(Context &ctx, swoc::TextView const &name);
+  Feature extract(Context &ctx, swoc::TextView const &name);
 
   /** Extract the feature.
    *
@@ -421,7 +433,7 @@ public:
    * @param idx Index of the feature key.
    * @return The extracted data.
    */
-  FeatureData extract(Context &ctx, index_type idx);
+  Feature extract(Context &ctx, index_type idx);
 
 protected:
   static constexpr uint8_t DONE = 1; ///< All dependencies computed.
