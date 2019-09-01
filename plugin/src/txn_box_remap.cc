@@ -127,7 +127,7 @@ public:
 /* ------------------------------------------------------------------------------------ */
 TSReturnCode
 TSRemapInit(TSRemapInterface* rctx, char* errbuff, int errbuff_size) {
-//  swoc::FixedBufferWriter w{errbuff, static_cast<size_t>(errbuff_size)};
+  G.reserve_TxnArgIdx();
   return TS_SUCCESS;
 };
 
@@ -139,17 +139,17 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   swoc::FixedBufferWriter w(errbuff, errbuff_size);
   auto & r_cfg = RemapConfig::acquire();
 
-  if (argc < 1) {
+  if (argc < 3) {
     w.print("{} plugin requires a configuration file parameter.\0", Config::PLUGIN_NAME);
     return TS_ERROR;
   }
 
-  swoc::file::path config_path { ts::make_absolute(swoc::file::path(argv[0])) };
+  swoc::file::path config_path { ts::make_absolute(swoc::file::path(argv[2])) };
   TextView key_path = ".";
   std::string text;
 
-  if (argc > 1) {
-    key_path.assign(argv[1], strlen(argv[1]));
+  if (argc > 3) {
+    key_path.assign(argv[3], strlen(argv[3]));
   }
 
   auto && [ cg, cg_errata ] = r_cfg.obtain(config_path);
@@ -165,7 +165,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   if (! cfg_errata.is_ok()) {
     cg->_cfgs.erase(key_path);
     cg_errata.info(R"(While parsing config "{}" for {})", config_path, Config::PLUGIN_TAG);
-    TSError("%s", swoc::bwprint(text, "{}", cg_errata).c_str());
+    TSError("%s", swoc::bwprint(text, "{}", cfg_errata).c_str());
     w.print("Error while parsing configuration for {} - see diagnostic log for more detail.\0", Config::PLUGIN_TAG);
     return TS_ERROR;
   }
@@ -181,10 +181,9 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
     ctx = new Context({});
     ctx->enable_hooks(txn);
   }
-  ctx->_remap_info = rri;
-  ctx->invoke_for_remap(*(r_ctx->rule_cfg));
+  ctx->invoke_for_remap(*(r_ctx->rule_cfg), rri);
 
-  return TSREMAP_NO_REMAP;
+  return ctx->_remap_status;
 }
 
 void TSRemapDeleteInstance(void *ih) {

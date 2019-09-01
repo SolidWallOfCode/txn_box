@@ -43,7 +43,7 @@ public:
    *
    * The @a feature is modified in place.
    */
-  virtual swoc::Errata operator()(Context& ctx, FeatureData & feature) = 0;
+  virtual swoc::Errata operator()(Context& ctx, Feature & feature) = 0;
 
   /** Check if the comparison is valid for @a type.
    *

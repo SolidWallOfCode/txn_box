@@ -18,6 +18,7 @@
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/ts_util.h"
+#include <ts/remap.h>
 
 struct _tm_remap_request_info;
 using TSRemapRequestInfo = _tm_remap_request_info;
@@ -47,7 +48,7 @@ public:
   swoc::Errata on_hook_do(Hook hook, Directive *drtv);
 
   swoc::Errata invoke_for_hook(Hook hook);
-  swoc::Errata invoke_for_remap(Config & rule_cfg);
+  swoc::Errata invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri);
 
   /** Set up to handle the hooks in the @a txn.
    *
@@ -70,7 +71,7 @@ public:
    *
    * @see commit
    */
-  FeatureData extract(Extractor::Format const& fmt);
+  Feature extract(Extractor::Format const& fmt);
 
   /** Commit a feature.
    *
@@ -83,7 +84,7 @@ public:
    *
    * @see extract
    */
-  self_type& commit(FeatureData const& feature);
+  self_type& commit(Feature const& feature);
 
   swoc::MemSpan<void> storage_for(Directive* drtv);
 
@@ -91,7 +92,7 @@ public:
   TSCont _cont = nullptr;
   ts::HttpTxn _txn = nullptr;
   /// Current extracted feature data.
-  FeatureData _feature;
+  Feature _feature;
 
   void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
@@ -172,6 +173,7 @@ public:
   }
 
   TSRemapRequestInfo* _remap_info = nullptr;
+  TSRemapStatus _remap_status = TSREMAP_NO_REMAP;
 
   /** Clear cached data.
    *

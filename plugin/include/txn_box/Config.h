@@ -29,7 +29,9 @@ class Config {
   using Errata = swoc::Errata;
 public:
 
+  /// Full name of the plugin.
   static constexpr swoc::TextView PLUGIN_NAME { "Transaction Tool Box" };
+  /// Tag name of the plugin.
   static constexpr swoc::TextView PLUGIN_TAG { "txn_box" };
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
@@ -50,6 +52,7 @@ public:
     int _rxp_line = -1; ///< Line of the active regular expression.
   };
 
+  /// Default constructor, makes an empty instance.
   Config();
 
   /** Parse YAML from @a node to initialize @a this configuration.
@@ -125,7 +128,8 @@ public:
    * Strings in the YAML configuration are transient. If the content needs to be available at
    * run time it must be first localized.
    */
-  swoc::TextView localize(swoc::TextView text);
+  std::string_view& localize(std::string_view & text);
+  swoc::TextView localize(std::string_view const& text) { swoc::TextView tv { text }; return this->localize(tv); }
 
   /** Localized a format.
    *
@@ -136,6 +140,10 @@ public:
    * it will be condensed in to a single item literal.
    */
   self_type & localize(Extractor::Format & fmt);
+
+  self_type& localize(Feature & feature);
+
+  template < typename T > auto localize(T & data) -> typename std::enable_if<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&>::type { return *this; }
 
   /** Allocate config space for an array of @a T.
    *
@@ -179,7 +187,7 @@ public:
   /** Define a directive.
    *
    */
-  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Directive::Worker const& worker, Directive::Options const& opts = Directive::Options{});
+  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Directive::Worker const& worker, Directive::Options const& opts = Directive::Options {});
 
 protected:
   friend class When;

@@ -23,28 +23,111 @@ using namespace swoc::literals;
 Extractor::Table Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
+Feature const& car(Feature const& feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      return std::get<feature_type_for<CONS>>(feature)->_car;
+    case IndexFor(TUPLE):
+      return std::get<feature_type_for<TUPLE>>(feature)[0];
+  }
+  return feature;
+}
 
-Extractor::Format Extractor::literal(TextView format_string) {
-  Spec lit;
+Feature cdr(Feature const& feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      return std::get<feature_type_for<CONS>>(feature)->_cdr;
+    case IndexFor(TUPLE): {
+      Feature cdr { feature };
+      auto &span = std::get<feature_type_for<TUPLE>>(cdr);
+      span.remove_prefix(1);
+      return span.empty() ? NIL_FEATURE : cdr;
+    }
+  }
+  return NIL_FEATURE; // No cdr unless explicitly supported.
+}
+/* ------------------------------------------------------------------------------------ */
+
+Extractor::Format Extractor::literal(TextView text) {
   Format fmt;
-  lit._type = swoc::bwf::Spec::LITERAL_TYPE;
-  lit._ext = format_string;
-  fmt.push_back(lit);
+  fmt._literal_p = true;
+  fmt._direct_p = false;
+  fmt._literal = text;
+  fmt._feature_type = STRING;
   return std::move(fmt);
 }
 
-Rv<Extractor::Format> Extractor::parse_extractor(TextView text) {
-  auto key = text.prefix_at(ARG_SEP);
-  if ( auto ex { _ex_table.find(key) } ; ex != _ex_table.end() ) {
-    Spec spec;
-    Format fmt;
-    spec._exf = ex->second;
-    spec._name = key;
-    spec._arg = text.remove_prefix(key.size() + 1);
-    fmt.push_back(spec);
-    return { std::move(fmt), {} };
+Extractor::Format Extractor::literal(feature_type_for<INTEGER> n) {
+  Format fmt;
+  fmt._literal_p = true;
+  fmt._direct_p = false;
+  fmt._literal = n;
+  fmt._feature_type = INTEGER;
+  return std::move(fmt);
+}
+
+Extractor::Format Extractor::literal(feature_type_for<IP_ADDR> const& addr) {
+  Format fmt;
+  fmt._literal_p = true;
+  fmt._direct_p = false;
+  fmt._literal = addr;
+  fmt._feature_type = IP_ADDR;
+  return std::move(fmt);
+}
+
+Errata Extractor::update_extractor(Spec &spec) {
+  if (spec._name.empty()) {
+    return Error(R"(Extractor name required but not found.)");
   }
-  return  Error(R"(Extractor "{}" not found.)", key);
+
+  if (spec._idx < 0) {
+    auto arg = TextView{spec._name};
+    auto key = arg.take_prefix_at(ARG_SEP);
+    if (auto ex{_ex_table.find(key)}; ex != _ex_table.end()) {
+      spec._exf = ex->second;
+      spec._name = key;
+      spec._arg = arg;
+    } else {
+      return Error(R"(Extractor "{}" not found.)", key);
+    }
+  }
+  return {};
+}
+
+Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
+  // Check for specific types of literals
+
+  if (text.empty()) {
+    return self_type::literal(""_tv);
+  };
+
+  // Integer?
+  TextView parsed;
+  auto n = swoc::svtoi(text, &parsed);
+  if (parsed.size() == text.size()) {
+    return self_type::literal(n);
+  }
+
+  // IP Address?
+  swoc::IPAddr addr;
+  if (addr.parse(text)) {
+    return self_type::literal(addr);
+  }
+
+  Spec spec;
+  bool valid_p = spec.parse(text);
+  if (!valid_p) {
+    return Error(R"(Invalid format for extractor - "{}")", text);
+  }
+  auto errata = self_type::update_extractor(spec);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  Format fmt;
+  fmt.push_back(spec);
+  fmt._feature_type = spec._exf ? spec._exf->feature_type() : STRING;
+  return std::move(fmt);
 }
 
 Rv<Extractor::Format> Extractor::parse(TextView format_string) {
@@ -66,23 +149,12 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
     }
 
     if (spec_p) {
-      if (spec._name.empty()) {
-        zret.error(R"(Extractor missing name at offset {}.)", format_string.size() - parser._fmt.size());
+      if (spec._idx >= 0) {
+        fmt.push_back(spec);
       } else {
-        if (spec._idx >= 0) {
-          fmt.push_back(spec);
-          fmt._max_arg_idx = std::max(fmt._max_arg_idx, spec._idx);
-        } else {
-          auto arg = TextView{spec._name};
-          auto key = arg.take_prefix_at(ARG_SEP);
-          if ( auto ex { _ex_table.find(key) } ; ex != _ex_table.end() ) {
-            spec._exf = ex->second;
-            spec._name = key;
-            spec._arg = arg;
-            fmt.push_back(spec);
-          } else {
-            zret.error(R"(Extractor "{}" not found at offset {}.)", key, format_string.size() - parser._fmt.size());
-          }
+        zret = self_type::update_extractor(spec);
+        if (! zret.is_ok()) {
+          zret.info(R"(While parsing specifier at offset {}.)", format_string.size() - parser._fmt.size());
         }
       }
     }
@@ -108,6 +180,7 @@ Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec cons
     _direct_p = false; // literals aren't direct.
   } else {
     _literal_p = false;
+    _max_arg_idx = std::max(_max_arg_idx, spec._idx);
     if (_specs.size() == 1) {
       if (spec._exf) {
         _feature_type = spec._exf->feature_type();
@@ -350,7 +423,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
   return {};
 }
 
-FeatureData FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
+Feature FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
   auto idx = this->exf_index(name);
   if (idx == INVALID_IDX) {
     return {};
@@ -358,7 +431,7 @@ FeatureData FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
   return this->extract(ctx, idx);
 }
 
-FeatureData FeatureGroup::extract(Context &ctx, index_type idx) {
+Feature FeatureGroup::extract(Context &ctx, index_type idx) {
   auto& info = _exf_info[idx];
   if (info._ex.index() == ExfInfo::SINGLE) {
     ExfInfo::Single &data = std::get<ExfInfo::SINGLE>(info._ex);

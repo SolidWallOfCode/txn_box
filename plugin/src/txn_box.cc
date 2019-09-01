@@ -32,6 +32,8 @@ namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 
+Global G;
+
 const std::string Config::ROOT_KEY { "txn_box" };
 
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {

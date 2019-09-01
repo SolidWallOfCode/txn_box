@@ -78,8 +78,9 @@ Errata Context::invoke_for_hook(Hook hook) {
   return {};
 }
 
-Errata Context::invoke_for_remap(Config& rule_cfg) {
+Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
   _cur_hook = Hook::REMAP;
+  _remap_info = rri;
   this->clear_cache();
 
   // Ugly, but need to make sure the regular expression storage is sufficient.
@@ -105,6 +106,7 @@ Errata Context::invoke_for_remap(Config& rule_cfg) {
   this->invoke_callbacks(); // Any accumulated callbacks.
 
   _cur_hook = Hook::INVALID;
+  _remap_info = nullptr;
 
   return {};
 }
@@ -113,14 +115,11 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
   spec._exf->format(w, spec, *this);
 }
 
-FeatureData Context::extract(Extractor::Format const &fmt) {
+Feature Context::extract(Extractor::Format const &fmt) {
   if (fmt._direct_p) {
     return dynamic_cast<DirectFeature *>(fmt[0]._exf)->direct_view(*this, fmt[0]);
   } else if (fmt._literal_p) {
-    if (fmt._feature_type == INTEGER) {
-      return fmt._number;
-    }
-    return FeatureView::Literal(fmt[0]._ext);
+    return fmt._literal;
   } else {
     switch (fmt._feature_type) {
       case STRING: {
@@ -149,7 +148,7 @@ FeatureData Context::extract(Extractor::Format const &fmt) {
   return {};
 }
 
-Context& Context::commit(FeatureData const &feature) {
+Context& Context::commit(Feature const &feature) {
   if (auto fv = std::get_if<STRING>(&feature) ; fv && !(fv->_direct_p || fv->_literal_p)) {
     _arena->alloc(fv->size());
   }

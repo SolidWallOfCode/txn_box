@@ -10,7 +10,9 @@
 #include <tuple>
 #include <variant>
 
+#include <swoc/swoc_meta.h>
 #include <swoc/TextView.h>
+#include <swoc/MemSpan.h>
 #include <swoc/Errata.h>
 #include <swoc/swoc_ip.h>
 #include <swoc/Lexicon.h>
@@ -22,28 +24,12 @@ class Context;
 
 namespace YAML { class Node; }
 
-template < typename ... Args > swoc::Errata && Error(std::string_view const& fmt, Args && ... args) {
+template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, Args && ... args) {
   return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
 }
 
 /// Separator character for names vs. argument.
 static constexpr char ARG_SEP = '.';
-
-/// Supported feature types.
-enum FeatureType {
-  NIL, ///< No data.
-  STRING, ///< View of a string.
-  INTEGER, ///< An integer.
-  IP_ADDR, ///< IP Address
-  BOOLEAN, ///< Boolean.
-};
-
-static constexpr std::initializer_list<FeatureType> FeatureType_LIST { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN };
-
-/// Number of feature types.
-/// @internal @b MUST update this if @c FeatureType is changed.
-/// @internal if @c IndexFor doesn't compile, failure to update is the most likely cause.
-static constexpr size_t N_FEATURE_TYPE = FeatureType_LIST.size();
 
 /** Data for a feature that is a view / string.
  *
@@ -76,12 +62,38 @@ public:
 /// YAML tag type for literal (no feature extraction).
 static constexpr swoc::TextView LITERAL_TAG { "literal" };
 
-/// Feature descriptor storage.
-/// @note view types have only the view stored here, the string memory is elsewhere.
-using FeatureData = std::variant<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool>;
+// Self referential types, forward declared.
+struct Cons;
+struct Feature;
+/// Compact tuple representation, via a @c Memspan.
+/// Tuples have a fixed size.
+using FeatureTuple = swoc::MemSpan<Feature>;
 
-/// A mask indicating a set of @c FeatureType.
-using FeatureMask = std::bitset<N_FEATURE_TYPE>;
+/// Type list of feature types.
+using FeatureTypes = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple>;
+
+/// Enumeration of feature types.
+enum FeatureType {
+  NIL, ///< No data.
+  STRING, ///< View of a string.
+  INTEGER, ///< An integer.
+  IP_ADDR, ///< IP Address
+  BOOLEAN, ///< Boolean.
+  CONS, ///< Pointer to cons cell.
+  TUPLE ///< Tuple of data.
+};
+
+// *** @c FeatureTypes and @c FeatureType must be kept in parallel synchronization! ***
+
+/** Basic feature data type.
+ * This is split out in order to make self-reference work. This is the actual variant, and
+ * then @c FeatureData is layered on top. The self referential types (Cons, Tuple) must
+ * have a defined type to use in their declaration, which cannot be the same type as the
+ * variant. Unfortunately it's not possible to forward declare the variant type itself,
+ * therefore the wrapper type is forward declared, the self reference uses that, and then
+ * the variant type is pasted in to the forwarded declared type.
+ */
+using FeatureVariant = FeatureTypes::template apply<std::variant>;
 
 /** Convert a feature @a type to a variant index.
  *
@@ -89,9 +101,52 @@ using FeatureMask = std::bitset<N_FEATURE_TYPE>;
  * @return Index in @c FeatureData for that feature type.
  */
 inline constexpr unsigned IndexFor(FeatureType type) {
-  constexpr std::array<unsigned, N_FEATURE_TYPE> IDX { 0, 1, 2, 3, 4 };
+  constexpr std::array<unsigned, FeatureTypes::size> IDX { 0, 1, 2, 3, 4, 5, 6 };
   return IDX[static_cast<unsigned>(type)];
 };
+
+/** Feature data.
+ * This is a wrapper on the variant type containing all the distinct feature types.
+ * All of these are small and fixed size, any external storage (e.g. the text for a view)
+ * is stored separately.
+ */
+struct Feature : public FeatureVariant {
+  using variant_type = FeatureVariant; ///< The base variant type.
+  using variant_type::variant_type; ///< Inherit all constructors.
+};
+
+/// @cond NO_DOXYGEN
+// These are overloads for variant visitors so that other call sites can use @c FeatureData
+// directly without having to reach in to the @c variant_type.
+namespace std {
+template < typename VISITOR > auto visit(VISITOR&& visitor, Feature & feature) -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature))) {
+  return visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature));
+}
+
+template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& feature) -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const&>(feature))) {
+  return visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const&>(feature));
+}
+} // namespace std
+/// @endcond
+
+/// Nil value feature.
+static constexpr Feature NIL_FEATURE;
+
+/** Standard cons cell.
+ *
+ * Used to build up structures that have indeterminate length in the standard cons cell way.
+ */
+struct Cons {
+  Feature _car; ///< Immediate feature.
+  Feature _cdr; ///< Next feature.
+};
+
+/// A mask indicating a set of @c FeatureType.
+using FeatureMask = std::bitset<FeatureTypes::size>;
+
+/// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
+/// @tparam F FeatureType enumeration value.
+template < FeatureType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
 
 /** Create a @c FeatureMask containing a single @a type.
  *
@@ -139,11 +194,19 @@ inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
   return mask;
 }
 
+template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypes::template contains<T>, R>;
+
+inline bool is_nil(Feature const& feature) { return feature.index() == IndexFor(NIL); }
+inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.index() || (IndexFor(STRING) == feature.index() && std::get<IndexFor(STRING)>(feature).empty()); }
+
+Feature const& car(Feature const& feature);
+Feature cdr(Feature const& feature);
+
 /// Conversion between @c FeatureType and printable names.
 extern swoc::Lexicon<FeatureType> FeatureTypeName;
 namespace swoc {
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureData const &feature);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask);
 }
 

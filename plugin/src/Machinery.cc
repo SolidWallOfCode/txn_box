@@ -9,6 +9,10 @@
 
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
+#include <swoc/ArenaWriter.h>
+#include <swoc/BufferWriter.h>
+#include <swoc/bwf_base.h>
+#include <swoc/bwf_ex.h>
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
@@ -434,7 +438,8 @@ Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& dr
   Handle handle(self);
 
   if (fmt._feature_type == INTEGER) {
-    auto status = fmt._number;
+//    auto status = fmt._number;
+    feature_type_for<INTEGER> status = 0; // BROKEN - need to fix up for new literal and extraction support.
     if (status < 100 || status > 599) {
       return Error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)", key_value.Scalar(), key_value.Mark());
     }
@@ -618,7 +623,7 @@ Do_redirect::Do_redirect(Config &cfg) {
 
 Errata Do_redirect::invoke(Context& ctx) {
   // Finalize the location and stash it in context storage.
-  FeatureData location = _fg.extract(ctx, _location_idx);
+  Feature location = _fg.extract(ctx, _location_idx);
   ctx.commit(location);
   // Remember where it is so the fix up can find it.
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
@@ -628,7 +633,7 @@ Errata Do_redirect::invoke(Context& ctx) {
   if (_status) {
     ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
   } else {
-    FeatureData value = _fg.extract(ctx, _status_idx);
+    Feature value = _fg.extract(ctx, _status_idx);
     int status;
     if (value.index() == IndexFor(INTEGER)) {
       status = std::get<IndexFor(INTEGER)>(value);
@@ -787,7 +792,63 @@ Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node const& drtv_nod
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Do_set_creq_query : public Directive {
+class QueryDirective {
+public:
+  Errata invoke(Context &ctx, Extractor::Format& fmt, ts::URL url, TextView key);
+};
+
+Errata QueryDirective::invoke(Context &ctx, Extractor::Format& fmt, ts::URL url, TextView key) {
+  auto feature = ctx.extract(fmt);
+  if (key.empty()) {
+    url.set_query(std::get<IndexFor(STRING)>(feature));
+    return {};
+  }
+
+  // Need remnant space therefore this needs to be permanent.
+  ctx.commit(feature);
+
+  swoc::ArenaWriter aw{*ctx._arena};
+  TextView sep; // last separator found.
+  TextView::size_type offset = 0;
+  auto query { url.query() };
+  // Check each parameter for matching @a _arg.
+  while (offset < query.size()) {
+    if (query.substr(offset).starts_with(key) &&
+        ((query.size() == offset + key.size()) ||
+         ("=&;"_tv.find(query[key.size()]) != TextView::npos ))) {
+      aw.write(sep).write(query.remove_prefix(offset)); // write out prior query section
+      if (!is_nil(feature)) {
+        Feature value = car(feature);
+        if (is_nil(value)) {
+          aw.write(key);
+        } else {
+          aw.print("{}={}", key, value);
+        }
+      }
+      query.remove_prefix(offset).ltrim_if([](char c){return c != '&' && c != ';';});
+      sep = query.take_prefix(1);
+      offset = 0;
+      feature = cdr(feature);
+    } else {
+      offset = query.find_first_of(";&"_sv, offset+1);
+    }
+  }
+  if (query) {
+    aw.write(sep).write(query);
+  }
+  while (! is_nil(feature)) {
+    Feature value = car(feature);
+    if (is_nil(value)) {
+      aw.write(key);
+    } else {
+      aw.print("{}={}", key, value);
+    }
+    feature = cdr(feature);
+  }
+  return {};
+}
+
+class Do_set_creq_query : public Directive, QueryDirective {
   using self_type = Do_set_creq_query;
   using super_type = Directive;
 public:
@@ -795,7 +856,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node const& key_value);
 
 protected:
   TextView _arg;
@@ -808,13 +869,11 @@ const std::string Do_set_creq_query::KEY { "set-creq-query" };
 const HookMask Do_set_creq_query::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP}) };
 
 Errata Do_set_creq_query::invoke(Context &ctx) {
-  if (_arg.empty()) {
-    ctx.creq_hdr().url().set_query(std::get<IndexFor(STRING)>(ctx.extract(_fmt)));
-  }
+  return this->QueryDirective::invoke(ctx, _fmt, ctx.creq_hdr().url(), _arg);
 }
 
 Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drtv_node
-                                             , swoc::TextView const &name, swoc::TextView const &arg
+                                             , swoc::TextView const &name, swoc::TextView arg
                                              , YAML::Node const &key_value) {
 
   auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
@@ -822,9 +881,56 @@ Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drt
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return { {}, std::move(errata)};
   }
-  fmt._feature_type = STRING; // Force string value.
+
+  if (arg.empty()) {
+    fmt._feature_type = STRING; // Force string value.
+  }
+
   return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
 }
+
+class Do_set_remap_query : public Directive, QueryDirective {
+  using self_type = Do_set_remap_query;
+  using super_type = Directive;
+public:
+  static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node const& key_value);
+
+protected:
+  TextView _arg;
+  Extractor::Format _fmt;
+
+  Do_set_remap_query(TextView arg, Extractor::Format && fmt) : _arg(arg), _fmt(std::move(fmt)) {}
+};
+
+const std::string Do_set_remap_query::KEY { "set-remap-query" };
+const HookMask Do_set_remap_query::HOOKS { MaskFor({Hook::CREQ, Hook::REMAP}) };
+
+Rv<Directive::Handle> Do_set_remap_query::load(Config &cfg, YAML::Node const &drtv_node
+                                              , swoc::TextView const &name, swoc::TextView arg
+                                              , YAML::Node const &key_value) {
+
+  auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return { {}, std::move(errata)};
+  }
+
+  if (arg.empty()) {
+    fmt._feature_type = STRING; // Force string value.
+  }
+
+  return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
+}
+
+Errata Do_set_remap_query::invoke(Context &ctx) {
+  ctx._remap_status = TSREMAP_DID_REMAP;
+  return this->QueryDirective::invoke(ctx, _fmt, ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl), _arg);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
@@ -859,7 +965,7 @@ protected:
 
 const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
-const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
+const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 class WithTuple : public Directive {
   friend class With;
@@ -919,7 +1025,7 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op)
 }
 
 Errata With::invoke(Context &ctx) {
-  FeatureData feature { ctx.extract(_ex) };
+  Feature feature { ctx.extract(_ex) };
   for ( auto const& c : _cases ) {
     if ((*c._cmp)(ctx, feature)) {
       ctx._feature = feature;
@@ -1164,6 +1270,7 @@ namespace {
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);
+  Config::define(Do_set_remap_query::KEY, Do_set_remap_query::HOOKS, Do_set_remap_query::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;

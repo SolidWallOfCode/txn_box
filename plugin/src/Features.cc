@@ -17,11 +17,15 @@ using swoc::TextView;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 
-swoc::Lexicon<FeatureType> FeatureTypeName {{ {FeatureType::STRING, "string"}
-                                                , {FeatureType::INTEGER, "integer"}
-                                                , {FeatureType::BOOLEAN, "boolean"}
-                                                , {FeatureType::IP_ADDR, "IP address"}
-                                            }};
+swoc::Lexicon<FeatureType> FeatureTypeName {{
+    { FeatureType::NIL, "nil" }
+  , {FeatureType::STRING, "string"}
+  , {FeatureType::INTEGER, "integer"}
+  , {FeatureType::BOOLEAN, "boolean"}
+  , {FeatureType::IP_ADDR, "IP address"}
+  , { FeatureType::CONS, "cons" }
+  , { FeatureType::TUPLE, "tuple" }
+}};
 
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {
@@ -39,21 +43,22 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask) {
     span = span.prefix(spec._max);
   }
   swoc::FixedBufferWriter lw{span};
-  for (auto type : FeatureType_LIST) {
-    if (!mask[type]) {
+  for (auto const& [ e, v] : FeatureTypeName) {
+    if (!mask[e]) {
       continue;
     }
     if (lw.extent()) {
       w.write(", ");
     }
-    bwformat(w, spec, type);
+    bwformat(w, spec, v);
   }
   w.commit(lw.extent());
   return w;
 }
 
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureData const &feature) {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature) {
   auto visitor = [&](auto &&arg) -> BufferWriter & { return bwformat(w, spec, arg); };
+//  return std::visit(visitor, static_cast<FeatureData::variant_type const&>(feature));
   return std::visit(visitor, feature);
 }
 } // namespace swoc
@@ -213,7 +218,7 @@ FeatureView Ex_creq_field::direct_view(Context &ctx, Spec const& spec) const {
   zret._direct_p = true;
   zret = TextView{};
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    if ( auto field { hdr.field(spec._ext) } ; field.is_valid()) {
+    if ( auto field { hdr.field(spec._arg) } ; field.is_valid()) {
       zret = field.value();
     }
   }
@@ -264,7 +269,7 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
-  FeatureData feature {_fg->extract(ctx, spec._ext)};
+  Feature feature {_fg->extract(ctx, spec._ext)};
   return bwformat(w, spec, feature);
 }
 

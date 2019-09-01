@@ -33,6 +33,9 @@ Glossary
    extractor
       A mechanism which can performat :term:`extraction`.
 
+   feature string
+      A string that is used to extract a feature.
+
    directive
       An action to perform.
 

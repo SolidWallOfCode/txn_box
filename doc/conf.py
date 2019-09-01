@@ -52,6 +52,7 @@ extensions = [ 'sphinx.ext.graphviz'
              , 'sphinx.ext.githubpages'
              , 'sphinxcontrib.plantuml'
 	     , 'sphinxcontrib.doxylink'
+             , 'txnbox'
              , 'local-config'
              ]
 

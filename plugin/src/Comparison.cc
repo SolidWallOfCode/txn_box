@@ -84,15 +84,16 @@ Rv<Extractor::Format> StringComparison::load_exfmt(Config &cfg, YAML::Node cmp_n
   auto &&[exfmt, errata]{cfg.parse_feature(key_node)};
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing comparison "{}" at {}.)", KEY, key_node.Mark());
-    return {{}, std::move(errata)};
+    errata.info(R"(While parsing comparison "{}" at {}.)", KEY, cmp_node.Mark());
+    return std::move(errata);
   }
 
   if (!TYPES[IndexFor(exfmt._feature_type)]) {
-    Errata().error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
-                   , exfmt._feature_type, KEY, key_node.Mark());
+    errata.error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
+                   , exfmt._feature_type, KEY, cmp_node.Mark());
+    return std::move(errata);
   }
-  return {std::move(exfmt), {}};
+  return std::move(exfmt);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -128,7 +129,7 @@ protected:
 const std::string Cmp_Match::KEY { "match" };
 
 bool Cmp_Match::operator()(Context& ctx, FeatureView& text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return text == std::get<STRING>(feature);
 }
 
@@ -137,6 +138,7 @@ Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::N
   if (! errata.is_ok()) {
     return { {}, std::move(errata) };
   }
+  exfmt._feature_type = STRING;
   return { Handle{new self_type(std::move(exfmt))}, {} };
 }
 
@@ -173,7 +175,7 @@ protected:
 const std::string Cmp_MatchNocase::KEY { "match-nocase" };
 
 bool Cmp_MatchNocase::operator()(Context& ctx, FeatureView& text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return 0 == strcasecmp(text, std::get<STRING>(feature));
 }
 
@@ -209,7 +211,7 @@ protected:
 const std::string Cmp_Suffix::KEY { "suffix" };
 
 bool Cmp_Suffix::operator()(Context &ctx, FeatureView &text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return text.ends_with(std::get<IndexFor(STRING)>(feature));
 }
 
@@ -245,7 +247,7 @@ protected:
 const std::string Cmp_SuffixNocase::KEY { "suffix-nocase" };
 
 bool Cmp_SuffixNocase::operator()(Context &ctx, FeatureView &text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return text.ends_with_nocase(std::get<IndexFor(STRING)>(feature));
 }
 
@@ -281,7 +283,7 @@ protected:
 const std::string Cmp_Prefix::KEY { "prefix" };
 
 bool Cmp_Prefix::operator()(Context &ctx, FeatureView &text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return text.starts_with(std::get<IndexFor(STRING)>(feature));
 }
 
@@ -317,7 +319,7 @@ protected:
 const std::string Cmp_PrefixNocase::KEY { "prefix-nocase" };
 
 bool Cmp_PrefixNocase::operator()(Context &ctx, FeatureView &text) const {
-  FeatureData feature { ctx.extract(_exfmt) };
+  Feature feature { ctx.extract(_exfmt) };
   return text.starts_with_nocase(std::get<IndexFor(STRING)>(feature));
 }
 
@@ -409,9 +411,9 @@ public:
   static const std::string KEY; ///< Comparison name.
   static const FeatureMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData>& text) const override;
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData >& data) const override;
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), Feature::variant_type>& text) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>& data) const override;
+  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), Feature::variant_type>& data) const override;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
@@ -423,15 +425,15 @@ protected:
 const std::string Cmp_true::KEY { "true" };
 const FeatureMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+bool Cmp_true::operator()(Context &ctx, feature_type_for<STRING> &text) const {
   return true == PredicateNames[text];
 }
 
-bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+bool Cmp_true::operator()(Context &ctx, feature_type_for<BOOLEAN> &data) const {
   return data;
 }
 
-bool Cmp_true::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+bool Cmp_true::operator()(Context &ctx, feature_type_for<INTEGER> &data) const {
   return data != 0;
 }
 
@@ -449,9 +451,9 @@ public:
   static const std::string KEY; ///< Comparison name.
   static const FeatureMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData>& text) const override;
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData >& data) const override;
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override;
+  bool operator() (Context& ctx,feature_type_for<STRING>& text) const override;
+  bool operator() (Context& ctx, feature_type_for<BOOLEAN>& data) const override;
+  bool operator() (Context& ctx, feature_type_for<INTEGER>& data) const override;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
@@ -463,15 +465,15 @@ protected:
 const std::string Cmp_false::KEY { "false" };
 const FeatureMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(STRING), FeatureData> &text) const {
+bool Cmp_false::operator()(Context &ctx, feature_type_for<STRING> &text) const {
   return false == PredicateNames[text];
 }
 
-bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(BOOLEAN), FeatureData> &data) const {
+bool Cmp_false::operator()(Context &ctx, feature_type_for<BOOLEAN> &data) const {
   return ! data;
 }
 
-bool Cmp_false::operator()(Context &ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData> &data) const {
+bool Cmp_false::operator()(Context &ctx, feature_type_for<INTEGER> &data) const {
   return data == 0;
 }
 
@@ -486,7 +488,7 @@ public:
   static const std::string KEY; ///< Comparison name.
   static const FeatureMask TYPES; ///< Support types.
 
-  bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(INTEGER), FeatureData >& data) const override {
+  bool operator() (Context& ctx, feature_type_for<INTEGER>& data) const override {
     auto value = ctx.extract(_value_fmt);
     return std::get<IndexFor(INTEGER)>(value) == data;
   }

@@ -14,8 +14,8 @@
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
-#include "txn_box/yaml_util.h"
 #include "txn_box/common.h"
+#include "txn_box/yaml_util.h"
 
 /** Base class for comparisons.
  *
@@ -42,13 +42,8 @@ public:
    */
   virtual unsigned rxp_group_count() const;
 
-  bool operator()(Context& ctx, FeatureData & data) {
-    auto visitor = [&](auto && arg) { return (*this)(ctx, arg); };
-    return std::visit(visitor, data);
-  }
-
   /// @defgroup Comparison overloads.
-  /// These must match the set of types in @c FeatureData.
+  /// These must match the set of types in @c FeatureTypes.
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// The feature is passed by reference because comparisons are allowed to perform updates.
   /// @{
@@ -56,8 +51,17 @@ public:
   virtual bool operator()(Context&, FeatureView& view) const { return false; }
   virtual bool operator()(Context&, intmax_t& n) const { return false; }
   virtual bool operator()(Context&, bool& f) const { return false; }
-  virtual bool operator()(Context&, swoc::IPAddr & addr) const { return false; }
+  virtual bool operator()(Context&, swoc::IPAddr& addr) const { return false; }
+  virtual bool operator()(Context&, Cons* cons) const { return false; }
+  virtual bool operator()(Context&, FeatureTuple& tuple) const { return false; }
   /// @}
+
+  bool operator()(Context& ctx, Feature& data) const {
+    auto visitor = [&](auto && arg) { return (*this)(ctx, arg); };
+// This should work, but it doesn't. Need to find out why not.
+//    return std::visit(visitor, data);
+    return std::visit(visitor, static_cast<Feature::variant_type&>(data));
+  }
 
   /** Define a comparison.
    *

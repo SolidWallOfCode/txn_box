@@ -52,7 +52,7 @@ class Mod_Hash : public FeatureMod {
 public:
   static const std::string KEY; ///< Identifier name.
 
-  Errata operator()(Context& ctx, FeatureData & feature) override;
+  Errata operator()(Context& ctx, Feature & feature) override;
 
   bool is_valid_for(FeatureType ftype) const override;
 
@@ -86,7 +86,7 @@ FeatureType Mod_Hash::output_type() const {
   return INTEGER;
 }
 
-Errata Mod_Hash::operator()(Context &ctx, FeatureData &feature) {
+Errata Mod_Hash::operator()(Context &ctx, Feature &feature) {
   return {};
 }
 
