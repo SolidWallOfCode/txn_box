@@ -194,16 +194,48 @@ inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
   return mask;
 }
 
+/** Helper template for handling @c Feature variants.
+ * @tparam T The type to check against the variant type list.
+ * @tparam R The return type of the function / method.
+ *
+ * This can be used to enable a template method for only the types in the variant.
+ * @code
+ *   template < typename T > auto operator() (T & t) -> EnableForFeatureTypes<T, void> { ... }
+ * @endcode
+ * The return type @a R can be fixed (as in this case, it is always @c void ) or it can be dependent
+ * on @a T (e.g., @c T& ). This will set a class such that the function operator works for any
+ * type in the Feature variant, but not other types. Note that overloads for specific Feature
+ * types can be defined before such a template. This is generally done when those types are
+ * usable types, with the template for a generic failure response for non-usable types.
+ */
 template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypes::template contains<T>, R>;
 
+/// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) { return feature.index() == IndexFor(NIL); }
+/// Check if @a feature is empty (nil or an empty string).
 inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.index() || (IndexFor(STRING) == feature.index() && std::get<IndexFor(STRING)>(feature).empty()); }
 
+/** Get the first element for @a feature.
+ *
+ * @param feature Feature from which to extract.
+ * @return If @a feature is not a sequence, @a feature. Otherwise return the first feature in the
+ * sequence.
+ *
+ */
 Feature const& car(Feature const& feature);
+/** Drop the first element in @a feature.
+ *
+ * @param feature Feature sequence.
+ * @return If @a feature is not a sequence, or there are no more elements in @a feature, the @c NIL feature.
+ * Otherwise a sequence not containing the first element of @a feature.
+ *
+ */
 Feature cdr(Feature const& feature);
 
 /// Conversion between @c FeatureType and printable names.
 extern swoc::Lexicon<FeatureType> FeatureTypeName;
+
+// BufferWriter support.
 namespace swoc {
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
@@ -290,7 +322,12 @@ template<> struct tuple_size<Hook> : public std::integral_constant<size_t,
 extern swoc::Lexicon<Hook> HookName;
 extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, Hook hook);
 
-inline FeatureView::self_type FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
+/** Create a feature that is a literal string of @a view.
+ *
+ * @param view Soure string.
+ * @return A literal feature that is the same as @a view.
+ */
+inline FeatureView FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
 
 /// Container for global data.
 struct Global {
