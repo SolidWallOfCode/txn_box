@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 set(CMAKE_CXX_STANDARD 17)
+include(FindOpenSSL)
 
 set(INSTALL_DIR ${CMAKE_HOME_DIRECTORY})
 if(NOT DEFINED CMAKE_PREFIX_PATH)

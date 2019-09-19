@@ -231,6 +231,23 @@ public:
   bool reason_set(swoc::TextView reason);
 };
 
+/** Wrapper for a TS C API session.
+ *
+ */
+class HttpSsn {
+  friend class HttpTxn;
+public:
+  /// Default constructor - null session.
+  HttpSsn() = default;
+
+  /// Return the inbound SNI name, if any.
+  swoc::TextView inbound_sni() const;
+protected:
+  TSHttpSsn _ssn = nullptr; ///< Session handle.
+
+  HttpSsn(TSHttpSsn ssn) : _ssn(ssn) {}
+};
+
 /** Wrapper for a TS C API transaction.
  * This provides various utility methods, rather than having free functions that all take a
  * transaction instance.
@@ -274,6 +291,8 @@ public:
    * @param content_type Content type.
    */
   void error_body_set(swoc::TextView body, swoc::TextView content_type);
+
+  HttpSsn ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; };
 
 protected:
   TSHttpTxn _txn = nullptr;
