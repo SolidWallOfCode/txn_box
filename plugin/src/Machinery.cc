@@ -915,8 +915,8 @@ Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drt
   return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
 }
 
-class Do_set_remap_query : public Directive, QueryDirective {
-  using self_type = Do_set_remap_query;
+class Do_remap_query : public Directive, QueryDirective {
+  using self_type = Do_remap_query;
   using super_type = Directive;
 public:
   static const std::string KEY;
@@ -929,13 +929,13 @@ protected:
   TextView _arg;
   Extractor::Format _fmt;
 
-  Do_set_remap_query(TextView arg, Extractor::Format && fmt) : _arg(arg), _fmt(std::move(fmt)) {}
+  Do_remap_query(TextView arg, Extractor::Format && fmt) : _arg(arg), _fmt(std::move(fmt)) {}
 };
 
-const std::string Do_set_remap_query::KEY { "set-remap-query" };
-const HookMask Do_set_remap_query::HOOKS { MaskFor({Hook::CREQ, Hook::REMAP}) };
+const std::string Do_remap_query::KEY { "remap-query" };
+const HookMask Do_remap_query::HOOKS { MaskFor({Hook::CREQ, Hook::REMAP}) };
 
-Rv<Directive::Handle> Do_set_remap_query::load(Config &cfg, YAML::Node const &drtv_node
+Rv<Directive::Handle> Do_remap_query::load(Config &cfg, YAML::Node const &drtv_node
                                               , swoc::TextView const &name, swoc::TextView arg
                                               , YAML::Node const &key_value) {
 
@@ -952,7 +952,7 @@ Rv<Directive::Handle> Do_set_remap_query::load(Config &cfg, YAML::Node const &dr
   return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
 }
 
-Errata Do_set_remap_query::invoke(Context &ctx) {
+Errata Do_remap_query::invoke(Context &ctx) {
   ctx._remap_status = TSREMAP_DID_REMAP;
   return this->QueryDirective::invoke(ctx, _fmt, ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl), _arg);
 }
@@ -1297,7 +1297,7 @@ namespace {
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);
-  Config::define(Do_set_remap_query::KEY, Do_set_remap_query::HOOKS, Do_set_remap_query::load);
+  Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;
