@@ -228,6 +228,32 @@ Rv<Directive::Handle> Do_set_preq_field::load(Config& cfg, YAML::Node const& drt
   return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
+// --
+class Do_prsp_field : public FieldDirective {
+  using self_type = Do_prsp_field;
+  using super_type = FieldDirective;
+public:
+  static const std::string KEY; ///< Directive key.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  using super_type::super_type; // Inherit super_type constructors.
+};
+
+const std::string Do_prsp_field::KEY { "prsp-field" };
+const HookMask Do_prsp_field::HOOKS { MaskFor(Hook::PRSP) };
+
+Errata Do_prsp_field::invoke(Context &ctx) {
+  return this->super_type::invoke(ctx, ctx.prsp_hdr(), FORCE);
+}
+
+Rv<Directive::Handle> Do_prsp_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
+}
+
 /// Set a field in the client request if not already set.
 class Do_set_creq_field_default : public FieldDirective {
   using self_type = Do_set_creq_field_default; ///< Self reference type.
@@ -1266,6 +1292,7 @@ namespace {
   Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
   Config::define(Do_set_preq_field_default::KEY, Do_set_preq_field_default::HOOKS, Do_set_preq_field_default::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
+  Config::define(Do_prsp_field::KEY, Do_prsp_field::HOOKS, Do_prsp_field::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);

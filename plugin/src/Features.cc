@@ -266,7 +266,25 @@ auto Ex_is_internal::extract(Context &ctx) const -> ExType {
 BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx));
 }
+/* ------------------------------------------------------------------------------------ */
+/// Extract the SNI name from the inbound session.
+class Ex_cssn_sni : public DirectFeature {
+  using self_type = Ex_cssn_sni; ///< Self reference type.
+  using super_type = DirectFeature; ///< Parent type.
+public:
+  static constexpr TextView NAME { "cssn-sni" };
+  /// Extract the SNI  name from the inbound session.
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+};
 
+FeatureView Ex_cssn_sni::direct_view(Context & ctx, Spec const& spec) const {
+  return ctx._txn.ssn().inbound_sni();
+}
+
+BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->direct_view(ctx, spec));
+}
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   Feature feature {_fg->extract(ctx, spec._ext)};
@@ -291,6 +309,8 @@ Ex_creq_field creq_field;
 Ex_ursp_status ursp_status;
 Ex_is_internal is_internal;
 
+Ex_cssn_sni cssn_sni;
+
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_this::NAME, &ex_this);
   Extractor::define(Ex_creq_url::NAME, &creq_url);
@@ -302,6 +322,7 @@ Ex_is_internal is_internal;
   Extractor::define(Ex_creq_field::NAME, &creq_field);
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);
   Extractor::define(Ex_is_internal::NAME, &is_internal);
+  Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
 
   return true;
 } ();

@@ -10,6 +10,8 @@
 #include <numeric>
 #include <getopt.h>
 
+#include <openssl/ssl.h>
+
 #include <swoc/TextView.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
@@ -281,6 +283,21 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus stat
 }
 } // namespace swoc
 
+
+TextView ts::HttpSsn::inbound_sni() const {
+  if (_ssn) {
+    TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
+    TSSslConnection ts_ssl_ctx = TSVConnSSLConnectionGet(ssl_vc);
+    if (ts_ssl_ctx) {
+      SSL *ssl = reinterpret_cast<SSL *>(ts_ssl_ctx);
+      const char *sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+      if (sni) {
+        return {sni, strlen(sni)};
+      }
+    }
+  }
+  return {};
+}
 
 int Global::reserve_TxnArgIdx() {
   if (G.TxnArgIdx < 0) {
