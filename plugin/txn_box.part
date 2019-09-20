@@ -11,6 +11,8 @@ DependsOn([
 
 
 files = Pattern(src_dir="src",includes=["*.cc"]).files()
-env.Append(CPPPATH="include", CCFLAGS=['-std=c++17'])
+env.Append(CPPPATH="include")
+env.AppendUnique(CXXFLAGS=['-std=c++17'])
+env.Append(LIBS = [ 'pcre2-8' ])
 out = env.SharedLibrary("txn_box", files, SHLIBPREFIX='')
-env.InstallPrivateBin(env.SetRPath(out))
+env.InstallLib(out)

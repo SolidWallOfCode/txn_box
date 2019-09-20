@@ -2,9 +2,11 @@ from parts import *
 
 #enable smart linking
 SetOptionDefault("LINKFLAGS", ['-Wl,--copy-dt-needed-entries', '-Wl,--as-needed'])
-SetOptionDefault("CXXFLAGS", ['-std=c++17', '-fPIC'])
-SetOptionDefault("INSTALL_LIB",  "/home/amc/git/txn_box/lib")
-SetOptionDefault("INSTALL_INCLUDE",  "/home/amc/git/txn_box/include")
+SetOptionDefault("CXXFLAGS", ['-std=c++17', '-fPIC', '-O2'])
+SetOptionDefault("INSTALL_LIB",  "/home/solidwallofcode/git/txn_box/lib")
+SetOptionDefault("INSTALL_LIBEXEC",  "/home/solidwallofcode/git/txn_box/libexec")
+SetOptionDefault("INSTALL_BIN",  "/home/solidwallofcode/git/txn_box/bin")
+SetOptionDefault("INSTALL_INCLUDE",  "/home/solidwallofcode/git/txn_box/include")
 
 # control shim for trafficserver
 AddOption("--with-trafficserver",
