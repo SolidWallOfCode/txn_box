@@ -397,8 +397,8 @@ bool Cmp_RegexMatch::operator()(Context& ctx, FeatureView &text) const {
 }
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<bool> PredicateNames { { true, { "true", "1", "on", "enable", "Y", "yes" }}
-                                   , { false, { "false", "0", "off", "disable", "N", "no" }}
+swoc::Lexicon<BoolTag> BoolNames { { BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
+                                   , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}
 };
 
 /** Compare a boolean value.
@@ -426,7 +426,7 @@ const std::string Cmp_true::KEY { "true" };
 const FeatureMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_true::operator()(Context &ctx, feature_type_for<STRING> &text) const {
-  return true == PredicateNames[text];
+  return true == BoolNames[text];
 }
 
 bool Cmp_true::operator()(Context &ctx, feature_type_for<BOOLEAN> &data) const {
@@ -466,7 +466,7 @@ const std::string Cmp_false::KEY { "false" };
 const FeatureMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_false::operator()(Context &ctx, feature_type_for<STRING> &text) const {
-  return false == PredicateNames[text];
+  return false == BoolNames[text];
 }
 
 bool Cmp_false::operator()(Context &ctx, feature_type_for<BOOLEAN> &data) const {
@@ -531,8 +531,7 @@ namespace {
   Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
   Comparison::define(Cmp_eq::KEY, Cmp_eq::TYPES, Cmp_eq::load);
 
-  // Other file scope initializations.
-  PredicateNames.set_default(false);
+  BoolNames.set_default(BoolTag::INVALID);
 
   return true;
 } ();

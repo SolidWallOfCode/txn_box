@@ -248,6 +248,48 @@ protected:
   HttpSsn(TSHttpSsn ssn) : _ssn(ssn) {}
 };
 
+class TxnConfigVar {
+  using self_type = TxnConfigVar; ///< Self reference type.
+public:
+  TxnConfigVar(swoc::TextView const& name, TSOverridableConfigKey key) : _name(name), _key(key) {}
+  swoc::TextView _name; ///< Name.
+  TSOverridableConfigKey _key; ///< override index value.
+  virtual TSRecordDataType type() const { return TS_RECORDDATATYPE_NULL; }
+  virtual swoc::Errata is_valid(int n) const; ///< Check if the value is valid.
+  virtual swoc::Errata is_valid(swoc::TextView const& text) const; ///< Check if the value is valid.
+protected:
+};
+
+class TxnConfigInteger : public TxnConfigVar {
+  using self_type = TxnConfigInteger; ///< Self reference type.
+  using super_type = TxnConfigVar; ///< Parent type.
+public:
+  TxnConfigInteger(swoc::TextView name, TSOverridableConfigKey key, int min, int max)
+  : _min(min), _max(max), super_type(name, key) {}
+
+  using super_type::super_type; ///< Enable super type constructors.
+  TSRecordDataType type() const override { return TS_RECORDDATATYPE_INT; };
+
+  bool is_boolean() const { return _min == 0 && _max == 1; }
+  /// Check if the value is valid.
+  swoc::Errata is_valid(int n) const override;
+  swoc::Errata assign(int n); ///< Set the configuration variable to @a n.
+protected:
+  int _min = std::numeric_limits<int>::min();
+  int _max = std::numeric_limits<int>::max();
+};
+
+class TxnConfigString : public TxnConfigVar {
+  using self_type = TxnConfigString; ///< Self reference type.
+  using super_type = TxnConfigVar; ///< Parent type.
+public:
+  using super_type::super_type; ///< Enable super type constructors.
+
+  TSRecordDataType type() const override { return TS_RECORDDATATYPE_STRING; };
+  swoc::Errata is_valid(swoc::TextView const& text) const override; ///< Check if the value is valid.
+  swoc::Errata assign(int n); ///< Set the configuration variable to @a n.
+};
+
 /** Wrapper for a TS C API transaction.
  * This provides various utility methods, rather than having free functions that all take a
  * transaction instance.
@@ -292,10 +334,22 @@ public:
    */
   void error_body_set(swoc::TextView body, swoc::TextView content_type);
 
+  swoc::Errata cache_key_set(swoc::TextView const& key);
+
   HttpSsn ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; };
 
+  swoc::Errata set_override(TxnConfigVar const& var, int n);
+  swoc::Errata set_override(TxnConfigVar const& var, swoc::TextView const& text);
+
+  static TxnConfigVar * find_override(swoc::TextView name);
+
+  static swoc::Errata & init(swoc::Errata & errata);
+
 protected:
+  using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
+
   TSHttpTxn _txn = nullptr;
+  static TxnConfigVarTable _var_table;
 
   /** Duplicate a string into TS owned memory.
    *
@@ -303,6 +357,20 @@ protected:
    * @return The duplicated string.
    */
   swoc::MemSpan<char> ts_dup(swoc::TextView const& text);
+
+  static void config_bool_record(swoc::Errata & errata, swoc::TextView name);
+  static void config_integer_record(swoc::Errata & errata, swoc::TextView name);
+  static void config_integer_record(swoc::Errata & errata, swoc::TextView name, int min, int max);
+  static void config_string_record(swoc::Errata & errata, swoc::TextView name);
+};
+
+/** The Traffic Server proxy.
+ *
+ */
+class Proxy {
+  using self_type = Proxy; ///< Self reference type.
+public:
+protected:
 };
 
 inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(loc) {}
@@ -348,6 +416,7 @@ const swoc::TextView HTTP_FIELD_CONTENT_TYPE { TS_MIME_FIELD_CONTENT_TYPE, stati
 
 namespace swoc {
   BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status);
+  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSRecordDataType);
 } // namespace swoc
 
 namespace std {

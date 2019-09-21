@@ -21,6 +21,7 @@ using swoc::Rv;
 using namespace swoc::literals;
 
 Extractor::Table Extractor::_ex_table;
+extern swoc::Lexicon<bool> PredicateNames;
 
 /* ------------------------------------------------------------------------------------ */
 Feature const& car(Feature const& feature) {
@@ -108,6 +109,12 @@ Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
     return self_type::literal(n);
   }
 
+  // bool?
+  auto b = BoolNames[text];
+  if (b != BoolTag::INVALID) {
+    return self_type::literal(b);
+  }
+
   // IP Address?
   swoc::IPAddr addr;
   if (addr.parse(text)) {
@@ -153,7 +160,9 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
         fmt.push_back(spec);
       } else {
         zret = self_type::update_extractor(spec);
-        if (! zret.is_ok()) {
+        if (zret.is_ok()) {
+          fmt.push_back(spec);
+        } else {
           zret.info(R"(While parsing specifier at offset {}.)", format_string.size() - parser._fmt.size());
         }
       }
@@ -166,8 +175,6 @@ Errata Extractor::define(TextView name, self_type * ex) {
   _ex_table[name] = ex;
   return {};
 }
-
-//Extractor::Type Extractor::feature_type() const { return STRING; }
 
 bool Extractor::has_ctx_ref() const { return false; }
 

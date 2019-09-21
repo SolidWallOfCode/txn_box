@@ -53,6 +53,16 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   return Hook::INVALID;
 }
 
+swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames {
+    {TS_RECORDDATATYPE_NULL, "null"}
+  , {TS_RECORDDATATYPE_INT, "integer"}
+  , {TS_RECORDDATATYPE_FLOAT, "float"}
+  , {TS_RECORDDATATYPE_STRING, "string" }
+  , {TS_RECORDDATATYPE_COUNTER, "counter" }
+  , {TS_RECORDDATATYPE_STAT_CONST, "stat" }
+  , {TS_RECORDDATATYPE_STAT_FX, "stat function" }
+};
+
 namespace {
  std::shared_ptr<Config> Plugin_Config;
 }
@@ -94,6 +104,7 @@ YAML::Node yaml_merge(YAML::Node & root) {
   return root;
 }
 /* ------------------------------------------------------------------------------------ */
+ts::HttpTxn::TxnConfigVarTable ts::HttpTxn::_var_table;
 
 TextView ts::URL::host() const {
   char const* text;
@@ -281,6 +292,10 @@ namespace swoc {
 BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status) {
   return bwformat(w, spec, static_cast<unsigned>(status));
 }
+
+BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSRecordDataType type) {
+  return bwformat(w, spec, TSRecordDataTypeNames[type]);
+}
 } // namespace swoc
 
 
@@ -299,11 +314,122 @@ TextView ts::HttpSsn::inbound_sni() const {
   return {};
 }
 
+Errata ts::HttpTxn::cache_key_set(swoc::TextView const& key) {
+  TSCacheUrlSet(_txn, key.data(), key.size());
+  return {};
+}
+
 int Global::reserve_TxnArgIdx() {
   if (G.TxnArgIdx < 0) {
     TSHttpTxnArgIndexReserve(Config::ROOT_KEY.data(), "Transaction Box Plugin", &G.TxnArgIdx);
   }
   return G.TxnArgIdx;
+}
+
+Errata ts::TxnConfigVar::is_valid(int) const {
+  return Error(R"(Config variable "{}" does not support integer values.)",
+      _name);
+}
+
+Errata ts::TxnConfigVar::is_valid(TextView const&) const {
+  return Error(R"(Config variable "{}" does not support string values.)",
+      _name);
+}
+
+Errata ts::TxnConfigInteger::is_valid(int n) const {
+  if (n < _min || n > _max) {
+    return Error(R"(Value {} for overridable configuration "{}" is not in the range {}..{})", n, _name, _min, _max);
+  }
+  return {};
+}
+
+Errata ts::TxnConfigString::is_valid(TextView const& text) const { return {}; }
+
+ts::TxnConfigVar * ts::HttpTxn::find_override(swoc::TextView name) {
+  if ( auto spot { _var_table.find(name) } ; spot != _var_table.end()) {
+    return spot->second.get();
+  }
+  return nullptr;
+}
+
+Errata ts::HttpTxn::set_override(TxnConfigVar const& var, int n) {
+  if (auto errata { var.is_valid(n) } ; ! errata.is_ok()) {
+    return std::move(errata);
+  }
+  TSHttpTxnConfigIntSet(_txn, var._key, n);
+  return {};
+}
+
+Errata ts::HttpTxn::set_override(TxnConfigVar const& var, TextView const& text) {
+  if (auto errata { var.is_valid(text) } ; ! errata.is_ok()) {
+    return std::move(errata);
+  }
+  TSHttpTxnConfigStringSet(_txn, var._key, text.data(), text.size());
+  return {};
+}
+
+void ts::HttpTxn::config_bool_record(Errata & errata, TextView name) {
+  TSOverridableConfigKey key;
+  TSRecordDataType type;
+  if (TS_SUCCESS != TSHttpTxnConfigFind(name.data(), name.size(), &key, &type)) {
+    errata.error(R"(Overridable configuration "{}" was not found.)", name);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else if (type != TS_RECORDDATATYPE_INT) {
+    errata.error(R"(Overridable configuration "{}" is of type {} and not {} as required.)", name, type, TS_RECORDDATATYPE_INT);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else {
+    _var_table.emplace(name, new TxnConfigInteger{name, key, 0, 1});
+  }
+};
+
+void ts::HttpTxn::config_string_record(Errata & errata, TextView name) {
+  TSOverridableConfigKey key;
+  TSRecordDataType type;
+  if (TS_SUCCESS != TSHttpTxnConfigFind(name.data(), name.size(), &key, &type)) {
+    errata.error(R"(Overridable configuration "{}" was not found.)", name);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else if (type != TS_RECORDDATATYPE_STRING) {
+    errata.error(R"(Overridable configuration "{}" is of type {} and not {} as required.)", name, type, TS_RECORDDATATYPE_INT);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else {
+    _var_table.emplace(name, new TxnConfigString{name, key});
+  }
+};
+
+void ts::HttpTxn::config_integer_record(Errata & errata, TextView name, int min, int max) {
+  TSOverridableConfigKey key;
+  TSRecordDataType type;
+  if (TS_SUCCESS != TSHttpTxnConfigFind(name.data(), name.size(), &key, &type)) {
+    errata.error(R"(Overridable configuration "{}" was not found.)", name);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else if (type != TS_RECORDDATATYPE_INT) {
+    errata.error(R"(Overridable configuration "{}" is of type {} and not {} as required.)", name, type, TS_RECORDDATATYPE_INT);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else {
+    _var_table.emplace(name, new TxnConfigInteger{name, key, min, max});
+  }
+};
+
+void ts::HttpTxn::config_integer_record(Errata & errata, TextView name) {
+  TSOverridableConfigKey key;
+  TSRecordDataType type;
+  if (TS_SUCCESS != TSHttpTxnConfigFind(name.data(), name.size(), &key, &type)) {
+    errata.error(R"(Overridable configuration "{}" was not found.)", name);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else if (type != TS_RECORDDATATYPE_INT) {
+    errata.error(R"(Overridable configuration "{}" is of type {} and not {} as required.)", name, type, TS_RECORDDATATYPE_INT);
+    _var_table.emplace(name, new TxnConfigVar{name, key});
+  } else {
+    _var_table.emplace(name, new TxnConfigInteger{name, key});
+  }
+};
+
+Errata & ts::HttpTxn::init(swoc::Errata &errata) {
+  config_bool_record(errata, "proxy.config.url_remap.pristine_host_hdr");
+  config_integer_record(errata, "proxy.config.http.cache.required_headers", 0, 2);
+  config_bool_record(errata, "proxy.config.http.negative_caching_enabled");
+  config_string_record(errata, "proxy.config.http.global_user_agent_header");
+  return errata;
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -383,10 +509,23 @@ TxnBoxInit(int argc, char const *argv[]) {
 void
 TSPluginInit(int argc, char const *argv[]) {
   auto errata { TxnBoxInit(argc, argv) };
+  std::string err_str;
+  if (! G._preload_errata.is_ok()) {
+    swoc::bwprint(err_str, "{}: startup issues.\n{}", Config::PLUGIN_NAME, G._preload_errata);
+    G._preload_errata.clear();
+    TSError("%s", err_str.c_str());
+  }
   if (! errata.is_ok()) {
-    std::string err_str;
     swoc::bwprint(err_str, "{}: initialization failure.\n{}", Config::PLUGIN_NAME, errata);
     TSError("%s", err_str.c_str());
   }
 };
 
+/* ------------------------------------------------------------------------ */namespace {
+[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  TSRecordDataTypeNames.set_default("null");
+  TSRecordDataTypeNames.set_default(TS_RECORDDATATYPE_NULL);
+  ts::HttpTxn::init(G._preload_errata);
+  return true;
+} ();
+} // namespace
