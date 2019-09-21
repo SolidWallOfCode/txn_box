@@ -4,6 +4,7 @@ PartVersion("0.1.0")
 env.Part("txn_box.rpm.part")
 
 DependsOn([
+    Component("openssl"),
     Component("trafficserver", version_range='7.*-*'),
     Component("swoc++"),
     Component("yaml-cpp")

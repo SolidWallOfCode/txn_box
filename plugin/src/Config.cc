@@ -136,7 +136,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
   // If explicitly marked a literal, then no further processing should be done.
   if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
     if (!fmt_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required.)", LITERAL_TAG, fmt_node.Mark());
+      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, fmt_node.Mark());
     }
     auto const& text = fmt_node.Scalar();
     if (StrType::C == str_type) {

@@ -128,6 +128,12 @@ public:
 TSReturnCode
 TSRemapInit(TSRemapInterface* rctx, char* errbuff, int errbuff_size) {
   G.reserve_TxnArgIdx();
+  if (! G._preload_errata.is_ok()) {
+    std::string err_str;
+    swoc::bwprint(err_str, "{}: startup issues.\n{}", Config::PLUGIN_NAME, G._preload_errata);
+    G._preload_errata.clear();
+    TSError("%s", err_str.c_str());
+  }
   return TS_SUCCESS;
 };
 
@@ -176,6 +182,13 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
 
 TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
   auto r_ctx = static_cast<RemapContext*>(ih);
+  // This is a hack because errors reported during TSRemapNewInstance are ignored
+  // leaving broken instances around. Gah. Need to fix remap loading to actually
+  // check for new instance errors.
+  if (nullptr == r_ctx) {
+    return TSREMAP_NO_REMAP;
+  }
+
   Context * ctx = static_cast<Context*>(TSHttpTxnArgGet(txn, G.TxnArgIdx));
   if (nullptr == ctx) {
     ctx = new Context({});

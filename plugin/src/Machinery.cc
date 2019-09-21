@@ -177,8 +177,8 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
 // -- Implementations --
 
 // --
-class Do_set_creq_field : public FieldDirective {
-  using self_type = Do_set_creq_field;
+class Do_creq_field : public FieldDirective {
+  using self_type = Do_creq_field;
   using super_type = FieldDirective;
 public:
   static const std::string KEY; ///< Directive key.
@@ -191,20 +191,20 @@ protected:
   using super_type::super_type; // Inherit super_type constructors.
 };
 
-const std::string Do_set_creq_field::KEY { "set-creq-field" };
-const HookMask Do_set_creq_field::HOOKS { MaskFor(Hook::PREQ) };
+const std::string Do_creq_field::KEY { "creq-field" };
+const HookMask Do_creq_field::HOOKS { MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP }) };
 
-Errata Do_set_creq_field::invoke(Context &ctx) {
+Errata Do_creq_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.creq_hdr(), FORCE);
 }
 
-Rv<Directive::Handle> Do_set_creq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_creq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
 // --
-class Do_set_preq_field : public FieldDirective {
-  using self_type = Do_set_preq_field;
+class Do_preq_field : public FieldDirective {
+  using self_type = Do_preq_field;
   using super_type = FieldDirective;
 public:
   static const std::string KEY; ///< Directive key.
@@ -217,14 +217,14 @@ protected:
   using super_type::super_type; // Inherit super_type constructors.
 };
 
-const std::string Do_set_preq_field::KEY { "set-preq-field" };
-const HookMask Do_set_preq_field::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const std::string Do_preq_field::KEY { "preq-field" };
+const HookMask Do_preq_field::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
-Errata Do_set_preq_field::invoke(Context &ctx) {
+Errata Do_preq_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.preq_hdr(), FORCE);
 }
 
-Rv<Directive::Handle> Do_set_preq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_preq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
@@ -255,8 +255,8 @@ Rv<Directive::Handle> Do_prsp_field::load(Config& cfg, YAML::Node const& drtv_no
 }
 
 /// Set a field in the client request if not already set.
-class Do_set_creq_field_default : public FieldDirective {
-  using self_type = Do_set_creq_field_default; ///< Self reference type.
+class Do_creq_field_default : public FieldDirective {
+  using self_type = Do_creq_field_default; ///< Self reference type.
   using super_type = FieldDirective; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -271,20 +271,20 @@ protected:
   using super_type::super_type; // Inherit super_type constructors.
 };
 
-const std::string Do_set_creq_field_default::KEY { "set-creq-field-default" };
-const HookMask Do_set_creq_field_default::HOOKS { MaskFor(Hook::CREQ) };
+const std::string Do_creq_field_default::KEY { "creq-field-default" };
+const HookMask Do_creq_field_default::HOOKS { Do_creq_field::HOOKS };
 
-Errata Do_set_creq_field_default::invoke(Context &ctx) {
+Errata Do_creq_field_default::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.creq_hdr(), IF_NOT_SET);
 }
 
-Rv<Directive::Handle> Do_set_creq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_creq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
 /// Set a field in the client request if not already set.
-class Do_set_preq_field_default : public  FieldDirective {
-  using self_type = Do_set_preq_field_default; ///< Self reference type.
+class Do_preq_field_default : public  FieldDirective {
+  using self_type = Do_preq_field_default; ///< Self reference type.
   using super_type = FieldDirective; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -299,14 +299,14 @@ protected:
   using super_type::super_type; // Inherit super_type constructors.
 };
 
-const std::string Do_set_preq_field_default::KEY { "set-preq-field-default" };
-const HookMask Do_set_preq_field_default::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::PREQ}) };
+const std::string Do_preq_field_default::KEY { "preq-field-default" };
+const HookMask Do_preq_field_default::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::PREQ}) };
 
-Errata Do_set_preq_field_default::invoke(Context &ctx) {
+Errata Do_preq_field_default::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.preq_hdr(), IF_NOT_SET);
 }
 
-Rv<Directive::Handle> Do_set_preq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_preq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return super_type::load(cfg, [](TextView const& name, Extractor::Format && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -953,8 +953,105 @@ Rv<Directive::Handle> Do_remap_query::load(Config &cfg, YAML::Node const &drtv_n
 }
 
 Errata Do_remap_query::invoke(Context &ctx) {
-  ctx._remap_status = TSREMAP_DID_REMAP;
+//  ctx._remap_status = TSREMAP_DID_REMAP;
   return this->QueryDirective::invoke(ctx, _fmt, ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl), _arg);
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set the cache key.
+class Do_cache_key : public Directive {
+  using self_type = Do_cache_key; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Extractor::Format _fmt; ///< Cache key.
+
+  Do_cache_key(Extractor::Format && fmt) : _fmt(std::move(fmt)) {}
+};
+
+const std::string Do_cache_key::KEY { "cache-key" };
+const HookMask Do_cache_key::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Errata Do_cache_key::invoke(Context &ctx) {
+  auto value = ctx.extract(_fmt);
+  ctx._txn.cache_key_set(std::get<IndexFor(STRING)>(value));
+  return {};
+}
+
+Rv<Directive::Handle> Do_cache_key::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto &&[fmt, errata]{cfg.parse_feature(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  return std::move(Handle(new self_type(std::move(fmt))));
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set a transaction configuration variable override.
+class Do_txn_conf : public Directive {
+  using self_type = Do_txn_conf; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Extractor::Format _fmt; ///< Cache key.
+  ts::TxnConfigVar *_var = nullptr;
+
+  Do_txn_conf(Extractor::Format && fmt, ts::TxnConfigVar * var) : _fmt(std::move(fmt)), _var(var) {}
+};
+
+const std::string Do_txn_conf::KEY { "txn-conf" };
+const HookMask Do_txn_conf::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+
+Errata Do_txn_conf::invoke(Context &ctx) {
+  auto value = ctx.extract(_fmt);
+  if (value.index() == IndexFor(INTEGER)) {
+    ctx._txn.set_override(*_var, std::get<IndexFor(INTEGER)>(value));
+  } else if (value.index() == IndexFor(BOOLEAN)) {
+    ctx._txn.set_override(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1 : 0);
+  } else if (value.index() == IndexFor(STRING)) {
+    ctx._txn.set_override(*_var, std::get<IndexFor(STRING)>(value));
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto txn_var = ts::HttpTxn::find_override(arg);
+  if (! txn_var || txn_var->type() == TS_RECORDDATATYPE_NULL) {
+    return Error(R"("{}" is not recognized as an overridable transaction configuration variable in "{}" directive at {}.)", arg, name, drtv_node.Mark());
+  }
+  auto &&[fmt, errata]{cfg.parse_feature(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  return std::move(Handle(new self_type(std::move(fmt), txn_var)));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1284,13 +1381,13 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Config::define(When::KEY, When::HOOKS, When::load);
   Config::define(With::KEY, With::HOOKS, With::load);
-  Config::define(Do_set_creq_field_default::KEY, Do_set_creq_field_default::HOOKS, Do_set_creq_field_default::load);
+  Config::define(Do_creq_field_default::KEY, Do_creq_field_default::HOOKS, Do_creq_field_default::load);
   Config::define(Do_remove_creq_field::KEY, Do_remove_creq_field::HOOKS, Do_remove_creq_field::load);
   Config::define(Do_remove_ursp_field::KEY, Do_remove_ursp_field::HOOKS, Do_remove_ursp_field::load);
   Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
-  Config::define(Do_set_creq_field::KEY, Do_set_creq_field::HOOKS, Do_set_creq_field::load);
-  Config::define(Do_set_preq_field::KEY, Do_set_preq_field::HOOKS, Do_set_preq_field::load);
-  Config::define(Do_set_preq_field_default::KEY, Do_set_preq_field_default::HOOKS, Do_set_preq_field_default::load);
+  Config::define(Do_creq_field::KEY, Do_creq_field::HOOKS, Do_creq_field::load);
+  Config::define(Do_preq_field::KEY, Do_preq_field::HOOKS, Do_preq_field::load);
+  Config::define(Do_preq_field_default::KEY, Do_preq_field_default::HOOKS, Do_preq_field_default::load);
   Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
   Config::define(Do_prsp_field::KEY, Do_prsp_field::HOOKS, Do_prsp_field::load);
   Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
@@ -1298,6 +1395,8 @@ namespace {
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);
   Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
+  Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
+  Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   return true;

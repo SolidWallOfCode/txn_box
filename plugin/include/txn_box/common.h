@@ -329,9 +329,20 @@ extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const
  */
 inline FeatureView FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
 
+/// Conversion enumeration for checking boolean strings.
+enum BoolTag {
+  INVALID = -1,
+  False = 0,
+  True = 1,
+};
+/// Mapping of strings to boolean values.
+/// This is for handling various synonymns in a consistent manner.
+extern swoc::Lexicon<BoolTag> BoolNames;
+
 /// Container for global data.
 struct Global {
   int TxnArgIdx = -1;
+  swoc::Errata _preload_errata;
 
   static int reserve_TxnArgIdx();
 };

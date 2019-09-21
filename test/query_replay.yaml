@@ -28,10 +28,17 @@ config:
       select:
       - match: "2"
         do:
-          remap-query: ""
+        - remap-query: ""
+        - txn-conf.proxy.config.http.global_user_agent_header: "YahooCacheSystem"
 
     txn_box_remove_query:
-      remap-query: ""
+    - remap-query: ""
+    - creq-field-default.X-CDN: "YCS-Tumblr"
+    - txn-conf.proxy.config.http.global_user_agent_header: "YahooCacheSystem"
+    - txn-conf.proxy.config.http.cache.required_headers: 1
+    - txn-conf.proxy.config.url_remap.pristine_host_hdr: disable
+    - txn-conf.proxy.config.http.negative_caching_enabled: enable
+    - cache-key: "/{creq-host}/{creq-path}"
 
   blocks:
     base_request: &base_request
