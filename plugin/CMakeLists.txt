@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(plugin)
+project(plugin CXX)
 set(CMAKE_CXX_STANDARD 17)
-include(GNUInstallDirs)
 
 add_library(plugin SHARED
 	src/txn_box.cc
@@ -25,4 +24,4 @@ target_link_libraries(plugin PUBLIC PkgConfig::libswoc++ PkgConfig::yaml-cpp pcr
 target_include_directories(plugin PUBLIC include)
 target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include ${trafficserver_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})
 
-install(TARGETS plugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS plugin LIBRARY DESTINATION ${INSTALL_DIR}/lib)
