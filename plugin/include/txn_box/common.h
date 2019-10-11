@@ -29,7 +29,7 @@ template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, A
 }
 
 /// Separator character for names vs. argument.
-static constexpr char ARG_SEP = '.';
+static constexpr char ARG_SEP = '@';
 
 /** Data for a feature that is a view / string.
  *
