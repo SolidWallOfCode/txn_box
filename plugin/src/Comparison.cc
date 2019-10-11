@@ -481,16 +481,34 @@ Rv<Comparison::Handle> Cmp_false::load(Config &cfg, YAML::Node cmp_node, YAML::N
   return { Handle{new self_type}, {} };
 }
 /* ------------------------------------------------------------------------------------ */
-class Cmp_eq : public Comparison {
-  using self_type = Cmp_eq; ///< Self reference type.
+// Comarison functions.
+// Because of template issues, can't use standard functors (e.g. std::equal_to) nor lambdas.
+// Well, I _could_, but it would be as verbose as this style and more obscure.
+namespace {
+bool eq(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs == rhs; }
+bool ne(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs != rhs; }
+bool lt(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs <  rhs; }
+bool le(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs <= rhs; }
+bool gt(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs >  rhs; }
+bool ge(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs >= rhs; }
+} // namespace
+
+/// Comment elements for all binary integer comparisons.
+struct Binary_Integer_Compare_Commons {
+  static const FeatureMask TYPES; ///< Feature type supported.
+};
+const FeatureMask Binary_Integer_Compare_Commons::TYPES { MaskFor(INTEGER) };
+
+template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
+class Cmp_Binary_Integer : public Comparison, public Binary_Integer_Compare_Commons {
+  using self_type = Cmp_Binary_Integer; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
-  static const FeatureMask TYPES; ///< Support types.
 
   bool operator() (Context& ctx, feature_type_for<INTEGER>& data) const override {
     auto value = ctx.extract(_value_fmt);
-    return std::get<IndexFor(INTEGER)>(value) == data;
+    return P(data, std::get<IndexFor(INTEGER)>(value));
   }
 
   /// Construct an instance from YAML configuration.
@@ -499,13 +517,11 @@ public:
 protected:
   Extractor::Format _value_fmt;
 
-  Cmp_eq(Extractor::Format && fmt) : _value_fmt(std::move(fmt)) {}
+  Cmp_Binary_Integer(Extractor::Format && fmt) : _value_fmt(std::move(fmt)) {}
 };
 
-const std::string Cmp_eq::KEY { "eq" };
-const FeatureMask Cmp_eq::TYPES { MaskFor(INTEGER) };
-
-Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node) {
+template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
+Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node) {
   auto && [ fmt, errata ] = cfg.parse_feature(key_node);
   if (!errata.is_ok()) {
     return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
@@ -515,6 +531,20 @@ Rv<Comparison::Handle> Cmp_eq::load(Config& cfg, YAML::Node const& cmp_node, YAM
   }
   return { Handle(new self_type(std::move(fmt))), {} };
 }
+
+using Cmp_eq = Cmp_Binary_Integer<eq>;
+using Cmp_ne = Cmp_Binary_Integer<ne>;
+using Cmp_lt = Cmp_Binary_Integer<lt>;
+using Cmp_le = Cmp_Binary_Integer<le>;
+using Cmp_gt = Cmp_Binary_Integer<gt>;
+using Cmp_ge = Cmp_Binary_Integer<ge>;
+
+template<> const std::string Cmp_eq::KEY { "eq" };
+template<> const std::string Cmp_ne::KEY { "ne" };
+template<> const std::string Cmp_lt::KEY { "lt" };
+template<> const std::string Cmp_le::KEY { "le" };
+template<> const std::string Cmp_gt::KEY { "gt" };
+template<> const std::string Cmp_ge::KEY { "ge" };
 /* ------------------------------------------------------------------------------------ */
 
 namespace {
@@ -529,7 +559,13 @@ namespace {
   Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
   Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
   Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+
   Comparison::define(Cmp_eq::KEY, Cmp_eq::TYPES, Cmp_eq::load);
+  Comparison::define(Cmp_ne::KEY, Cmp_ne::TYPES, Cmp_ne::load);
+  Comparison::define(Cmp_lt::KEY, Cmp_le::TYPES, Cmp_lt::load);
+  Comparison::define(Cmp_le::KEY, Cmp_lt::TYPES, Cmp_le::load);
+  Comparison::define(Cmp_gt::KEY, Cmp_gt::TYPES, Cmp_gt::load);
+  Comparison::define(Cmp_ge::KEY, Cmp_ge::TYPES, Cmp_ge::load);
 
   BoolNames.set_default(BoolTag::INVALID);
 

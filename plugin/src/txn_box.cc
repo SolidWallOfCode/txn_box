@@ -156,7 +156,7 @@ bool ts::HttpField::destroy() {
   return TS_SUCCESS == TSMimeHdrFieldDestroy(_buff, _hdr, _loc);
 }
 
-ts::URL ts::HttpHeader::url() {
+ts::URL ts::HttpRequest::url() {
   TSMLoc url_loc;
   if (this->is_valid() && TS_SUCCESS == TSHttpHdrUrlGet(_buff, _loc, &url_loc)) {
     return {_buff, url_loc};
@@ -164,7 +164,20 @@ ts::URL ts::HttpHeader::url() {
   return {};
 }
 
-ts::HttpHeader ts::HttpTxn::creq_hdr() {
+bool ts::HttpRequest::host_set(swoc::TextView const &host) {
+  auto url { this->url() };
+  if (!url.host().empty()) {
+    url.host_set(host);
+    if (auto field { this->field(HTTP_FIELD_HOST) } ; field.is_valid()) {
+      field.assign(host);
+    }
+  } else {
+    this->field_obtain(HTTP_FIELD_HOST).assign(host);
+  }
+  return true;
+};
+
+ts::HttpRequest ts::HttpTxn::creq_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientReqGet(_txn, &buff, &loc)) {
@@ -173,7 +186,7 @@ ts::HttpHeader ts::HttpTxn::creq_hdr() {
   return {};
 }
 
-ts::HttpHeader ts::HttpTxn::preq_hdr() {
+ts::HttpRequest ts::HttpTxn::preq_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnServerReqGet(_txn, &buff, &loc)) {
@@ -182,7 +195,7 @@ ts::HttpHeader ts::HttpTxn::preq_hdr() {
   return {};
 }
 
-ts::HttpHeader ts::HttpTxn::ursp_hdr() {
+ts::HttpResponse ts::HttpTxn::ursp_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnServerRespGet(_txn, &buff, &loc)) {
@@ -191,7 +204,7 @@ ts::HttpHeader ts::HttpTxn::ursp_hdr() {
   return {};
 }
 
-ts::HttpHeader ts::HttpTxn::prsp_hdr() {
+ts::HttpResponse ts::HttpTxn::prsp_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientRespGet(_txn, &buff, &loc)) {
@@ -241,7 +254,7 @@ ts::HttpHeader& ts::HttpHeader::field_remove(swoc::TextView name) {
   return *this;
 }
 
-bool ts::HttpHeader::status_set(TSHttpStatus status) const {
+bool ts::HttpResponse::status_set(TSHttpStatus status) const {
   return TS_SUCCESS == TSHttpHdrStatusSet(_buff, _loc, status);
 }
 

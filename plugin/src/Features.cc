@@ -5,6 +5,9 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
+#include <random>
+#include <chrono>
+
 #include <swoc/TextView.h>
 
 #include "txn_box/common.h"
@@ -76,7 +79,7 @@ public:
 
 BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       bwformat(w, spec, url.view());
     }
@@ -96,7 +99,7 @@ public:
 FeatureView Ex_creq_url_host::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.host();
     }
@@ -120,7 +123,7 @@ public:
 FeatureView Ex_creq_method::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     zret = hdr.method();
   }
   return zret;
@@ -141,7 +144,7 @@ public:
 FeatureView Ex_creq_scheme::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.scheme();
     }
@@ -164,7 +167,7 @@ public:
 FeatureView Ex_creq_path::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.path();
     }
@@ -187,7 +190,7 @@ public:
 FeatureView Ex_creq_host::direct_view(Context &ctx, Spec const&) const {
   FeatureView zret;
   zret._direct_p = true;
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.host();
       if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
@@ -235,12 +238,12 @@ public:
   static constexpr TextView NAME { "ursp-status" };
 
   /// Extract the feature from the @a ctx.
-  ExType extract(Context& ctx) const override;
+  ExType extract(Context& ctx, Extractor::Spec const&) const override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-auto Ex_ursp_status::extract(Context &ctx) const -> ExType {
+auto Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) const -> ExType {
   return ctx._txn.ursp_hdr().status();
 }
 
@@ -286,6 +289,53 @@ BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ct
   return bwformat(w, spec, this->direct_view(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_random : public IntegerFeature {
+  using self_type = Ex_random; ///< Self reference type.
+  using super_type = IntegerFeature; ///< Parent type.
+public:
+  static constexpr TextView NAME { "random" };
+  /// Extract the feature from the @a ctx.
+  ExType extract(Context& ctx, Extractor::Spec const& spec) const override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+  /// Random generator.
+  /// Not thread safe, so have one for each thread.
+  static thread_local std::mt19937 _engine;
+};
+
+thread_local std::mt19937 Ex_random::_engine(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+auto Ex_random::extract(Context &ctx, Extractor::Spec const& spec) const -> ExType {
+  int min = 0;
+  int max = 99;
+  if (spec._arg) {
+    auto max_arg { spec._arg };
+    auto min_arg = max_arg.split_prefix_at(',');
+    TextView parsed;
+    if (min_arg) {
+      auto n = swoc::svtoi(min_arg, &parsed);
+      if (parsed.size() != min_arg.size()) {
+      } else {
+        min = n;
+      }
+    }
+    if (max_arg) {
+      auto n = swoc::svtoi(max_arg, &parsed);
+      if (parsed.size() != max_arg.size()) {
+      } else {
+        max = n;
+      }
+    }
+  }
+  return std::uniform_int_distribution{min, max}(_engine);
+};
+
+BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+/* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   Feature feature {_fg->extract(ctx, spec._ext)};
   return bwformat(w, spec, feature);
@@ -311,6 +361,8 @@ Ex_is_internal is_internal;
 
 Ex_cssn_sni cssn_sni;
 
+Ex_random random;
+
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_this::NAME, &ex_this);
   Extractor::define(Ex_creq_url::NAME, &creq_url);
@@ -323,6 +375,7 @@ Ex_cssn_sni cssn_sni;
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);
   Extractor::define(Ex_is_internal::NAME, &is_internal);
   Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
+  Extractor::define(Ex_random::NAME, &random);
 
   return true;
 } ();

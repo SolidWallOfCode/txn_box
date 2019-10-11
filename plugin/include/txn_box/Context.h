@@ -150,8 +150,8 @@ public:
   /// State of each global config hook for this transaction / context.
   std::array<HookInfo, std::tuple_size<Hook>::value> _hooks;
 
-  ts::HttpHeader creq_hdr();
-  ts::HttpHeader preq_hdr();
+  ts::HttpRequest creq_hdr();
+  ts::HttpRequest preq_hdr();
   ts::HttpHeader ursp_hdr();
   ts::HttpHeader prsp_hdr();
 
@@ -187,8 +187,8 @@ public:
 
 protected:
   // HTTP header objects for the transaction.
-  ts::HttpHeader _creq; ///< Client request header.
-  ts::HttpHeader _preq; ///< Proxy request header.
+  ts::HttpRequest _creq; ///< Client request header.
+  ts::HttpRequest _preq; ///< Proxy request header.
   ts::HttpHeader _ursp; ///< Upstream response header.
   ts::HttpHeader _prsp; ///< Proxy response header.
 

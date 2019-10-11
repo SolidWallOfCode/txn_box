@@ -346,8 +346,10 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
 
 Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   YAML::Node base_node { root };
-  // Walk the key path and find the target.
-  for ( auto p = path ; p ; ) {
+  static constexpr TextView ROOT_PATH { "." };
+  // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
+  // do not walk at all.
+  for ( auto p = (path == ROOT_PATH ? TextView{} : path) ; p ; ) {
     auto key { p.take_prefix_at(ARG_SEP) };
     if ( auto node { base_node[key] } ; node ) {
       base_node = node;

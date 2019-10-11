@@ -116,9 +116,9 @@ public:
    * @param host Host.
    * @return @a this.
    */
-  self_type & set_host(swoc::TextView host);
+  self_type & host_set(swoc::TextView host);
 
-  self_type & set_query(swoc::TextView text);
+  self_type & query_set(swoc::TextView text);
 protected:
   mutable IOBuffer _iobuff; ///< IO buffer with the URL text.
   mutable swoc::TextView _view; ///< View of the URL in @a _iobuff.
@@ -181,12 +181,6 @@ public:
   HttpHeader() = default;
   HttpHeader(TSMBuffer buff, TSMLoc loc);
 
-  /** Retrieve the URL object from the header.
-   *
-   * @return A URL object wrapper.
-   */
-  URL url();
-
   /** Find the field with @a name.
    *
    * @param name Field name.
@@ -218,17 +212,51 @@ public:
    */
   self_type& field_remove(swoc::TextView name);
 
-  TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
-  swoc::TextView method() const { int length; auto text = TSHttpHdrMethodGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
-
-  bool status_set(TSHttpStatus status) const;
-
   /** Set the reason field in the header.
    *
    * @param reason Reason string.
    * @return @c true if success, @c false if not.
    */
   bool reason_set(swoc::TextView reason);
+};
+
+class HttpRequest : public HttpHeader {
+  using self_type = HttpRequest;
+  using super_type = HttpHeader;
+public:
+  /// Make super type constructors available.
+  using super_type::super_type;
+
+  /** Retrieve the URL object from the header.
+   *
+   * @return A URL object wrapper.
+   */
+  URL url();
+
+  swoc::TextView method() const { int length; auto text = TSHttpHdrMethodGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+  swoc::TextView host() const;
+
+  /** Set the @a host for the request.
+   *
+   * @param host Host for request.
+   * @return @c true on success, @c false on failure.
+   *
+   * This will update the request as little as possible. If the URL does not contain a host
+   * then it is unmodified and the @c Host field is set to @a host. If the URL has a host and
+   * there is no @c Host field, only the URL is updated.
+   */
+  bool host_set(swoc::TextView const& host);
+};
+
+class HttpResponse : public HttpHeader {
+  using self_type = HttpResponse;
+  using super_type = HttpHeader;
+public:
+  /// Make super type constructors available.
+  using super_type::super_type;
+
+  TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
+  bool status_set(TSHttpStatus status) const;
 };
 
 /** Wrapper for a TS C API session.
@@ -301,10 +329,10 @@ public:
   HttpTxn(TSHttpTxn txn);
   operator TSHttpTxn() const;
 
-  HttpHeader creq_hdr();
-  HttpHeader preq_hdr();
-  HttpHeader ursp_hdr();
-  HttpHeader prsp_hdr();
+  HttpRequest creq_hdr();
+  HttpRequest preq_hdr();
+  HttpResponse ursp_hdr();
+  HttpResponse prsp_hdr();
 
   /** Is this an internal request?
    *
@@ -385,14 +413,14 @@ inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_
 
 inline swoc::TextView URL::query() const { int length; auto text = TSUrlHttpQueryGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
-inline URL &URL::set_host(swoc::TextView host) {
+inline URL &URL::host_set(swoc::TextView host) {
   if (this->is_valid()) {
     TSUrlHostSet(_buff, _loc, host.data(), host.size());
   }
   return *this;
 }
 
-inline URL &URL::set_query(swoc::TextView text) {
+inline URL &URL::query_set(swoc::TextView text) {
   if (this->is_valid()) {
     TSUrlHttpQuerySet(_buff, _loc, text.data(), text.size());
   }

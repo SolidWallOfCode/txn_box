@@ -289,7 +289,17 @@ public:
   /// Type of extracted feature.
   Extractor::Type feature_type() const;
 
-  virtual ExType extract(Context& ctx) const = 0;
+  /** Extract the feature.
+   *
+   * @param ctx Transaction context.
+   * @param spec Format specifier.
+   * @return The feature.
+   *
+   * @a spec can carry additional information about the use of the extract. Rather than picking out
+   * just the presumed important parts, the entire specifier is passed. This is primarily the @c
+   * _ext and @c _arg member. The actual extract name is carried in the @a _name member.
+   */
+  virtual ExType extract(Context& ctx, Extractor::Spec const& spec) const = 0;
 };
 
 inline Extractor::Type IntegerFeature::feature_type() const { return INTEGER; }

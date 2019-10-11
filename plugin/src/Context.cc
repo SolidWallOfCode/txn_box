@@ -140,7 +140,10 @@ Feature Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: return static_cast<IntegerFeature*>(fmt[0]._exf)->extract(*this);
+      case INTEGER: {
+        auto const& spec = fmt[0];
+        return static_cast<IntegerFeature*>(spec._exf)->extract(*this, spec);
+      }
       case BOOLEAN:
         return static_cast<BooleanFeature*>(fmt[0]._exf)->extract(*this);
     }
@@ -162,14 +165,14 @@ swoc::MemSpan<void> Context::storage_for(Directive *drtv) {
   return zret;
 }
 
-ts::HttpHeader Context::creq_hdr() {
+ts::HttpRequest Context::creq_hdr() {
   if (!_creq.is_valid()) {
     _creq = _txn.creq_hdr();
   }
   return _creq;
 }
 
-ts::HttpHeader Context::preq_hdr() {
+ts::HttpRequest Context::preq_hdr() {
   if (!_preq.is_valid()) {
     _preq = _txn.preq_hdr();
   }

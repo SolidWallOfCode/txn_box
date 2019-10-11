@@ -1,0 +1,5 @@
+with: random
+select:
+- le: 50
+  do:
+    remap-host: "httpbin.org"
