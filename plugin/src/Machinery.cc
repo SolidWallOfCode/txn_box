@@ -31,14 +31,14 @@ namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
-class Do_set_preq_url_host : public Directive {
+class Do_preq_url_host : public Directive {
   using super_type = Directive;
-  using self_type = Do_set_preq_url_host;
+  using self_type = Do_preq_url_host;
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  explicit Do_set_preq_url_host(TextView text) : _host(text) {}
+  explicit Do_preq_url_host(TextView text) : _host(text) {}
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
@@ -46,25 +46,25 @@ public:
   std::string _host;
 };
 
-const std::string Do_set_preq_url_host::KEY { "set-preq-url-host" };
-const HookMask Do_set_preq_url_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const std::string Do_preq_url_host::KEY { "preq-url-host" };
+const HookMask Do_preq_url_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
-Errata Do_set_preq_url_host::invoke(Context &ctx) {
+Errata Do_preq_url_host::invoke(Context &ctx) {
   Errata zret;
   return zret;
 }
 
-swoc::Rv<Directive::Handle> Do_set_preq_url_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_preq_url_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return { Handle{new self_type{key_value.Scalar()}}, {} };
 }
 
 /* ------------------------------------------------------------------------------------ */
-/** Set the host for the header.
+/** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
  */
-class Do_set_preq_host : public Directive {
+class Do_creq_host : public Directive {
   using super_type = Directive; ///< Parent type.
-  using self_type = Do_set_preq_host; ///< Self reference type.
+  using self_type = Do_creq_host; ///< Self reference type.
 public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -73,7 +73,69 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_set_preq_host(Extractor::Format && fmt);
+  Do_creq_host(Extractor::Format && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Extractor::Format _fmt; ///< Host feature.
+};
+
+const std::string Do_creq_host::KEY { "creq-host" };
+const HookMask Do_creq_host::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_creq_host::Do_creq_host(Extractor::Format &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_creq_host::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.host_set(host);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_creq_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return { {}, std::move(errata)};
+  }
+  fmt._feature_type = STRING; // Force string value.
+  return { Handle(new self_type(std::move(fmt))), {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the host for the request.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_preq_host : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_preq_host; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_preq_host(Extractor::Format && fmt);
 
   /** Invoke directive.
    *
@@ -98,23 +160,20 @@ protected:
   Extractor::Format _fmt; ///< Host feature.
 };
 
-const std::string Do_set_preq_host::KEY { "set-preq-host" };
-const HookMask Do_set_preq_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const std::string Do_preq_host::KEY { "preq-host" };
+const HookMask Do_preq_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
-Do_set_preq_host::Do_set_preq_host(Extractor::Format &&fmt) : _fmt(std::move(fmt)) {}
+Do_preq_host::Do_preq_host(Extractor::Format &&fmt) : _fmt(std::move(fmt)) {}
 
-Errata Do_set_preq_host::invoke(Context &ctx) {
+Errata Do_preq_host::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
-    hdr.url().set_host(host);
-    if (auto field{hdr.field(ts::HTTP_FIELD_HOST)}; field.is_valid()) {
-      field.assign(host);
-    }
+    hdr.host_set(host);
   }
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_set_preq_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_preq_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -123,7 +182,66 @@ swoc::Rv<Directive::Handle> Do_set_preq_host::load(Config& cfg, YAML::Node const
   fmt._feature_type = STRING; // Force string value.
   return { Handle(new self_type(std::move(fmt))), {} };
 }
+/* ------------------------------------------------------------------------------------ */
+/** Set the host for remap.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_remap_host : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_remap_host; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
 
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_remap_host(Extractor::Format && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Extractor::Format _fmt; ///< Host feature.
+};
+
+const std::string Do_remap_host::KEY { "remap-host" };
+const HookMask Do_remap_host::HOOKS { MaskFor(Hook::REMAP) };
+
+Do_remap_host::Do_remap_host(Extractor::Format &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_remap_host::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(host);
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto && [ fmt, errata ] { cfg.parse_feature(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return { {}, std::move(errata)};
+  }
+  fmt._feature_type = STRING; // Force string value.
+  return { Handle(new self_type(std::move(fmt))), {} };
+}
 /* ------------------------------------------------------------------------------------ */
 class FieldDirective : public Directive {
   using self_type = FieldDirective; ///< Self reference type.
@@ -777,7 +895,7 @@ protected:
 };
 
 const std::string Do_debug_msg::KEY { "debug" };
-const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
+const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 Do_debug_msg::Do_debug_msg(Extractor::Format &&tag, Extractor::Format &&msg) : _tag_fmt(std::move(tag)), _msg_fmt(std::move(msg)) {}
 
@@ -826,7 +944,7 @@ public:
 Errata QueryDirective::invoke(Context &ctx, Extractor::Format& fmt, ts::URL url, TextView key) {
   auto feature = ctx.extract(fmt);
   if (key.empty()) {
-    url.set_query(std::get<IndexFor(STRING)>(feature));
+    url.query_set(std::get<IndexFor(STRING)>(feature));
     return {};
   }
 
@@ -1072,6 +1190,7 @@ public:
 
 protected:
   Extractor::Format _ex; ///< Extractor format.
+  Directive::Handle _do; ///< Pre-selection directives.
 
   /// A single case in the select.
   struct Case {
@@ -1149,12 +1268,18 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op)
 
 Errata With::invoke(Context &ctx) {
   Feature feature { ctx.extract(_ex) };
+  Feature save { ctx._feature };
+  ctx._feature = feature;
+  if (_do) {
+    _do->invoke(ctx);
+  }
   for ( auto const& c : _cases ) {
     if ((*c._cmp)(ctx, feature)) {
-      ctx._feature = feature;
       return c._do->invoke(ctx);
     }
   }
+  // Need to restore to previous state if nothing matched.
+  ctx._feature = save;
   return {};
 }
 
@@ -1197,10 +1322,19 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
         }
       }
     }
+    if (auto do_node { drtv_node[DO_KEY] } ; do_node) {
+      auto &&[do_handle, errata]{cfg.parse_directive(do_node)};
+      if (errata.is_ok()) {
+        self->_do = std::move(do_handle);
+      } else {
+        return Error(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark());
+      }
+    }
     return std::move(handle);
   } else if (key_value.IsSequence()) {
     return WithTuple::load(cfg, drtv_node, name, arg, key_value);
   }
+
 
   return Error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_value.Mark());
 }
@@ -1388,9 +1522,11 @@ namespace {
   Config::define(Do_creq_field::KEY, Do_creq_field::HOOKS, Do_creq_field::load);
   Config::define(Do_preq_field::KEY, Do_preq_field::HOOKS, Do_preq_field::load);
   Config::define(Do_preq_field_default::KEY, Do_preq_field_default::HOOKS, Do_preq_field_default::load);
-  Config::define(Do_set_preq_url_host::KEY, Do_set_preq_url_host::HOOKS, Do_set_preq_url_host::load);
+  Config::define(Do_preq_url_host::KEY, Do_preq_url_host::HOOKS, Do_preq_url_host::load);
   Config::define(Do_prsp_field::KEY, Do_prsp_field::HOOKS, Do_prsp_field::load);
-  Config::define(Do_set_preq_host::KEY, Do_set_preq_host::HOOKS, Do_set_preq_host::load);
+  Config::define(Do_creq_host::KEY, Do_creq_host::HOOKS, Do_creq_host::load);
+  Config::define(Do_preq_host::KEY, Do_preq_host::HOOKS, Do_preq_host::load);
+  Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);

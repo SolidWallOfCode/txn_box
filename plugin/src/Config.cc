@@ -147,17 +147,18 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
   }
 
   if (fmt_node.IsNull()) {
+    // Empty / missing feature is treated as the empty string.
     return Extractor::literal(""_tv); // Treat as equivalent of the empty string.
   } else if (fmt_node.IsScalar()) {
     // Scalar case - effectively a string, primary issue is whether it's quoted.
     Rv<Extractor::Format> result;
     TextView text { fmt_node.Scalar() };
-    if (text.empty()) {
+    if (text.empty()) { // an actually empty string
       result = Extractor::literal(""_tv);
     } else if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
-      result = Extractor::parse_raw(text);
+      result = Extractor::parse_raw(*this, text);
     } else {
-      result = Extractor::parse(text);
+      result = Extractor::parse(*this, text);
     }
 
     if (result.is_ok()) {
@@ -191,7 +192,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
       return Error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark());
     }
 
-    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
+    auto &&[fmt, errata]{Extractor::parse(*this, str_node.Scalar())};
     if (! errata.is_ok()) {
       errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
       return { {}, std::move(errata) };
@@ -346,8 +347,10 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
 
 Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   YAML::Node base_node { root };
-  // Walk the key path and find the target.
-  for ( auto p = path ; p ; ) {
+  static constexpr TextView ROOT_PATH { "." };
+  // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
+  // do not walk at all.
+  for ( auto p = (path == ROOT_PATH ? TextView{} : path) ; p ; ) {
     auto key { p.take_prefix_at(ARG_SEP) };
     if ( auto node { base_node[key] } ; node ) {
       base_node = node;

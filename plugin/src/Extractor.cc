@@ -76,7 +76,7 @@ Extractor::Format Extractor::literal(feature_type_for<IP_ADDR> const& addr) {
   return std::move(fmt);
 }
 
-Errata Extractor::update_extractor(Spec &spec) {
+Errata Extractor::update_extractor(Config & cfg, Spec &spec) {
   if (spec._name.empty()) {
     return Error(R"(Extractor name required but not found.)");
   }
@@ -87,7 +87,10 @@ Errata Extractor::update_extractor(Spec &spec) {
     if (auto ex{_ex_table.find(key)}; ex != _ex_table.end()) {
       spec._exf = ex->second;
       spec._name = key;
-      spec._arg = arg;
+      auto errata { ex->second->validate(cfg, spec, arg) };
+      if (! errata.is_ok()) {
+        return std::move(errata);
+      }
     } else {
       return Error(R"(Extractor "{}" not found.)", key);
     }
@@ -95,9 +98,10 @@ Errata Extractor::update_extractor(Spec &spec) {
   return {};
 }
 
-Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
+Rv<Extractor::Format> Extractor::parse_raw(Config &cfg, TextView text) {
   // Check for specific types of literals
 
+  // Empty string?
   if (text.empty()) {
     return self_type::literal(""_tv);
   };
@@ -121,27 +125,31 @@ Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
     return self_type::literal(addr);
   }
 
+  // Presume an extractor.
   Spec spec;
   bool valid_p = spec.parse(text);
   if (!valid_p) {
     return Error(R"(Invalid format for extractor - "{}")", text);
   }
-  auto errata = self_type::update_extractor(spec);
+  auto errata = self_type::update_extractor(cfg, spec);
   if (! errata.is_ok()) {
     return std::move(errata);
   }
 
   Format fmt;
   fmt.push_back(spec);
-  fmt._feature_type = spec._exf ? spec._exf->feature_type() : STRING;
+  fmt._direct_p = spec._exf->is_direct();
+  fmt._feature_type = spec._exf->feature_type(cfg);
   return std::move(fmt);
 }
 
-Rv<Extractor::Format> Extractor::parse(TextView format_string) {
-  Spec literal_spec; // used to handle literals as spec instances.
+Rv<Extractor::Format> Extractor::parse(Config &cfg, TextView format_string) {
   auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;
   Errata zret;
+  // Used to handle literals in @a format_string. Can't be const because it must be updated
+  // for each literal.
+  Spec literal_spec;
 
   literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
 
@@ -159,7 +167,7 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
       if (spec._idx >= 0) {
         fmt.push_back(spec);
       } else {
-        zret = self_type::update_extractor(spec);
+        zret = self_type::update_extractor(cfg, spec);
         if (zret.is_ok()) {
           fmt.push_back(spec);
         } else {
@@ -167,6 +175,11 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
         }
       }
     }
+  }
+  if (fmt._specs.size() == 1 && fmt._specs[0]._exf) {
+    Spec const& spec { fmt._specs[0] };
+    fmt._direct_p = spec._exf->is_direct();
+    fmt._feature_type = spec._exf->feature_type(cfg);
   }
   return { std::move(fmt), std::move(zret) };
 }
@@ -183,21 +196,9 @@ bool Extractor::has_ctx_ref() const { return false; }
 Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
   _specs.push_back(spec);
   // update properties.
-  if (spec._type == swoc::bwf::Spec::LITERAL_TYPE) {
-    _direct_p = false; // literals aren't direct.
-  } else {
+  if (spec._type != swoc::bwf::Spec::LITERAL_TYPE) {
     _literal_p = false;
     _max_arg_idx = std::max(_max_arg_idx, spec._idx);
-    if (_specs.size() == 1) {
-      if (spec._exf) {
-        _feature_type = spec._exf->feature_type();
-        if (nullptr == dynamic_cast<DirectFeature*>(spec._exf)) {
-          _direct_p = false;
-        }
-      }
-    } else { // multiple items
-      _direct_p = false;
-    }
   }
   return *this;
 }

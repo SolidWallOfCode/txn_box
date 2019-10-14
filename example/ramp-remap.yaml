@@ -1,0 +1,5 @@
+with: random
+select:
+- lt: 1 # percent of traffic to divert
+  do:
+  - remap-host: "httpbin.org"

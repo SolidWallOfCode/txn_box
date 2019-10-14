@@ -41,10 +41,10 @@ public:
    * the extractor, if any, for the specifier.
    */
   struct Spec : public swoc::bwf::Spec {
-    /// Argument portion of the extractor name, if any.
-    swoc::TextView _arg;
     /// Extractor used in the spec, if any.
     Extractor * _exf = nullptr;
+    /// Config storage for extractor, if needed.
+    swoc::MemSpan<void> _data;
   };
 
   /// Parsed extractor string.
@@ -61,7 +61,7 @@ public:
     /// @{
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
     bool _literal_p = true; ///< @c true if the format is only literals, no extractors. @see _literal
-    bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
+    bool _direct_p = false; ///< @c true if the format is a single view that can be accessed directly.
     /// @c true if the extracted feature should be forced to a C-string.
     /// @note This only applies for @c STRING features.
     bool _force_c_string_p = false;
@@ -150,6 +150,8 @@ public:
     Format::Specifiers::const_iterator _iter;
   };
 
+  virtual swoc::Errata validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return {}; }
+
   /// @defgroup Properties.
   /// Property methods for extractors.
   /// @{
@@ -161,7 +163,9 @@ public:
    * @note All features can be extracted as strings if needed. This type provides the ability to
    * do more specific type processing for singleton extractions.
    */
-  virtual Type feature_type() const = 0;
+  virtual Type feature_type(Config &cfg) const = 0;
+
+  virtual bool is_direct() const { return false; }
 
   /** Whether the extractor uses data from the context.
    *
@@ -189,10 +193,11 @@ public:
 
   /** Parse a format string.
    *
+   * @param cfg Configuration instance.
    * @param format_string Format string.
    * @return The format instance or errors on failure.
    */
-  static swoc::Rv<Format> parse(swoc::TextView format_string);
+  static swoc::Rv<Format> parse(Config &cfg, swoc::TextView format_string);
 
   /** Parse a raw string.
    *
@@ -201,7 +206,7 @@ public:
    *
    * This is useful for parsing a string which is presumed to be a single extractor.
    */
-  static swoc::Rv<Format> parse_raw(swoc::TextView text);
+  static swoc::Rv <Extractor::Format> parse_raw(Config &cfg, swoc::TextView text);
 
   /** Create a format string as a literal.
    *
@@ -222,12 +227,13 @@ protected:
 
   /** Update the extractor in a @a spec.
    *
+   * @param cfg Configuration instance.
    * @param spec Specifier to parse / update.
    * @return Errors, if any.
    *
    * This updates the extractor for a just parsed specifier.
    */
-  static swoc::Errata update_extractor(Spec & spec);
+  static swoc::Errata update_extractor(Config & cfg, Spec & spec);
 };
 
 /** Cross reference extractor.
@@ -240,7 +246,7 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
 
-  Type feature_type() const override;
+  Type feature_type(Config &cfg) const override;
 
   /// Required text formatting access.
   swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
@@ -254,10 +260,10 @@ extern Ex_this ex_this;
  */
 class StringFeature : public Extractor {
 public:
-  virtual Extractor::Type feature_type() const;
+  virtual Type feature_type(Config &cfg) const;
 };
 
-inline Extractor::Type StringFeature::feature_type() const { return STRING; }
+inline auto StringFeature::feature_type(Config &cfg) const -> Type { return STRING; }
 /** A view of a transient string.
  * This is similar to @c STRING. The difference is the view is of a string in non-plugin controlled
  * memory which may disappear or change outside of plugin control. It must therefore be treated
@@ -266,6 +272,8 @@ inline Extractor::Type StringFeature::feature_type() const { return STRING; }
  */
 class DirectFeature : public StringFeature {
 public:
+
+  bool is_direct() const override { return true; }
 
   /** Get a view of the feature.
    *
@@ -287,12 +295,22 @@ public:
   using ExType = std::variant_alternative_t<IndexFor(INTEGER), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Extractor::Type feature_type() const;
+  Type feature_type(Config &cfg) const;
 
-  virtual ExType extract(Context& ctx) const = 0;
+  /** Extract the feature.
+   *
+   * @param ctx Transaction context.
+   * @param spec Format specifier.
+   * @return The feature.
+   *
+   * @a spec can carry additional information about the use of the extract. Rather than picking out
+   * just the presumed important parts, the entire specifier is passed. This is primarily the @c
+   * _ext and @c _arg member. The actual extract name is carried in the @a _name member.
+   */
+  virtual ExType extract(Context& ctx, Extractor::Spec const& spec) const = 0;
 };
 
-inline Extractor::Type IntegerFeature::feature_type() const { return INTEGER; }
+inline auto IntegerFeature::feature_type(Config &cfg) const -> Type { return INTEGER; }
 
 class BooleanFeature : public Extractor {
 public:
@@ -300,12 +318,12 @@ public:
   using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Extractor::Type feature_type() const;
+  Type feature_type(Config &cfg) const;
 
   virtual ExType extract(Context& ctx) const = 0;
 };
 
-inline Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }
+inline auto BooleanFeature::feature_type(Config &cfg) const -> Type { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }
 
