@@ -240,7 +240,49 @@ swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node const& d
     return { {}, std::move(errata)};
   }
   fmt._feature_type = STRING; // Force string value.
-  return { Handle(new self_type(std::move(fmt))), {} };
+  return Handle(new self_type(std::move(fmt)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Do the remap.
+ */
+class Do_apply_remap_rule : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_apply_remap_rule; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node const& key_value);
+};
+
+const std::string Do_apply_remap_rule::KEY { "apply-remap-rule" };
+const HookMask Do_apply_remap_rule::HOOKS { MaskFor(Hook::REMAP) };
+
+Errata Do_apply_remap_rule::invoke(Context &ctx) {
+  ctx._remap_status = TSREMAP_DID_REMAP;
+  TSUrlCopy(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl, ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl);
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_apply_remap_rule::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  return Handle(new self_type);
 }
 /* ------------------------------------------------------------------------------------ */
 class FieldDirective : public Directive {
@@ -1527,6 +1569,7 @@ namespace {
   Config::define(Do_creq_host::KEY, Do_creq_host::HOOKS, Do_creq_host::load);
   Config::define(Do_preq_host::KEY, Do_preq_host::HOOKS, Do_preq_host::load);
   Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
+  Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
   Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);

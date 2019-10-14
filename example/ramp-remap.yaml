@@ -1,5 +1,6 @@
 with: random
 select:
-- lt: 1 # percent of traffic to divert
+- lt: 98 # percent of traffic to divert
   do:
+  - apply-rule-remap:
   - remap-host: "httpbin.org"
