@@ -155,9 +155,9 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
     if (text.empty()) {
       result = Extractor::literal(""_tv);
     } else if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
-      result = Extractor::parse_raw(text);
+      result = Extractor::parse_raw(*this, text);
     } else {
-      result = Extractor::parse(text);
+      result = Extractor::parse(*this, text);
     }
 
     if (result.is_ok()) {
@@ -191,7 +191,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
       return Error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark());
     }
 
-    auto &&[fmt, errata]{Extractor::parse(str_node.Scalar())};
+    auto &&[fmt, errata]{Extractor::parse(*this, str_node.Scalar())};
     if (! errata.is_ok()) {
       errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
       return { {}, std::move(errata) };

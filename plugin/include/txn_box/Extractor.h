@@ -41,10 +41,10 @@ public:
    * the extractor, if any, for the specifier.
    */
   struct Spec : public swoc::bwf::Spec {
-    /// Argument portion of the extractor name, if any.
-    swoc::TextView _arg;
     /// Extractor used in the spec, if any.
     Extractor * _exf = nullptr;
+    /// Config storage for extractor, if needed.
+    swoc::MemSpan<void> _data;
   };
 
   /// Parsed extractor string.
@@ -150,6 +150,8 @@ public:
     Format::Specifiers::const_iterator _iter;
   };
 
+  virtual swoc::Errata validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return {}; }
+
   /// @defgroup Properties.
   /// Property methods for extractors.
   /// @{
@@ -189,10 +191,11 @@ public:
 
   /** Parse a format string.
    *
+   * @param cfg Configuration instance.
    * @param format_string Format string.
    * @return The format instance or errors on failure.
    */
-  static swoc::Rv<Format> parse(swoc::TextView format_string);
+  static swoc::Rv<Format> parse(Config &cfg, swoc::TextView format_string);
 
   /** Parse a raw string.
    *
@@ -201,7 +204,7 @@ public:
    *
    * This is useful for parsing a string which is presumed to be a single extractor.
    */
-  static swoc::Rv<Format> parse_raw(swoc::TextView text);
+  static swoc::Rv <Extractor::Format> parse_raw(Config &cfg, swoc::TextView text);
 
   /** Create a format string as a literal.
    *
@@ -222,12 +225,13 @@ protected:
 
   /** Update the extractor in a @a spec.
    *
+   * @param cfg Configuration instance.
    * @param spec Specifier to parse / update.
    * @return Errors, if any.
    *
    * This updates the extractor for a just parsed specifier.
    */
-  static swoc::Errata update_extractor(Spec & spec);
+  static swoc::Errata update_extractor(Config & cfg, Spec & spec);
 };
 
 /** Cross reference extractor.

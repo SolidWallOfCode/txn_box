@@ -76,7 +76,7 @@ Extractor::Format Extractor::literal(feature_type_for<IP_ADDR> const& addr) {
   return std::move(fmt);
 }
 
-Errata Extractor::update_extractor(Spec &spec) {
+Errata Extractor::update_extractor(Config & cfg, Spec &spec) {
   if (spec._name.empty()) {
     return Error(R"(Extractor name required but not found.)");
   }
@@ -87,7 +87,10 @@ Errata Extractor::update_extractor(Spec &spec) {
     if (auto ex{_ex_table.find(key)}; ex != _ex_table.end()) {
       spec._exf = ex->second;
       spec._name = key;
-      spec._arg = arg;
+      auto errata { ex->second->validate(cfg, spec, arg) };
+      if (! errata.is_ok()) {
+        return std::move(errata);
+      }
     } else {
       return Error(R"(Extractor "{}" not found.)", key);
     }
@@ -95,7 +98,7 @@ Errata Extractor::update_extractor(Spec &spec) {
   return {};
 }
 
-Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
+Rv<Extractor::Format> Extractor::parse_raw(Config &cfg, TextView text) {
   // Check for specific types of literals
 
   if (text.empty()) {
@@ -126,7 +129,7 @@ Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
   if (!valid_p) {
     return Error(R"(Invalid format for extractor - "{}")", text);
   }
-  auto errata = self_type::update_extractor(spec);
+  auto errata = self_type::update_extractor(cfg, spec);
   if (! errata.is_ok()) {
     return std::move(errata);
   }
@@ -137,7 +140,7 @@ Rv<Extractor::Format> Extractor::parse_raw(TextView text) {
   return std::move(fmt);
 }
 
-Rv<Extractor::Format> Extractor::parse(TextView format_string) {
+Rv<Extractor::Format> Extractor::parse(Config &cfg, TextView format_string) {
   Spec literal_spec; // used to handle literals as spec instances.
   auto parser { swoc::bwf::Format::bind(format_string) };
   Format fmt;
@@ -159,7 +162,7 @@ Rv<Extractor::Format> Extractor::parse(TextView format_string) {
       if (spec._idx >= 0) {
         fmt.push_back(spec);
       } else {
-        zret = self_type::update_extractor(spec);
+        zret = self_type::update_extractor(cfg, spec);
         if (zret.is_ok()) {
           fmt.push_back(spec);
         } else {

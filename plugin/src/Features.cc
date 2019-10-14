@@ -14,10 +14,12 @@
 #include "txn_box/yaml_util.h"
 #include "txn_box/ts_util.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
 using swoc::TextView;
 using swoc::BufferWriter;
+using swoc::Errata;
 namespace bwf = swoc::bwf;
 
 swoc::Lexicon<FeatureType> FeatureTypeName {{
@@ -212,6 +214,11 @@ class Ex_creq_field : public DirectFeature {
 public:
   static constexpr TextView NAME { "creq-field" };
 
+  swoc::Errata validate(Config & cfg, Spec & spec, TextView const& arg) override {
+    spec._data.assign(const_cast<char*>(arg.data()), arg.size());
+    return {};
+  }
+
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   FeatureView direct_view(Context & ctx, Spec const& spec) const override;
 };
@@ -221,7 +228,7 @@ FeatureView Ex_creq_field::direct_view(Context &ctx, Spec const& spec) const {
   zret._direct_p = true;
   zret = TextView{};
   if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    if ( auto field { hdr.field(spec._arg) } ; field.is_valid()) {
+    if ( auto field { hdr.field(spec._data.view()) } ; field.is_valid()) {
       zret = field.value();
     }
   }
@@ -294,6 +301,42 @@ class Ex_random : public IntegerFeature {
   using super_type = IntegerFeature; ///< Parent type.
 public:
   static constexpr TextView NAME { "random" };
+
+  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override {
+    auto values = cfg.span<feature_type_for<INTEGER>>(2);
+    spec._data = values.rebind<void>();
+    feature_type_for<INTEGER> min = 0, max = 99;
+    // Use these values if anything goes wrong.
+    values[0] = min;
+    values[1] = max;
+    // Parse the paramenter.
+    if (arg) {
+      auto max_arg { arg };
+      auto min_arg = max_arg.split_prefix_at(',');
+      TextView parsed;
+      if (min_arg) {
+        min = swoc::svtoi(min_arg, &parsed);
+        if (parsed.size() != min_arg.size()) {
+          return Error(R"(Parameter "{}" for "{}" is not an integer as required)", min_arg, NAME);
+        }
+      }
+      if (max_arg) {
+        max = swoc::svtoi(max_arg, &parsed);
+        if (parsed.size() != max_arg.size()) {
+          return Error(R"(Parameter "{}" for "{}" is not an integer as required)", max_arg, NAME);
+        }
+      }
+    }
+
+    if (min >= max) {
+      return Error(R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
+    }
+
+    values[0] = min;
+    values[1] = max;
+    return {};
+  }
+
   /// Extract the feature from the @a ctx.
   ExType extract(Context& ctx, Extractor::Spec const& spec) const override;
 
@@ -307,28 +350,8 @@ protected:
 thread_local std::mt19937 Ex_random::_engine(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
 auto Ex_random::extract(Context &ctx, Extractor::Spec const& spec) const -> ExType {
-  int min = 0;
-  int max = 99;
-  if (spec._arg) {
-    auto max_arg { spec._arg };
-    auto min_arg = max_arg.split_prefix_at(',');
-    TextView parsed;
-    if (min_arg) {
-      auto n = swoc::svtoi(min_arg, &parsed);
-      if (parsed.size() != min_arg.size()) {
-      } else {
-        min = n;
-      }
-    }
-    if (max_arg) {
-      auto n = swoc::svtoi(max_arg, &parsed);
-      if (parsed.size() != max_arg.size()) {
-      } else {
-        max = n;
-      }
-    }
-  }
-  return std::uniform_int_distribution{min, max}(_engine);
+  auto values = spec._data.rebind<feature_type_for<INTEGER>>();
+  return std::uniform_int_distribution{values[0], values[1]}(_engine);
 };
 
 BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
