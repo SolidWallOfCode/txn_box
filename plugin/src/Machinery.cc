@@ -895,7 +895,7 @@ protected:
 };
 
 const std::string Do_debug_msg::KEY { "debug" };
-const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
+const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 Do_debug_msg::Do_debug_msg(Extractor::Format &&tag, Extractor::Format &&msg) : _tag_fmt(std::move(tag)), _msg_fmt(std::move(msg)) {}
 
@@ -1190,6 +1190,7 @@ public:
 
 protected:
   Extractor::Format _ex; ///< Extractor format.
+  Directive::Handle _do; ///< Pre-selection directives.
 
   /// A single case in the select.
   struct Case {
@@ -1267,12 +1268,18 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, WithTuple::Op op)
 
 Errata With::invoke(Context &ctx) {
   Feature feature { ctx.extract(_ex) };
+  Feature save { ctx._feature };
+  ctx._feature = feature;
+  if (_do) {
+    _do->invoke(ctx);
+  }
   for ( auto const& c : _cases ) {
     if ((*c._cmp)(ctx, feature)) {
-      ctx._feature = feature;
       return c._do->invoke(ctx);
     }
   }
+  // Need to restore to previous state if nothing matched.
+  ctx._feature = save;
   return {};
 }
 
@@ -1315,10 +1322,19 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
         }
       }
     }
+    if (auto do_node { drtv_node[DO_KEY] } ; do_node) {
+      auto &&[do_handle, errata]{cfg.parse_directive(do_node)};
+      if (errata.is_ok()) {
+        self->_do = std::move(do_handle);
+      } else {
+        return Error(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark());
+      }
+    }
     return std::move(handle);
   } else if (key_value.IsSequence()) {
     return WithTuple::load(cfg, drtv_node, name, arg, key_value);
   }
+
 
   return Error(R"("{}" value at {} is not a string or list of strings as required.)", KEY, key_value.Mark());
 }

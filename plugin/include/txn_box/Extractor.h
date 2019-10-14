@@ -61,7 +61,7 @@ public:
     /// @{
     bool _ctx_ref_p = false; /// @c true if any format element has a context reference.
     bool _literal_p = true; ///< @c true if the format is only literals, no extractors. @see _literal
-    bool _direct_p = true; ///< @c true if the format is a single view that can be accessed directly.
+    bool _direct_p = false; ///< @c true if the format is a single view that can be accessed directly.
     /// @c true if the extracted feature should be forced to a C-string.
     /// @note This only applies for @c STRING features.
     bool _force_c_string_p = false;
@@ -163,7 +163,9 @@ public:
    * @note All features can be extracted as strings if needed. This type provides the ability to
    * do more specific type processing for singleton extractions.
    */
-  virtual Type feature_type() const = 0;
+  virtual Type feature_type(Config &cfg) const = 0;
+
+  virtual bool is_direct() const { return false; }
 
   /** Whether the extractor uses data from the context.
    *
@@ -244,7 +246,7 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
 
-  Type feature_type() const override;
+  Type feature_type(Config &cfg) const override;
 
   /// Required text formatting access.
   swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
@@ -258,10 +260,10 @@ extern Ex_this ex_this;
  */
 class StringFeature : public Extractor {
 public:
-  virtual Extractor::Type feature_type() const;
+  virtual Type feature_type(Config &cfg) const;
 };
 
-inline Extractor::Type StringFeature::feature_type() const { return STRING; }
+inline auto StringFeature::feature_type(Config &cfg) const -> Type { return STRING; }
 /** A view of a transient string.
  * This is similar to @c STRING. The difference is the view is of a string in non-plugin controlled
  * memory which may disappear or change outside of plugin control. It must therefore be treated
@@ -270,6 +272,8 @@ inline Extractor::Type StringFeature::feature_type() const { return STRING; }
  */
 class DirectFeature : public StringFeature {
 public:
+
+  bool is_direct() const override { return true; }
 
   /** Get a view of the feature.
    *
@@ -291,7 +295,7 @@ public:
   using ExType = std::variant_alternative_t<IndexFor(INTEGER), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Extractor::Type feature_type() const;
+  Type feature_type(Config &cfg) const;
 
   /** Extract the feature.
    *
@@ -306,7 +310,7 @@ public:
   virtual ExType extract(Context& ctx, Extractor::Spec const& spec) const = 0;
 };
 
-inline Extractor::Type IntegerFeature::feature_type() const { return INTEGER; }
+inline auto IntegerFeature::feature_type(Config &cfg) const -> Type { return INTEGER; }
 
 class BooleanFeature : public Extractor {
 public:
@@ -314,12 +318,12 @@ public:
   using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Extractor::Type feature_type() const;
+  Type feature_type(Config &cfg) const;
 
   virtual ExType extract(Context& ctx) const = 0;
 };
 
-inline Extractor::Type BooleanFeature::feature_type() const { return BOOLEAN; }
+inline auto BooleanFeature::feature_type(Config &cfg) const -> Type { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }
 

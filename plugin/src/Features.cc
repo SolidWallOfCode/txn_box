@@ -21,6 +21,7 @@ using swoc::TextView;
 using swoc::BufferWriter;
 using swoc::Errata;
 namespace bwf = swoc::bwf;
+using namespace swoc::literals;
 
 swoc::Lexicon<FeatureType> FeatureTypeName {{
     { FeatureType::NIL, "nil" }
@@ -62,9 +63,13 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask) {
 }
 
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature) {
-  auto visitor = [&](auto &&arg) -> BufferWriter & { return bwformat(w, spec, arg); };
-//  return std::visit(visitor, static_cast<FeatureData::variant_type const&>(feature));
-  return std::visit(visitor, feature);
+  if (is_nil(feature)) {
+    return bwformat(w, spec, "NULL"_tv);
+  } else {
+    auto visitor = [&](auto &&arg) -> BufferWriter & { return bwformat(w, spec, arg); };
+    //  return std::visit(visitor, static_cast<FeatureData::variant_type const&>(feature));
+    return std::visit(visitor, feature);
+  }
 }
 } // namespace swoc
 /* ------------------------------------------------------------------------------------ */
@@ -302,40 +307,7 @@ class Ex_random : public IntegerFeature {
 public:
   static constexpr TextView NAME { "random" };
 
-  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override {
-    auto values = cfg.span<feature_type_for<INTEGER>>(2);
-    spec._data = values.rebind<void>();
-    feature_type_for<INTEGER> min = 0, max = 99;
-    // Use these values if anything goes wrong.
-    values[0] = min;
-    values[1] = max;
-    // Parse the paramenter.
-    if (arg) {
-      auto max_arg { arg };
-      auto min_arg = max_arg.split_prefix_at(',');
-      TextView parsed;
-      if (min_arg) {
-        min = swoc::svtoi(min_arg, &parsed);
-        if (parsed.size() != min_arg.size()) {
-          return Error(R"(Parameter "{}" for "{}" is not an integer as required)", min_arg, NAME);
-        }
-      }
-      if (max_arg) {
-        max = swoc::svtoi(max_arg, &parsed);
-        if (parsed.size() != max_arg.size()) {
-          return Error(R"(Parameter "{}" for "{}" is not an integer as required)", max_arg, NAME);
-        }
-      }
-    }
-
-    if (min >= max) {
-      return Error(R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
-    }
-
-    values[0] = min;
-    values[1] = max;
-    return {};
-  }
+  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   ExType extract(Context& ctx, Extractor::Spec const& spec) const override;
@@ -358,13 +330,62 @@ BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Co
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
+Errata Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+  auto values = cfg.span<feature_type_for<INTEGER>>(2);
+  spec._data = values.rebind<void>();
+  feature_type_for<INTEGER> min = 0, max = 99;
+  // Use these values if anything goes wrong.
+  values[0] = min;
+  values[1] = max;
+  // Parse the paramenter.
+  if (arg) {
+    auto max_arg { arg };
+    auto min_arg = max_arg.split_prefix_at(',');
+    TextView parsed;
+    if (min_arg) {
+      min = swoc::svtoi(min_arg, &parsed);
+      if (parsed.size() != min_arg.size()) {
+        return Error(R"(Parameter "{}" for "{}" is not an integer as required)", min_arg, NAME);
+      }
+    }
+    if (max_arg) {
+      max = swoc::svtoi(max_arg, &parsed);
+      if (parsed.size() != max_arg.size()) {
+        return Error(R"(Parameter "{}" for "{}" is not an integer as required)", max_arg, NAME);
+      }
+    }
+  }
+
+  if (min >= max) {
+    return Error(R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
+  }
+
+  values[0] = min;
+  values[1] = max;
+  return {};
+}
+
+/* ------------------------------------------------------------------------------------ */
+/// Extract the most recent selection feature.
+class Ex_with_feature : public Extractor {
+  using self_type = Ex_with_feature; ///< Self reference type.
+  using super_type = Extractor; ///< Parent type.
+public:
+  static constexpr TextView NAME { "..." };
+  Type feature_type(Config &cfg) const override { return cfg.active_feature_type(); }
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+BufferWriter& Ex_with_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, ctx._feature);
+}
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   Feature feature {_fg->extract(ctx, spec._ext)};
   return bwformat(w, spec, feature);
 }
 
-Extractor::Type Ex_this::feature_type() const { return STRING; }
+auto Ex_this::feature_type(Config &cfg) const -> Type { return STRING; }
 /* ------------------------------------------------------------------------------------ */
 // Needs to be external visible.
 Ex_this ex_this;
@@ -386,8 +407,12 @@ Ex_cssn_sni cssn_sni;
 
 Ex_random random;
 
+Ex_with_feature ex_with_feature;
+
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_this::NAME, &ex_this);
+  Extractor::define(Ex_with_feature::NAME, &ex_with_feature);
+
   Extractor::define(Ex_creq_url::NAME, &creq_url);
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_scheme::NAME, &creq_method);

@@ -147,12 +147,13 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
   }
 
   if (fmt_node.IsNull()) {
+    // Empty / missing feature is treated as the empty string.
     return Extractor::literal(""_tv); // Treat as equivalent of the empty string.
   } else if (fmt_node.IsScalar()) {
     // Scalar case - effectively a string, primary issue is whether it's quoted.
     Rv<Extractor::Format> result;
     TextView text { fmt_node.Scalar() };
-    if (text.empty()) {
+    if (text.empty()) { // an actually empty string
       result = Extractor::literal(""_tv);
     } else if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
       result = Extractor::parse_raw(*this, text);

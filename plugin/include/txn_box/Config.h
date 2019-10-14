@@ -163,6 +163,8 @@ public:
    */
   Hook current_hook() const;
 
+  FeatureType active_feature_type() const { return _feature_state ? _feature_state->_type : NIL; }
+
   /** Require regular expression capture vectors to support at least @a n groups.
    *
    * @param n Number of capture groups.
