@@ -6,7 +6,7 @@ path=env.get("CUSTOM_PATH") # passed in from top level SConstruct.
 if path:
     path = env.subst(path);
     i_path = os.path.join(path,"include")
-    env.Append(CPPPATH=[i_path])
+    env.Prepend(CPPPATH=[i_path])
     env.ExportCPPPATH([i_path])
 
 cfg = env.Configure()
