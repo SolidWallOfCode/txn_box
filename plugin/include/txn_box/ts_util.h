@@ -364,7 +364,7 @@ public:
 
   swoc::Errata cache_key_set(swoc::TextView const& key);
 
-  HttpSsn ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; };
+  HttpSsn ssn() const;;
 
   swoc::Errata set_override(TxnConfigVar const& var, int n);
   swoc::Errata set_override(TxnConfigVar const& var, swoc::TextView const& text);
@@ -434,6 +434,8 @@ inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc
 inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 
 inline HttpTxn::operator TSHttpTxn() const { return _txn; }
+
+inline HttpSsn HttpTxn::ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; }
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };

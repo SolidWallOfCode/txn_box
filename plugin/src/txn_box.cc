@@ -286,8 +286,20 @@ ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<0>) -> bool {
 }
 
 // New for ATS 9, prefer this if available.
-template < typename S > auto ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn._txn, status), bool()) {
-  return TSHttpTxnStatusSet(txn._txn, status) == TS_SUCCESS;
+template < typename S > auto ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn, status), bool()) {
+  TSHttpTxnStatusSet(txn, status); // no error return, sigh.
+  return true;
+}
+
+// This API changed name in the ATS 9-10 transition.
+template < typename T > auto
+ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
+  return TSVConnSSLConnectionGet(vc);
+}
+
+template < typename T > auto
+ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
+  return TSVConnSslConnectionGet(vc);
 }
 } // namespace detail
 
@@ -315,7 +327,7 @@ BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSRecordDataType 
 TextView ts::HttpSsn::inbound_sni() const {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
-    TSSslConnection ts_ssl_ctx = TSVConnSSLConnectionGet(ssl_vc);
+    TSSslConnection ts_ssl_ctx = detail::ts_vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
     if (ts_ssl_ctx) {
       SSL *ssl = reinterpret_cast<SSL *>(ts_ssl_ctx);
       const char *sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);

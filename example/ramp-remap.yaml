@@ -1,6 +1,10 @@
-with: random
+with: creq-path
 select:
-- lt: 98 # percent of traffic to divert
+- prefix: "uu/api/res/1.2/"
   do:
-  - apply-rule-remap:
-  - remap-host: "httpbin.org"
+  - with: random
+    select:
+    - lt: 98 # percent of traffic to divert
+      do:
+      - apply-remap-rule: # ATS 7 compatibility tweak for first remap plugin.
+      - remap-host: "httpbin.org"
