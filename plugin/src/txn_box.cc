@@ -472,7 +472,7 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
 Errata
 TxnBoxInit(int argc, char const *argv[]) {
   static constexpr std::array<option, 3> Options = {
-      {{"file", 1, nullptr, 'c'}
+      {{"config", 1, nullptr, 'c'}
           , { "key", 1, nullptr, 'k' }
           , {nullptr, 0, nullptr, 0}}};
 
@@ -495,7 +495,7 @@ TxnBoxInit(int argc, char const *argv[]) {
         break;
       case 'k': cfg_key.assign(argv[optind-1], strlen(argv[optind-1]));
         break;
-      default:errata.warn("Unknown option '{}' - ignored", char(opt), argv[optind - 1]);
+      default:errata.warn("Unknown option [{}] '{}' - ignored", char(opt), argv[optind - 1]);
         break;
     }
   }
