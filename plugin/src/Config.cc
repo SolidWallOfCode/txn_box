@@ -224,7 +224,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
   YAML::Node key_node;
   for ( auto const&  [ key_name, key_value ] : drtv_node ) {
     TextView arg { key_name.Scalar() };
-    TextView name = arg.take_prefix_at('.');
+    TextView name = arg.take_prefix_at(ARG_SEP);
 
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
