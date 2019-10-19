@@ -341,10 +341,10 @@ extern swoc::Lexicon<BoolTag> BoolNames;
 
 /// Container for global data.
 struct Global {
-  int TxnArgIdx = -1;
   swoc::Errata _preload_errata;
+  int TxnArgIdx = -1;
 
-  static int reserve_TxnArgIdx();
+  void reserve_txn_arg();
 };
 
 /// Global data.

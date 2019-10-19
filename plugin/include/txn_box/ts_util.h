@@ -279,43 +279,18 @@ protected:
 class TxnConfigVar {
   using self_type = TxnConfigVar; ///< Self reference type.
 public:
-  TxnConfigVar(swoc::TextView const& name, TSOverridableConfigKey key) : _name(name), _key(key) {}
+  TxnConfigVar(swoc::TextView const& name, TSOverridableConfigKey key, TSRecordDataType type);
+  swoc::TextView name() const { return _name; }
+  TSOverridableConfigKey key() const { return _key; }
+  TSRecordDataType type() const { return _ts_type; }
+
+  template < typename T > bool is_valid(typename std::decay<T>::type value) { return false; }
+  bool is_valid(feature_type_for<INTEGER>) const { return true; }
+  bool is_valid(swoc::TextView const&) const { return true; }
+protected:
   swoc::TextView _name; ///< Name.
   TSOverridableConfigKey _key; ///< override index value.
-  virtual TSRecordDataType type() const { return TS_RECORDDATATYPE_NULL; }
-  virtual swoc::Errata is_valid(int n) const; ///< Check if the value is valid.
-  virtual swoc::Errata is_valid(swoc::TextView const& text) const; ///< Check if the value is valid.
-protected:
-};
-
-class TxnConfigInteger : public TxnConfigVar {
-  using self_type = TxnConfigInteger; ///< Self reference type.
-  using super_type = TxnConfigVar; ///< Parent type.
-public:
-  TxnConfigInteger(swoc::TextView name, TSOverridableConfigKey key, int min, int max)
-  : _min(min), _max(max), super_type(name, key) {}
-
-  using super_type::super_type; ///< Enable super type constructors.
-  TSRecordDataType type() const override { return TS_RECORDDATATYPE_INT; };
-
-  bool is_boolean() const { return _min == 0 && _max == 1; }
-  /// Check if the value is valid.
-  swoc::Errata is_valid(int n) const override;
-  swoc::Errata assign(int n); ///< Set the configuration variable to @a n.
-protected:
-  int _min = std::numeric_limits<int>::min();
-  int _max = std::numeric_limits<int>::max();
-};
-
-class TxnConfigString : public TxnConfigVar {
-  using self_type = TxnConfigString; ///< Self reference type.
-  using super_type = TxnConfigVar; ///< Parent type.
-public:
-  using super_type::super_type; ///< Enable super type constructors.
-
-  TSRecordDataType type() const override { return TS_RECORDDATATYPE_STRING; };
-  swoc::Errata is_valid(swoc::TextView const& text) const override; ///< Check if the value is valid.
-  swoc::Errata assign(int n); ///< Set the configuration variable to @a n.
+  TSRecordDataType _ts_type { TS_RECORDDATATYPE_NULL };
 };
 
 /** Wrapper for a TS C API transaction.
@@ -362,14 +337,16 @@ public:
    */
   void error_body_set(swoc::TextView body, swoc::TextView content_type);
 
-  swoc::Errata cache_key_set(swoc::TextView const& key);
+  swoc::Errata cache_key_assign(swoc::TextView const& key);
 
   HttpSsn ssn() const;;
 
-  swoc::Errata set_override(TxnConfigVar const& var, int n);
-  swoc::Errata set_override(TxnConfigVar const& var, swoc::TextView const& text);
+  swoc::Errata override_assign(TxnConfigVar const& var, int n);
+  swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
 
-  static TxnConfigVar * find_override(swoc::TextView name);
+  static TxnConfigVar * find_override(swoc::TextView const& name);
+
+  static swoc::Rv<int> reserve_arg(swoc::TextView const &name, swoc::TextView const &description);
 
   static swoc::Errata & init(swoc::Errata & errata);
 
@@ -378,6 +355,8 @@ protected:
 
   TSHttpTxn _txn = nullptr;
   static TxnConfigVarTable _var_table;
+  static std::mutex _var_table_lock;
+  static int _arg_idx;
 
   /** Duplicate a string into TS owned memory.
    *
@@ -431,6 +410,9 @@ inline HttpField::HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc) : 
 
 inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
+inline TxnConfigVar::TxnConfigVar(swoc::TextView const &name, TSOverridableConfigKey key
+                           , TSRecordDataType type) : _name(name), _key(key), _ts_type(type) {}
+
 inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 
 inline HttpTxn::operator TSHttpTxn() const { return _txn; }
@@ -442,6 +424,7 @@ const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<s
 const swoc::TextView HTTP_FIELD_CONTENT_LENGTH { TS_MIME_FIELD_CONTENT_LENGTH, static_cast<size_t>(TS_MIME_LEN_CONTENT_LENGTH) };
 const swoc::TextView HTTP_FIELD_CONTENT_TYPE { TS_MIME_FIELD_CONTENT_TYPE, static_cast<size_t>(TS_MIME_LEN_CONTENT_TYPE) };
 
+extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
 }; // namespace ts
 
 namespace swoc {

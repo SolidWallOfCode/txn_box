@@ -15,6 +15,7 @@ add_library(plugin SHARED
 	src/Features.cc
 	src/Machinery.cc
         src/Rxp.cc
+	src/ts_util.cc
 	src/yaml_util.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")

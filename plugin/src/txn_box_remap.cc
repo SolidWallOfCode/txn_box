@@ -127,7 +127,7 @@ public:
 /* ------------------------------------------------------------------------------------ */
 TSReturnCode
 TSRemapInit(TSRemapInterface* rctx, char* errbuff, int errbuff_size) {
-  G.reserve_TxnArgIdx();
+  G.reserve_txn_arg();
   if (! G._preload_errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: startup issues.\n{}", Config::PLUGIN_NAME, G._preload_errata);

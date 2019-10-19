@@ -1147,7 +1147,7 @@ const HookMask Do_cache_key::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook:
 
 Errata Do_cache_key::invoke(Context &ctx) {
   auto value = ctx.extract(_fmt);
-  ctx._txn.cache_key_set(std::get<IndexFor(STRING)>(value));
+  ctx._txn.cache_key_assign(std::get<IndexFor(STRING)>(value));
   return {};
 }
 
@@ -1192,19 +1192,22 @@ const HookMask Do_txn_conf::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::
 Errata Do_txn_conf::invoke(Context &ctx) {
   auto value = ctx.extract(_fmt);
   if (value.index() == IndexFor(INTEGER)) {
-    ctx._txn.set_override(*_var, std::get<IndexFor(INTEGER)>(value));
+    ctx._txn.override_assign(*_var, std::get<IndexFor(INTEGER)>(value));
   } else if (value.index() == IndexFor(BOOLEAN)) {
-    ctx._txn.set_override(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1 : 0);
+    ctx._txn.override_assign(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1 : 0);
   } else if (value.index() == IndexFor(STRING)) {
-    ctx._txn.set_override(*_var, std::get<IndexFor(STRING)>(value));
+    ctx._txn.override_assign(*_var, std::get<IndexFor(STRING)>(value));
   }
   return {};
 }
 
 Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   auto txn_var = ts::HttpTxn::find_override(arg);
-  if (! txn_var || txn_var->type() == TS_RECORDDATATYPE_NULL) {
-    return Error(R"("{}" is not recognized as an overridable transaction configuration variable in "{}" directive at {}.)", arg, name, drtv_node.Mark());
+  if (! txn_var) {
+    return Error(R"("{}" is not recognized as an overridable transaction configuration variable.)", arg);
+  }
+  if (txn_var->type() != TS_RECORDDATATYPE_INT && txn_var->type() != TS_RECORDDATATYPE_STRING) {
+    return Error(R"("{}" is of type "{}" which is not currently supported.)", arg, ts::TSRecordDataTypeNames[txn_var->type()]);
   }
   auto &&[fmt, errata]{cfg.parse_feature(key_value)};
   if (! errata.is_ok()) {
