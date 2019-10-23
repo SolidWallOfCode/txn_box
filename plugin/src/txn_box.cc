@@ -38,8 +38,6 @@ Global G;
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
-namespace {
-
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   static const std::map<TSEvent, Hook> table{
         {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
@@ -55,8 +53,9 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   return Hook::INVALID;
 }
 
+namespace {
  std::shared_ptr<Config> Plugin_Config;
-}
+} // namespace
 /* ------------------------------------------------------------------------------------ */
 YAML::Node yaml_merge(YAML::Node & root) {
   static constexpr auto flatten = [] (YAML::Node & dst, YAML::Node & src) -> void {
