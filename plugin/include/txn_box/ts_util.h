@@ -111,12 +111,31 @@ public:
   swoc::TextView path() const; ///< View of the URL path.
   swoc::TextView query() const; ///< View of the query.
 
+  self_type & scheme_set(swoc::TextView text) {
+    TSUrlSchemeSet(_buff, _loc, text.data(), text.size());
+    return *this;
+  }
+
   /** Set the host in the URL.
    *
    * @param host Host.
    * @return @a this.
    */
   self_type & host_set(swoc::TextView host);
+
+  in_port_t port_get() {
+    return TSUrlPortGet(_buff, _loc);
+  }
+
+  self_type & port_set(in_port_t port) {
+    TSUrlPortSet(_buff, _loc, port);
+    return *this;
+  }
+
+  self_type & path_set(swoc::TextView path) {
+    TSUrlPathSet(_buff, _loc, path.data(), path.size());
+    return *this;
+  }
 
   self_type & query_set(swoc::TextView text);
 protected:
@@ -423,6 +442,9 @@ const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(T
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
 const swoc::TextView HTTP_FIELD_CONTENT_LENGTH { TS_MIME_FIELD_CONTENT_LENGTH, static_cast<size_t>(TS_MIME_LEN_CONTENT_LENGTH) };
 const swoc::TextView HTTP_FIELD_CONTENT_TYPE { TS_MIME_FIELD_CONTENT_TYPE, static_cast<size_t>(TS_MIME_LEN_CONTENT_TYPE) };
+
+const swoc::TextView URL_SCHEME_HTTP { TS_URL_SCHEME_HTTP, static_cast<size_t>(TS_URL_LEN_HTTP) };
+const swoc::TextView URL_SCHEME_HTTPS { TS_URL_SCHEME_HTTPS, static_cast<size_t>(TS_URL_LEN_HTTPS) };
 
 extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
 }; // namespace ts
