@@ -277,7 +277,42 @@ const HookMask Do_apply_remap_rule::HOOKS { MaskFor(Hook::REMAP) };
 
 Errata Do_apply_remap_rule::invoke(Context &ctx) {
   ctx._remap_status = TSREMAP_DID_REMAP;
-  TSUrlCopy(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl, ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl);
+  // This is complex because the internal logic is as well. A bit fragile, but this is
+  // really only useful as a backwards compatibility fix for pre ATS 9 and should eventually
+  // be removed.
+  // Copy over the host and port.
+  ts::URL replacement_url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl };
+  ts::URL target_url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl };
+  ts::URL request_url { ctx._remap_info->requestBufp, ctx._remap_info->requestUrl };
+
+  in_port_t port = replacement_url.port_get();
+  // decanonicalize the port - may need to dig in and see if it was explicitly set.
+  if ((port == 80 && replacement_url.scheme() == ts::URL_SCHEME_HTTP) ||
+      (port == 443 && replacement_url.scheme() == ts::URL_SCHEME_HTTPS)) {
+    port = 0;
+  }
+  request_url.port_set(port);
+  request_url.host_set(replacement_url.host());
+  if (ts::HttpRequest{ctx._remap_info->requestBufp, ctx._remap_info->requestHdrp}.method() != "CONNECT"_tv) {
+    request_url.scheme_set(replacement_url.scheme());
+    // Update the path as needed.
+    auto replacement_path { replacement_url.path() };
+    auto target_path { target_url.path() };
+    auto request_path { request_url.path() };
+
+    // Need to do better - see if Context can provide an ArenaWriter?
+    swoc::LocalBufferWriter<(1<<16) - 1> url_w;
+    url_w.write(replacement_path);
+    if (request_path.size() > replacement_path.size()) {
+      if (replacement_path.size() > 0 && url_w.view()[replacement_path.size()-1] != '/') {
+        url_w.write('/');
+      }
+      url_w.write(request_path.substr(replacement_path.size()).ltrim('/'));
+    }
+    request_url.path_set(url_w.view());
+  };
+
+//  TSUrlCopy(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl, ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl);
   return {};
 }
 
