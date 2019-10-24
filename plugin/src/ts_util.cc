@@ -55,6 +55,37 @@ std::mutex HttpTxn::_var_table_lock;
 int HttpTxn::_arg_idx = -1;
 
 /* ------------------------------------------------------------------------------------ */
+// API changes.
+namespace compat {
+
+template<typename S> auto
+ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<0>) -> bool {
+  return txn.prsp_hdr().status_set(status);
+}
+
+// New for ATS 9, prefer this if available.
+template<typename S> auto ts_status_set(ts::HttpTxn &txn, S status
+                                        , swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn, status), bool()) {
+  TSHttpTxnStatusSet(txn, status); // no error return, sigh.
+  return true;
+}
+
+// ---
+
+// This API changed name in ATS 9.
+template<typename T> auto
+ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
+  return TSVConnSSLConnectionGet(vc);
+}
+
+template<typename T> auto
+ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
+  return TSVConnSslConnectionGet(vc);
+}
+
+} // namespace detail
+
+/* ------------------------------------------------------------------------------------ */
 
 TextView ts::URL::host() const {
   char const *text;
@@ -232,34 +263,8 @@ swoc::MemSpan<char> ts::HttpTxn::ts_dup(swoc::TextView const &text) {
   return {dup, text.size()};
 }
 
-// API changed.
-namespace detail {
-template<typename S> auto
-ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<0>) -> bool {
-  return txn.prsp_hdr().status_set(status);
-}
-
-// New for ATS 9, prefer this if available.
-template<typename S> auto ts_status_set(ts::HttpTxn &txn, S status
-                                        , swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn, status), bool()) {
-  TSHttpTxnStatusSet(txn, status); // no error return, sigh.
-  return true;
-}
-
-// This API changed name in the ATS 9-10 transition.
-template<typename T> auto
-ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
-  return TSVConnSSLConnectionGet(vc);
-}
-
-template<typename T> auto
-ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
-  return TSVConnSslConnectionGet(vc);
-}
-} // namespace detail
-
 void ts::HttpTxn::status_set(int status) {
-  detail::ts_status_set(*this, static_cast<TSHttpStatus>(status), swoc::meta::CaseArg);
+  compat::ts_status_set(*this, static_cast<TSHttpStatus>(status), swoc::meta::CaseArg);
 }
 
 ts::String ts::HttpTxn::effective_url_get() const {
@@ -271,7 +276,7 @@ ts::String ts::HttpTxn::effective_url_get() const {
 TextView ts::HttpSsn::inbound_sni() const {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
-    TSSslConnection ts_ssl_ctx = detail::ts_vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
+    TSSslConnection ts_ssl_ctx = compat::ts_vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
     if (ts_ssl_ctx) {
       SSL *ssl = reinterpret_cast<SSL *>(ts_ssl_ctx);
       const char *sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
