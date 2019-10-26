@@ -23,7 +23,7 @@ Other dependencies
 
    It is important to use `Python 3 <https://www.python.org/download/releases/3.0/>`__ - no attempt has been made for Python 2 compabitility.
 
-To build the plugin, first build or install Traffic Server. Then use the command ::
+To build the plugin, first build and install Traffic Server. Then use the command ::
 
    scons txn_box --with-trafficserver=<ts_path>
 
