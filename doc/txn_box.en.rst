@@ -10,17 +10,26 @@ Transaction Box
 ***************
 
 Transaction Box, or "txn_box", is a plugin to manipulate :term:`transaction`\s in Apache Traffic
-Server. It is intended to replace the ``header_rewrite`` and ``cookie_remap`` plugins with a more
-extensive set of capabilities that are also more general and able to be combined more effectively.
-This plugin is also `YAML <http://yaml.org>`__ based for increased ease of configuration.
+Server. The functionality is based on requests I have received over the years from users and
+admnistrators for |TS|. Where possible I have designed to provide fewer generalized features that
+can be used in a variety of combinations.
+
+There are several purposes to this project
+
+*  Provide a more generalized set of operations for working with transactions. This primarily involved
+   separating data access from data use - that is, any data can be used in any context.
+
+*  Consolidating transaction manipulation so that rather than a constellation of distinct plugins
+   with different syntax and restrictions, |TxB| provides a single toolbox sufficient for
+   most needs. A consequence of this is that |TxB| will replace a number of current plugins.
+
+*  Being extensible, so that it is easier to add new mechanisms to |TxB| than to create a
+   new plugin for some task.
+
+*  Provide YAML configuration for consistency, standardization, and easy of use by automation tools.
 
 |TxB| uses `libswoc <http://github.com/SolidWallOfCode/libswoc.git>`__ and `YAML CPP
 <https://github.com/jbeder/yaml-cpp>`__.
-
-This plugin should also be considered a prototype for upgrading the core URL rewriting engine. Doing
-this first in a plugin will enable must faster iteration of the design without disrupting
-production. Deployments can update the plugin and core TS independently which means changes can be
-made to the plugin based on experience and feedback without blocking other core updates.
 
 .. note::
 
@@ -28,61 +37,118 @@ made to the plugin based on experience and feedback without blocking other core 
    addition, much of this has yet to be implemented and represents future work. Time permitting,
    this will be made clearer.
 
+Concepts
+********
+
+|TxB| is based on the idea that for a given transaction and hook in |TS|, the administrator wants to
+consider some subset of the information in the transaction and, based on that, perform specific
+actions. There is a further presumption that the common use will be multiple comparisons against the
+same data, each comparison associated with different actions. This is a generalization of how URL
+rewriting happens currently in |TS|, the difference being that for |TS| only a fixed subset is
+available for comparison, and the set of actions is limited.
+
+To aid further explanation, some terms need to be defined.
+
+A :term:`feature` is data of interest for a transaction. :term:`Extraction` is collecting that
+information. An :term:`extractor` provides data. A feature is the result of one *or more*
+extractors. This is expressed syntactically as a :term:`feature string` which is very similar to
+`Python format strings <https://docs.python.org/3.4/library/string.html#format-string-syntax>`__ and
+can contain a mixture of extractors and literal strings [*]_. The result of applying the feature
+string to a transaction is a feature. For example, a feature could be the path in the URL in the
+user agent request. In the configuration the extractor :code:`creq-path` specifies that the URl path
+should be extracted as a feature. Although most extractors get data from the transaction, others can
+get data from the session, the environment, etc.. All of these are handled and used in the same way.
+
+Feature extraction is the essence of |TxB|. All data that is used in any way initially comes from an
+extractor. Each feature string yields a feature of a specific type and can be used any place data
+of that type is needed.
+
+Extraction is about getting data. A :term:`directive` is an action to be performed. Directives
+generally need data to perform their action and that data is provided by extraction. For example,
+setting the value of a field in an HTTP header is done by a directive, and the value of the field
+is provided by extraction. For example, the directive :code:`prsp-field` sets a field value in the
+proxy's response to the user agent. To set the field "X-SWOC" to "valid" the directive would be
+:code:`prsp-field@X-SWOC: "valid"`.
+
+A primary use of features is :term:`selection`. This is the conditional mechanism in |TxB|. The
+basics are that a feature is extracted and then compared using various :term:`comparison` operators.
+Each comparison can have an associated list of directives which are invoked if the comparison
+matches. Because selection is done using the :code:`with` directive, selection can be nested to
+an arbitrary depth, slicing the data of the transaction as seems best to the administrator.
+
+It is a general rule that once selection has occurred, only directives associated with successful
+comparison will be invoked. There is no backtracking from a selection. If no comparison in a
+selection matches, the selection is skipped and the next directive invoked. This increases locality
+such that to determine behavior of a piece of the configuration only direct parent selections need
+be considered.
+
+There is one more directive that merits special mention, the :code:`when` directive. This is used to
+specify on which hook a list of directives should be invoked. The set of valid directives and
+extractors depends on the hook. For instance, the directive mentioned above, :code:`prsp-field`
+cannot be use in early hooks where the proxy response does not yet exist. This is checked during
+configuration loading and reported.
+
 Configuration
 *************
 
-|TxB| is configured using YAML. The configuration consists essentially of a list of
-:term:`directive`\s. Each of these specifies a run time action to performa. A few of them have
-special processing rules.
+|TxB| is configured using YAML. |TxB| can be used as a global or remap plugin and the configuration
+is a bit different in the two cases.
 
-The work style of the configuration is based on :term:`selection` which means performing an
-:term:`extraction` on a transaction to obtain a :term:`feature` which is subjected to a series of
-:term:`comparison`\s. Each comparison has an associated sequence of directives and if the comparison
-is successful, those directives and *only those directives* are invoked. This is the "no
-backtracking" rule. Selection is done by a directive and so selections nest easily.
+For a global configuration, the top level directives must all be :code:`when` (except for an
+optional single :code:`meta`) so that every directive is associated with a specific hook. For a
+remap configuration, all directives are grouped in an implied :code:`when: remap` and therefore that
+does not have to be specified.
 
-It is a key rule that once :term:`selection` has occurred, only directives associated with
-successful comparison will be invoked. There is never any backtracking from a selection. If no
-comparison in a selection matches, the selection skipped and the next directive invoked. This
-increases locality such that to determine behavior of a piece of the configuration only direct
-parent selections need be considered.
+Each directive and feature has an associated set of hooks in which it is valid, therefore some will
+be available in a remap configuation and some will not. In particular there are several directives
+which are specific to remap because they interact with the data passed to a remap plugin which is
+not available in any other context.
 
-There is a wide variety of directives, with an emphasis on manipulating the HTTP header, such as
-adding or changing fields, changing the URL, etc. There is also a variety of extractors to get
-information from the transaction. While a few features can be compared as a more specialized type,
-all* fatures are available in string format. Feature extraction is not just for selection - most
-places that expect strings will also perform extraction. For example when setting the value of a
-field the full set of extractors can be used to generate the string for the value.
+For both global and remap plugins a file containing YAML must be specified. A specific key in the
+file is used as the base of the configuration. For global configuration this is by default the
+:code:`txn_box` key at the top level. For remap it is the top level node in the file (generally the
+entire file). This can be overridden by a second parameter, which is a path to the root
+configuration node. This must be a sequence of keys in maps, starting from the top. The path is
+specified by a dot separated list of these keys. For example, consider a file with this at the top
+node level. ::
 
-The top level configuration is grouped under the :code:`txn_box` key. The value of this key must be
-a single instance or list of :code:`when` `directives <when>`_. This structure enables |TxB|
-configuration to be mixed with other configuration in the same file [#config]_. The requirement to
-start with :code:`when` is done to be clear about the hook on which the configuration is active.
+   txn_box: # path - "txn_box"
+      example-1: # path - "txn_box.example-1"
+         inner-1: # path - "txn_box.examle-1.inner-1"
+      example-2: # path "txn_box.example-2"
+
+If "example-1" was to be the root, the path would be "txn_box.example-1". The global default,
+"txn_box", would select "txn_box"" as the root node. The path could also be
+"txn_box.example-1.inner-1" to select the inner most node. As a special case, the path "." means
+"the unnamed top level node". Note this is problematic in the case of keys that contains ".", which
+should generally not be a problem.
 
 Selection
 =========
 
-Selection is the root of configuration. This is done first by specifying the extraction of a feature
-from the transaction then applying :term:`comparison`\s, each of which has an associated
-list of directives. If the comparison is successful, those directives are executed. For example, to
-do a selection based on the host in the client request URL ::
+Selection is the mechanism for conditional operation. This is done first by specifying the
+extraction of a feature from the transaction then applying :term:`comparison`\s, each of which has
+an associated list of directives. The :code:`with` directive is used for selection. The key
+:code:`select` is used to anchor the list of comparison objects. If a comparison is successful,
+those directives are executed. For example, to do a selection based on the host in the client
+request URL ::
 
-   with: "{creq-host}"
+   with: creq-host
    select:
    -  match: "mail.example.one"
       do:
-      -  set-preq-url: "https://example.com/mail"
+      -  preq-url: "https://example.com/mail"
    -  match: "search.example.one"
       do:
-      -  set-preq-url: "https://engine.example.one"
+      -  preq-url: "https://engine.example.one"
 
-Here :code:`{creq-host}` is an extractor that extracts the host of the URL in the client
+Here :code:`creq-host` is an extractor that extracts the host of the URL in the client
 request. The value of the :code:`select` key is a list of cases which consist of a
-:comparison and a list of directives as the value of the :code:`do` key.
+comparison and a list of directives as the value of the :code:`do` key.
 
-The specific key :code:`match` is a comparison operator that does string comparisons between the
-provided string and the feature. :code:`set-preq-url` is an directive that sets the URL in the proxy
-request. What this configuration snippet does is rewrite the URL to use for the proxy request to the
+The comparison :code:`match` is a comparison operator that does string comparisons between the
+provided string and the feature. The directive :code:`preq-url` sets the URL in the proxy request.
+What this configuration snippet does is rewrite the URL to use for the proxy request to the
 upstream, changing requests for "mail.example.one" to a request to "example com/mail" and requests
 for "search.example.on" to "engine.example.one".
 
@@ -597,7 +663,7 @@ certificate was verified, and whether the SNI name is in a whitelist.
 
 .. rubric:: Footnotes
 
-.. [#config]
+.. [*]
 
-   Presuming none of the other configuration uses the top level key :code:`txn_box` which seems a
-   reasonable requirement.
+   Literals are treated internally as extractors that "extract" the literal string. In practice every
+   feature string is an array of extractors.
