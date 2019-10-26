@@ -36,10 +36,11 @@ general such that it could perform the functions of these other configurations, 
 *  hosting.config
 *  cache.config
 *  parent.config
-*  The ``header_rewrite`` plugin.
-*  The ``regexr_remap`` plugin.
-*  The ``cookie_remap`` plugin.
-*  The ``conf_remap`` plugin.
+*  The `header_rewrite` plugin.
+*  The `regexr_remap` plugin.
+*  The `cookie_remap` plugin.
+*  The `conf_remap` plugin.
+*  The `cache_key` plugin.
 
 This was not as large a task as it might originally seem, as just a few basic abilities would cover
 most of the use cases. In particular these are
@@ -139,6 +140,38 @@ match limits future actions to that specific subtree, results from other previou
 "leak" into the matched one. If a particular directive is invoked, then the path to that invocation
 is unambiguous and moreoeve that state of things and previous directives is likewise.
 
+It was pointed out this makes multi-tenant easier, because the CDN owner can perform top level
+selection to "lock in" each tenant, who can then create configuration that cannot interfer with
+other tenants.
+
+Directive / Extractor Parameters
+================================
+
+In practice, many directives and extractors work better if a parameter can be supplied. The classic
+example is :code:`preq-field` which sets a field in the proxy request. This needs two values, the
+name of the field and the value to set. Originally this was done by passing in a list as ::
+
+   preq-field: [ "X-txn-box", "active" ]
+
+to set the "X-txn-box" to the value "active". Overall when using this I found it a bit clunky and
+decided to support parameters for the directive, so that this becomes ::
+
+   preq-field@X-txn-box: "active"
+o
+I haven't managed to get much feedback on this concept, but I think overall the lack of need to do
+list syntax for such a common operation. One advantage is this can be used with extractors, although
+this leaves the question of why not use the format extension? The one point is having the same
+syntax for both is a benefit, which is not possible with the format extension.
+
+Note this prevents using extraction to get the field name.
+If that turns out to be a problem I would probably make such directives have an alternate form ::
+
+   preq-field:
+     name: "X-tnx-box"
+     value: "active"
+
+This seems satisfactory for the occasional use. Currently I don't have a use case where extracting
+the field name is needed and so this remains on the concept box.
 
 Boolean Expressions
 ===================
@@ -147,7 +180,7 @@ With the addition of the :code:`not` comparison and suport for implicit "or" in 
 operators such as :code:`match`, it is possible to implement the "NOR" operator, which in turn is
 sufficient to represent any boolean computation. Although this seems to make that somewhat obscure,
 in practice use of complex booleans expressions doesn't occur due to its difficulty in comprehension
-of humans writing and debugging the configuraion. This structure makes the common tasks and
+of humans writing and debugging the configuration. This structure makes the common tasks and
 expressions simpler, at the acceptable expense of somewhat more complex general expressions which
 will be rarely (if ever) used.
 

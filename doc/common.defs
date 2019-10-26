@@ -12,4 +12,5 @@
    under the License.
 
 .. |TxB| replace:: TxnBox
+.. |TS| replace:: Traffic Server
 .. |libswoc| replace:: LibSWOC++
