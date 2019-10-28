@@ -12,9 +12,53 @@ Directive Reference
 Directives
 **********
 
+Client Request
+==============
+
 .. txb:directive:: creq-path
 
    Set the path in the client request URL.
+
+.. txb:directive:: creq-field
+
+   Set the value of a field in the client request. This requires an argument which is the field name.
+   For example, to set the "X-Swoc" field to "Potzrebie" ::
+
+      creq-field@X-Swoc: "Potzrebie"
+
+Transaction
+===========
+
+.. txb:directive:: redirect
+
+   :code:`redirect <location>`
+
+   :code:`redirect [ <status>, <location> ]`
+
+   .. code-block:: YAML
+
+      redirect:
+         to: <location>
+         status: <status>
+         reason: <reason phrase>
+         body: <response body>
+
+   This directive generates a redirect response to the user agent without an upstream request.
+
+Utility
+=======
+
+.. txb:directive:: debug
+
+   :code:`debug: <message>`
+
+   :code:`debug: [ <tag>, <message> ]`
+
+   Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
+   the plugin tag "txn_box" is used.
+
+Compatibility
+=============
 
 .. txb:directive:: apply-remap-rule
 
