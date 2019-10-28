@@ -15,6 +15,7 @@ Transaction Box
    directive.en
    user/ExtractorReference.en
    user/DirectiveReference.en
+   user/ComparisonReference.en
    design.en
    future.en
 
