@@ -1,10 +1,10 @@
-with: creq-path
-select:
-- prefix: "uu/api/res/1.2/"
-  do:
-  - with: random
-    select:
-    - lt: 98 # percent of traffic to divert
-      do:
-      - apply-remap-rule: # ATS 7 compatibility tweak for first remap plugin.
-      - remap-host: "httpbin.org"
+- cache-key: "{creq-host}/{creq-path}" # preserve cache
+- with: creq-path
+  select:
+  - prefix: "uu/api/res/1.2/" # path for version 1.2
+    do:
+    - with: random
+      select:
+      - lt: 5 # percent of traffic to divert
+        do:
+        - remap-host: "staging.app.example.one"
