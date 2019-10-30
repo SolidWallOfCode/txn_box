@@ -11,9 +11,6 @@ Future Work
 
 This is future intended work and so may change radically. The essence should remain similar.
 
-Extractors
-**********
-
 Session
 =======
 
@@ -25,15 +22,12 @@ inbound-remote-port
 
 inbound-local-port
 
-Other
-=====
-
-rand
-   A random integer from 1 to the value specified in the extension. E.g. :code:`{rand::10}` is a
-   random integer in the range 1..10.
 
 Features
 ********
+
+ts-uuid
+   Process UUID for Traffic Server.
 
 Feature Modifiers
 =================
@@ -55,18 +49,11 @@ hash
    in the range 1 .. 4096.
 
 
+slice
+   Extract elements of a list.
+
 Comparisons
 ***********
-
-suffix
-   Match the trailing part of the feature. If matched, the matched suffix is removed from the
-   current feature. This can have a string or a list of strings and is a match if any of the strings
-   is a suffix.
-
-prefix
-   Match the leading part of the feature. If matched, the matched prefix is removed from the current
-   feature. This can have a string or a list of strings and is a match if any of the strings is a
-   suffix.
 
 in
    "in: <min>-<max>"
@@ -79,16 +66,9 @@ in
 
    A list of ranges can be used and this comparison is match if the value is in any of the ranges.
 
-lt,le,gt,ge,eq,ne
-   Standard numeric comparisons. The comparison is "feature" "operator" "value". Therefore "lt: 10"
-   checks if the feature is less than 10.
-
-else
+whatever
    Always match. As implied by the name this is useful only after other comparison operators, to
    serve as a "match all" or cleanup for transactions that did not match any of the previous cases.
-
-anything
-   A synonymn for :code:`else`. Always matches.
 
 not
    This is not a direct comparison, it must have as its value another comparison. The overall result
@@ -119,21 +99,6 @@ respond
 
     Respond immediaately to the user agent with ::code:`status` and ::code:`reason` without connecting
     upstream.
-
-rewrite-url
-   "rewrite-url: <string>"
-
-   Rewrite the URL in the proxy request to be "string".
-
-rewrite-url-host
-    "rewrite-url-host: <string>"
-
-    Rewrite the host of the URL in the proxy request to be ::code:`string`.
-
-rewrite-url-path
-    "rewrite-url-path: <string>"
-
-    Rewrite the path of the URL to be ::code:`string`.
 
 redirect
    "redirect: <string>"
@@ -196,90 +161,108 @@ The basic configuration requires selections to be done on a single extracted fea
 transaction. This should be adequate for almost all uses, and very much in the style of the existing
 "remap.config". In addition, the presence of the :code:`not` comparison means many cases that are
 naturally a combination of two feature compares can be changed to :code:`not` of alternatives.
-Still, there are some rare edge cases where selecting on more than one feature in parallel is
-useful. In this case a tuple of features can be created and then matched against.
+Still, there are some cases where selecting on more than one feature in parallel is useful. This is
+the case with features that are naturally lists, such as multi-valued headers or query strings. It
+may also be useful to be able to hand specify tuples by passing a list to :code:`with`. The syntax
+here may be a bit tricky but it should be possible to distinguish tuples from modified features.
 
-The tuple is created by passing :code:`with` a list of extractors. Each extractor generates a
-feature which is stored in a "feature tuple". When matching a "combination" key must be used to
-provide a list of comparison operators. These keys are
+.. note::
 
-:code:`all-of`
-    The match succeeds if every comparison succeeds.
+   One parsing rule would be
 
-:code:`any-of`
-    The match succeeds if any comparison succeeds.
+   *  A scalar is an extractor.
 
-:code:`none-of`
-    The match succeeds if no comparsion succeeds (all must fail).
+   * A list is a modified feature or a tuple. Such a list must be one of the form
 
-:code:`else`
-    The match succeeds. This combination is not allowed to have any comparison operators.
+     *  The first element is a scalar or list and the second and all subsequent elements are objects.
+        This is a modified feature.
 
-The list of comparisons for the combination (except :code:`else`) must be exactly the same length as the feature
-list. Each comparison in the list is applied to the corresponding feature tuple element.
+     *  No elements are objects. This is a list of features.
 
-The simplest example is doing access control based on both method and source address. In this
-example, the goal is
+     *  For error reporting, if the second element is an object then it is treated as a modified feature.
+        Otherwise, it is treated as a tuple. If the first element is an object, it's a malformed value.
 
-*  Loopback should be able to use all methods.
-*  Non-routables should be able to use "GET", "POST", "HEAD", and "DELETE".
-*  Other addresses should be restricted to "GET", "POST", "HEAD".
+With a list feature, the matching is done across elements of the list. This can be done in an iterative
+style where a comparison is made against each element in the list, or tuple style where there is a
+different comparison for each element in the list.
 
-Suitable configuration could be
+The list style matching operators require a value that is another comparison.
 
-.. code-block:: YAML
+:code:`for-all`
+    The match succeeds if the base comparison succeeds for every element.
 
-   with: [ "{creq-method}", "{inbound-remote-addr}" ]
+:code:`for-any`
+    The match succeeds if the base comparison succeeds for any element.
+
+:code:`for-none`
+    The match succeeds if the base comparison fails for all elements.
+
+The tuple style match is :code:`tuple`. It requires a list of comparisons and applies the
+comparisons against the list in the same order. It matches if all of the comparisons match. Elements
+that do not have a comparison do not match. This means by default if the feature list is a different
+length that the comparison list, the match will fail. This is the common case. For less common cases
+there are other options.
+
+Tuple elements can be skipped with the :code:`whatever` comparison which accepts any feature type
+and always matches.
+
+Trailing elements can be matched with any of the list comparisons. This must always be the last
+comparison in a tuple and applies to all elements that do not have an explicit comparison.
+
+These can be combined to ignore all elements past a fixed initial set by using a list comparison
+after the last significant comparison. ::
+
+   -  for-all:
+      -  whatever:
+
+This is useful if there are different comparisons in the same selection. Otherwise it might be
+better to use modifiers to shape the list. E.g., if only the first two elements are relevant then
+the :code:`slice` modifier can be used to reduce the list to the first two elements. Using
+modifiers is faster and more compact but has the cost of limiting all of the comparisons in the
+selection.
+
+Matching can be done in a more explicitly iterative style by use of :code:`...` and modifiers. This
+can be used to process successively smaller subsequences of the list.
+
+For examples of all this, consider working with the `Via` header. This is a multi-valued field.
+Suppose it was required to check for having been through the local instance of Traffic Server by
+looking for the process UUID in the fields. If the first element is the current instance, that's
+a direct loop and an error. Otherwise, if the UUID is any other element that is an error unless
+the `k8-routing` field is present, indicating that there is active routing that sent it back.
+
+.. note:: This is a real life example.
+
+The design here is to split the `Via` header and then work with the list. The :code:`ts-uuid`
+extractor gets the UUID for the Traffic Server process which is used in the `Via` header.
+
+   with: [ creq-field@Via , { split: "," } ] # split in to list
    select:
-   -  any-of:
-      -  match: [ "GET", "POST", "HEAD ]
-      -  in: [ "127.0.0.0/8", "::1" ]
-      do: # nothing - transaction allowed
-   -  all-of:
-      -  match: "DELETE"
-      -  in: [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" ]
-      do: # nothing - transaction allowed
-   -  else:
+   -  tuple:
+      -  contains: ts-uuid # only check first
+      -  for-all:
+         - whatever:
       do:
-         deny: # not allowed
-
-This could have be done without a feature tuple at the cost of some repetition. The actual use
-cases that require this mechanism are rare and difficult to reduce to a sufficiently simple example.
-Without a feature tuple, this could be done with
-
-.. code-block:: YAML
-
-   with: {inbound-remote-addr}
-   select:
-   -  in: [ "127.0.0.0/8", "::1" ]
-      do: # nothing - transaction allowed.
-   -  in: [ "10.0.0.8/8", "172.16.0.0/12", "192.168.0.0/16" ]
-      do:
-         with: "{creq-method}"
+      -  txn-status: [ 400 , "Loop detected" ]
+   -  tuple:
+      -  whatever: # skip first element.
+      -  for-any: # otherwise, see if it's any other element.
+         -  contains: ts-uuid
+      do: # found it, fail if there's no routing flag.
+      -  with: creq-field@k8-routing::present
          select:
-         -  not:
-               match: [ "GET", "POST", "HEAD", "DELETE" ]
-            do:
-               deny:
-   -  else:
-      do:
-         with: "{creq-method}"
-         select:
-         -  match: [ "GET", "POST", "HEAD" ]
-            do: # nothing - transaction allowed
-         -  else:
-            do:
-               deny:
+         -   eq: false
+             do:
+                txn-status: [ 400 , "Loop detected" ]
 
-Because of no backtracking, once an address is selected it is only necessary to block invalid
-methods. This can be done either with :code:`not` to match invalid methods, or by matching
-the valid methods and using :code:`else` to do the :code:`deny`.
+Issues
 
-This is also easier because of YAML support for `anchors and references
-<https://yaml.org/spec/1.2/spec.html#id2784064>`__ means that even if the configuration must be
-repeated that can be done syntatically rather than actually copying the configuration. This wouldn't
-be any help in this example, but if the configuration in the alternates were non-trivial it can of
-great benefit.
+*  Matching on just the first value is annoyingly verbose. This would be noticeably better if there
+   was an "apply" directive which loaded the :code:`with` context, e.g. regular expression groups
+   and :code:`...` without even trying to do matches.e43se
+
+*  With support for :code:`do` in each comparison, this may be of more limited utility. But that
+   would be verbose to (for instance) do something for every tuple with a specific first element
+   if there are multiple cases that match with that element.
 
 IP Address Maps
 ***************

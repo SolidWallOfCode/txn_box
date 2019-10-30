@@ -15,6 +15,15 @@ Directives
 Client Request
 ==============
 
+.. txb::directive:: creq-url
+
+   Set the URL of the client request. This needs to be the full, parsable URL. To set more specific
+   elements of the URL use the more specific directives.
+
+.. txb:directive:: creq-host
+
+   Set the host for the client request.
+
 .. txb:directive:: creq-path
 
    Set the path in the client request URL.
