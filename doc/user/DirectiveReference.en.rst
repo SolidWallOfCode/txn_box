@@ -66,6 +66,11 @@ Utility
    Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
    the plugin tag "txn_box" is used.
 
+
+IPSpace
+=======
+
+
 Compatibility
 =============
 
