@@ -268,29 +268,96 @@ IP Address Maps
 ***************
 
 For fast lookups on large IP address data sets there is support for "IP Address Space". This is
-a mapping from IP addresses to property sets, which are the equivalent of YAML objects where
-the values are all scalars. The style of use would be to define the IP space, and then use it
-as a feature modifier on an IP address feature. The selection feature would then be either the
-property set for the address, or a particular property of that set. The selection would then be
-done on that value.
+a mapping from IP addresses to feature tuples. An IPSpace is defined via a comma separated value (CSV)
+file. The first column must contain an IP address range. Subsequent columns must be of a supported
+type. These are
 
-For example, the IP space could map to a property that describes what type of network the address
-is in, such as "data-center", "production", "corporate", etc. The client request address could then
-be extracted and modified by the space, transforming it in to one of those values, which would then
-be used for the selection. Suppose the IP space was named "networks" and the network type was encoded
-in the "role" property in the property sets. Then this might be something like ::
+*  Enumeration - the value is one of a small set of strings.
 
-   with:
-   -  "{inbound.remove_addr}"
-   -  ip-space: [ "networks", "role" ]
+*  Flags - the value is a list that is a subset of a set of strings.
+
+*  Integer - the value is an integer.
+
+*  Boolean - the value is :code:`true` or :code:`false` (or equivalent).
+
+*  String - the value is a string.
+
+The definition of an IPSpace is done with the :code:`ipspace-define` directive. It is a structured
+directive that has the following keys
+
+name
+   Name of the IPSpace for later reference.
+
+path
+   Path to the CSV file continaing hte IPSpace data.
+
+columns
+   A list of column definitions, in order.
+
+Each column definition is an object with the keys
+
+name
+   Name of the column.
+
+type
+   Type of data in nthe column. This is an enumeration with the values.
+
+   string
+      Each value is a string.
+
+   integer
+      Each value is an integer.
+
+   enum
+      Each value is one of a set of strings.
+
+   flags
+      Each value is a list of strings. Each string is one of a set of strings.
+
+tags
+   If ``type`` is ``enum`` or ``flags`` this contains the list of valid strings.
+
+Using an IPSpace is done via a :term:`modifier`. For an example use case, the goal is to label
+IP addresses with whether the address is a corporate network address, a production address, or
+an edge address. The CSV fila has the address ranges in the first column and an ``enum`` of
+``corp``, ``prod``, and ``edge``. Addresses not marked are external.
+
+The IPSpace is defined as ::
+
+   ip-space-define:
+      name: "label"
+      path: "networks/label.csv"
+      columns:
+      -  name: "net"
+         type: "enum"
+         tags: [ "corp", "prod", "edge" ]
+
+Use is via selection and modifiers. ::
+
+   with: [ cssn-remote-addr , { ip-space: [ "label", "net" ] } ]
    select:
-   -  match: [ "corporate", "data-center" ]
-      do:
-         set-header "X-Access" "internal"
-   -  match: "production"
-      do:
-         set-header "X-Access" "prod"
-   -  else:
-      do:
-         deny: "External access is not allowed."
+   -  match: "corp"
+      do: # ....
+   -  match: "prod"
+      do: # ...
+   -  match: "edge"
+      do: # ...
+   -  whatever:
+      do: #  external / foreign network.
+
+This example gets the remote (source) address of the inbound connection and looks it up in the "label"
+IPSpace, retriving the value for the "net" column. This is then compared to the various enumeration
+strings to determine the appropriate action.
+
+Alternatively, if the goal were simply to mark the connection for upstreams, this could be done as ::
+
+   preq-field@X-Net-Type: [ cssn-remote-addr , { ip-space: [ "label", "net" ] } ]
+
+If the address is not in the IPSpace, the value of the field "X-Net-Type" in the upstream request
+ will be the nil value and the field cleared. Otherwise it will be the string from the CSV file.
+
+For the modifier ``ip-space``, the column name can be omitted. In this case the entire defined tuple
+for the address is returned.
+
+.. note:: Should a list of names be supported, to generate an arbitrary tuple from the data?
 
