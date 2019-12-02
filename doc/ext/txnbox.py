@@ -8,9 +8,6 @@
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     Sphinx Docs directives for Transaction Box plugin.
-
-    :copyright: Copyright 2019, Oath inc.
-    :license: Apache-2.0
 """
 
 from docutils import nodes

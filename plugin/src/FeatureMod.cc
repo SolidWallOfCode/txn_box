@@ -25,7 +25,7 @@ Errata FeatureMod::define(swoc::TextView name, FeatureMod::Worker const &f) {
   return Error(R"(Modifier "{}" is already defined.)", name);
 }
 
-Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, FeatureType ftype) {
+Rv<FeatureMod::Handle> FeatureMod::load(Config &cfg, YAML::Node const &node, ValueType ftype) {
   if (! node.IsMap()) {
     return Error(R"(Modifier at {} is not an object as required.)", node.Mark());
   }
@@ -68,10 +68,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(FeatureType ftype) const override;
+  bool is_valid_for(ValueType ftype) const override;
 
   /// Resulting type of feature after modifying.
-  FeatureType output_type() const override;
+  ValueType result_type() const override;
 
   /** Create an instance from YAML config.
    *
@@ -93,11 +93,11 @@ const std::string Mod_Hash::KEY { "hash" };
 
 Mod_Hash::Mod_Hash(unsigned n) : _n(n) {}
 
-bool Mod_Hash::is_valid_for(FeatureType ftype) const {
+bool Mod_Hash::is_valid_for(ValueType ftype) const {
   return STRING == ftype;
 }
 
-FeatureType Mod_Hash::output_type() const {
+ValueType Mod_Hash::result_type() const {
   return INTEGER;
 }
 
@@ -146,10 +146,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(FeatureType ftype) const override;
+  bool is_valid_for(ValueType ftype) const override;
 
   /// Resulting type of feature after modifying.
-  FeatureType output_type() const override;
+  ValueType result_type() const override;
 
   /** Create an instance from YAML config.
    *
@@ -168,12 +168,12 @@ protected:
 
 const std::string Mod_Else::KEY { "else" };
 
-bool Mod_Else::is_valid_for(FeatureType ftype) const {
+bool Mod_Else::is_valid_for(ValueType ftype) const {
   return STRING == ftype || NIL == ftype;
 }
 
-FeatureType Mod_Else::output_type() const {
-  return _value._feature_type;
+ValueType Mod_Else::result_type() const {
+  return _value._result_type;
 }
 
 Errata Mod_Else::operator()(Context &ctx, Feature &feature) {

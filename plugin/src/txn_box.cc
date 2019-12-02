@@ -153,7 +153,7 @@ TxnBoxInit(int argc, char const *argv[]) {
 
   // Try loading and parsing the file.
   auto &&[root, yaml_errata ]{yaml_load(cfg_path)};
-  if (!errata.is_ok()) {
+  if (!yaml_errata.is_ok()) {
     yaml_errata.info(R"(While loading file "{}".)", cfg_path);
     return std::move(yaml_errata);
   }

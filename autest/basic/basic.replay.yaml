@@ -1,0 +1,49 @@
+meta:
+  version: "1.0"
+
+config:
+  blocks:
+  - base_request: &base_request
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one"
+  - base_fields:
+    - [ Host, example.one ]
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - client-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 1 ]
+    proxy-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 1 ]
+        - [ TxnBox, Delain ]
+    server-response: &std-response
+      status: 200
+      reason: OK
+      content:
+        size: 234
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 234 ]
+        - [ uuid, 1 ]
+    proxy-response: &std-response
+      status: 200
+      reason: OK
+      content:
+        size: 234
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 234 ]
+        - [ uuid, 1 ]

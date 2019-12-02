@@ -31,7 +31,7 @@ class FeatureGroup;
 class Extractor {
   using self_type = Extractor; ///< Self reference type.
 public:
-  using Type = FeatureType; ///< Import for convenience.
+  using Type = ValueType; ///< Import for convenience.
 
   /// Container for extractor factory.
   using Table = std::unordered_map<std::string_view, self_type *>;
@@ -71,7 +71,7 @@ public:
     /// @}
 
     /// Type of feature extracted by this format.
-    Type _feature_type = STRING;
+    ValueType _result_type = ValueType::STRING;
 
     /// Condensed format string.
     using Specifiers = std::vector<Spec>;
@@ -103,14 +103,14 @@ public:
      * @param idx Element index.
      * @return A reference to the element.
      */
-    Spec& operator [] (size_t idx) { return _specs[idx]; }
+    Spec& operator [] (size_t idx);
 
     /** Access a format element by index.
      *
      * @param idx Element index.
      * @return A reference to the element.
      */
-    Spec const& operator [] (size_t idx) const { return _specs[idx]; }
+    Spec const& operator [] (size_t idx) const;
 
     /// Check if the format is empty.
     /// @note Default constructed instances are empty.
@@ -120,7 +120,7 @@ public:
      *
      * @return @c true if the format is a literal, @c false if not.
      */
-    bool is_literal() const { return _literal_p; }
+    bool is_literal() const;
 
     /** Return the literal value of the format.
      *
@@ -128,12 +128,7 @@ public:
      *
      * This returns a valid result iff @a this->is_literal() is @c true.
      */
-    swoc::TextView literal() const {
-      if (_literal_p) {
-        return _specs[0]._ext;
-      }
-      return {};
-    }
+    swoc::TextView literal() const;
   };
 
   /** Format extractor for BWF.
@@ -141,15 +136,28 @@ public:
    */
   class FmtEx {
   public:
+    /// Construct with specifier sequence.
     FmtEx(Format::Specifiers const& specs) : _specs(specs), _iter(specs.begin()) {}
 
-    operator bool() const { return _iter != _specs.end(); }
-    bool operator()(std::string_view& literal, Spec & spec);;
+    /// Validity check.
+    explicit operator bool() const { return _iter != _specs.end(); }
+    /// Format next literal and/or specifier.
+    bool operator()(std::string_view& literal, Spec & spec);
   protected:
-    Format::Specifiers const& _specs;
-    Format::Specifiers::const_iterator _iter;
+    Format::Specifiers const& _specs; ///< Specifiers in format.
+    Format::Specifiers::const_iterator _iter; ///< Current specifier.
   };
 
+  /** Validate the use of the extractor in a feature string.
+   *
+   * @param cfg Configuration.
+   * @param spec Specifier used in the feature string for the extractor.
+   * @param arg Argument for the extractor.
+   * @return Errors, if any.
+   *
+   * The base implementation always succeeds. If an extractor needs to do additional validation
+   * it should chain this method.
+   */
   virtual swoc::Errata validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return {}; }
 
   /// @defgroup Properties.
@@ -163,7 +171,7 @@ public:
    * @note All features can be extracted as strings if needed. This type provides the ability to
    * do more specific type processing for singleton extractions.
    */
-  virtual Type feature_type(Config &cfg) const = 0;
+  virtual ValueType result_type() const = 0;
 
   virtual bool is_direct() const { return false; }
 
@@ -178,6 +186,14 @@ public:
   virtual bool has_ctx_ref() const;
 
   /// @}
+
+  /** Extract the feature from the @a ctx.
+   *
+   * @param ctx Runtime context.
+   * @param spec Specifier for the extractor.
+   * @return The extracted feature.
+   */
+  virtual Feature extract(Context & ctx, Spec const& spec) = 0;
 
   /** Generate string output for the feature.
    *
@@ -217,12 +233,22 @@ public:
    * literally. This format will always have default formatting and no extension.
    */
   static Format literal(swoc::TextView format_string);
+  static Format literal(feature_type_for<NIL> nil);
   static Format literal(feature_type_for<INTEGER> format_string);
   static Format literal(feature_type_for<IP_ADDR> const& format_string);
 
+  /** Define @a name as the extractor @a ex.
+   *
+   * @param name Name of the extractor.
+   * @param ex Extractor instance.
+   * @return Errors, if any.
+   *
+   * This populates the set of names used in the configuration file to specify extractors.
+   */
   static swoc::Errata define(swoc::TextView name, self_type * ex);
 
 protected:
+  /// Named extractors.
   static Table _ex_table;
 
   /** Update the extractor in a @a spec.
@@ -246,7 +272,8 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
 
-  Type feature_type(Config &cfg) const override;
+  ValueType result_type() const override;
+  Feature extract(Context& ctx, Spec const& spec);
 
   /// Required text formatting access.
   swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
@@ -257,20 +284,24 @@ protected:
 extern Ex_this ex_this;
 
 /** A string expressed as a view.
+ * The feature is extracted to transient memory.
  */
-class StringFeature : public Extractor {
+class StringExtractor : public Extractor {
 public:
-  virtual Type feature_type(Config &cfg) const;
+  virtual ValueType result_type() const;
+  Feature extract(Context& ctx, Spec const& spec) override;
 };
 
-inline auto StringFeature::feature_type(Config &cfg) const -> Type { return STRING; }
+inline auto StringExtractor::result_type() const -> Type { return STRING; }
+
 /** A view of a transient string.
+ *
  * This is similar to @c STRING. The difference is the view is of a string in non-plugin controlled
- * memory which may disappear or change outside of plugin control. It must therefore be treated
- * with a great deal more care than a @c VIEW type. This type can be converted to a @c VIEW by
+ * memory which may disappear or change outside of plugin control. It must therefore be treated with
+ * a great deal more care than a @c literal type. This type can be converted to a @c literal by
  * localizing (making a copy of) the string in the arena.
  */
-class DirectFeature : public StringFeature {
+class DirectFeature : public StringExtractor {
 public:
 
   bool is_direct() const override { return true; }
@@ -286,46 +317,39 @@ public:
   virtual FeatureView direct_view(Context & ctx, Extractor::Spec const& spec) const = 0;
 };
 
-class IPAddrFeature {
-};
-
-class IntegerFeature : public Extractor {
+class IntegerExtractor : public Extractor {
 public:
-  /// C++ type of extracted feature.
-  using ExType = std::variant_alternative_t<IndexFor(INTEGER), Feature::variant_type>;
-
   /// Type of extracted feature.
-  Type feature_type(Config &cfg) const;
-
-  /** Extract the feature.
-   *
-   * @param ctx Transaction context.
-   * @param spec Format specifier.
-   * @return The feature.
-   *
-   * @a spec can carry additional information about the use of the extract. Rather than picking out
-   * just the presumed important parts, the entire specifier is passed. This is primarily the @c
-   * _ext and @c _arg member. The actual extract name is carried in the @a _name member.
-   */
-  virtual ExType extract(Context& ctx, Extractor::Spec const& spec) const = 0;
+  Type result_type() const;
 };
 
-inline auto IntegerFeature::feature_type(Config &cfg) const -> Type { return INTEGER; }
+inline auto IntegerExtractor::result_type() const -> Type { return INTEGER; }
 
-class BooleanFeature : public Extractor {
+class BooleanExtractor : public Extractor {
 public:
   /// C++ type of extracted feature.
   using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Type feature_type(Config &cfg) const;
-
-  virtual ExType extract(Context& ctx) const = 0;
+  Type result_type() const;
 };
 
-inline auto BooleanFeature::feature_type(Config &cfg) const -> Type { return BOOLEAN; }
+inline auto BooleanExtractor::result_type() const -> Type { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }
+
+inline swoc::TextView Extractor::Format::literal() const {
+  if (_literal_p) {
+    return _specs[0]._ext;
+  }
+  return {};
+}
+
+inline bool Extractor::Format::is_literal() const { return _literal_p; }
+
+inline Extractor::Spec&Extractor::Format::operator[](size_t idx) { return _specs[idx]; }
+
+inline Extractor::Spec const&Extractor::Format::operator[](size_t idx) const { return _specs[idx]; }
 
 /* ---------------------------------------------------------------------------------------------- */
 /** Mixin for more convenient feature extraction.

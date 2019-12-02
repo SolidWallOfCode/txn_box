@@ -121,7 +121,7 @@ Feature Context::extract(Extractor::Format const &fmt) {
   } else if (fmt._literal_p) {
     return fmt._literal;
   } else {
-    switch (fmt._feature_type) {
+    switch (fmt._result_type) {
       case STRING: {
         FixedBufferWriter w{_arena->remnant()};
         // double write - try in the remnant first. If that suffices, done.
@@ -140,20 +140,29 @@ Feature Context::extract(Extractor::Format const &fmt) {
         break;
       }
       case IP_ADDR: break;
-      case INTEGER: {
-        auto const& spec = fmt[0];
-        return static_cast<IntegerFeature*>(spec._exf)->extract(*this, spec);
-      }
+      case INTEGER:
       case BOOLEAN:
-        return static_cast<BooleanFeature*>(fmt[0]._exf)->extract(*this);
+      case VARIABLE:
+        return fmt[0]._exf->extract(*this, fmt[0]);
     }
   }
   return {};
 }
 
-Context& Context::commit(Feature const &feature) {
-  if (auto fv = std::get_if<STRING>(&feature) ; fv && !(fv->_direct_p || fv->_literal_p)) {
-    _arena->alloc(fv->size());
+Context& Context::commit(Feature &feature) {
+  if (auto fv = std::get_if<STRING>(&feature) ; fv != nullptr) {
+    if (fv->_literal_p) {
+      // nothing
+    } else if (fv->_direct_p) {
+      auto span { _arena->alloc(fv->size())};
+      memcpy(span, *fv);
+      fv->_direct_p = false;
+      fv->_literal_p = true;
+      *fv = span.view(); // update view to be the localized copy.
+    } else if (fv == _arena->remnant().data()) { // it's in transient memory, finalize it.
+      _arena->alloc(fv->size());
+      fv->_literal_p = true;
+    }
   }
   return *this;
 }
@@ -201,7 +210,7 @@ Context::self_type &Context::enable_hooks(TSHttpTxn txn) {
 
   // set hooks for top level directives.
   if (_cfg) {
-    for (unsigned idx = IndexFor(Hook::BEGIN); idx < IndexFor(Hook::END); ++idx) {
+    for (unsigned idx = 0; idx < std::tuple_size<Hook>::value; ++idx) {
       auto const &drtv_list{_cfg->hook_directives(static_cast<Hook>(idx))};
       if (!drtv_list.empty()) {
         TSHttpTxnHookAdd(txn, TS_Hook[idx], _cont);
