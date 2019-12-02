@@ -117,7 +117,7 @@ swoc::Rv<Directive::Handle> Do_creq_host::load(Config& cfg, YAML::Node const& dr
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return { {}, std::move(errata)};
   }
-  fmt._feature_type = STRING; // Force string value.
+  fmt._result_type = STRING; // Force string value.
   return { Handle(new self_type(std::move(fmt))), {} };
 }
 /* ------------------------------------------------------------------------------------ */
@@ -179,7 +179,7 @@ swoc::Rv<Directive::Handle> Do_preq_host::load(Config& cfg, YAML::Node const& dr
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return { {}, std::move(errata)};
   }
-  fmt._feature_type = STRING; // Force string value.
+  fmt._result_type = STRING; // Force string value.
   return { Handle(new self_type(std::move(fmt))), {} };
 }
 /* ------------------------------------------------------------------------------------ */
@@ -239,7 +239,7 @@ swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node const& d
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return { {}, std::move(errata)};
   }
-  fmt._feature_type = STRING; // Force string value.
+  fmt._result_type = STRING; // Force string value.
   return Handle(new self_type(std::move(fmt)));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -324,31 +324,26 @@ class FieldDirective : public Directive {
   using self_type = FieldDirective; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 protected:
-  /// Enum for make calls to @c invoke clearer.
-  enum ASSIGN : bool {
-    IF_NOT_SET = false,
-    FORCE = true
-  };
   TextView _name; ///< Field name.
   Extractor::Format _value_fmt; ///< Feature for value.
 
   FieldDirective(TextView const& name, Extractor::Format && fmt);
 
-  Errata invoke(Context& ctx, ts::HttpHeader && hdr, ASSIGN flag);
+  Errata invoke(Context& ctx, ts::HttpHeader && hdr);
 
   static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Extractor::Format && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node const& key_value);
 };
 
 FieldDirective::FieldDirective(TextView const &name, Extractor::Format &&fmt) : _name(name), _value_fmt(std::move(fmt)) {}
 
-Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr, ASSIGN flag) {
+Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
   if (hdr.is_valid()) {
     if (auto field { hdr.field_obtain(_name) } ; field.is_valid()) {
-      TextView value = std::get<IndexFor(STRING)>(ctx.extract(_value_fmt));
-      if (flag == FORCE) {
-        field.assign(value);
-      } else {
-        field.assign_if_not_set(value);
+      auto value { ctx.extract(_value_fmt)};
+      if (value.index() == IndexFor(NIL)) {
+        field.destroy();
+      } else if (auto content { std::get_if<STRING>(&value) } ; content != nullptr ) {
+        field.assign(*content);
       }
     }
     return Errata().error(R"(Failed to find or create field "{}")", _name);
@@ -365,7 +360,9 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
     errata.info(R"(While parsing value for "{}".)", key);
     return { {}, std::move(errata)};
   }
-  fmt._feature_type = STRING; // Force string value.
+  if (fmt._result_type != NIL) {
+    fmt._result_type = STRING; // Force string value.
+  }
   return { maker(cfg.localize(arg), std::move(fmt)), {} };
 }
 
@@ -390,7 +387,7 @@ const std::string Do_creq_field::KEY { "creq-field" };
 const HookMask Do_creq_field::HOOKS { MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP }) };
 
 Errata Do_creq_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.creq_hdr(), FORCE);
+  return this->super_type::invoke(ctx, ctx.creq_hdr());
 }
 
 Rv<Directive::Handle> Do_creq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
@@ -416,7 +413,7 @@ const std::string Do_preq_field::KEY { "preq-field" };
 const HookMask Do_preq_field::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
 Errata Do_preq_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.preq_hdr(), FORCE);
+  return this->super_type::invoke(ctx, ctx.preq_hdr());
 }
 
 Rv<Directive::Handle> Do_preq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
@@ -442,7 +439,7 @@ const std::string Do_prsp_field::KEY { "prsp-field" };
 const HookMask Do_prsp_field::HOOKS { MaskFor(Hook::PRSP) };
 
 Errata Do_prsp_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.prsp_hdr(), FORCE);
+  return this->super_type::invoke(ctx, ctx.prsp_hdr());
 }
 
 Rv<Directive::Handle> Do_prsp_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
@@ -470,7 +467,7 @@ const std::string Do_creq_field_default::KEY { "creq-field-default" };
 const HookMask Do_creq_field_default::HOOKS { Do_creq_field::HOOKS };
 
 Errata Do_creq_field_default::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.creq_hdr(), IF_NOT_SET);
+  return this->super_type::invoke(ctx, ctx.creq_hdr());
 }
 
 Rv<Directive::Handle> Do_creq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
@@ -498,7 +495,7 @@ const std::string Do_preq_field_default::KEY { "preq-field-default" };
 const HookMask Do_preq_field_default::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::PREQ}) };
 
 Errata Do_preq_field_default::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.preq_hdr(), IF_NOT_SET);
+  return this->super_type::invoke(ctx, ctx.preq_hdr());
 }
 
 Rv<Directive::Handle> Do_preq_field_default::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
@@ -658,14 +655,14 @@ Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& dr
   auto self = new self_type;
   Handle handle(self);
 
-  if (fmt._feature_type == INTEGER) {
+  if (fmt._result_type == INTEGER) {
 //    auto status = fmt._number;
     feature_type_for<INTEGER> status = 0; // BROKEN - need to fix up for new literal and extraction support.
     if (status < 100 || status > 599) {
       return Error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)", key_value.Scalar(), key_value.Mark());
     }
     self->_status = static_cast<TSHttpStatus>(status);
-  } else if (fmt._feature_type == STRING) {
+  } else if (fmt._result_type == STRING) {
     self->_status_fmt = std::move(fmt);
   } else {
     return Error(R"(Status "{}" at {} is not an integer nor string as required.)", key_value.Scalar(), key_value.Mark());
@@ -717,7 +714,7 @@ Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node const& dr
   Handle handle(self);
 
   self->_fmt = std::move(fmt);
-  self->_fmt._feature_type = STRING;
+  self->_fmt._result_type = STRING;
 
   return { std::move(handle), {} };
 }
@@ -766,7 +763,7 @@ Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node const& drtv
   Handle handle(self);
 
   self->_fmt = std::move(fmt);
-  self->_fmt._feature_type = STRING;
+  self->_fmt._result_type = STRING;
 
   return { std::move(handle), {} };
 }
@@ -915,7 +912,7 @@ Errata Do_redirect::load_status() {
     }
     _status = status;
   } else {
-    if (ex._fmt._feature_type != STRING && ex._fmt._feature_type != INTEGER) {
+    if (ex._fmt._result_type != STRING && ex._fmt._result_type != INTEGER) {
       return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
     }
   }
@@ -1104,7 +1101,7 @@ Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drt
   }
 
   if (arg.empty()) {
-    fmt._feature_type = STRING; // Force string value.
+    fmt._result_type = STRING; // Force string value.
   }
 
   return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
@@ -1141,7 +1138,7 @@ Rv<Directive::Handle> Do_remap_query::load(Config &cfg, YAML::Node const &drtv_n
   }
 
   if (arg.empty()) {
-    fmt._feature_type = STRING; // Force string value.
+    fmt._result_type = STRING; // Force string value.
   }
 
   return { Handle(new self_type(cfg.localize(arg), std::move(fmt)))};
@@ -1252,6 +1249,48 @@ Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node const& drtv_node
   return std::move(Handle(new self_type(std::move(fmt), txn_var)));
 }
 
+/* ------------------------------------------------------------------------------------ */
+class Do_var : public Directive {
+  using self_type = Do_var; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  TextView _name; ///< Variable name.
+  Extractor::Format _value; ///< Value for variable.
+
+  Do_var(TextView const& arg, Extractor::Format && value) : _name(arg), _value(std::move(value)) {}
+};
+
+const std::string Do_var::KEY { "var" };
+const HookMask Do_var::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+
+Errata Do_var::invoke(Context &ctx) {
+  ctx.store_txn_var(_name, ctx.extract(_value));
+  return {};
+}
+
+Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto &&[fmt, errata]{cfg.parse_feature(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  return std::move(Handle(new self_type(cfg.localize(arg), std::move(fmt))));
+}
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
@@ -1422,7 +1461,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
 Errata With::load_case(Config & cfg, YAML::Node node) {
   if (node.IsMap()) {
     Case c;
-    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex._feature_type, node)};
+    auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex._result_type, node)};
     if (cmp_errata.is_ok()) {
       c._cmp = std::move(cmp_handle);
     } else {
@@ -1433,7 +1472,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
     if (YAML::Node do_node{node[DO_KEY]}; do_node) {
       Config::FeatureRefState ref;
       ref._feature_active_p = true;
-      ref._type = _ex._feature_type;
+      ref._type = _ex._result_type;
       ref._rxp_group_count = c._cmp->rxp_group_count();
       ref._rxp_line = node.Mark().line;
       auto &&[handle, errata]{cfg.parse_directive(do_node, ref)};
@@ -1528,7 +1567,7 @@ Errata WithTuple::load_case(Config & cfg, YAML::Node node, unsigned size) {
       }
 
       for ( unsigned idx = 0 ; idx < size ; ++idx ) {
-        auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex[idx]._feature_type, op_node[idx])};
+        auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex[idx]._result_type, op_node[idx])};
         if (cmp_errata.is_ok()) {
           c._cmp.emplace_back(std::move(cmp_handle));
         } else {
@@ -1595,13 +1634,13 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Config::define(When::KEY, When::HOOKS, When::load);
   Config::define(With::KEY, With::HOOKS, With::load);
-  Config::define(Do_creq_field_default::KEY, Do_creq_field_default::HOOKS, Do_creq_field_default::load);
-  Config::define(Do_remove_creq_field::KEY, Do_remove_creq_field::HOOKS, Do_remove_creq_field::load);
-  Config::define(Do_remove_ursp_field::KEY, Do_remove_ursp_field::HOOKS, Do_remove_ursp_field::load);
-  Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
+//  Config::define(Do_creq_field_default::KEY, Do_creq_field_default::HOOKS, Do_creq_field_default::load);
+//  Config::define(Do_remove_creq_field::KEY, Do_remove_creq_field::HOOKS, Do_remove_creq_field::load);
+//  Config::define(Do_remove_ursp_field::KEY, Do_remove_ursp_field::HOOKS, Do_remove_ursp_field::load);
+//  Config::define(Do_remove_prsp_field::KEY, Do_remove_prsp_field::HOOKS, Do_remove_prsp_field::load);
   Config::define(Do_creq_field::KEY, Do_creq_field::HOOKS, Do_creq_field::load);
   Config::define(Do_preq_field::KEY, Do_preq_field::HOOKS, Do_preq_field::load);
-  Config::define(Do_preq_field_default::KEY, Do_preq_field_default::HOOKS, Do_preq_field_default::load);
+//  Config::define(Do_preq_field_default::KEY, Do_preq_field_default::HOOKS, Do_preq_field_default::load);
   Config::define(Do_preq_url_host::KEY, Do_preq_url_host::HOOKS, Do_preq_url_host::load);
   Config::define(Do_prsp_field::KEY, Do_prsp_field::HOOKS, Do_prsp_field::load);
   Config::define(Do_creq_host::KEY, Do_creq_host::HOOKS, Do_creq_host::load);
@@ -1616,6 +1655,7 @@ namespace {
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
+  Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
   return true;
 } ();
 } // namespace

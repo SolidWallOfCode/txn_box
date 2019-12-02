@@ -30,6 +30,10 @@ using swoc::Rv;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
+
+static constexpr char ARG_PREFIX = '<';
+static constexpr char ARG_SUFFIX = '>';
+
 /* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
@@ -73,15 +77,28 @@ template < typename F > struct scope_exit {
   ~scope_exit() { _f(); }
 };
 
-Config::self_type &Config::localize(Feature &feature) {
-  std::visit([&](auto & t) { this->localize(t); }, static_cast<Feature::variant_type&>(feature));
-  return *this;
+swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
+  TextView arg{key};
+  TextView name { arg.take_prefix_at(ARG_PREFIX) };
+  if (name.size() == key.size()) { // no arg prefix, it's just the name.
+    return {};
+  }
+  if (arg.empty() || arg.back() != ARG_SUFFIX) {
+    return Error(R"(Argument for "{}" is not properly terminated with '{}'.)", name, ARG_SUFFIX);
+  }
+  key = name;
+  return arg.remove_suffix(1);
 }
 
 /* ------------------------------------------------------------------------------------ */
 Config::Config() {
   _drtv_info.resize(Directive::StaticInfo::_counter + 1);
 
+}
+
+Config::self_type &Config::localize(Feature &feature) {
+  std::visit([&](auto & t) { this->localize(t); }, static_cast<Feature::variant_type&>(feature));
+  return *this;
 }
 
 std::string_view & Config::localize(std::string_view & text) {
@@ -148,7 +165,7 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
 
   if (fmt_node.IsNull()) {
     // Empty / missing feature is treated as the empty string.
-    return Extractor::literal(""_tv); // Treat as equivalent of the empty string.
+    return Extractor::literal(feature_type_for<NIL>{}); // Treat as equivalent of the empty string.
   } else if (fmt_node.IsScalar()) {
     // Scalar case - effectively a string, primary issue is whether it's quoted.
     Rv<Extractor::Format> result;
@@ -203,13 +220,13 @@ Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_typ
 
     for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
       auto child { fmt_node[idx] };
-      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._feature_type) };
+      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._result_type) };
       if (! mod_errata.is_ok()) {
         mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
         return { {}, std::move(mod_errata) };
       }
       if (_feature_state) {
-        _feature_state->_type = mod->output_type();
+        _feature_state->_type = mod->result_type();
       }
       fmt._mods.emplace_back(std::move(mod));
     }
@@ -223,8 +240,11 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 {
   YAML::Node key_node;
   for ( auto const&  [ key_name, key_value ] : drtv_node ) {
-    TextView arg { key_name.Scalar() };
-    TextView name = arg.take_prefix_at(ARG_SEP);
+    TextView name { key_name.Scalar() };
+    auto && [ arg, arg_errata ] { parse_arg(name) };
+    if (!arg_errata.is_ok()) {
+      return std::move(arg_errata);
+    }
 
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
@@ -351,7 +371,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
   // do not walk at all.
   for ( auto p = (path == ROOT_PATH ? TextView{} : path) ; p ; ) {
-    auto key { p.take_prefix_at(ARG_SEP) };
+    auto key { p.take_prefix_at('.') };
     if ( auto node { base_node[key] } ; node ) {
       base_node = node;
     } else {

@@ -44,13 +44,16 @@ public:
 
   /// Track the state of provided features.
   struct FeatureRefState {
-    FeatureType _type { STRING }; ///< Type of active feature.
+    ValueType _type { STRING }; ///< Type of active feature.
     bool _feature_active_p = false; ///< Feature is active (provided).
     bool _feature_ref_p = false; ///< Feature has been referenced / used.
     bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
     unsigned _rxp_group_count = 0; ///< Number of active capture groups - 0 => not active.
     int _rxp_line = -1; ///< Line of the active regular expression.
   };
+
+  /// Global and session variable map.
+  using Variables = std::map<swoc::TextView, unsigned>;
 
   /// Default constructor, makes an empty instance.
   Config();
@@ -163,7 +166,7 @@ public:
    */
   Hook current_hook() const;
 
-  FeatureType active_feature_type() const { return _feature_state ? _feature_state->_type : NIL; }
+  ValueType active_feature_type() const { return _feature_state ? _feature_state->_type : NO_VALUE; }
 
   /** Require regular expression capture vectors to support at least @a n groups.
    *

@@ -24,12 +24,13 @@ class Context;
 
 namespace YAML { class Node; }
 
+/// Generate an @c Errata from a format string and arguments.
 template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, Args && ... args) {
   return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
 }
 
 /// Separator character for names vs. argument.
-static constexpr char ARG_SEP = '@';
+extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView & key);
 
 /** Data for a feature that is a view / string.
  *
@@ -65,25 +66,35 @@ static constexpr swoc::TextView LITERAL_TAG { "literal" };
 // Self referential types, forward declared.
 struct Cons;
 struct Feature;
+
 /// Compact tuple representation, via a @c Memspan.
 /// Tuples have a fixed size.
 using FeatureTuple = swoc::MemSpan<Feature>;
 
-/// Type list of feature types.
-using FeatureTypes = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple>;
-
-/// Enumeration of feature types.
-enum FeatureType {
-  NIL, ///< No data.
+/// Enumeration of types of values, e.g. those returned by a feature string or extractor.
+/// This includes all of the types of features, plus some "meta" types to describe situations
+/// in which the type may not be known at configuration load time.
+enum ValueType : int8_t {
+  NIL = 0, ///< No data.
   STRING, ///< View of a string.
-  INTEGER, ///< An integer.
+  INTEGER, ///< Integer.
   IP_ADDR, ///< IP Address
   BOOLEAN, ///< Boolean.
   CONS, ///< Pointer to cons cell.
-  TUPLE ///< Tuple of data.
+  TUPLE, ///< Array of features (@c FeatureTuple)
+  NO_VALUE, ///< No value, non-existent feature.
+  VARIABLE, ///< Variable / indeterminate type.
+  ACTIVE, ///< The active / current feature type.
 };
 
-// *** @c FeatureTypes and @c FeatureType must be kept in parallel synchronization! ***
+namespace std {
+template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::ACTIVE) + 1> {};
+}; // namespace std
+
+// *** @c FeatureTypeList and @c FeatureType must be kept in parallel synchronization! ***
+/// Type list of feature types.
+/// The initial values in @c ValueType must match this list exactly.
+using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple>;
 
 /** Basic feature data type.
  * This is split out in order to make self-reference work. This is the actual variant, and
@@ -93,15 +104,15 @@ enum FeatureType {
  * therefore the wrapper type is forward declared, the self reference uses that, and then
  * the variant type is pasted in to the forwarded declared type.
  */
-using FeatureVariant = FeatureTypes::template apply<std::variant>;
+using FeatureVariant = FeatureTypeList::template apply<std::variant>;
 
 /** Convert a feature @a type to a variant index.
  *
  * @param type Feature type.
  * @return Index in @c FeatureData for that feature type.
  */
-inline constexpr unsigned IndexFor(FeatureType type) {
-  constexpr std::array<unsigned, FeatureTypes::size> IDX { 0, 1, 2, 3, 4, 5, 6 };
+inline constexpr unsigned IndexFor(ValueType type) {
+  constexpr std::array<unsigned, FeatureTypeList::size> IDX {0, 1, 2, 3, 4, 5, 6 };
   return IDX[static_cast<unsigned>(type)];
 };
 
@@ -141,12 +152,14 @@ struct Cons {
   Feature _cdr; ///< Next feature.
 };
 
-/// A mask indicating a set of @c FeatureType.
-using FeatureMask = std::bitset<FeatureTypes::size>;
+/// A mask indicating a set of @c ValueType.
+using FeatureMask = std::bitset<FeatureTypeList::size>;
+/// A mask indicating a set of @c ValueType.
+using ValueMask = std::bitset<std::tuple_size<ValueType>::value>;
 
 /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
-/// @tparam F FeatureType enumeration value.
-template < FeatureType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
+/// @tparam F ValueType enumeration value.
+template < ValueType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
 
 /** Create a @c FeatureMask containing a single @a type.
  *
@@ -160,11 +173,11 @@ template < FeatureType F > using feature_type_for = std::variant_alternative_t<I
  *   static const FeatureMask Mask { MaskFor(STRING) };
  * @endcode
  *
- * @see FeatureType
+ * @see ValueType
  * @see FeatureMask
  */
-inline FeatureMask MaskFor(FeatureType type) {
-  FeatureMask mask;
+inline ValueMask MaskFor(ValueType type) {
+  ValueMask mask;
   mask[IndexFor(type)] = true;
   return mask;
 }
@@ -183,11 +196,11 @@ inline FeatureMask MaskFor(FeatureType type) {
  *
  * This is useful for initializing @c const instance of @c FeatureMask.
  *
- * @see FeatureType
+ * @see ValueType
  * @see FeatureMask
  */
-inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
-  FeatureMask mask;
+inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
+  ValueMask mask;
   for (auto type : types) {
     mask[IndexFor(type)] = true;
   }
@@ -208,7 +221,7 @@ inline FeatureMask MaskFor(std::initializer_list<FeatureType> const& types) {
  * types can be defined before such a template. This is generally done when those types are
  * usable types, with the template for a generic failure response for non-usable types.
  */
-template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypes::template contains<T>, R>;
+template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::template contains<T>, R>;
 
 /// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) { return feature.index() == IndexFor(NIL); }
@@ -232,14 +245,14 @@ Feature const& car(Feature const& feature);
  */
 Feature cdr(Feature const& feature);
 
-/// Conversion between @c FeatureType and printable names.
-extern swoc::Lexicon<FeatureType> FeatureTypeName;
+/// Conversion between @c ValueType and printable names.
+extern swoc::Lexicon<ValueType> ValueTypeNames;
 
 // BufferWriter support.
 namespace swoc {
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
 }
 
 /// Supported hooks.
@@ -252,9 +265,13 @@ enum class Hook {
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
   PRSP, ///< Send response to user agent from proxy.
-  BEGIN = CREQ, ///< Iteration support.
-  END = PRSP + 1 ///< Iteration support.
+  CLOSE, ///< Transaction close.
 };
+
+/// Make @c tuple_size work for the @c Hook enum.
+namespace std {
+template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::CLOSE)+1> {};
+}; // namespace std
 
 /** Convert a @c Hook enumeration to an unsigned value.
  *
@@ -266,7 +283,7 @@ inline constexpr unsigned IndexFor(Hook id) {
 }
 
 /// Set of enabled hooks.
-using HookMask = std::bitset<IndexFor(Hook::END)>;
+using HookMask = std::bitset<std::tuple_size<Hook>::value>;
 
 /** Create a @c HookMask containing a single @a type.
  *
@@ -300,7 +317,7 @@ inline HookMask MaskFor(Hook hook) {
  *
  * This is useful for initializing @c const instance of @c HookMask.
  *
- * @see FeatureType
+ * @see ValueType
  * @see HookMask
  */
 inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
@@ -310,13 +327,6 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
   }
   return mask;
 }
-
-/// Make @c tuple_size work for the @c Hook enum.
-namespace std {
-template<> struct tuple_size<Hook> : public std::integral_constant<size_t,
-    IndexFor(Hook::END)> {
-};
-} // namespace std
 
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;

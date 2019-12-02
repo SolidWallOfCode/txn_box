@@ -25,12 +25,12 @@ Comparison::Factory Comparison::_factory;
 
 unsigned Comparison::rxp_group_count() const { return 0; }
 
-Errata Comparison::define(swoc::TextView name, FeatureMask const& types, Comparison::Worker &&worker) {
+Errata Comparison::define(swoc::TextView name, ValueMask const& types, Comparison::Worker &&worker) {
   _factory[name] = std::make_tuple(std::move(worker), types);
   return {};
 }
 
-Rv<Comparison::Handle> Comparison::load(Config & cfg, FeatureType ftype, YAML::Node node) {
+Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Node node) {
   for ( auto const& [ key_node, value_node ] : node ) {
     TextView key { key_node.Scalar() };
     if (key == Directive::DO_KEY) {
@@ -64,7 +64,7 @@ class StringComparison: public Comparison {
   using super_type = Comparison; ///< Parent type.
 public:
   /// Mark for @c STRING support only.
-  static const FeatureMask TYPES;
+  static const ValueMask TYPES;
 
 protected:
   Extractor::Format _exfmt; ///< String for comparison.
@@ -76,7 +76,7 @@ protected:
   explicit StringComparison(Extractor::Format && exf);
 };
 
-const FeatureMask StringComparison::TYPES { MaskFor(STRING) };
+const ValueMask StringComparison::TYPES { MaskFor(ValueType::STRING) };
 
 StringComparison::StringComparison(Extractor::Format &&exf) : _exfmt(std::move(exf)) {}
 
@@ -88,9 +88,9 @@ Rv<Extractor::Format> StringComparison::load_exfmt(Config &cfg, YAML::Node cmp_n
     return std::move(errata);
   }
 
-  if (!TYPES[IndexFor(exfmt._feature_type)]) {
+  if (!TYPES[IndexFor(exfmt._result_type)]) {
     errata.error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
-                   , exfmt._feature_type, KEY, cmp_node.Mark());
+                 , exfmt._result_type, KEY, cmp_node.Mark());
     return std::move(errata);
   }
   return std::move(exfmt);
@@ -138,7 +138,7 @@ Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::N
   if (! errata.is_ok()) {
     return { {}, std::move(errata) };
   }
-  exfmt._feature_type = STRING;
+  exfmt._result_type = STRING;
   return { Handle{new self_type(std::move(exfmt))}, {} };
 }
 
@@ -341,7 +341,7 @@ public:
   /// Case insensitive comparison key.
   static const std::string KEY_NOCASE;
   /// Valid types for this comparison.
-  static const FeatureMask TYPES;
+  static const ValueMask TYPES;
 
   bool operator() (Context& ctx, FeatureView& text) const override;
   unsigned rxp_group_count() const override;
@@ -357,7 +357,7 @@ protected:
 
 const std::string Cmp_RegexMatch::KEY { "regex" };
 const std::string Cmp_RegexMatch::KEY_NOCASE { "regex-nocase" };
-const FeatureMask Cmp_RegexMatch::TYPES { MaskFor(STRING) };
+const ValueMask Cmp_RegexMatch::TYPES { MaskFor(STRING) };
 
 unsigned Cmp_RegexMatch::rxp_group_count() const { return _rxp.capture_count(); }
 
@@ -409,7 +409,7 @@ class Cmp_true: public Comparison {
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
-  static const FeatureMask TYPES; ///< Supported types.
+  static const ValueMask TYPES; ///< Supported types.
 
   bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(STRING), Feature::variant_type>& text) const override;
   bool operator() (Context& ctx, std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>& data) const override;
@@ -423,7 +423,7 @@ protected:
 };
 
 const std::string Cmp_true::KEY { "true" };
-const FeatureMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const ValueMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_true::operator()(Context &ctx, feature_type_for<STRING> &text) const {
   return true == BoolNames[text];
@@ -449,7 +449,7 @@ class Cmp_false: public Comparison {
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
-  static const FeatureMask TYPES; ///< Supported types.
+  static const ValueMask TYPES; ///< Supported types.
 
   bool operator() (Context& ctx,feature_type_for<STRING>& text) const override;
   bool operator() (Context& ctx, feature_type_for<BOOLEAN>& data) const override;
@@ -463,7 +463,7 @@ protected:
 };
 
 const std::string Cmp_false::KEY { "false" };
-const FeatureMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const ValueMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_false::operator()(Context &ctx, feature_type_for<STRING> &text) const {
   return false == BoolNames[text];
@@ -495,9 +495,9 @@ bool ge(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return l
 
 /// Comment elements for all binary integer comparisons.
 struct Binary_Integer_Compare_Commons {
-  static const FeatureMask TYPES; ///< Feature type supported.
+  static const ValueMask TYPES; ///< Feature type supported.
 };
-const FeatureMask Binary_Integer_Compare_Commons::TYPES { MaskFor(INTEGER) };
+const ValueMask Binary_Integer_Compare_Commons::TYPES { MaskFor(INTEGER) };
 
 template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
 class Cmp_Binary_Integer : public Comparison, public Binary_Integer_Compare_Commons {
@@ -526,8 +526,8 @@ Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const
   if (!errata.is_ok()) {
     return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
   }
-  if (!TYPES[fmt._feature_type]) {
-    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._feature_type, KEY, key_node.Mark(), TYPES);
+  if (!TYPES[fmt._result_type]) {
+    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._result_type, KEY, key_node.Mark(), TYPES);
   }
   return { Handle(new self_type(std::move(fmt))), {} };
 }

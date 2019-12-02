@@ -31,7 +31,7 @@ public:
   using Worker = std::function<swoc::Rv<Handle> (Config&, YAML::Node const& cmp_node, YAML::Node const& key_node)>;
 
   // Factory that maps from names to assemblers.
-  using Factory = std::unordered_map<swoc::TextView, std::tuple<Worker, FeatureMask>, std::hash<std::string_view>>;
+  using Factory = std::unordered_map<swoc::TextView, std::tuple<Worker, ValueMask>, std::hash<std::string_view>>;
 
   /** Number of regular expression capture groups.
    *
@@ -70,7 +70,7 @@ public:
    * @param worker Assembler to construct instance from configuration node.
    * @return A handle to a constructed instance on success, errors on failure.
    */
-  static swoc::Errata define(swoc::TextView name, FeatureMask const& types, Worker && worker);
+  static swoc::Errata define(swoc::TextView name, ValueMask const& types, Worker && worker);
 
   /** Load a comparison from a YAML @a node.
    *
@@ -79,7 +79,7 @@ public:
    * @param node Node with comparison config.
    * @return A constructed instance or errors on failure.
    */
-  static swoc::Rv<Handle> load(Config & cfg, FeatureType ftype, YAML::Node node);
+  static swoc::Rv<Handle> load(Config & cfg, ValueType ftype, YAML::Node node);
 
 protected:
   /// The assemblers.

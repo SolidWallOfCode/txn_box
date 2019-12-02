@@ -126,13 +126,11 @@ TextView ts::HttpField::value() {
 }
 
 bool ts::HttpField::assign(swoc::TextView value) {
+  int n;
   return this->is_valid() &&
-         TS_SUCCESS ==
-         TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size());
-}
-
-bool ts::HttpField::assign_if_not_set(swoc::TextView value) {
-  return this->is_valid() && (!this->value().empty() || this->assign(value));
+      ( (value.data() == TSMimeHdrFieldValueStringGet(_buff, _hdr, _loc, -1, &n) && n == value.size()) ||
+         TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size())
+      );
 }
 
 bool ts::HttpField::destroy() {

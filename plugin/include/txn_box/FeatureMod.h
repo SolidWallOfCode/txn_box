@@ -50,13 +50,13 @@ public:
    * @param type Type of feature to compare.
    * @return @c true if this comparison can compare to that feature type, @c false otherwise.
    */
-  virtual bool is_valid_for(FeatureType type) const = 0;
+  virtual bool is_valid_for(ValueType type) const = 0;
 
   /** Output type of the modifier.
    *
    * @return The type of the modified feature.
    */
-  virtual FeatureType output_type() const = 0;
+  virtual ValueType result_type() const = 0;
 
   /** Define a mod for @a name.
    *
@@ -74,7 +74,7 @@ public:
    * @param ftype Feature type to modify.
    * @return
    */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& node, FeatureType ftype);
+  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& node, ValueType ftype);
 
 protected:
   /// Set of defined modifiers.
