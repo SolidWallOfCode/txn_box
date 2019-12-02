@@ -48,13 +48,22 @@ Feature cdr(Feature const& feature) {
   return NIL_FEATURE; // No cdr unless explicitly supported.
 }
 /* ------------------------------------------------------------------------------------ */
+Extractor::Format Extractor::literal(feature_type_for<NIL> nil) {
+  Format fmt;
+  fmt._literal_p = true;
+  fmt._direct_p = false;
+  fmt._result_type = NIL;
+  fmt._literal = nil;
+  return std::move(fmt);
+}
+
 
 Extractor::Format Extractor::literal(TextView text) {
   Format fmt;
   fmt._literal_p = true;
   fmt._direct_p = false;
   fmt._literal = text;
-  fmt._feature_type = STRING;
+  fmt._result_type = STRING;
   return std::move(fmt);
 }
 
@@ -63,7 +72,7 @@ Extractor::Format Extractor::literal(feature_type_for<INTEGER> n) {
   fmt._literal_p = true;
   fmt._direct_p = false;
   fmt._literal = n;
-  fmt._feature_type = INTEGER;
+  fmt._result_type = INTEGER;
   return std::move(fmt);
 }
 
@@ -72,7 +81,7 @@ Extractor::Format Extractor::literal(feature_type_for<IP_ADDR> const& addr) {
   fmt._literal_p = true;
   fmt._direct_p = false;
   fmt._literal = addr;
-  fmt._feature_type = IP_ADDR;
+  fmt._result_type = IP_ADDR;
   return std::move(fmt);
 }
 
@@ -82,17 +91,21 @@ Errata Extractor::update_extractor(Config & cfg, Spec &spec) {
   }
 
   if (spec._idx < 0) {
-    auto arg = TextView{spec._name};
-    auto key = arg.take_prefix_at(ARG_SEP);
-    if (auto ex{_ex_table.find(key)}; ex != _ex_table.end()) {
+    auto name = TextView{spec._name};
+    auto && [ arg, arg_errata ] { parse_arg(name) };
+    if (!arg_errata.is_ok()) {
+      return std::move(arg_errata);
+    }
+
+    if (auto ex{_ex_table.find(name)}; ex != _ex_table.end()) {
       spec._exf = ex->second;
-      spec._name = key;
+      spec._name = name;
       auto errata { ex->second->validate(cfg, spec, arg) };
       if (! errata.is_ok()) {
         return std::move(errata);
       }
     } else {
-      return Error(R"(Extractor "{}" not found.)", key);
+      return Error(R"(Extractor "{}" not found.)", name);
     }
   }
   return {};
@@ -139,7 +152,7 @@ Rv<Extractor::Format> Extractor::parse_raw(Config &cfg, TextView text) {
   Format fmt;
   fmt.push_back(spec);
   fmt._direct_p = spec._exf->is_direct();
-  fmt._feature_type = spec._exf->feature_type(cfg);
+  fmt._result_type = spec._exf->result_type();
   return std::move(fmt);
 }
 
@@ -179,7 +192,7 @@ Rv<Extractor::Format> Extractor::parse(Config &cfg, TextView format_string) {
   if (fmt._specs.size() == 1 && fmt._specs[0]._exf) {
     Spec const& spec { fmt._specs[0] };
     fmt._direct_p = spec._exf->is_direct();
-    fmt._feature_type = spec._exf->feature_type(cfg);
+    fmt._result_type = spec._exf->result_type();
   }
   return { std::move(fmt), std::move(zret) };
 }
@@ -463,4 +476,17 @@ FeatureGroup::~FeatureGroup() {
   _exf_info.apply([](ExfInfo & info) { delete &info; });
 }
 
+/* ---------------------------------------------------------------------------------------------- */
+Feature StringExtractor::extract(Context& ctx, Spec const& spec) {
+  swoc::FixedBufferWriter w{ctx._arena->remnant()};
+  // double write - try in the remnant first. If that suffices, done.
+  // Otherwise the size is now known and the needed space can be correctly allocated.
+  this->format(w, spec, ctx);
+  if (!w.error()) {
+    return w.view();
+  }
+  w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
+  this->format(w, spec, ctx);
+  return w.view();
+}
 /* ---------------------------------------------------------------------------------------------- */

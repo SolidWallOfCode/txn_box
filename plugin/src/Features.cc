@@ -23,33 +23,35 @@ using swoc::Errata;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
-swoc::Lexicon<FeatureType> FeatureTypeName {{
-    { FeatureType::NIL, "nil" }
-  , {FeatureType::STRING, "string"}
-  , {FeatureType::INTEGER, "integer"}
-  , {FeatureType::BOOLEAN, "boolean"}
-  , {FeatureType::IP_ADDR, "IP address"}
-  , { FeatureType::CONS, "cons" }
-  , { FeatureType::TUPLE, "tuple" }
+swoc::Lexicon<ValueType> ValueTypeNames {{
+    { ValueType::NIL, "nil" }
+  , { ValueType::STRING, "string"}
+  , { ValueType::INTEGER, "integer"}
+  , { ValueType::BOOLEAN, "boolean"}
+  , { ValueType::IP_ADDR, "IP address"}
+  , { ValueType::CONS, "cons" }
+  , { ValueType::TUPLE, "tuple" }
+  , { ValueType::VARIABLE, "var" }
+  , { ValueType::ACTIVE, "active" }
 }};
 
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureType type) {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
   if (spec.has_numeric_type()) {
     return bwformat(w, spec, static_cast<unsigned>(type));
   }
-  return bwformat(w, spec, FeatureTypeName[type]);
+  return bwformat(w, spec, ValueTypeNames[type]);
 }
 
 BufferWriter &
-bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureMask const &mask) {
+bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
   auto span{w.aux_span()};
   if (span.size() > spec._max) {
     span = span.prefix(spec._max);
   }
   swoc::FixedBufferWriter lw{span};
-  for (auto const& [ e, v] : FeatureTypeName) {
+  for (auto const& [ e, v] : ValueTypeNames) {
     if (!mask[e]) {
       continue;
     }
@@ -73,11 +75,40 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &fe
 }
 } // namespace swoc
 /* ------------------------------------------------------------------------------------ */
+class Ex_var : public Extractor {
+public:
+  static constexpr TextView NAME { "var" };
+
+  ValueType result_type() const override { return VARIABLE; }
+
+  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Extractor::Spec const&) override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Errata Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
+  auto name = cfg.span<feature_type_for<STRING>>(1);
+  spec._data = name.rebind<void>();
+  name[0] = cfg.localize(arg);
+  return {};
+}
+
+Feature Ex_var::extract(Context &ctx, Spec const& spec) {
+  return ctx.load_txn_var(spec._data.rebind<feature_type_for<STRING>>()[0]);
+}
+
+BufferWriter& Ex_var::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 /** The entire URL.
  * Because of the nature of the C API, this can only be a transient external string and
  * therefore must be copied in to context storage.
  */
-class Ex_creq_url : public StringFeature {
+class Ex_creq_url : public StringExtractor {
 public:
   static constexpr TextView NAME { "creq-url" };
 
@@ -245,41 +276,41 @@ BufferWriter& Ex_creq_field::format(BufferWriter &w, Spec const &spec, Context &
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_ursp_status : public IntegerFeature {
+class Ex_ursp_status : public IntegerExtractor {
 public:
   static constexpr TextView NAME { "ursp-status" };
 
   /// Extract the feature from the @a ctx.
-  ExType extract(Context& ctx, Extractor::Spec const&) const override;
+  Feature extract(Context& ctx, Extractor::Spec const&) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-auto Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) const -> ExType {
-  return ctx._txn.ursp_hdr().status();
+Feature Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) {
+  return static_cast<feature_type_for<INTEGER>>(ctx._txn.ursp_hdr().status());
 }
 
 BufferWriter& Ex_ursp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.ursp_hdr().status());
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_is_internal : public BooleanFeature {
+class Ex_is_internal : public BooleanExtractor {
 public:
   static constexpr TextView NAME { "is-internal" }; ///< Extractor name.
 
   /// Extract the feature from the @a ctx.
-  ExType extract(Context& ctx) const override;
+  Feature extract(Context& ctx, Spec const& spec) override;
 
   /// Required text formatting access.
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context & ctx) override;
 };
 
-auto Ex_is_internal::extract(Context &ctx) const -> ExType {
+auto Ex_is_internal::extract(Context &ctx, Spec const&) -> Feature {
   return ctx._txn.is_internal();
 }
 
 BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the SNI name from the inbound session.
@@ -301,16 +332,16 @@ BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ct
   return bwformat(w, spec, this->direct_view(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_random : public IntegerFeature {
+class Ex_random : public IntegerExtractor {
   using self_type = Ex_random; ///< Self reference type.
-  using super_type = IntegerFeature; ///< Parent type.
+  using super_type = IntegerExtractor; ///< Parent type.
 public:
   static constexpr TextView NAME { "random" };
 
   Errata validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
-  ExType extract(Context& ctx, Extractor::Spec const& spec) const override;
+  Feature extract(Context& ctx, Extractor::Spec const& spec) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 protected:
@@ -321,7 +352,7 @@ protected:
 
 thread_local std::mt19937 Ex_random::_engine(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
-auto Ex_random::extract(Context &ctx, Extractor::Spec const& spec) const -> ExType {
+Feature Ex_random::extract(Context &ctx, Extractor::Spec const& spec) {
   auto values = spec._data.rebind<feature_type_for<INTEGER>>();
   return std::uniform_int_distribution{values[0], values[1]}(_engine);
 };
@@ -372,9 +403,14 @@ class Ex_with_feature : public Extractor {
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME { "..." };
-  Type feature_type(Config &cfg) const override { return cfg.active_feature_type(); }
+  Type result_type() const override { return ACTIVE; }
+  Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
+
+Feature Ex_with_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+  return ctx._feature;
+}
 
 BufferWriter& Ex_with_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._feature);
@@ -385,7 +421,11 @@ BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Cont
   return bwformat(w, spec, feature);
 }
 
-auto Ex_this::feature_type(Config &cfg) const -> Type { return STRING; }
+auto Ex_this::result_type() const -> Type { return VARIABLE; }
+
+Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+  return _fg->extract(ctx, spec._ext);
+}
 /* ------------------------------------------------------------------------------------ */
 // Needs to be external visible.
 Ex_this ex_this;
@@ -393,6 +433,8 @@ Ex_this ex_this;
 namespace {
 // Extractors aren't constructed, they are always named references to singletons.
 // These are the singletons.
+Ex_var var;
+
 Ex_creq_url creq_url;
 Ex_creq_host creq_host;
 Ex_creq_scheme creq_scheme;
@@ -424,6 +466,7 @@ Ex_with_feature ex_with_feature;
   Extractor::define(Ex_is_internal::NAME, &is_internal);
   Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
   Extractor::define(Ex_random::NAME, &random);
+  Extractor::define(Ex_var::NAME, &var);
 
   return true;
 } ();

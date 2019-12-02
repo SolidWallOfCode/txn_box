@@ -45,9 +45,27 @@ public:
   /// Construct based a specific configuration.
   explicit Context(std::shared_ptr<Config> const& cfg);
 
+  /** Schedule a directive for a @a hook.
+   *
+   * @param hook Hook on which to invoke.
+   * @param drtv Directive to invoke.
+   * @return Errors, if any.
+   */
   swoc::Errata on_hook_do(Hook hook, Directive *drtv);
 
+  /** Invoke directives for @a hook.
+   *
+   * @param hook Hook index.
+   * @return Errors, if any/
+   */
   swoc::Errata invoke_for_hook(Hook hook);
+
+  /** Invoke directives for remap.
+   *
+   * @param rule_cfg  Remap rule configuration.
+   * @param rri Remap rule info from TS.
+   * @return Errors, if any
+   */
   swoc::Errata invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri);
 
   /** Set up to handle the hooks in the @a txn.
@@ -80,11 +98,11 @@ public:
    *
    * This causes the feature data in @a feature to be committed such that it will no longer be
    * overwritten by future feature extractions. This @b must be called on the most recently
-   * extracted feature.
+   * extracted feature. This may cause @a feature to be modified.
    *
    * @see extract
    */
-  self_type& commit(Feature const& feature);
+  self_type& commit(Feature & feature);
 
   swoc::MemSpan<void> storage_for(Directive* drtv);
 
@@ -96,9 +114,13 @@ public:
 
   void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
+  /** Class for handling numbered arguments to formatting.
+   *
+   * The primary use is for mapping regular expression capture groups to indices.
+   */
   class ArgPack : public swoc::bwf::ArgPack {
   public:
-    explicit ArgPack(Context& ctx) : _ctx(ctx) {}
+    explicit ArgPack(Context& ctx) : _ctx(ctx) {} ///< Default constructor.
 
     /** Get argument at index @a idx.
       *
@@ -124,17 +146,20 @@ public:
     /// Number of arguments in the pack.
     unsigned count() const override;
 
+    /// Transaction context.
     Context& _ctx;
   };
 
+  /// Wrapper for top level directives.
+  /// This is used to handle both configuration level directives and directives scheduled by @c when.
   struct Callback {
-    using self_type = Callback;
+    using self_type = Callback; ///< Self reference type.
   protected:
     Directive * _drtv = nullptr; ///< Directive to invoke for the callback.
     self_type * _next = nullptr; ///< Intrusive list link.
     self_type * _prev = nullptr; ///< Intrusive list link.
-    /// Intrusive list descriptor.
   public:
+    /// Intrusive list descriptor.
     using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
     Callback(Directive* drtv) : _drtv(drtv) {}
     swoc::Errata invoke(Context& ctx) { return _drtv->invoke(ctx); }
@@ -144,7 +169,7 @@ public:
   struct HookInfo {
     using List = swoc::IntrusiveDList<Callback::Linkage>;
     List cb_list; ///< List of directives to call back.
-    bool hook_set_p = false; ///< If a hook has already been set.
+    bool hook_set_p = false; ///< If a TS level callback for this hook has already been set.
   };
 
   /// State of each global config hook for this transaction / context.
@@ -170,6 +195,31 @@ public:
   pcre2_match_data* promote_capture_data() {
     std::swap(_rxp_capture, _rxp_working);
     return _rxp_capture;
+  }
+
+  self_type & store_txn_var(swoc::TextView const& name, Feature && value) {
+    return this->store_txn_var(name, value);
+  }
+
+  self_type & store_txn_var(swoc::TextView const& name, Feature & value) {
+    auto spot = _txn_vars.find(name);
+    this->commit(value);
+    if (spot == _txn_vars.end()) {
+      _txn_vars.insert(_arena->make<TxnVar>(name, value));
+    } else {
+      spot->_value = value;
+    }
+    return *this;
+  }
+
+  Feature const& load_txn_var(swoc::TextView const& name) {
+    static const Feature NIL; // should really be a global.
+    auto spot = _txn_vars.find(name);
+    if (spot == _txn_vars.end()) {
+      // Later, need to search ssn and global variables and retrieve those if found.
+      return NIL;
+    }
+    return spot->_value;
   }
 
   TSRemapRequestInfo* _remap_info = nullptr;
@@ -200,5 +250,36 @@ protected:
 
   swoc::Errata invoke_callbacks();
 
+  /// A transaction scope variable.
+  struct TxnVar {
+    using self_type = TxnVar; ///< Self reference type.
+    static constexpr std::hash<std::string_view> Hash_Func{};
+
+    swoc::TextView _name; ///< Name of variable.
+    Feature _value; ///< Value of variable.
+    self_type * _next = nullptr; ///< Intrusive link.
+    self_type * _prev = nullptr; ///< Intrusive link.
+
+    struct Linkage : public swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev> {
+      static swoc::TextView key_of(self_type* self) { return self->_name; }
+      static auto hash_of(swoc::TextView const& text) -> decltype(Hash_Func(text)) { return Hash_Func(text); }
+      static bool equal(swoc::TextView const& lhs, swoc::TextView const& rhs) { return lhs == rhs; }
+    };
+
+    TxnVar(swoc::TextView const& name, Feature const& value) : _name(name), _value(value) {}
+  };
+
+  using TxnVariables = swoc::IntrusiveHashMap<TxnVar::Linkage>;
+  TxnVariables _txn_vars; ///< Variables for the transaction.
+
+  /** Entry point from TS via plugin API.
+   *
+   * @param cont TS Continuation.
+   * @param evt Event type.
+   * @param payload Ignored.
+   * @return 0
+   *
+   * The @c Context instance is carried as the Continuation data.
+   */
   static int ts_callback(TSCont cont, TSEvent evt, void * payload);
 };
