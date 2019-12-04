@@ -1,0 +1,40 @@
+# 1) set the Expect-CT
+# 2) Explicitly turn on XSS protection (which usually on by default)
+# 3) set X-XSS-Protection to prevent XSS attacks.
+
+txn_box:
+- when: creq
+  do:
+  - var<pristine-host>: creq-host # cache this for after remap.
+  # clear cookies when going to yimg.com.
+  - with: creq-host
+    select:
+    - any-of:
+      - match<nc>: "yimg.com"
+      - suffix<nc>: ".yimg.com"
+      do:
+        creq-field<Cookie>: NULL
+
+- when: ursp
+  do:
+  # set a referrer policy if not already present.
+  - prsp-field<Referrer-Policy>: [ prsp-field<Referrer-Policy>, { else: "no-referrer-when-downgrade" } ]
+  # if Set-Cookie has a Domain with yimg.com, clear the field.
+  - with: ursp-field<Set-Cookie>
+    select:
+    - contains<rx,nc>: "Domain=(?:[^=]*[.])?yimg[.]com"
+      do:
+        ursp-field<Set-Cookie>: NULL
+
+# For proxy response, fix up the cross site fields if it's TLS.
+- when: prsp
+  do:
+  - with: "{cssn-proto-stack}" # force string format.
+    select:
+    - contains: "tls"
+      do:
+      - prsp-field<Expect-CT>: "max-age=31536000, report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
+      - prsp-field<X-XSS-Protection>: "1; mode=block"
+      - prsp-field<X-Content-Type-Options>: "nosniff"
+
+
