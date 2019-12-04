@@ -50,7 +50,10 @@ hash
 
 
 slice
-   Extract elements of a list.
+   Extract elements of a list. This takes two arguments, the left and right slice points. These are
+   positions between elements of a list. Position 0 is before any element, and position -0
+   (represented by "*") is past the last element. Other slice points count up from 0 (1, 2, 3, ...)
+   left to right and down from -0 ( -1, -2, -3, ...) right to left.
 
 Comparisons
 ***********

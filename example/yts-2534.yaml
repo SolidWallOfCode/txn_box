@@ -1,4 +1,4 @@
 txn_box:
   when: preq
   do:
-    set-preq-field-default: [ "Accept-Encoding", "identity" ]
+    preq-field@Accept-Encoding: [ preq-field@Accept-Encoding, { else: "identity" } ]

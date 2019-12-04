@@ -121,7 +121,7 @@ If "example-1" was to be the root, the path would be "txn_box.example-1". The gl
 "txn_box", would select "txn_box"" as the root node. The path could also be
 "txn_box.example-1.inner-1" to select the inner most node. As a special case, the path "." means
 "the unnamed top level node". Note this is problematic in the case of keys that contains ".", which
-should generally not be a problem.
+should be avoided.
 
 Selection
 =========
@@ -154,7 +154,9 @@ for "search.example.on" to "engine.example.one".
 
 The :code:`with` / :code:`select` mechanism is a directive and so selection can be nested to an
 arbitrary depth. Each selection can be on a different feature. As result the relative importance of
-features is determined by the particular configuration, it is not built in to |TxB|.
+features is determined by the particular configuration, it is not built in to |TxB|. Selection is a
+one way descent, however - once a selection has been made, only the directives selected will be
+performed.
 
 Features
 ++++++++
@@ -176,41 +178,46 @@ operators update the current feature. For example, the :code:`suffix` comparison
 suffix and if it matches the suffix is removed from the current feature. This makes walking the
 components of a path or host name much easier ::
 
-   with: "{creq-host}"
+   with: creq-host
    select:
    -  suffix: ".org"
       do:
-      -  with: "{...}"
+      -  with: ...
          select:
          -  match: "apache"
             do: # stuff for the exact domain "apache.org"
          -  suffix: ".apache"
             do:
-            -  with: "{...}"
+            -  with: ...
                select:
                -  match: "mail"
                   do: # handle mail.apache.org
                -  match: "id"
                   do: # handle id.apache.org
-               # ....
+               # more comparisons
 
+A key notation is that quoted strings are treated as features strings, which can be just literal
+strings. Values without quotes are treated as extractors.
 
 Regular Expression
 ------------------
 
-If a regular expression has successful matched in a comparison, or explicitly applied, it and its
-capture groups become *active*. This makes the capture groups available as features to be extracted.
-These are numbered in the standard way, with ``0`` meaning the entire matched string, ``1`` the
-first capture group, ``2`` the second capture group, and so on. It is an error to use an index that
-is larger than the available capture groups, or when no regular expression is active. For example if
-a header named "mail-check" should be set if the host contains the domain "mail", it could be done
-as ::
+If a regular expression has successful matched in a comparison, or explicitly applied, its capture
+groups become *active*. This makes the capture groups available as features to be extracted. These
+are numbered in the standard way, with ``0`` meaning the entire matched string, ``1`` the first
+capture group, ``2`` the second capture group, and so on. It is an error to use an index that is
+larger than the available capture groups, or when no regular expression is active. For example if a
+header named "mail-check" should be set if the host contains the domain "mail", it could be done as
+::
 
-   with: "{creq-host}"
+   with: creq-host
    select:
    - regex: "^(?:(.*?)[.])?mail[.](.*?)$"
       do:
-      - set-preq-field: [ mail-check, "You've got mail from {2}!" ]
+      - preq-field@mail-check: "You've got mail from {2}!"
+
+This is a case where the format string is required to use the extractor, otherwise it will be treated
+as an integer value. That is, "2" is the integer 2, while "{2}" is the second active capture group.
 
 Session
 -------
@@ -229,7 +236,7 @@ requried, but in some cases it is quite useful. A good example is the extractor
 :code:`is-internal`. This returns a true or false value, which is in the C style mapped to 1
 and 0. However, it can be changed to "true" and "false" by specifying the output as a string. ::
 
-   set-preq-field: [ Carp-Internal, "{is-internal:s}" ]
+   preq-field@Carp-Internal: "{is-internal:s}"
 
 Formatting is most commonly useful when setting values, such as field values. The extracted strings
 can be justified, limited in width, and in particular IP addresses can be formatted in a variety of
@@ -242,27 +249,30 @@ The directive key :code:`when` can be used to specify on which hook directives s
 The "when" must also have a :code:`do` key which contains the directives. The value of :code:`when`
 is the hook name, which must be one of
 
-================== =============  ============
-Hook               when           Abbreviation
-================== =============  ============
-Client Request     read-request   creq
-Proxy Request      send-request   preq
-Upstream Response  read-response  ursp
-Proxy Response     send-response  prsp
-Pre remap          pre-remap
-Post remap         post-remap
-================== =============  ============
+================== =============  ============ ========================
+Hook               when           Abbreviation Plugin API Name
+================== =============  ============ ========================
+Client Request     read-request   creq         READ_REQUEST_HDR_HOOK
+Proxy Request      send-request   preq         SEND_REQUEST_HDR_HOOK
+Upstream Response  read-response  ursp         READ_RESPONSE_HDR_HOOK
+Proxy Response     send-response  prsp         SEND_RESPONSE_HDR_HOOK
+Pre remap          pre-remap                   PRE_REMAP_HOOK
+Post remap         post-remap                  POST_REMAP_HOOK
+================== =============  ============ ========================
 
-The abbreviations are primarly to allow consistency between hook tags, extractors, and directives.
+The abbreviations are primarily for consistency between hook tags, extractors, and directives.
 
-The top level directives, those in the :code:`txn_box` key, must be :code:`when` directives so that
-every directive is associated with a specific hook. To set the HTTP header field ``directive`` to
+For a global plugin, the top level directives must be :code:`when` directives so that every
+directive is associated with a specific hook. To set the HTTP header field ``directive`` to
 ``invoked`` immediately after the client request has been read, it would be ::
 
    txn_box:
       when: creq
       do:
-      -  set-creq-field: [ directive, invoked ]
+      -  creq-field@directive: "invoked"
+
+For use a remap plugin, the directives are wrapped in a notional ``when: remap`` directive and are
+therefore all performed during remap.
 
 Issues
 ******
@@ -289,11 +299,11 @@ assume this outer wrapper is present. ::
    txn_box:
    - when: creq
      do:
-     - with: "{creq-host}"
+     - with: creq-host
        select:
        -  suffix: ".apache.org"
           do:
-          -  rewrite-url: "{creq.scheme}://apache.org/{...}{creq.path}"
+          -  rewrite-url: "{creq-scheme}://apache.org/{...}{creq-path}"
        -  match: "apache.org"
           # Explicitly do nothing with the base host name to count as "matched".
 
@@ -304,17 +314,17 @@ Access to upstream resources can be controlled on a fine grained level by doing 
 using the :code:`deny` directive. For instance, if access to ``id.example.one`` should be restricted
 to the ``GET``, ``POST``, and ``HEAD`` methods, this could be done wth ::
 
-   with: "{creq.url}"
+   with: creq-url
    select:
    -  match: "id.example.one"
       do:
-      -  with: "{creq.method}"
+      -  with: creq-method
          select:
-         -  not:
+         -  none-of:
                match: [ "GET", "POST", "HEAD" ]
             do:
                deny:
-      -  set-field: [ "Access", "Allowed" ] # mark OK and let the request go through.
+      -  preq-field@Access: "Allowed" # mark OK and let the request go through.
 
 If the method is not one of the allowed ones, the :code:`select` matches resulting in a denial.
 Otherwise, because there is no match, further directives in the outside :code:`select` continue
