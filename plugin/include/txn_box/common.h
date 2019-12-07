@@ -221,7 +221,7 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
  * types can be defined before such a template. This is generally done when those types are
  * usable types, with the template for a generic failure response for non-usable types.
  */
-template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::template contains<T>, R>;
+template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
 /// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) { return feature.index() == IndexFor(NIL); }
