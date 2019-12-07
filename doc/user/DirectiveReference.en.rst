@@ -33,7 +33,7 @@ Client Request
    Set the value of a field in the client request. This requires an argument which is the field name.
    For example, to set the "X-Swoc" field to "Potzrebie" ::
 
-      creq-field@X-Swoc: "Potzrebie"
+      creq-field<X-Swoc>: "Potzrebie"
 
 Transaction
 ===========
