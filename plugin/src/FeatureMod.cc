@@ -183,13 +183,85 @@ Errata Mod_Else::operator()(Context &ctx, Feature &feature) {
   return {};
 }
 
-Rv<FeatureMod::Handle> Mod_Else::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(key_node) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_node.Mark());
-    return std::move(errata);
+// ---
+
+/// Convert the feature to an Integer.
+class Mod_As_Integer : public FeatureMod {
+  using self_type = Mod_As_Integer;
+  using super_type = FeatureMod;
+public:
+  static const std::string KEY; ///< Identifier name.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Errata operator()(Context& ctx, Feature & feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ValueType ftype) const override;
+
+  /// Resulting type of feature after modifying.
+  ValueType result_type() const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+
+protected:
+  /// Type for the internal @c convert method to return.
+  using return_type = swoc::Rv<feature_type_for<INTEGER>>;
+  /// Identity conversion.
+  return_type convert(feature_type_for<INTEGER> n) { return n; }
+  /// Convert from string
+  return_type convert(feature_type_for<STRING> s) {
+    TextView parsed;
+    s.trim_if(&isspace);
+    auto n = swoc::svtou(s, &parsed);
+    if (parsed.size() == s.size()) {
+      return n;
+    }
+    return Error(R"(Cannot convert "{}" to {}.)", s, INTEGER);
   }
-  return Handle(new self_type{std::move(fmt)});
+
+  /// Generic failure case.
+  template < typename T > auto convert(T & t) -> EnableForFeatureTypes<T, return_type> {
+    return Error(R"(Modifier "{}" cannot convert to {}.)", KEY, INTEGER);
+  }
+};
+
+const std::string Mod_As_Integer::KEY { "as-integer" };
+
+bool Mod_As_Integer::is_valid_for(ValueType ftype) const {
+  return STRING == ftype || INTEGER == ftype;
+}
+
+ValueType Mod_As_Integer::result_type() const {
+  return INTEGER;
+}
+
+Errata Mod_As_Integer::operator()(Context &ctx, Feature &feature) {
+  auto visitor = [&](auto & t) { return this->convert(t); };
+  auto [ n, errata ] { std::visit(visitor, feature)};
+  if (errata.is_ok()) {
+    feature = n;
+  }
+  return errata;
+}
+
+Rv<FeatureMod::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+  return Handle(new self_type);
 };
 
 // ---
@@ -198,6 +270,7 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   FeatureMod::define(Mod_Hash::KEY, &Mod_Hash::load);
   FeatureMod::define(Mod_Else::KEY, &Mod_Else::load);
+  FeatureMod::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
   return true;
 } ();
 } // namespace
