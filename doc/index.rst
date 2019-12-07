@@ -13,8 +13,10 @@ Transaction Box
    building.en
    arch.en
    directive.en
+   guide.en
    examples.en
    user/ExtractorReference.en
+   user/ModifierReference.en
    user/DirectiveReference.en
    user/ComparisonReference.en
    design.en
