@@ -146,7 +146,9 @@ public:
 
   self_type& localize(Feature & feature);
 
-  template < typename T > auto localize(T & data) -> typename std::enable_if<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&>::type { return *this; }
+//  template < typename T > auto localize(T & data) -> typename std::enable_if<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&>::type { return *this; }
+//  template < typename T > auto localize(T & data) -> typename std::enable_if_t<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&> { return *this; }
+  template < typename T > auto localize(T & data) -> EnableForFeatureTypes<T, self_type&> { return *this; }
 
   /** Allocate config space for an array of @a T.
    *
