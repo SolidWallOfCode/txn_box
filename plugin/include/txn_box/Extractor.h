@@ -31,8 +31,6 @@ class FeatureGroup;
 class Extractor {
   using self_type = Extractor; ///< Self reference type.
 public:
-  using Type = ValueType; ///< Import for convenience.
-
   /// Container for extractor factory.
   using Table = std::unordered_map<std::string_view, self_type *>;
 
@@ -292,7 +290,7 @@ public:
   Feature extract(Context& ctx, Spec const& spec) override;
 };
 
-inline auto StringExtractor::result_type() const -> Type { return STRING; }
+inline auto StringExtractor::result_type() const -> ValueType { return STRING; }
 
 /** A view of a transient string.
  *
@@ -320,10 +318,10 @@ public:
 class IntegerExtractor : public Extractor {
 public:
   /// Type of extracted feature.
-  Type result_type() const;
+  ValueType result_type() const;
 };
 
-inline auto IntegerExtractor::result_type() const -> Type { return INTEGER; }
+inline auto IntegerExtractor::result_type() const -> ValueType { return INTEGER; }
 
 class BooleanExtractor : public Extractor {
 public:
@@ -331,10 +329,10 @@ public:
   using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
 
   /// Type of extracted feature.
-  Type result_type() const;
+  ValueType result_type() const;
 };
 
-inline auto BooleanExtractor::result_type() const -> Type { return BOOLEAN; }
+inline auto BooleanExtractor::result_type() const -> ValueType { return BOOLEAN; }
 
 inline size_t Extractor::Format::size() const { return _specs.size(); }
 

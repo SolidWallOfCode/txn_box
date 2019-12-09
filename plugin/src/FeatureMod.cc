@@ -183,6 +183,15 @@ Errata Mod_Else::operator()(Context &ctx, Feature &feature) {
   return {};
 }
 
+Rv<FeatureMod::Handle> Mod_Else::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+  auto && [ fmt, errata ] { cfg.parse_feature(key_node) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_node.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(fmt)});
+};
+
 // ---
 
 /// Convert the feature to an Integer.
@@ -220,24 +229,26 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
 
 protected:
-  /// Type for the internal @c convert method to return.
-  using return_type = swoc::Rv<feature_type_for<INTEGER>>;
+  Extractor::Format _value; ///< Default value.
+
+  explicit Mod_As_Integer(Extractor::Format && fmt) : _value(std::move(fmt)) {}
+
   /// Identity conversion.
-  return_type convert(feature_type_for<INTEGER> n) { return n; }
+  Feature convert(Context & ctx, feature_type_for<INTEGER> n) { return n; }
   /// Convert from string
-  return_type convert(feature_type_for<STRING> s) {
+  Feature convert(Context & ctx, feature_type_for<STRING> s) {
     TextView parsed;
     s.trim_if(&isspace);
-    auto n = swoc::svtou(s, &parsed);
+    auto n = swoc::svtoi(s, &parsed);
     if (parsed.size() == s.size()) {
       return n;
     }
-    return Error(R"(Cannot convert "{}" to {}.)", s, INTEGER);
+    return ctx.extract(_value);
   }
 
   /// Generic failure case.
-  template < typename T > auto convert(T & t) -> EnableForFeatureTypes<T, return_type> {
-    return Error(R"(Modifier "{}" cannot convert to {}.)", KEY, INTEGER);
+  template < typename T > auto convert(Context & ctx, T & t) -> EnableForFeatureTypes<T, Feature> {
+    return ctx.extract(_value);
   }
 };
 
@@ -252,16 +263,18 @@ ValueType Mod_As_Integer::result_type() const {
 }
 
 Errata Mod_As_Integer::operator()(Context &ctx, Feature &feature) {
-  auto visitor = [&](auto & t) { return this->convert(t); };
-  auto [ n, errata ] { std::visit(visitor, feature)};
-  if (errata.is_ok()) {
-    feature = n;
-  }
-  return errata;
+  auto visitor = [&](auto & t) { return this->convert(ctx, t); };
+  feature = std::visit(visitor, feature);
+  return {};
 }
 
 Rv<FeatureMod::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  return Handle(new self_type);
+  auto && [ fmt, errata ] { cfg.parse_feature(key_node) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_node.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(fmt)});
 };
 
 // ---
