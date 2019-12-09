@@ -360,6 +360,11 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
     errata.info(R"(While parsing value for "{}".)", key);
     return { {}, std::move(errata)};
   }
+
+  if (fmt._result_type == NO_VALUE) {
+    return Error(R"(Directive "{}" must have a value.)", key);
+  }
+
   if (fmt._result_type != NIL) {
     fmt._result_type = STRING; // Force string value.
   }

@@ -403,7 +403,7 @@ class Ex_with_feature : public Extractor {
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME { "..." };
-  Type result_type() const override { return ACTIVE; }
+  ValueType result_type() const override { return ACTIVE; }
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
@@ -421,7 +421,7 @@ BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Cont
   return bwformat(w, spec, feature);
 }
 
-auto Ex_this::result_type() const -> Type { return VARIABLE; }
+auto Ex_this::result_type() const -> ValueType { return VARIABLE; }
 
 Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {
   return _fg->extract(ctx, spec._ext);
