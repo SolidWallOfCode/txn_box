@@ -20,8 +20,8 @@
  *
  */
 
-class FeatureMod {
-  using self_type = FeatureMod;
+class Modifier {
+  using self_type = Modifier;
 
 public:
   /// Handle for instances.

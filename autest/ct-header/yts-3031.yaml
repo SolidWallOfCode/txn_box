@@ -1,42 +1,43 @@
 # 1) set the Expect-CT
-# 2) Explicitly turn on XSS protection (which usually on by default)
+# 2) Explicitly turn on XSS protection (usually already present)
 # 3) set X-XSS-Protection to prevent XSS attacks.
 
 txn_box:
 - when: creq
   do:
   # default Expect-CT policy.
-  - var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\"""
+  - var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
   - with: creq-host
     select:
     # yimg.com or any subdomain
-    - any-of:
-      - match: "yimg.com"
-      - suffix: ".yimg.com"
+    - tld: "yimg.com"
       do:
       - creq-field<Cookie>: NULL
-      - with: ...  # check subdomains
+      - with: "{*}"  # check subdomains
         select:
         - match: "u" # for this one, tweak the Expect CT policy.
-          do
+          do:
             var<ct-policy>: "enforce" # set Expect-CT policy.
 
 - when: ursp
-  # if Set-Cookie has a Domain with yimg.com, clear the field.
-  - with: ursp-field<Set-Cookie>
-    select:
-    - contains<rx,nc>: "Domain=(?:[^=]*[.])?yimg[.]com"
-      do:
-        ursp-field<Set-Cookie>: NULL
+  do:
+  # if any Set-Cookie field has a Domain with yimg.com, clear the field.
+  - with: ursp-field<Set-Cookie>::by-field
+    for-each:
+    - with: ...
+      select:
+      - rxp<nc>: "domain=(?:[^=]*[.])?yimg[.]com"
+        do:
+          ursp-field<...>: NULL
 
 - when: prsp
   do:
   # set a referrer policy if not already present.
   - prsp-field<Referrer-Policy>: [ prsp-field<Referrer-Policy>, { else: "no-referrer-when-downgrade" } ]
   # For proxy response, fix up the cross site fields if it's TLS.
-  - with: "{cssn-proto-stack}" # force string format.
+  - with: cssn-proto<tls>
     select:
-    - contains: "tls"
+    - prefix: "tls"
       do:
       - prsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
       - prsp-field<X-XSS-Protection>: "1; mode=block"

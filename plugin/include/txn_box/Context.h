@@ -17,6 +17,7 @@
 #include "txn_box/Rxp.h"
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/Expr.h"
 #include "txn_box/ts_util.h"
 #include <ts/remap.h>
 
@@ -77,19 +78,19 @@ public:
 
   /** Extract a feature.
    *
-   * @param fmt The extraction format.
+   * @param expr The feature expression.
    * @return The feature.
    *
-   * This extracts the feature as described by @a fmt. This feature is transient and will potentially
-   * be overwritten by the next feature extraction. If the feature should be preserved longer than
-   * that, use @c commit.
+   * This extracts the feature as described by @a expr. This feature is transient and will
+   * potentially be overwritten by the next feature extraction. If the feature should be preserved
+   * longer than that, use @c commit.
    *
    * The purpose of this is to permit examining the feature after extraction and before committing
    * it to transaction local memory.
    *
    * @see commit
    */
-  Feature extract(Extractor::Format const& fmt);
+  Feature extract(Expr const& expr);
 
   /** Commit a feature.
    *
@@ -109,8 +110,14 @@ public:
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
   ts::HttpTxn _txn = nullptr;
-  /// Current extracted feature data.
-  Feature _feature;
+  /// Current extracted feature.
+  Feature _active;
+  /// Extension for active feature when needed.
+  Feature _active_ext;
+  /// Feature remnant, after matching.
+  FeatureView _remainder;
+  /// Should the active feature be updated (e.g., is used later).
+  bool _update_remainder_p = false;
 
   void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
@@ -183,19 +190,7 @@ public:
   /// Context for working with PCRE - allocates from the transaction arena.
   pcre2_general_context* _rxp_ctx = nullptr;
 
-  /// Active regex capture data.
-  pcre2_match_data *_rxp_capture = nullptr;
-  /// Active view to which the capture groups refer.
-  FeatureView _rxp_src;
-
-  /// Temporary / working capture group data.
-  pcre2_match_data *_rxp_working = nullptr;
-
-  /// Promote the working capture group data to active capture group data.
-  pcre2_match_data* promote_capture_data() {
-    std::swap(_rxp_capture, _rxp_working);
-    return _rxp_capture;
-  }
+  void set_literal_capture(swoc::TextView text);
 
   self_type & store_txn_var(swoc::TextView const& name, Feature && value) {
     return this->store_txn_var(name, value);
@@ -225,6 +220,30 @@ public:
   TSRemapRequestInfo* _remap_info = nullptr;
   TSRemapStatus _remap_status = TSREMAP_NO_REMAP;
 
+  /// Match data support for PCRE.
+  struct RxpCapture {
+    /// PCRE match data.
+    pcre2_match_data *_match = nullptr;
+    /// Number of capture groups supported by @a data.
+    unsigned _n = 0;
+  };
+
+  /** Working match data for doing PCRE matching.
+   *
+   * @param n Number of capture groups required.
+   * @return Cpature data sufficient to match @a n groups.
+   */
+  self_type & rxp_match_require(unsigned n);
+
+  pcre2_match_data * rxp_working_match_data() { return _rxp_working._match; }
+
+  /// Commit the working match data as the active match data.
+  RxpCapture * rxp_commit_match(swoc::TextView const& src) {
+    _rxp_src = src;
+    std::swap(_rxp_active, _rxp_working);
+    return &_rxp_active;
+  }
+
   /** Clear cached data.
    *
    */
@@ -249,6 +268,15 @@ protected:
   swoc::MemSpan<void> _ctx_store;
 
   swoc::Errata invoke_callbacks();
+
+  /// Active regex capture data.
+  RxpCapture _rxp_active;
+
+  /// Temporary / working capture group data.
+  RxpCapture _rxp_working;
+
+  /// Active view to which the capture groups refer.
+  FeatureView _rxp_src;
 
   /// A transaction scope variable.
   struct TxnVar {

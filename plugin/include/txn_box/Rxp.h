@@ -52,30 +52,21 @@ public:
 
   size_t capture_count() const;
 
-  /// Regular expression compile time opotions.
-  enum Option {
-    OPT_NULL, ///< Nothing.
-    OPT_NOCASE, ///< Case insensitive.
+  union Options {
+    unsigned int all;
+    struct {
+      unsigned int nc : 1;
+    } f;
   };
 
-  /// A set of options.
-  using OptionGroup = std::bitset<2>;
-
   /** Create a regular expression instance from @a str.
    *
    * @param str Regular expressions.
-   * @param options Compile time options as a list of @c Option values.
+   * @param options Compile time options.
    * @return An instance if successful, errors if not.
    */
-  static swoc::Rv<self_type> parse(swoc::TextView const& str, std::initializer_list<Option> const& options);
+  static swoc::Rv<self_type> parse(swoc::TextView const& str, Options const& options);
 
-  /** Create a regular expression instance from @a str.
-   *
-   * @param str Regular expressions.
-   * @param options Compile time options as a bit mask.
-   * @return An instance if successful, errors if not.
-   */
-  static swoc::Rv<self_type> parse(swoc::TextView const& str, OptionGroup const& options = OptionGroup{});
 protected:
   RxpHandle _rxp; /// Compiled regular expression.
 

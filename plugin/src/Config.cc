@@ -17,7 +17,8 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
-#include "txn_box/FeatureMod.h"
+#include "txn_box/Modifier.h"
+#include "txn_box/Expr.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
@@ -107,134 +108,250 @@ std::string_view & Config::localize(std::string_view & text) {
   return text = span.view();
 };
 
-Config& Config::localize(Extractor::Format &fmt) {
-  if (fmt._literal_p) {
-    // Special case a "pure" literal - it's a format but all of the specifiers are literals.
-    // This can be consolidated into a "normal" STRING literal for the format. This is only way
-    // @a _literal_p can be set and specifiers in the @a fmt.
-    if (fmt.size() >= 1) {
-      size_t n = std::accumulate(fmt._specs.begin(), fmt._specs.end(), size_t{0}, [](size_t sum
-                                                                                     , Extractor::Spec const &spec) -> size_t { return sum += spec._ext.size(); });
-      if (fmt._force_c_string_p) {
-        ++n;
-      }
-
-      auto span{_arena.alloc(n).rebind<char>()};
-      fmt._literal = span.view();
-      for (auto const &spec : fmt._specs) {
-        memcpy(span.data(), spec._ext.data(), spec._ext.size());
-        span.remove_prefix(spec._ext.size());
-      }
-      if (fmt._force_c_string_p) {
-        span[0] = '\0';
-      }
-      fmt._force_c_string_p = false; // Already took care of this, don't do it again.
-      fmt._specs.clear();
-    } else {
-      this->localize(fmt._literal);
-    }
-  } else {
-    // Localize and update the names and extensions.
-    for (auto &spec : fmt._specs) {
-      if (! spec._name.empty()) {
-        this->localize(spec._name);
-      }
-      if (! spec._ext.empty()) {
-        this->localize(spec._ext);
-      }
+FeatureNodeStyle Config::feature_node_style(YAML::Node value) {
+  if (value.IsScalar()) {
+    return FeatureNodeStyle::SINGLE;
+  }
+  if (value.IsSequence()) {
+    if (value.size() == 0) {
+      return FeatureNodeStyle::SINGLE;
     }
   }
-  return *this;
+  return FeatureNodeStyle::INVALID;
 }
 
-Rv<Extractor::Format> Config::parse_feature(YAML::Node fmt_node, StrType str_type) {
-  // Unfortunately, lots of special cases here.
-
-  // If explicitly marked a literal, then no further processing should be done.
-  if (0 == strcasecmp(fmt_node.Tag(), LITERAL_TAG)) {
-    if (!fmt_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, fmt_node.Mark());
-    }
-    auto const& text = fmt_node.Scalar();
-    if (StrType::C == str_type) {
-      return Extractor::literal(TextView{text.c_str(), text.size() + 1});
-    }
-    return Extractor::literal(TextView{text.data(), text.size()});
-
+Rv<ValueType> Config::validate(Extractor::Spec &spec) {
+  if (spec._name.empty()) {
+    return Error(R"(Extractor name required but not found.)");
   }
 
-  if (fmt_node.IsNull()) { // explicit NULL
-    return Extractor::literal(feature_type_for<NIL>{}); // Treat as equivalent of the empty string.
-  } else if (fmt_node.IsScalar()) {
-    // Scalar case - is is quotes, forcing a string?
-    Rv<Extractor::Format> result;
-    TextView text { fmt_node.Scalar() };
-    if (text.empty()) { // no value at all
-      result = Extractor::literal(""_tv); // if used, act like an empty string.
-      result.result()._result_type = NO_VALUE;
-      return std::move(result); // NO_VALUE literal can't fail, can't have any other properties, just return.
-    } else if (fmt_node.Tag() == "?"_tv) { // unquoted, must be extractor.
-      result = Extractor::parse_raw(*this, text);
-    } else {
-      result = Extractor::parse(*this, text);
+  if (spec._idx < 0) {
+    auto name = TextView{spec._name};
+    auto && [ arg, arg_errata ] { parse_arg(name) };
+    if (!arg_errata.is_ok()) {
+      return std::move(arg_errata);
     }
 
-    if (result.is_ok()) {
-      auto & exfmt = result.result();
-      if (exfmt._max_arg_idx >= 0) {
-        if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
-          return Error(R"(Extracting capture group at {} but no regular expression is active.)", fmt_node.Mark());
-        } else if (exfmt._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
-          return Error(R"(Extracting capture group {} at {} but the maximum capture group is {} in the active regular expression from line {}.)", exfmt._max_arg_idx, fmt_node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line);
+    if (auto ex{Extractor::find(name)}; nullptr != ex) {
+      spec._exf = ex;
+      spec._name = this->localize(name);
+      spec._ext = this->localize(spec._ext);
+      auto && [ vt, errata ] { ex->validate(*this, spec, arg) };
+      if (! errata.is_ok()) {
+        return std::move(errata);
+      }
+      return vt;
+    }
+    return Error(R"(Extractor "{}" not found.)", name);
+  }
+  return STRING; // non-negative index => capture group => always a string
+}
+
+Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
+  // Integer?
+  TextView parsed;
+  auto n = swoc::svtoi(text, &parsed);
+  if (parsed.size() == text.size()) {
+    return Expr{FeatureView::Literal(text)};
+  }
+
+  // bool?
+  auto b = BoolNames[text];
+  if (b != BoolTag::INVALID) {
+    return Expr{Feature{b == BoolTag::True}};
+  }
+
+  // IP Address?
+  swoc::IPAddr addr;
+  if (addr.load(text)) {
+    return Expr{Feature{addr}};
+  }
+
+  // Presume an extractor.
+  Extractor::Spec spec;
+  bool valid_p = spec.parse(text);
+  if (!valid_p) {
+    return Error(R"(Invalid syntax for extractor "{}" - not a valid specifier.)", text);
+  }
+  auto && [ vt, errata ] = this->validate(spec);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  return Expr{spec, vt};
+}
+
+Rv<Expr> Config::parse_composite_expr(TextView const& text) {
+  ValueType single_vt;
+  auto parser { swoc::bwf::Format::bind(text) };
+  std::vector<Extractor::Spec> specs;
+  // Used to handle literals in @a format_string. Can't be const because it must be updated
+  // for each literal.
+  Extractor::Spec literal_spec;
+
+  literal_spec._type = Extractor::Spec::LITERAL_TYPE;
+
+  while (parser) {
+    Extractor::Spec spec;
+    std::string_view literal;
+    bool spec_p = parser(literal, spec);
+
+    if (!literal.empty()) {
+      literal_spec._ext = literal;
+      specs.push_back(literal_spec);
+    }
+
+    if (spec_p) {
+      if (spec._idx >= 0) {
+        specs.push_back(spec);
+      } else {
+        auto && [vt, errata] = this->validate(spec);
+        if (errata.is_ok()) {
+          single_vt = vt; // Save for singleton case.
+          specs.push_back(spec);
+        } else {
+          errata.info(R"(While parsing specifier at offset {}.)", text.size() - parser._fmt.size());
+          return std::move(errata);
         }
       }
-
-      if (exfmt._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
-        _feature_state->_feature_ref_p = true;
-      }
-
-      exfmt._force_c_string_p = StrType::C == str_type;
-      this->localize(exfmt);
     }
-    return std::move(result);
-  } else if (fmt_node.IsSequence()) {
-    // empty list is treated as an empty string.
-    if (fmt_node.size() < 1) {
-      auto exfmt { Extractor::literal(TextView{}) };
-      exfmt._force_c_string_p = StrType::C == str_type;
-      return std::move(exfmt);
-    }
-
-    auto str_node { fmt_node[0] };
-    if (! str_node.IsScalar()) {
-      return Error(R"(Value at {} in list at {} is not a string as required.)", str_node.Mark(), fmt_node.Mark());
-    }
-
-    auto &&[fmt, errata]{Extractor::parse(*this, str_node.Scalar())};
-    if (! errata.is_ok()) {
-      errata.info(R"(While parsing extractor format at {} in modified string at {}.)", str_node.Mark(), fmt_node.Mark());
-      return { {}, std::move(errata) };
-    }
-
-    fmt._force_c_string_p = StrType::C == str_type;
-    this->localize(fmt);
-
-    for ( unsigned idx = 1 ; idx < fmt_node.size() ; ++idx ) {
-      auto child { fmt_node[idx] };
-      auto && [ mod, mod_errata ] { FeatureMod::load(*this, child, fmt._result_type) };
-      if (! mod_errata.is_ok()) {
-        mod_errata.info(R"(While parsing modifier {} in modified string at {}.)", child.Mark(), fmt_node.Mark());
-        return { {}, std::move(mod_errata) };
-      }
-      if (_feature_state) {
-        _feature_state->_type = mod->result_type();
-      }
-      fmt._mods.emplace_back(std::move(mod));
-    }
-    return { std::move(fmt), {} };
   }
 
-  return Error(R"(Value at {} is not a string or list as required.)", fmt_node.Mark());
+  // If it is a singleton, return it as one of the singleton types.
+  if (specs.size() == 1) {
+    if (specs[0]._exf) {
+      return Expr{specs[0], single_vt};
+    } else if (specs[0]._type == Extractor::Spec::LITERAL_TYPE) {
+      return Expr{FeatureView(this->localize(specs[0]._ext))};
+    } else {
+      return Error("Internal consistency error - specifier is neither an extractor nor a literal.");
+    }
+  }
+  // Multiple specifiers, check for overall properties.
+  Expr expr;
+  auto & cexpr = expr._expr.emplace<Expr::COMPOSITE>();
+  cexpr._specs = std::move(specs);
+  for ( auto const& s : specs ) {
+    expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
+    if (s._exf) {
+      expr._ctx_ref_p = expr._ctx_ref_p || s._exf->has_ctx_ref();
+    }
+  }
+
+  return std::move(expr);
+}
+
+Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
+  Rv<Expr> zret;
+  TextView text { node.Scalar() };
+  if (text.empty()) { // no value at all
+    return Expr{};
+  } else if (node.Tag() == "?"_tv) { // unquoted, must be extractor.
+    zret = this->parse_unquoted_expr(text);
+  } else {
+    zret = this->parse_composite_expr(text);
+  }
+
+  if (zret.is_ok()) {
+    auto & expr = zret.result();
+    if (expr._max_arg_idx >= 0) {
+      if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
+        return Error(R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
+      } else if (expr._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
+        return Error(R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)"
+            , expr._max_arg_idx, node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line);
+      }
+    }
+
+    if (expr._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
+      _feature_state->_feature_ref_p = true;
+    }
+  }
+  return std::move(zret);
+}
+
+Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
+  auto && [ expr, expr_errata ] { this->parse_expr(node[0])};
+  if (! expr_errata.is_ok()) {
+    expr_errata.info("While processing the expression at {}.", node.Mark());
+    return std::move(expr_errata);
+  }
+
+  for ( unsigned idx = 1 ; idx < node.size() ; ++idx ) {
+    auto child { node[idx] };
+    auto && [ mod, mod_errata ] {Modifier::load(*this, child, expr.result_type()) };
+    if (! mod_errata.is_ok()) {
+      mod_errata.info(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
+      return std::move(mod_errata);
+    }
+    if (_feature_state) {
+      _feature_state->_type = mod->result_type();
+    }
+    expr._mods.emplace_back(std::move(mod));
+  }
+
+  return std::move(expr);
+}
+
+Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
+  std::string_view expr_tag(expr_node.Tag());
+
+  // This is the base entry method, so it needs to handle all cases, although most of them
+  // will be delegated. Handle the direct / simple special cases here.
+
+  if (expr_node.IsNull()) { // explicit NULL
+    return Expr{NIL_FEATURE};
+  }
+
+  // If explicitly marked a literal, then no further processing should be done.
+  if (0 == strcasecmp(expr_tag, LITERAL_TAG)) {
+    if (!expr_node.IsScalar()) {
+      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
+    }
+    return Expr{FeatureView::Literal(expr_node.Scalar())};
+  } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
+    return Error(R"("{}" tag for extractor expression is not supported.)", expr_tag);
+  }
+
+  if (expr_node.IsScalar()) {
+    return this->parse_scalar_expr(expr_node);
+  }
+  if (! expr_node.IsSequence()) {
+    return Error("Feature expression is not properly structured.");
+  }
+
+  // It's a sequence, handle the various cases.
+  if (expr_node.size() == 0) {
+    return Expr{NIL_FEATURE};
+  }
+  if (expr_node.size() == 1) {
+    return this->parse_scalar_expr(expr_node[0]);
+  }
+
+  if (expr_node[1].IsMap()) { // base expression with modifiers.
+    return this->parse_expr_with_mods(expr_node);
+  }
+
+  // Else, after all this, it's a tuple, treat each element as an expression.
+  std::vector<Expr> xa;
+  xa.reserve(expr_node.size());
+  for ( auto const& child : expr_node ) {
+    auto && [ expr , errata ] { this->parse_expr(child) };
+    if (errata.is_ok()) {
+      xa.emplace_back(std::move(expr));
+    } else {
+      errata.info("While parsing feature expression list at {}.", expr_node.Mark());
+      return std::move(errata);
+    }
+  }
+
+  Expr expr;
+  auto & list = expr._expr.emplace<Expr::LIST>();
+  list._exprs.reserve(xa.size());
+  for ( auto && x : xa) {
+    list._exprs.emplace_back(std::move(x));
+  }
+  return std::move(expr);
 }
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
@@ -262,10 +379,10 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
       }
       auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, name, arg, key_value) };
       if (! drtv_errata.is_ok()) {
-        drtv_errata.info(R"()");
-        return { {}, std::move(drtv_errata) };
+        drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
+        return std::move(drtv_errata);
       }
-      // Fill in config depending data and pass a pointer to it to the directive instance.
+      // Fill in config dependent data and pass a pointer to it to the directive instance.
       auto & rtti = _drtv_info[static_info._idx];
       if (++rtti._count == 1) { // first time this directive type has been used.
         rtti._idx = static_info._idx;
@@ -275,7 +392,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
       }
       drtv->_rtti = &rtti;
 
-      return { std::move(drtv), {} };
+      return std::move(drtv);
     }
   }
   return Error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark());
@@ -283,7 +400,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 
 Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
   if (drtv_node.IsMap()) {
-    return { this->load_directive(drtv_node) };
+    return this->load_directive(drtv_node);
   } else if (drtv_node.IsSequence()) {
     Errata zret;
     auto list { new DirectiveList };
@@ -293,12 +410,13 @@ Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
       if (errata.is_ok()) {
         list->push_back(std::move(handle));
       } else {
-        return { {}, std::move(errata.error(R"(Failed to load directives at {})", drtv_node.Mark())) };
+        errata.info(R"(While loading directives at {}.)", drtv_node.Mark());
+        return std::move(errata);
       }
     }
-    return {std::move(drtv_list), {}};
+    return std::move(drtv_list);
   } else if (drtv_node.IsNull()) {
-    return {Directive::Handle(new NilDirective)};
+    return Directive::Handle(new NilDirective);
   }
   return Error(R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
 }
@@ -376,7 +494,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
     if ( auto node { base_node[key] } ; node ) {
       base_node = node;
     } else {
-      return Errata().error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
+      return Error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
     }
   }
 
@@ -394,8 +512,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
       errata.note((this->*drtv_loader)(child));
     }
     if (! errata.is_ok()) {
-      errata.error(R"(Failure while loading list of top level directives for "{}" at {}.)",
-      path, base_node.Mark());
+      errata.info(R"(While loading list of top level directives for "{}" at {}.)", path, base_node.Mark());
     }
   } else if (base_node.IsMap()) {
     errata = (this->*drtv_loader)(base_node);

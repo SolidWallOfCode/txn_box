@@ -142,7 +142,7 @@ This is the implementation of the :code:`load` static method.
    :emphasize-lines: 2,7
 
 In the first highlighted line, the configuration context is used to parse the feature format, which
-is passed back as an :code:`Rv<Extractor::Format>` pair. This type provides tuple support which, for
+is passed back as an :code:`Rv<Extractor::Expr>` pair. This type provides tuple support which, for
 C++17, allows the return to picked apart easily into those two components. If there's a problem, an
 additional note is added to the :code:`Errata` and then that is passed back. Otherwise the feature
 format is marked to force a string output in the second highlighted line. E.g. if the extractor is

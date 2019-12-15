@@ -16,11 +16,20 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Extractor.h"
+#include "txn_box/Expr.h"
+#include "txn_box/FeatureGroup.h"
 #include "txn_box/Directive.h"
 #include "txn_box/yaml_util.h"
 
 using TSCont = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;
+
+/// Result from looking at node structure for a value node.
+enum class FeatureNodeStyle {
+  INVALID, ///< The nodes are not structured as a valie feature.
+  SINGLE, ///< Structure is suitable for a single feature.
+  TUPLE, ///< Structure is suitable for a list of features.
+};
 
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
@@ -35,12 +44,6 @@ public:
   static constexpr swoc::TextView PLUGIN_TAG { "txn_box" };
 
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
-
-  /// Type of a view.
-  enum class StrType {
-    VIEW, ///< Standard view.
-    C, ///< C string
-  };
 
   /// Track the state of provided features.
   struct FeatureRefState {
@@ -109,11 +112,20 @@ public:
    */
   swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node, FeatureRefState& state);
 
-  /** Parse a node as a feature extractor.
+  /** Check the node structure of a value.
    *
-   * @param fmt_node The node with the extractor.
-   * @param str_type Standard view or C string.
-   * @return The condensed extractor format or errors on failure.
+   * @param value Value node to check.
+   * @return The type of feature represented by @a value.
+   *
+   * Primarily this checks @a value to see if it's a valid feature, and whether it's single or
+   * multiple.
+   */
+  FeatureNodeStyle feature_node_style(YAML::Node value);
+
+  /** Parse a feature expression.
+   *
+   * @param fmt_node The node with the expression.
+   * @return The expression or errors.
    *
    * This does extensive work for handle the various feature extraction capabilities. This should
    * be bypassed only in extreme cases where very specialized handling is needed. The result of
@@ -121,7 +133,7 @@ public:
    *
    * @see Context::extract
    */
-  swoc::Rv<Extractor::Format> parse_feature(YAML::Node fmt_node, StrType str_type = StrType::VIEW);
+  swoc::Rv<Expr> parse_expr(YAML::Node fmt_node);
 
   /** Copy @a text to local storage in this instance.
    *
@@ -134,20 +146,8 @@ public:
   std::string_view& localize(std::string_view & text);
   swoc::TextView localize(std::string_view const& text) { swoc::TextView tv { text }; return this->localize(tv); }
 
-  /** Localized a format.
-   *
-   * @param fmt Format to localize.
-   * @return @a this
-   *
-   * Localize all the strings in @a fmt, which is updated in place. If @a fmt is a pure literal
-   * it will be condensed in to a single item literal.
-   */
-  self_type & localize(Extractor::Format & fmt);
-
   self_type& localize(Feature & feature);
 
-//  template < typename T > auto localize(T & data) -> typename std::enable_if<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&>::type { return *this; }
-//  template < typename T > auto localize(T & data) -> typename std::enable_if_t<swoc::meta::is_any_of<T, feature_type_for<NIL>, feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>, feature_type_for<CONS>, feature_type_for<TUPLE>>::value, self_type&> { return *this; }
   template < typename T > auto localize(T & data) -> EnableForFeatureTypes<T, self_type&> { return *this; }
 
   /** Allocate config space for an array of @a T.
@@ -208,6 +208,7 @@ protected:
   bool _has_top_level_directive_p { false };
 
   /// Maximum number of capture groups for regular expression matching.
+  /// Always at least one because literal matches use that.
   unsigned _capture_groups = 1;
 
   /** @defgroup Feature reference tracking.
@@ -233,7 +234,7 @@ protected:
   /// Directive info for all directive types.
   std::vector<Directive::CfgInfo> _drtv_info;
 
-  /// A factory that maps from directive names to generator functions (@c Worker instances).
+  /// A factory that maps from directive names to generator functions (@c Loader instances).
   using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Directive::Worker, Directive::StaticInfo>>;
 
   /// The set of defined directives..
@@ -250,6 +251,41 @@ protected:
   swoc::MemArena _arena;
 
   swoc::Rv<Directive::Handle> load_directive(YAML::Node const& drtv_node);
+
+  /** Parse a scalar feature expression.
+   *
+   * @param fmt_node The node with the extractor. Must be a scalar.
+   * @return The expression or errors.
+   *
+   * Used for scalar expressions that are not NULL nor explicitly literal.
+   *
+   */
+  swoc::Rv<Expr> parse_scalar_expr(YAML::Node node);
+
+  swoc::Rv<Expr> parse_composite_expr(swoc::TextView const& text);
+
+  /** Parse an unquoted feature expression.
+   *
+   * @param text The unquoted text to parse. This must be non-empty.
+   * @return The expression, or errors on failure.
+   *
+   */
+  swoc::Rv<Expr> parse_unquoted_expr(swoc::TextView const& text);
+
+  swoc::Rv<Expr> parse_expr_with_mods(YAML::Node node);
+
+  /** Update the (possible) extractor reference in @a spec.
+   *
+   * @param spec Specifier to update.
+   * @return Value type of the specifier / extractor, or errors if invalid.
+   *
+   * @a spec is updated in place. If it is an extractor the extractor pointer in @a spec is updated.
+   * This also validates the extractor can handle the @a spec details and enables config based
+   * storage allocation if needed by the extractor.
+   *
+   * @see Extractor::validate
+   */
+  swoc::Rv<ValueType> validate(Extractor::Spec &spec);
 };
 
 inline Hook Config::current_hook() const { return _hook; }

@@ -71,6 +71,32 @@ struct Feature;
 /// Tuples have a fixed size.
 using FeatureTuple = swoc::MemSpan<Feature>;
 
+/** Generic data.
+ * Two uses:
+ * - Very specialized types that are not general enough to warrant a top level feature type.
+ * - Extension types such that non-framework code can have its own feature (sub) type.
+ * This should be subclassed.
+ */
+class Generic {
+public:
+  swoc::TextView _tag; ///< Sub type identifier.
+
+  Generic(swoc::TextView const& tag) : _tag(tag) {}
+  virtual ~Generic() {}
+  virtual swoc::TextView description() const { return _tag; }
+
+  /** Extract a non-Generic feature from @a this.
+   *
+   * @return The equivalent non-Generic feature, or @c NIL_FEATURE if there is no conversion.
+   *
+   * @note The base implementation returns @c NIL_FEATURE therefore unless conversion is supported,
+   * this does not need to be overridden.
+   */
+  virtual Feature extract() const;
+
+  virtual bool is_nil() const { return false; }
+};
+
 /// Enumeration of types of values, e.g. those returned by a feature string or extractor.
 /// This includes all of the types of features, plus some "meta" types to describe situations
 /// in which the type may not be known at configuration load time.
@@ -82,6 +108,7 @@ enum ValueType : int8_t {
   BOOLEAN, ///< Boolean.
   CONS, ///< Pointer to cons cell.
   TUPLE, ///< Array of features (@c FeatureTuple)
+  GENERIC, ///< Extended type.
   NO_VALUE, ///< No value, non-existent feature.
   VARIABLE, ///< Variable / indeterminate type.
   ACTIVE, ///< The active / current feature type.
@@ -94,7 +121,7 @@ template <> struct tuple_size<ValueType> : public std::integral_constant<size_t,
 // *** @c FeatureTypeList and @c FeatureType must be kept in parallel synchronization! ***
 /// Type list of feature types.
 /// The initial values in @c ValueType must match this list exactly.
-using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple>;
+using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple, Generic*>;
 
 /** Basic feature data type.
  * This is split out in order to make self-reference work. This is the actual variant, and
@@ -106,28 +133,50 @@ using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intma
  */
 using FeatureVariant = FeatureTypeList::template apply<std::variant>;
 
+namespace swoc {
+namespace meta {
+template < typename GENERATOR, size_t ... IDX> constexpr
+std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> && idx) { return { g(IDX)... }; }
+template < size_t N, typename GENERATOR> constexpr
+std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g) { return indexed_init_list(std::forward<GENERATOR>(g), std::make_index_sequence<N>());}
+
+template < typename GENERATOR, size_t ... IDX> constexpr
+std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> indexed_array(GENERATOR && g, std::index_sequence<IDX...> && idx) { return std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> { g(IDX)... }; }
+template < size_t N, typename GENERATOR> constexpr
+std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g) { return indexed_array(std::forward<GENERATOR>(g), std::make_index_sequence<N>()); }
+
+} // namespace meta
+} // namespace swoc
+
 /** Convert a feature @a type to a variant index.
  *
  * @param type Feature type.
  * @return Index in @c FeatureData for that feature type.
  */
 inline constexpr unsigned IndexFor(ValueType type) {
-  constexpr std::array<unsigned, FeatureTypeList::size> IDX {0, 1, 2, 3, 4, 5, 6 };
+  auto IDX = swoc::meta::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
+//  constexpr std::array<unsigned, std::tuple_size<ValueType>::value> IDX = swoc::meta::indexed_init_list<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
   return IDX[static_cast<unsigned>(type)];
 };
 
-/** Feature data.
+/** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
  * All of these are small and fixed size, any external storage (e.g. the text for a view)
  * is stored separately.
+ *
+ * @internal This is needed to deal with self-reference in the underlying variant. Some nested
+ * types need to refer to @c Feature but the variant itself can't be forward declared. Instead
+ * this struct is and is then used as an empty wrapper on the actual variant.
  */
 struct Feature : public FeatureVariant {
   using variant_type = FeatureVariant; ///< The base variant type.
   using variant_type::variant_type; ///< Inherit all constructors.
+
+  variant_type & variant() { return *this; }
 };
 
 /// @cond NO_DOXYGEN
-// These are overloads for variant visitors so that other call sites can use @c FeatureData
+// These are overloads for variant visitors so that other call sites can use @c Feature
 // directly without having to reach in to the @c variant_type.
 namespace std {
 template < typename VISITOR > auto visit(VISITOR&& visitor, Feature & feature) -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature))) {
@@ -140,6 +189,10 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 } // namespace std
 /// @endcond
 
+inline ValueType ValueTypeOf(Feature const& f) {
+  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN, CONS, TUPLE, GENERIC };
+  return T[f.index()];
+}
 /// Nil value feature.
 static constexpr Feature NIL_FEATURE;
 
@@ -224,7 +277,12 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
 template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
 /// Check if @a feature is nil.
-inline bool is_nil(Feature const& feature) { return feature.index() == IndexFor(NIL); }
+inline bool is_nil(Feature const& feature) {
+  if (auto gf = std::get_if<GENERIC>(&feature)) {
+    return (*gf)->is_nil();
+  }
+  return feature.index() == IndexFor(NIL);
+}
 /// Check if @a feature is empty (nil or an empty string).
 inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.index() || (IndexFor(STRING) == feature.index() && std::get<IndexFor(STRING)>(feature).empty()); }
 
@@ -235,7 +293,8 @@ inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.i
  * sequence.
  *
  */
-Feature const& car(Feature const& feature);
+Feature car(Feature const& feature);
+
 /** Drop the first element in @a feature.
  *
  * @param feature Feature sequence.
@@ -243,10 +302,48 @@ Feature const& car(Feature const& feature);
  * Otherwise a sequence not containing the first element of @a feature.
  *
  */
-Feature cdr(Feature const& feature);
+Feature & cdr(Feature & feature);
+
+inline void clear(Feature & feature) {
+  if (auto gf = std::get_if<GENERIC>(&feature) ; gf) {
+    (*gf)->~Generic();
+  }
+  feature = NIL_FEATURE;
+}
+
+static constexpr swoc::TextView ACTIVE_FEATURE_KEY { "..." };
+static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "*" };
 
 /// Conversion between @c ValueType and printable names.
 extern swoc::Lexicon<ValueType> ValueTypeNames;
+
+class TupleIterator : public Generic {
+  using self_type = TupleIterator;
+  using super_type = Generic;
+public:
+  static constexpr swoc::TextView TAG { "ITERATOR" };
+
+  TupleIterator() : super_type{TAG} {}
+  virtual ~TupleIterator() {}
+
+  /** The value type of the tuple elements.
+   *
+   * @return The type of each element if the iteration is homogenous, @c ACTIVE if it is not.
+   */
+  virtual ValueType value_type() const { return ACTIVE; }
+
+  /// @return @c true if the iterator has a value, @c false if at end.
+  explicit virtual operator bool () const { return false; }
+
+  virtual void advance() = 0;
+
+  /// Restart iteration
+  virtual self_type & rewind() = 0;
+
+  /// Iteration key, to distinguish the area of iteration.
+  virtual swoc::TextView iter_tag() const = 0;
+
+};
 
 // BufferWriter support.
 namespace swoc {

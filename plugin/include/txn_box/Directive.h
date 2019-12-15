@@ -234,5 +234,3 @@ inline swoc::Errata LambdaDirective::invoke(Context &ctx) { return _f(ctx); }
 
 inline LambdaDirective::LambdaDirective(std::function<swoc::Errata(Context &)> &&f) : _f(std::move(f)) {}
 
-
-

@@ -15,19 +15,11 @@ using namespace swoc::literals;
 using swoc::Errata;
 using swoc::Rv;
 
-Rv<Rxp> Rxp::parse(TextView const& str, std::initializer_list<Option> const& options) {
-  OptionGroup rxp_opt;
-  for ( auto opt : options ) {
-    rxp_opt[opt] = true;
-  }
-  return self_type::parse(str, rxp_opt);
-}
-
-Rv<Rxp> Rxp::parse(TextView const& str, OptionGroup const& options) {
+Rv<Rxp> Rxp::parse(TextView const& str, Options const& options) {
   int errc = 0;
   size_t err_off = 0;
   uint32_t rxp_opt = 0;
-  if (options[OPT_NOCASE]) {
+  if (options.f.nc) {
     rxp_opt = PCRE2_CASELESS;
   }
   auto result = pcre2_compile(reinterpret_cast<unsigned const char*>(str.data()), str.size(), rxp_opt, &errc, &err_off, nullptr);

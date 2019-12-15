@@ -19,7 +19,7 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
-#include "txn_box/FeatureMod.h"
+#include "txn_box/Modifier.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
