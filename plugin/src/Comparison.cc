@@ -6,6 +6,7 @@
  */
 
 #include <string>
+#include <algorithm>
 
 #include <swoc/bwf_base.h>
 
@@ -25,26 +26,35 @@ Comparison::Factory Comparison::_factory;
 
 unsigned Comparison::rxp_group_count() const { return 0; }
 
-Errata Comparison::define(swoc::TextView name, ValueMask const& types, Comparison::Worker &&worker) {
+Errata Comparison::define(swoc::TextView name, ValueMask const& types, Comparison::Loader &&worker) {
   _factory[name] = std::make_tuple(std::move(worker), types);
   return {};
+}
+
+bool Comparison::operator()(Context &ctx, Generic *g) const {
+  Feature f { g->extract() };
+  return IndexFor(GENERIC) == f.index() ? false : (*this)(ctx, f);
 }
 
 Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Node node) {
   for ( auto const& [ key_node, value_node ] : node ) {
     TextView key { key_node.Scalar() };
+    auto && [ arg, arg_errata ] { parse_arg(key) };
+    if (!arg_errata.is_ok()) {
+      return std::move(arg_errata);
+    }
     if (key == Directive::DO_KEY) {
       continue;
     }
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to comparison. First key that is in the factory determines the comparison type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      auto &&[worker, types] = spot->second;
+      auto &&[loader, types] = spot->second;
       if (! types[IndexFor(ftype)]) {
         return Error(R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark(), ftype);
       }
 
-      auto &&[handle, errata]{worker(cfg, node, value_node)};
+      auto &&[handle, errata]{loader(cfg, node, key, arg, value_node)};
 
       if (!errata.is_ok()) {
         return std::move(errata);
@@ -59,341 +69,525 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Nod
 /** Utility base class for comparisons that are based on literal string matching.
  * This is @b not intended to be used as a comparison itself.
  */
-class StringComparison: public Comparison {
-  using self_type = StringComparison; ///< Self reference type.
+class Cmp_String: public Comparison {
+  using self_type = Cmp_String; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
+  static constexpr TextView NO_CASE_OPT { "nc" };
+
+protected:
+  union Options {
+    unsigned int all;
+    struct {
+      unsigned int nc : 1;
+    } f;
+    Options() { all = 0; } // Force zero initialization.
+  };
+
+  static Rv<Options> parse_options(TextView options);
+};
+
+Rv<Cmp_String::Options> Cmp_String::parse_options(TextView options) {
+  Options zret;
+  while (options) {
+    auto token = options.take_prefix_at(',');
+    if (0 == strcasecmp(NO_CASE_OPT, token)) {
+      zret.f.nc = true;
+    } else {
+      return Error(R"("{}" is not a valid option for a string comparison.)", token);
+    }
+  }
+  return zret;
+}
+
+// ---
+// Specialized subclasses for the various options.
+
+/// Base case for literal string comparisons.
+class Cmp_LiteralString : public Cmp_String {
+public:
+  static constexpr TextView MATCH_KEY { "match" };
+  static constexpr TextView CONTAIN_KEY { "contain" };
+  static constexpr TextView PREFIX_KEY { "prefix" };
+  static constexpr TextView SUFFIX_KEY { "suffix" };
+  static constexpr TextView TLD_KEY { "tld" };
+
   /// Mark for @c STRING support only.
   static const ValueMask TYPES;
 
-protected:
-  Extractor::Format _exfmt; ///< String for comparison.
-
-  /// Load up the string, accounting for extraction and types.
-  static Rv<Extractor::Format> load_exfmt(Config& cfg, YAML::Node cmp_node, YAML::Node key_node, std::string const& KEY);
-
-  /// Internal constructor used by @c load.
-  explicit StringComparison(Extractor::Format && exf);
-};
-
-const ValueMask StringComparison::TYPES { MaskFor(ValueType::STRING) };
-
-StringComparison::StringComparison(Extractor::Format &&exf) : _exfmt(std::move(exf)) {}
-
-Rv<Extractor::Format> StringComparison::load_exfmt(Config &cfg, YAML::Node cmp_node, YAML::Node key_node, std::string const& KEY) {
-  auto &&[exfmt, errata]{cfg.parse_feature(key_node)};
-
-  if (!errata.is_ok()) {
-    errata.info(R"(While parsing comparison "{}" at {}.)", KEY, cmp_node.Mark());
-    return std::move(errata);
-  }
-
-  if (!TYPES[IndexFor(exfmt._result_type)]) {
-    errata.error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
-                 , exfmt._result_type, KEY, cmp_node.Mark());
-    return std::move(errata);
-  }
-  return std::move(exfmt);
-}
-
-/* ------------------------------------------------------------------------------------ */
-/// Direct / exact string matching.
-class Cmp_Match : public StringComparison {
-  using self_type = Cmp_Match;
-  using super_type = StringComparison;
-public:
-  /// Identifier for this comparison.
-  static const std::string KEY;
-
-  /** Instantiate an instance from YAML configuration.
-   *
-   * @param cfg Global configuration object.
-   * @param cmp_node The node containing the comparison.
-   * @param key_node The node in @a cmp_node that identified this comparison.
-   * @return An instance or errors on failure.
-   */
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
   /** Compare @a text for a match.
    *
    * @param ctx The transaction context.
    * @param text The feature to compare.
    * @return @c true if @a text matches, @c false otherwise.
+   *
+   * External API - required as a @c Comparison.
    */
   bool operator() (Context& ctx, FeatureView& text) const override;
-
-protected:
-  using super_type::super_type;
-};
-
-const std::string Cmp_Match::KEY { "match" };
-
-bool Cmp_Match::operator()(Context& ctx, FeatureView& text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return text == std::get<STRING>(feature);
-}
-
-Rv<Comparison::Handle> Cmp_Match::load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
-  }
-  exfmt._result_type = STRING;
-  return { Handle{new self_type(std::move(exfmt))}, {} };
-}
-
-/* ------------------------------------------------------------------------------------ */
-/// Direct / exact string matching, case insensitive.
-class Cmp_MatchNocase : public StringComparison {
-  using self_type = Cmp_MatchNocase;
-  using super_type = StringComparison;
-public:
-  /// Identifier for this comparison.
-  static const std::string KEY;
 
   /** Instantiate an instance from YAML configuration.
    *
    * @param cfg Global configuration object.
    * @param cmp_node The node containing the comparison.
-   * @param key_node The node in @a cmp_node that identified this comparison.
+   * @param key Key for comparison.
+   * @param arg Argument for @a key, if any (stripped from @a key).
+   * @param value_node Value node for for @a key.
    * @return An instance or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
-  /** Compare @a text for a match.
+protected:
+  Expr _expr; ///< To be compared to active feature.
+
+  Cmp_LiteralString(Expr && expr);
+
+  /** Specialized comparison.
    *
-   * @param ctx The transaction context.
-   * @param text The feature to compare.
-   * @return @c true if @a text matches, @c false otherwise.
+   * @param ctx Runtime context.
+   * @param text Configured value to check with.
+   * @param active Active value to be compred to configured value.
+   * @return @c true on match @c false otherwise.
+   *
+   * This class will handle extracting the stored expression and pass it piecewise (if needed)
+   * to the specialized subclass. @a text is the extracted text, @a active is the value passed
+   * in at run time to check.
    */
-  bool operator() (Context& ctx, FeatureView& text) const override;
+  virtual bool operator()(Context & ctx, TextView const& text, FeatureView & active) const = 0;
 
-protected:
-  using super_type::super_type;
+  struct expr_validator {
+    bool _nested_p = false;
+
+    bool operator () (std::monostate const& nil) { return false; }
+    bool operator () (Feature const& f) { return ValueTypeOf(f) == STRING; }
+    bool operator () (Expr::Direct const& d) { return d._result_type == STRING; }
+    bool operator () (Expr::Composite const& comp) { return true; }
+    bool operator () (Expr::List const& list) {
+      return !_nested_p && std::all_of(list._exprs.begin(), list._exprs.end(), [](Expr const& x) {
+        return std::visit(expr_validator{true}, x._expr);
+      });
+    }
+  };
 };
 
-const std::string Cmp_MatchNocase::KEY { "match-nocase" };
+const ValueMask Cmp_LiteralString::TYPES = MaskFor({ STRING, TUPLE });
 
-bool Cmp_MatchNocase::operator()(Context& ctx, FeatureView& text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return 0 == strcasecmp(text, std::get<STRING>(feature));
-}
+Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
 
-Rv<Comparison::Handle> Cmp_MatchNocase::load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
+bool Cmp_LiteralString::operator()(Context &ctx, FeatureView &active) const {
+  Feature f { ctx.extract(_expr)};
+  if (auto view = std::get_if<IndexFor(STRING)>(&f) ; nullptr != view) {
+    return (*this)(ctx, *view, active);
+  } else if ( auto t = std::get_if<IndexFor(TUPLE)>(&f) ; nullptr != t) {
+    return std::any_of(t->begin(), t->end(), [&](Feature & f) -> bool {
+      auto view = std::get_if<IndexFor(STRING)>(&f);
+      return view && (*this)(ctx, *view, active);
+    });
   }
-  return { Handle{new self_type(std::move(exfmt))}, {} };
+  return false;
 }
 
-/* ------------------------------------------------------------------------------------ */
-/** Compare a suffix.
- * This matches if the suffix of the feature is the same as the static value.
- */
-class Cmp_Suffix : public StringComparison {
-  using self_type = Cmp_Suffix; ///< Self reference type.
-  using super_type = StringComparison; ///< Parent type.
-public:
-  /// Name of comparison.
-  static const std::string KEY;
-
-  /// Test for suffix being @a text.
-  bool operator() (Context& ctx, FeatureView& text) const override;
-
-  /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
+/// Match entire string.
+class Cmp_MatchStd : public Cmp_LiteralString {
 protected:
-  using super_type::super_type;
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
 };
 
-const std::string Cmp_Suffix::KEY { "suffix" };
-
-bool Cmp_Suffix::operator()(Context &ctx, FeatureView &text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return text.ends_with(std::get<IndexFor(STRING)>(feature));
-}
-
-Rv<Comparison::Handle> Cmp_Suffix::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
-  }
-  return { Handle{new self_type(std::move(exfmt))}, {} };
-}
-
-/* ------------------------------------------------------------------------------------ */
-/** Compare a suffix.
- * This matches if the suffix of the feature is the same as the static value.
- */
-class Cmp_SuffixNocase : public StringComparison {
-  using self_type = Cmp_SuffixNocase; ///< Self reference type.
-  using super_type = StringComparison; ///< Parent type.
-public:
-  /// Name of comparison.
-  static const std::string KEY;
-
-  /// Test for suffix being @a text.
-  bool operator() (Context& ctx, FeatureView& text) const override;
-
-  /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
-protected:
-  using super_type::super_type;
-};
-
-const std::string Cmp_SuffixNocase::KEY { "suffix-nocase" };
-
-bool Cmp_SuffixNocase::operator()(Context &ctx, FeatureView &text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return text.ends_with_nocase(std::get<IndexFor(STRING)>(feature));
-}
-
-Rv<Comparison::Handle> Cmp_SuffixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
-  }
-  return { Handle{new self_type(std::move(exfmt))}, {} };
-}
-
-/* ------------------------------------------------------------------------------------ */
-/** Compare a prefix.
- * This matches if the prefix of the feature is the same as the static value.
- */
-class Cmp_Prefix : public StringComparison {
-  using self_type = Cmp_Prefix; ///< Self reference type.
-  using super_type = StringComparison; ///< Parent type.
-public:
-  /// Name of comparison.
-  static const std::string KEY;
-
-  /// Test for prefix being @a text.
-  bool operator() (Context& ctx, FeatureView& text) const override;
-
-  /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
-protected:
-  using super_type::super_type;
-};
-
-const std::string Cmp_Prefix::KEY { "prefix" };
-
-bool Cmp_Prefix::operator()(Context &ctx, FeatureView &text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return text.starts_with(std::get<IndexFor(STRING)>(feature));
-}
-
-Rv<Comparison::Handle> Cmp_Prefix::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
-  }
-  return { Handle{new self_type(std::move(exfmt))}, {} };
-}
-
-/* ------------------------------------------------------------------------------------ */
-/** Compare a prefix.
- * This matches if the prefix of the feature is the same as the static value.
- */
-class Cmp_PrefixNocase : public StringComparison {
-  using self_type = Cmp_PrefixNocase; ///< Self reference type.
-  using super_type = StringComparison; ///< Parent type.
-public:
-  /// Name of comparison.
-  static const std::string KEY;
-
-  /// Test for prefix being @a text.
-  bool operator() (Context& ctx, FeatureView& text) const override;
-
-  /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
-protected:
-  using super_type::super_type;
-};
-
-const std::string Cmp_PrefixNocase::KEY { "prefix-nocase" };
-
-bool Cmp_PrefixNocase::operator()(Context &ctx, FeatureView &text) const {
-  Feature feature { ctx.extract(_exfmt) };
-  return text.starts_with_nocase(std::get<IndexFor(STRING)>(feature));
-}
-
-Rv<Comparison::Handle> Cmp_PrefixNocase::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ exfmt, errata ] { super_type::load_exfmt(cfg, cmp_node, key_node, KEY) };
-  if (! errata.is_ok()) {
-    return { {}, std::move(errata) };
-  }
-  return { Handle{new self_type(std::move(exfmt))}, {} };
-}
-
-/* ------------------------------------------------------------------------------------ */
-class Cmp_RegexMatch : public Comparison {
-  using self_type = Cmp_RegexMatch;
-  using super_type = Comparison;
-public:
-  /// Standard key.
-  static const std::string KEY;
-  /// Case insensitive comparison key.
-  static const std::string KEY_NOCASE;
-  /// Valid types for this comparison.
-  static const ValueMask TYPES;
-
-  bool operator() (Context& ctx, FeatureView& text) const override;
-  unsigned rxp_group_count() const override;
-
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
-
-protected:
-  Rxp _rxp; ///< regular expression to match.
-  bool _caseless_p = false;
-
-  explicit Cmp_RegexMatch(Rxp && rxp) : _rxp(std::move(rxp)) {}
-};
-
-const std::string Cmp_RegexMatch::KEY { "regex" };
-const std::string Cmp_RegexMatch::KEY_NOCASE { "regex-nocase" };
-const ValueMask Cmp_RegexMatch::TYPES { MaskFor(STRING) };
-
-unsigned Cmp_RegexMatch::rxp_group_count() const { return _rxp.capture_count(); }
-
-Rv<Comparison::Handle> Cmp_RegexMatch::load(Config &cfg, YAML::Node cmp_node, YAML::Node key_node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(key_node) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" comparison value at {}.)", KEY, cmp_node.Mark());
-    return { {}, std::move(errata) };
-  }
-  if (! fmt._literal_p) {
-    return Error(R"(Dynamic regular expression support is not yet implemented at {}.)", key_node.Mark());
-  }
-  // Handle empty format / string?
-  Rxp::OptionGroup rxp_opt;
-  if (cmp_node[KEY_NOCASE] == key_node) {
-    rxp_opt[Rxp::OPT_NOCASE] = true;
-  }
-  auto && [ rxp, rxp_errata ] { Rxp::parse(fmt[0]._ext, rxp_opt) }; // Config coalesced the literals.
-  if (! rxp_errata.is_ok()) {
-    rxp_errata.info(R"(While parsing "{}" value at {}.)", KEY, key_node.Mark());
-    return { {}, std::move(rxp_errata) };
-  }
-
-  cfg.require_rxp_group_count(rxp.capture_count());
-  return { Handle(new self_type(std::move(rxp))), {} };
-}
-
-bool Cmp_RegexMatch::operator()(Context& ctx, FeatureView &text) const {
-  auto result = _rxp(text, ctx._rxp_working);
-  if (result > 0) {
-    // Update context to have this match as the active capture groups.
-    ctx.promote_capture_data();
-    ctx._rxp_src = text;
+bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (text == active) {
+    ctx.set_literal_capture(active);
+    active = TextView{}; // matched everything, clear active feature.
     return true;
   }
   return false;
+}
+
+/// Match entire string, ignoring case
+class Cmp_MatchNC : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (0 == strcasecmp(text,active)) {
+    ctx.set_literal_capture(active);
+    active = TextView{}; // matched everything, clear active feature.
+    return true;
+  }
+  return false;
+}
+
+class Cmp_Suffix : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.ends_with(text)) {
+    ctx.set_literal_capture(active.suffix(text.size()));
+    active.remove_suffix(text.size());
+    return true;
+  }
+  return false;
+}
+
+class Cmp_SuffixNC : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.ends_with_nocase(text)) {
+    ctx.set_literal_capture(active.suffix(text.size()));
+    active.remove_suffix(text.size());
+    return true;
+  }
+  return false;
+}
+
+class Cmp_Prefix : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.starts_with(text)) {
+    ctx.set_literal_capture(active.suffix(text.size()));
+    active.remove_prefix(text.size());
+    return true;
+  }
+  return false;
+}
+
+class Cmp_PrefixNC : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.starts_with_nocase(text)) {
+    ctx.set_literal_capture(active.suffix(text.size()));
+    active.remove_prefix(text.size());
+    return true;
+  }
+  return false;
+}
+
+class Cmp_Contain : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_Contain::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (auto idx = active.find(text) ; idx != TextView::npos) {
+    if (ctx._update_remainder_p) {
+      auto n = active.size() - text.size();
+      auto span = ctx._arena->alloc(n).rebind<char>();
+      memcpy(span, active.prefix(idx));
+      memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
+      ctx.set_literal_capture(span.view());
+    }
+    return true;
+  }
+  return false;
+}
+
+class Cmp_ContainNC : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_ContainNC::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (text.size() <= active.size()) {
+    auto spot = std::search(active.begin(), active.end(), text.begin(), text.end()
+                            , [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
+    if (spot != active.end()) {
+      if (ctx._update_remainder_p) {
+        size_t idx = spot - active.begin();
+        auto n = active.size() - text.size();
+        auto span = ctx._arena->alloc(n).rebind<char>();
+        memcpy(span, active.prefix(idx));
+        memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
+        ctx.set_literal_capture(span.view());
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+class Cmp_TLD : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_TLD::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.ends_with(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
+    ctx.set_literal_capture(active.suffix(text.size()+1));
+    ctx._remainder = active;
+    ctx._remainder.remove_suffix(text.size()+1);
+    return true;
+  }
+  return false;
+}
+
+class Cmp_TLDNC : public Cmp_LiteralString {
+protected:
+  using Cmp_LiteralString::Cmp_LiteralString;
+  bool operator() (Context & ctx, TextView const& text, FeatureView & active) const override;
+};
+
+bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, FeatureView & active) const {
+  if (active.ends_with_nocase(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
+    ctx.set_literal_capture(active.suffix(text.size()+1));
+    active.remove_suffix(text.size()+1);
+    return true;
+  }
+  return false;
+}
+// ---
+
+Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  auto &&[expr, errata]{cfg.parse_expr(value_node)};
+
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
+    return std::move(errata);
+  }
+
+  auto && [ options, opt_errata ] { parse_options(arg) };
+  if (! opt_errata.is_ok()) {
+    opt_errata.info(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
+    return std::move(opt_errata);
+  }
+
+  auto expr_type = expr.result_type();
+  if (!TYPES[IndexFor(expr_type)]) {
+    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
+                 , expr_type, key, cmp_node.Mark());
+  }
+
+  if (TUPLE == expr_type && ! std::visit(expr_validator{}, expr._expr)) {
+    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported - lists must be of string values only.)"
+                 , expr_type, key, cmp_node.Mark());
+  }
+
+  if (MATCH_KEY == key) {
+    return options.f.nc
+    ? Handle { new Cmp_MatchNC(std::move(expr)) }
+    : Handle { new Cmp_MatchStd(std::move(expr)) };
+  } else if (PREFIX_KEY == key) {
+    return options.f.nc
+      ? Handle{new Cmp_PrefixNC(std::move(expr))}
+      : Handle{new Cmp_Prefix(std::move(expr))};
+  } else if (SUFFIX_KEY == key) {
+    return options.f.nc
+      ? Handle{new Cmp_SuffixNC(std::move(expr))}
+      : Handle{new Cmp_Suffix(std::move(expr))};
+  } else if (CONTAIN_KEY == key) {
+    return options.f.nc
+    ? Handle(new Cmp_Contain(std::move(expr)))
+    : Handle(new Cmp_ContainNC(std::move(expr)));
+  } else if (TLD_KEY == key) {
+    return options.f.nc
+           ? Handle(new Cmp_TLDNC(std::move(expr)))
+           : Handle(new Cmp_TLD(std::move(expr)));
+  }
+
+  return Error(R"(Internal error, unrecognized key "{}".)", key);
+}
+/* ------------------------------------------------------------------------------------ */
+class Cmp_Rxp : public Cmp_String {
+  using self_type = Cmp_Rxp;
+  using super_type = Cmp_String;
+
+public:
+  static constexpr TextView KEY { "rxp" };
+  static const ValueMask TYPES;
+
+  static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+
+protected:
+  using Item = std::variant<Rxp, Expr>;
+
+  struct expr_visitor {
+    expr_visitor(Config & cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
+
+    Rv<Handle> operator() (Feature & f);
+    Rv<Handle> operator() (Expr::List & l);
+    Rv<Handle> operator() (Expr::Direct & d);
+    Rv<Handle> operator() (Expr::Composite & comp);
+    template < typename T > Rv<Handle> operator() (T &) { return Error("Invalid feature type"); }
+
+    Config & _cfg;
+    Rxp::Options _rxp_opt;
+  };
+
+  struct rxp_visitor {
+    bool operator() (Rxp const& rxp);
+    bool operator() (Expr const& expr);
+
+    Context & _ctx;
+    Rxp::Options _rxp_opt;
+    TextView _src;
+  };
+};
+
+class Cmp_RxpSingle : public Cmp_Rxp {
+  using self_type = Cmp_RxpSingle;
+  using super_type = Cmp_Rxp;
+public:
+  Cmp_RxpSingle(Expr && expr, Rxp::Options);
+  Cmp_RxpSingle(Rxp && rxp);
+protected:
+  bool operator()(Context &ctx, FeatureView &active) const override;
+
+  Rxp::Options _opt;
+  Item _rxp;
+};
+
+class Cmp_RxpList : public Cmp_Rxp {
+  using self_type = Cmp_RxpList;
+  using super_type = Cmp_Rxp;
+  friend super_type;
+public:
+  Cmp_RxpList(Rxp::Options opt) : _opt(opt) {}
+protected:
+  struct expr_visitor {
+    Errata operator() (Feature & f) {
+      if (IndexFor(STRING) != f.index()) {
+        return Error(R"("{}" literal must be a string.)", KEY);
+      }
+
+      auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
+      if (! rxp_errata.is_ok()) {
+        rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
+        return std::move(rxp_errata);
+      }
+      _rxp.emplace_back(std::move(rxp));
+      return {};
+    }
+    Errata operator() (Expr::List & t) {
+      return Error("Invalid type");
+    }
+    Errata operator() (Expr::Direct & d) {
+      _rxp.emplace_back(Expr{std::move(d)});
+      return {};
+    }
+    Errata operator() (Expr::Composite & comp) {
+      _rxp.emplace_back(Expr{std::move(comp)});
+      return {};
+    }
+    Errata operator() (std::monostate) {
+      return Error("Invalid type");
+    }
+
+    std::vector<Item> &_rxp;
+    Rxp::Options _rxp_opt;
+  };
+
+  bool operator()(Context &ctx, FeatureView &active) const override;
+
+  Rxp::Options _opt;
+  std::vector<Item> _rxp;
+};
+
+const ValueMask Cmp_Rxp::TYPES {MaskFor({ STRING, ACTIVE }) };
+
+bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
+  auto result = rxp(_src, _ctx.rxp_working_match_data());
+  if (result > 0) {
+    _ctx.rxp_commit_match(_src);
+    return true;
+  }
+  return false;
+}
+
+bool Cmp_Rxp::rxp_visitor::operator() (Expr const& expr) {
+  auto f = _ctx.extract(expr);
+  if (auto text = std::get_if<IndexFor(STRING)>(&f) ; text != nullptr ) {
+    auto &&[rxp, rxp_errata]{Rxp::parse(*text, _rxp_opt)};
+    if (rxp_errata.is_ok()) {
+      return (*this)(rxp);
+    }
+  }
+  return false;
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Feature & f) {
+  if (IndexFor(STRING) != f.index()) {
+    return Error(R"("{}" literal must be a string.)", KEY);
+  }
+
+  auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
+  if (! rxp_errata.is_ok()) {
+    rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
+    return std::move(rxp_errata);
+  }
+  return Handle(new Cmp_RxpSingle(std::move(rxp)));
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Direct & d) {
+  return Handle(new Cmp_RxpSingle(Expr{std::move(d)}, _rxp_opt));
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Composite & comp) {
+  return Handle(new Cmp_RxpSingle(Expr{std::move(comp)}, _rxp_opt));
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::List & l) {
+  auto rxm = new Cmp_RxpList{_rxp_opt};
+  Cmp_RxpList::expr_visitor ev {rxm->_rxp, _rxp_opt};
+  for ( auto && elt : l._exprs) {
+    if (elt.result_type() != STRING) {
+      return Error(R"("{}" literal must be a string.)", KEY);
+    }
+    std::visit(ev, elt._expr);
+  }
+  return Handle { rxm };
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  auto &&[expr, errata]{cfg.parse_expr(value_node)};
+
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
+    return std::move(errata);
+  }
+
+  auto &&[options, opt_errata]{self_type::parse_options(arg)};
+  if (!opt_errata.is_ok()) {
+    opt_errata.info(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
+    return std::move(opt_errata);
+  }
+
+  Rxp::Options rxp_opt;
+  rxp_opt.f.nc = options.f.nc;
+  return std::visit(expr_visitor{cfg, rxp_opt}, expr._expr);
+}
+
+Cmp_RxpSingle::Cmp_RxpSingle(Expr && expr, Rxp::Options opt) : _rxp(std::move(expr)), _opt(opt) {
+}
+
+Cmp_RxpSingle::Cmp_RxpSingle(Rxp && rxp) : _rxp(std::move(rxp)) {
+}
+
+bool Cmp_RxpSingle::operator()(Context & ctx, FeatureView & active) const {
+  return std::visit(rxp_visitor{ctx, _opt, active}, _rxp);
+}
+
+bool Cmp_RxpList::operator()(Context &ctx, FeatureView &active) const {
+  return std::any_of(_rxp.begin(), _rxp.end(), [&](Item const&item) {
+    return std::visit(rxp_visitor{ctx, _opt}, item);
+  });
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -511,25 +705,34 @@ public:
     return P(data, std::get<IndexFor(INTEGER)>(value));
   }
 
-  /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node);
+  /** Instantiate an instance from YAML configuration.
+   *
+   * @param cfg Global configuration object.
+   * @param cmp_node The node containing the comparison.
+   * @param key Key for comparison.
+   * @param arg Argument for @a key, if any (stripped from @a key).
+   * @param value_node Value node for for @a key.
+   * @return An instance or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
-  Extractor::Format _value_fmt;
+  Expr _value_fmt;
 
-  Cmp_Binary_Integer(Extractor::Format && fmt) : _value_fmt(std::move(fmt)) {}
+  Cmp_Binary_Integer(Expr && fmt) : _value_fmt(std::move(fmt)) {}
 };
 
 template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
-Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const& cmp_node, YAML::Node const& key_node) {
-  auto && [ fmt, errata ] = cfg.parse_feature(key_node);
+Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  auto && [ expr, errata ] = cfg.parse_expr(value_node);
   if (!errata.is_ok()) {
-    return { {}, std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, key_node.Mark())) };
+    return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, value_node.Mark()));
   }
-  if (!TYPES[fmt._result_type]) {
-    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", fmt._result_type, KEY, key_node.Mark(), TYPES);
+  auto expr_type = expr.result_type();
+  if (!TYPES[expr_type]) {
+    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", expr_type, KEY, value_node.Mark(), TYPES);
   }
-  return { Handle(new self_type(std::move(fmt))), {} };
+  return Handle(new self_type(std::move(expr)));
 }
 
 using Cmp_eq = Cmp_Binary_Integer<eq>;
@@ -549,16 +752,13 @@ template<> const std::string Cmp_ge::KEY { "ge" };
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Comparison::define(Cmp_Match::KEY, Cmp_Match::TYPES, Cmp_Match::load);
-  Comparison::define(Cmp_MatchNocase::KEY, Cmp_MatchNocase::TYPES, Cmp_MatchNocase::load);
-  Comparison::define(Cmp_Suffix::KEY, Cmp_Suffix::TYPES, &Cmp_Suffix::load);
-  Comparison::define(Cmp_SuffixNocase::KEY, Cmp_SuffixNocase::TYPES, Cmp_SuffixNocase::load);
-  Comparison::define(Cmp_Prefix::KEY, Cmp_Prefix::TYPES, &Cmp_Prefix::load);
-  Comparison::define(Cmp_PrefixNocase::KEY, Cmp_PrefixNocase::TYPES, Cmp_PrefixNocase::load);
-  Comparison::define(Cmp_RegexMatch::KEY, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
-  Comparison::define(Cmp_RegexMatch::KEY_NOCASE, Cmp_RegexMatch::TYPES, Cmp_RegexMatch::load);
-  Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
-  Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+  Comparison::define(Cmp_LiteralString::MATCH_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+  Comparison::define(Cmp_LiteralString::PREFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+  Comparison::define(Cmp_LiteralString::SUFFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+  Comparison::define(Cmp_LiteralString::CONTAIN_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+  Comparison::define(Cmp_LiteralString::TLD_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+
+  Comparison::define(Cmp_Rxp::KEY, Cmp_Rxp::TYPES, Cmp_Rxp::load);
 
   Comparison::define(Cmp_eq::KEY, Cmp_eq::TYPES, Cmp_eq::load);
   Comparison::define(Cmp_ne::KEY, Cmp_ne::TYPES, Cmp_ne::load);

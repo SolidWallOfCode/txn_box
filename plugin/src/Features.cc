@@ -20,6 +20,7 @@
 using swoc::TextView;
 using swoc::BufferWriter;
 using swoc::Errata;
+using swoc::Rv;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
@@ -31,10 +32,50 @@ swoc::Lexicon<ValueType> ValueTypeNames {{
   , { ValueType::IP_ADDR, "IP address"}
   , { ValueType::CONS, "cons" }
   , { ValueType::TUPLE, "tuple" }
+  , { ValueType::GENERIC, "generic"}
   , { ValueType::VARIABLE, "var" }
   , { ValueType::ACTIVE, "active" }
 }};
 
+/* ------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------ */
+Feature car(Feature const& feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      return std::get<IndexFor(CONS)>(feature)->_car;
+    case IndexFor(TUPLE):
+      return std::get<IndexFor(TUPLE)>(feature)[0];
+    case IndexFor(GENERIC):{
+      auto gf = std::get<IndexFor(GENERIC)>(feature);
+      if (gf) {
+        return gf->extract();
+      }
+    }
+  }
+  return feature;
+}
+
+Feature & cdr(Feature & feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      feature = std::get<feature_type_for<CONS>>(feature)->_cdr;
+    case IndexFor(TUPLE): {
+      Feature cdr { feature };
+      auto &span = std::get<feature_type_for<TUPLE>>(cdr);
+      span.remove_prefix(1);
+      feature = span.empty() ? NIL_FEATURE : cdr;
+    }
+    case IndexFor(GENERIC): {
+      auto & generic = std::get<feature_type_for<GENERIC>>(feature);
+      if (TupleIterator::TAG == generic->_tag) {
+        static_cast<TupleIterator*>(generic)->advance();
+      } else {
+        feature = NIL_FEATURE;
+      }
+    }
+  }
+  return feature;
+}
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
@@ -79,9 +120,7 @@ class Ex_var : public Extractor {
 public:
   static constexpr TextView NAME { "var" };
 
-  ValueType result_type() const override { return VARIABLE; }
-
-  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const&) override;
@@ -89,11 +128,11 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Errata Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
+Rv<ValueType> Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
   auto name = cfg.span<feature_type_for<STRING>>(1);
   spec._data = name.rebind<void>();
   name[0] = cfg.localize(arg);
-  return {};
+  return VARIABLE;
 }
 
 Feature Ex_var::extract(Context &ctx, Spec const& spec) {
@@ -126,15 +165,15 @@ BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ct
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_url_host : public DirectFeature {
+class Ex_creq_url_host : public Extractor {
 public:
   static constexpr TextView NAME { "creq-url-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-FeatureView Ex_creq_url_host::direct_view(Context &ctx, Spec const&) const {
+Feature Ex_creq_url_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -146,19 +185,19 @@ FeatureView Ex_creq_url_host::direct_view(Context &ctx, Spec const&) const {
 }
 
 BufferWriter& Ex_creq_url_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_method : public DirectFeature {
+class Ex_creq_method : public Extractor {
 public:
   static constexpr TextView NAME { "creq-method" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec)  override;
 };
 
-FeatureView Ex_creq_method::direct_view(Context &ctx, Spec const&) const {
+Feature Ex_creq_method::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -168,18 +207,18 @@ FeatureView Ex_creq_method::direct_view(Context &ctx, Spec const&) const {
 }
 
 BufferWriter& Ex_creq_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_scheme : public DirectFeature {
+class Ex_creq_scheme : public Extractor {
 public:
   static constexpr TextView NAME { "creq-scheme" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-FeatureView Ex_creq_scheme::direct_view(Context &ctx, Spec const&) const {
+Feature Ex_creq_scheme::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -191,18 +230,18 @@ FeatureView Ex_creq_scheme::direct_view(Context &ctx, Spec const&) const {
 }
 
 BufferWriter& Ex_creq_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_path : public DirectFeature {
+class Ex_creq_path : public Extractor {
 public:
   static constexpr TextView NAME { "creq-path" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-FeatureView Ex_creq_path::direct_view(Context &ctx, Spec const&) const {
+Feature Ex_creq_path::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -214,18 +253,18 @@ FeatureView Ex_creq_path::direct_view(Context &ctx, Spec const&) const {
 }
 
 BufferWriter& Ex_creq_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_host : public DirectFeature {
+class Ex_creq_host : public Extractor {
 public:
   static constexpr TextView NAME { "creq-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const&) const override;
+  Feature extract(Context & ctx, Spec const&) override;
 };
 
-FeatureView Ex_creq_host::direct_view(Context &ctx, Spec const&) const {
+Feature Ex_creq_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -242,24 +281,24 @@ FeatureView Ex_creq_host::direct_view(Context &ctx, Spec const&) const {
 }
 
 BufferWriter& Ex_creq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_field : public DirectFeature {
+class Ex_creq_field : public Extractor {
 public:
   static constexpr TextView NAME { "creq-field" };
 
-  swoc::Errata validate(Config & cfg, Spec & spec, TextView const& arg) override {
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
     spec._data.assign(const_cast<char*>(arg.data()), arg.size());
-    return {};
+    return STRING;
   }
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-FeatureView Ex_creq_field::direct_view(Context &ctx, Spec const& spec) const {
+Feature Ex_creq_field::extract(Context &ctx, Spec const& spec) {
   FeatureView zret;
   zret._direct_p = true;
   zret = TextView{};
@@ -272,8 +311,117 @@ FeatureView Ex_creq_field::direct_view(Context &ctx, Spec const& spec) const {
 };
 
 BufferWriter& Ex_creq_field::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
+/* ------------------------------------------------------------------------------------ */
+class ExHttpField : public Extractor {
+public:
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
+    auto span = cfg.span<Data>(1);
+    spec._data = span;
+    auto & data = span[0];
+    data._arg = cfg.localize(arg);
+    if (0 == strcasecmp(spec._ext, "by-field"_tv)) {
+      data.opt.f.by_field = true;
+    } else if (0 == strcasecmp(spec._ext, "by-value"_tv)) {
+      data.opt.f.by_value = true;
+    }
+    return data.opt.f.by_field ? GENERIC : STRING;
+  }
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+
+protected:
+  struct Data {
+    TextView _arg;
+    union {
+      uint32_t all = 0;
+      struct {
+        unsigned by_value : 1;
+        unsigned by_field : 1;
+      } f;
+    } opt;
+  };
+
+  /// @return The key (name) for the extractor.
+  virtual TextView const& key() const = 0;
+  virtual ts::HttpHeader hdr(Context & ctx) const = 0;
+};
+
+Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
+  Data & data = spec._data.rebind<Data>()[0];
+  if (data.opt.f.by_field) {
+    auto iter = ctx._arena->make<HttpFieldTuple>(this->key(), this->hdr(ctx), data._arg);
+    return iter;
+  } else if (data.opt.f.by_value) {
+    return NIL_FEATURE;
+  }
+
+  FeatureView zret;
+  zret._direct_p = true;
+  zret = TextView{};
+  if ( ts::HttpHeader hdr { this->hdr(ctx) } ; hdr.is_valid()) {
+    if ( auto field { hdr.field(spec._data.view()) } ; field.is_valid()) {
+      zret = field.value();
+    }
+  }
+  return zret;
+};
+
+BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+// -----
+class Ex_prsp_field : public ExHttpField {
+public:
+  static constexpr TextView NAME { "prsp-field" };
+
+protected:
+  TextView const& key() const override;
+  ts::HttpHeader hdr(Context & ctx) const override;
+};
+
+TextView const& Ex_prsp_field::key() const { return NAME; }
+ts::HttpHeader Ex_prsp_field::hdr(Context & ctx) const {
+  return ctx.prsp_hdr();
+}
+// -----
+class Ex_ursp_field : public ExHttpField {
+public:
+  static constexpr TextView NAME { "ursp-field" };
+
+protected:
+  TextView const& key() const override;
+  ts::HttpHeader hdr(Context & ctx) const override;
+};
+
+TextView const& Ex_ursp_field::key() const { return NAME; }
+ts::HttpHeader Ex_ursp_field::hdr(Context & ctx) const {
+  return ctx.ursp_hdr();
+}
+
+void HttpFieldTuple::update() {
+  if (_current.is_valid()) {
+    _next = _current.next_dup();
+  } else {
+    _next = ts::HttpField{};
+  }
+}
+
+HttpFieldTuple& HttpFieldTuple::rewind() {
+  _current = _hdr.field(_name);
+  this->update();
+  return *this;
+}
+
+void HttpFieldTuple::advance() {
+  std::swap(_next, _current);
+  this->update();
+}
+
+Feature HttpFieldTuple::extract() const { return _current.value(); }
 
 /* ------------------------------------------------------------------------------------ */
 class Ex_ursp_status : public IntegerExtractor {
@@ -314,22 +462,51 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the SNI name from the inbound session.
-class Ex_cssn_sni : public DirectFeature {
-  using self_type = Ex_cssn_sni; ///< Self reference type.
-  using super_type = DirectFeature; ///< Parent type.
+class Ex_cssn_sni : public Extractor {
 public:
   static constexpr TextView NAME { "cssn-sni" };
   /// Extract the SNI  name from the inbound session.
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  FeatureView direct_view(Context & ctx, Spec const& spec) const override;
+  Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-FeatureView Ex_cssn_sni::direct_view(Context & ctx, Spec const& spec) const {
+Feature Ex_cssn_sni::extract(Context & ctx, Spec const& spec) {
   return ctx._txn.ssn().inbound_sni();
 }
 
 BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->direct_view(ctx, spec));
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+/// Client Session protocol information.
+class Ex_cssn_proto : public StringExtractor {
+  using self_type = Ex_cssn_proto; ///< Self reference type.
+  using super_type = StringExtractor; ///< Parent type.
+public:
+  static constexpr TextView NAME { "cssn-proto" };
+
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Rv<ValueType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &arg) {
+  if (arg.empty()) {
+    return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
+  }
+  auto text = cfg.span<char>(arg.size() + 1);
+  auto view = cfg.span<TextView>(1);
+  memcpy(text, arg);
+  text[arg.size()] = 0; // API call, need C string.
+  view[0].assign(text.data(), arg.size() + 1);
+  spec._data = view.rebind<void>();
+  return STRING;
+}
+
+BufferWriter& Ex_cssn_proto::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  auto view = spec._data.rebind<TextView>()[0];
+  auto tag = ctx._txn.ssn().proto_contains(view);
+  return bwformat(w, spec, tag);
 }
 /* ------------------------------------------------------------------------------------ */
 class Ex_random : public IntegerExtractor {
@@ -338,7 +515,7 @@ class Ex_random : public IntegerExtractor {
 public:
   static constexpr TextView NAME { "random" };
 
-  Errata validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const& spec) override;
@@ -361,7 +538,7 @@ BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Co
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
-Errata Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto values = cfg.span<feature_type_for<INTEGER>>(2);
   spec._data = values.rebind<void>();
   feature_type_for<INTEGER> min = 0, max = 99;
@@ -393,35 +570,52 @@ Errata Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &a
 
   values[0] = min;
   values[1] = max;
-  return {};
+  return INTEGER;
 }
-
 /* ------------------------------------------------------------------------------------ */
-/// Extract the most recent selection feature.
-class Ex_with_feature : public Extractor {
-  using self_type = Ex_with_feature; ///< Self reference type.
+/// The active feature.
+class Ex_active_feature : public Extractor {
+  using self_type = Ex_active_feature; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
-  static constexpr TextView NAME { "..." };
-  ValueType result_type() const override { return ACTIVE; }
+  static constexpr TextView NAME = ACTIVE_FEATURE_KEY;
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return ACTIVE; }
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Feature Ex_with_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
-  return ctx._feature;
+Feature Ex_active_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+  return ctx._active;
 }
 
-BufferWriter& Ex_with_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, ctx._feature);
+BufferWriter& Ex_active_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, ctx._active);
+}
+
+/* ------------------------------------------------------------------------------------ */
+/// Extract the most recent selection feature.
+class Ex_remainder_feature : public Extractor {
+  using self_type = Ex_remainder_feature; ///< Self reference type.
+  using super_type = Extractor; ///< Parent type.
+public:
+  static constexpr TextView NAME = REMAINDER_FEATURE_KEY;
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return STRING; }
+  Feature extract(Context& ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Feature Ex_remainder_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+  return ctx._remainder;
+}
+
+BufferWriter& Ex_remainder_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, ctx._remainder);
 }
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   Feature feature {_fg->extract(ctx, spec._ext)};
   return bwformat(w, spec, feature);
 }
-
-auto Ex_this::result_type() const -> ValueType { return VARIABLE; }
 
 Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {
   return _fg->extract(ctx, spec._ext);
@@ -442,18 +636,25 @@ Ex_creq_method creq_method;
 Ex_creq_path creq_path;
 Ex_creq_url_host creq_url_host;
 Ex_creq_field creq_field;
+
+Ex_prsp_field prsp_field;
+Ex_ursp_field ursp_field;
+
 Ex_ursp_status ursp_status;
 Ex_is_internal is_internal;
 
 Ex_cssn_sni cssn_sni;
+Ex_cssn_proto cssn_proto;
 
 Ex_random random;
 
-Ex_with_feature ex_with_feature;
+Ex_active_feature ex_with_feature;
+Ex_remainder_feature ex_remainder_feature;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_this::NAME, &ex_this);
-  Extractor::define(Ex_with_feature::NAME, &ex_with_feature);
+  Extractor::define(Ex_active_feature::NAME, &ex_with_feature);
+  Extractor::define(Ex_remainder_feature::NAME, &ex_remainder_feature);
 
   Extractor::define(Ex_creq_url::NAME, &creq_url);
   Extractor::define(Ex_creq_host::NAME, &creq_host);
@@ -462,12 +663,17 @@ Ex_with_feature ex_with_feature;
   Extractor::define(Ex_creq_path::NAME, &creq_path);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
   Extractor::define(Ex_creq_field::NAME, &creq_field);
+
+  Extractor::define(Ex_prsp_field::NAME, &prsp_field);
+  Extractor::define(Ex_ursp_field::NAME, &ursp_field);
+
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);
   Extractor::define(Ex_is_internal::NAME, &is_internal);
-  Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
   Extractor::define(Ex_random::NAME, &random);
   Extractor::define(Ex_var::NAME, &var);
 
+  Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
+  Extractor::define(Ex_cssn_proto::NAME, &cssn_proto);
   return true;
 } ();
 } // namespace

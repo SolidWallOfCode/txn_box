@@ -84,7 +84,7 @@ Because :code:`Cmp_Suffix` class is only valid for string features, it provides 
       static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
 
    protected:
-      Extractor::Format _exfmt; ///< Suffix value to compare.
+      Extractor::Expr _value; ///< Suffix value to compare.
    };
 
 The :code:`is_valid_for` method is defined to return :code:`true` only for the :code:`VIEW` feature

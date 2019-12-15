@@ -1,0 +1,264 @@
+meta:
+  version: "1.0"
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 1 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 1 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 1 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 1 ]
+
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ Cookie, "V1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; GUC=AQEBAQFeK1JeM0If1wSb; A1S=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; uvts=24ce92ce-6bef-4940-5676-ccce503e26f6; APID=UP53275975-3e1e-11ea-b6a9-0e860b33a8b3; cmp=t=1579898053&j=0; apeaf=userintent%3D%257B%2522tooltipViews%2522%253A3%257D; APIDTS=1579898054; B=3vgt4fpf24ibu&b=3&s=o9" ]
+        - [ uuid, 5 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ Cookie, "V1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; GUC=AQEBAQFeK1JeM0If1wSb; A1S=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; uvts=24ce92ce-6bef-4940-5676-ccce503e26f6; APID=UP53275975-3e1e-11ea-b6a9-0e860b33a8b3; cmp=t=1579898053&j=0; apeaf=userintent%3D%257B%2522tooltipViews%2522%253A3%257D; APIDTS=1579898054; B=3vgt4fpf24ibu&b=3&s=o9", equal ]
+        - [ uuid, 5 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 5 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 5 ]
+
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.yimg.com/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.yimg.com ]
+        - [ Cookie, "A9=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; GUC=AQEBAQFeK1JeM0If1wSb; A1S=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; uvts=24ce92ce-6bef-4940-5676-ccce503e26f6; APID=UP53275975-3e1e-11ea-b6a9-0e860b33a8b3; cmp=t=1579898053&j=0; apeaf=userintent%3D%257B%2522tooltipViews%2522%253A3%257D; APIDTS=1579898054; B=3vgt4fpf24ibu&b=3&s=o9" ]
+        - [ uuid, 6 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.yimg.com/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.yimg.com ]
+        - [ Cookie, "", absent]
+        - [ uuid, 6 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 6 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ uuid, 6 ]
+
+  # Does set-cookie get through?
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 2 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 2 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ set-cookie, "A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ uuid, 2 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ set-cookie, "A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly", equal ]
+        - [ uuid, 2 ]
+
+  # Does set-cookie get through?
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 3 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 3 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 172 ]
+        - [ set-cookie, "A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=None; Secure; HttpOnly" ]
+        - [ uuid, 3 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 172 ]
+        - [ set-cookie, "A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=None; Secure; HttpOnly" ]
+        - [ uuid, 3 ]
+
+  # Actual prod set-cookie group.
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 4 ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ uuid, 4 ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ set-cookie, A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly ]
+        - [ set-cookie, A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=None; Secure; HttpOnly ]
+        - [ set-cookie, A1S=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure ]
+        - [ set-cookie, TARGET=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Domain=.yimg.com; Path=/; SameSite=Lax; Secure ]
+        - [ set-cookie, B=3vgt4fpf24ibu&b=3&s=o9; Max-Age=31557600; Domain=.yahoo.com; Path=/ ]
+        - [ set-cookie, GUC=AQEBAQFeK1JeM0If1wSb; Max-Age=31557600; Domain=.yahoo.com; Path=/; Secure ]
+        - [ uuid, 4 ]
+    proxy-response:
+      status: 200
+      reason: OK
+      content:
+        size: 3072
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 3072 ]
+        - [ set-cookie, A1=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly ]
+        - [ set-cookie, A3=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=None; Secure; HttpOnly ]
+        - [ set-cookie, A1S=d=AQABBOwAKl4CEHhhMYGPgqPDtrDE-lZJ1EEFEgEBAQFSK14zXgAAAAAA_SMAAAcIfkkiXn6kwz8&S=AQAAAvbDdNlyRU0neZmPg97sQC8; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure ]
+        - [ set-cookie, B=3vgt4fpf24ibu&b=3&s=o9; Max-Age=31557600; Domain=.yahoo.com; Path=/ ]
+        - [ set-cookie, GUC=AQEBAQFeK1JeM0If1wSb; Max-Age=31557600; Domain=.yahoo.com; Path=/; Secure ]
+        - [ uuid, 4 ]

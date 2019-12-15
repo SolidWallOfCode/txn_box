@@ -1,0 +1,17 @@
+# Copyright 2020, Oath Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+Name: trafficserver
+Description: The Apache Traffic Server caching HTTP proxy server
+URL: http://trafficserver.apache.org/
+Version: 9.0.0
+
+prefix=custom_path
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${exec_prefix}/lib
+
+# plugindir is the directory in which plugins should be installed.
+plugindir=${exec_prefix}/libexec/trafficserver
+
+Cflags: -I${includedir}

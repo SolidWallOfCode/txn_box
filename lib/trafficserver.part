@@ -7,9 +7,11 @@ PartVersion("$VERSION")
 # else use the system which is the default of the compiler
 path=env.get("CUSTOM_PATH")
 if path:
-    path = os.path.join(env.subst(path),"include")
-    env.Append(CPPPATH=[path])
-    env.ExportCPPPATH([path])
+    ipath = os.path.join(env.subst(path),"include")
+    env.Append(CPPPATH=[ipath])
+    env.ExportCPPPATH([ipath])
+    pc_file = env.Substfile('trafficserver.pc', 'pkgconfig/trafficserver.pc.in', SUBST_DICT = { "custom_path": path } )
+    env.InstallPkgConfig(pc_file)
 
 
 cfg = env.Configure()
@@ -19,3 +21,5 @@ cfg.Finish()
 
 # Based on current design we don't link with anything from trafficserver directly
 # Hope to have this fixed someday.
+
+

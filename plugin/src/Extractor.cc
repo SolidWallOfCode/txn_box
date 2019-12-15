@@ -10,6 +10,8 @@
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
+#include "txn_box/common.h"
+#include "txn_box/Expr.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Context.h"
 #include "txn_box/Config.h"
@@ -24,213 +26,12 @@ Extractor::Table Extractor::_ex_table;
 extern swoc::Lexicon<bool> PredicateNames;
 
 /* ------------------------------------------------------------------------------------ */
-Feature const& car(Feature const& feature) {
-  switch (feature.index()) {
-    case IndexFor(CONS):
-      return std::get<feature_type_for<CONS>>(feature)->_car;
-    case IndexFor(TUPLE):
-      return std::get<feature_type_for<TUPLE>>(feature)[0];
-  }
-  return feature;
-}
-
-Feature cdr(Feature const& feature) {
-  switch (feature.index()) {
-    case IndexFor(CONS):
-      return std::get<feature_type_for<CONS>>(feature)->_cdr;
-    case IndexFor(TUPLE): {
-      Feature cdr { feature };
-      auto &span = std::get<feature_type_for<TUPLE>>(cdr);
-      span.remove_prefix(1);
-      return span.empty() ? NIL_FEATURE : cdr;
-    }
-  }
-  return NIL_FEATURE; // No cdr unless explicitly supported.
-}
-/* ------------------------------------------------------------------------------------ */
-Extractor::Format Extractor::literal(feature_type_for<NIL> nil) {
-  Format fmt;
-  fmt._literal_p = true;
-  fmt._direct_p = false;
-  fmt._result_type = NIL;
-  fmt._literal = nil;
-  return std::move(fmt);
-}
-
-
-Extractor::Format Extractor::literal(TextView text) {
-  Format fmt;
-  fmt._literal_p = true;
-  fmt._direct_p = false;
-  fmt._literal = text;
-  fmt._result_type = STRING;
-  return std::move(fmt);
-}
-
-Extractor::Format Extractor::literal(feature_type_for<INTEGER> n) {
-  Format fmt;
-  fmt._literal_p = true;
-  fmt._direct_p = false;
-  fmt._literal = n;
-  fmt._result_type = INTEGER;
-  return std::move(fmt);
-}
-
-Extractor::Format Extractor::literal(feature_type_for<IP_ADDR> const& addr) {
-  Format fmt;
-  fmt._literal_p = true;
-  fmt._direct_p = false;
-  fmt._literal = addr;
-  fmt._result_type = IP_ADDR;
-  return std::move(fmt);
-}
-
-Errata Extractor::update_extractor(Config & cfg, Spec &spec) {
-  if (spec._name.empty()) {
-    return Error(R"(Extractor name required but not found.)");
-  }
-
-  if (spec._idx < 0) {
-    auto name = TextView{spec._name};
-    auto && [ arg, arg_errata ] { parse_arg(name) };
-    if (!arg_errata.is_ok()) {
-      return std::move(arg_errata);
-    }
-
-    if (auto ex{_ex_table.find(name)}; ex != _ex_table.end()) {
-      spec._exf = ex->second;
-      spec._name = name;
-      auto errata { ex->second->validate(cfg, spec, arg) };
-      if (! errata.is_ok()) {
-        return std::move(errata);
-      }
-    } else {
-      return Error(R"(Extractor "{}" not found.)", name);
-    }
-  }
-  return {};
-}
-
-Rv<Extractor::Format> Extractor::parse_raw(Config &cfg, TextView text) {
-  // Check for specific types of literals
-
-  // Empty string?
-  if (text.empty()) {
-    return self_type::literal(""_tv);
-  };
-
-  // Integer?
-  TextView parsed;
-  auto n = swoc::svtoi(text, &parsed);
-  if (parsed.size() == text.size()) {
-    return self_type::literal(n);
-  }
-
-  // bool?
-  auto b = BoolNames[text];
-  if (b != BoolTag::INVALID) {
-    return self_type::literal(b);
-  }
-
-  // IP Address?
-  swoc::IPAddr addr;
-  if (addr.parse(text)) {
-    return self_type::literal(addr);
-  }
-
-  // Presume an extractor.
-  Spec spec;
-  bool valid_p = spec.parse(text);
-  if (!valid_p) {
-    return Error(R"(Invalid format for extractor - "{}")", text);
-  }
-  auto errata = self_type::update_extractor(cfg, spec);
-  if (! errata.is_ok()) {
-    return std::move(errata);
-  }
-
-  Format fmt;
-  fmt.push_back(spec);
-  fmt._direct_p = spec._exf->is_direct();
-  fmt._result_type = spec._exf->result_type();
-  return std::move(fmt);
-}
-
-Rv<Extractor::Format> Extractor::parse(Config &cfg, TextView format_string) {
-  auto parser { swoc::bwf::Format::bind(format_string) };
-  Format fmt;
-  Errata zret;
-  // Used to handle literals in @a format_string. Can't be const because it must be updated
-  // for each literal.
-  Spec literal_spec;
-
-  literal_spec._type = swoc::bwf::Spec::LITERAL_TYPE;
-
-  while (parser) {
-    Spec spec;
-    std::string_view literal;
-    bool spec_p = parser(literal, spec);
-
-    if (!literal.empty()) {
-      literal_spec._ext = literal;
-      fmt.push_back(literal_spec);
-    }
-
-    if (spec_p) {
-      if (spec._idx >= 0) {
-        fmt.push_back(spec);
-      } else {
-        zret = self_type::update_extractor(cfg, spec);
-        if (zret.is_ok()) {
-          fmt.push_back(spec);
-        } else {
-          zret.info(R"(While parsing specifier at offset {}.)", format_string.size() - parser._fmt.size());
-        }
-      }
-    }
-  }
-  if (fmt._specs.size() == 1 && fmt._specs[0]._exf) {
-    Spec const& spec { fmt._specs[0] };
-    fmt._direct_p = spec._exf->is_direct();
-    fmt._result_type = spec._exf->result_type();
-  }
-  return { std::move(fmt), std::move(zret) };
-}
-
 Errata Extractor::define(TextView name, self_type * ex) {
   _ex_table[name] = ex;
   return {};
 }
 
 bool Extractor::has_ctx_ref() const { return false; }
-
-/* ------------------------------------------------------------------------------------ */
-
-Extractor::Format::self_type & Extractor::Format::push_back(Extractor::Spec const &spec) {
-  _specs.push_back(spec);
-  // update properties.
-  if (spec._type != swoc::bwf::Spec::LITERAL_TYPE) {
-    _literal_p = false;
-    _max_arg_idx = std::max(_max_arg_idx, spec._idx);
-  }
-  return *this;
-}
-
-bool Extractor::FmtEx::operator()(std::string_view &literal, Extractor::Spec &spec) {
-  bool zret = false;
-  if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
-    literal = _iter->_ext;
-    if (++_iter == _specs.end()) { // all done!
-      return zret;
-    }
-  }
-  if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
-    spec = *_iter;
-    ++_iter;
-    zret = true;
-  }
-  return zret;
-}
 /* ---------------------------------------------------------------------------------------------- */
 auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
   Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
@@ -250,10 +51,11 @@ FeatureGroup::index_type FeatureGroup::exf_index(swoc::TextView const &name) {
   return spot == _exf_info.end() ? INVALID_IDX : spot - _exf_info.begin();
 }
 Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
-  auto && [ fmt, errata ] { cfg.parse_feature(node) };
+  auto && [ expr, errata ] { cfg.parse_expr(node) };
   if (errata.is_ok()) {
     // Walk the items to see if any are cross references.
-    for ( auto & item : fmt ) {
+    #if 0
+    for ( auto & item : expr ) {
       if (item._exf == &ex_this) {
         errata = this->load_key(cfg, info, item._ext);
         if (! errata.is_ok()) {
@@ -263,8 +65,9 @@ Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &no
         item._exf = &_ex_this;
       }
     }
+    #endif
   }
-  info._fmt_array.emplace_back(std::move(fmt));
+  info._fmt_array.emplace_back(std::move(expr));
   return std::move(errata);
 }
 
@@ -391,7 +194,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
       dst._ex = ExfInfo::Multi{};
       ExfInfo::Multi & m = std::get<ExfInfo::MULTI>(dst._ex);
       m._fmt.reserve(src._fmt_count);
-      for ( auto & fmt : MemSpan<Extractor::Format>{ &tracking._fmt_array[src._fmt_idx], src._fmt_count } ) {
+      for ( auto & fmt : MemSpan<Expr>{&tracking._fmt_array[src._fmt_idx], src._fmt_count } ) {
         m._fmt.emplace_back(std::move(fmt));
       }
     } else {
@@ -424,7 +227,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
 
     // Not handling MULTI correctly - need to check if element is a list that is not a format
     // with modifiers, and gather the multi-values.
-    auto && [ fmt, errata ] = cfg.parse_feature(node[idx]);
+    auto && [ fmt, errata ] = cfg.parse_expr(node[idx]);
     if (! errata.is_ok()) {
       return std::move(errata);
     }
@@ -466,7 +269,7 @@ Feature FeatureGroup::extract(Context &ctx, index_type idx) {
         precursor._feature = this->extract(ctx, edge_idx);
       }
     }
-    data._feature = ctx.extract(data._fmt);
+    data._feature = ctx.extract(data._expr);
     return data._feature;
   }
   return {};

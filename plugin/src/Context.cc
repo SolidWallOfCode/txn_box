@@ -9,6 +9,7 @@
 
 #include "txn_box/Context.h"
 #include "txn_box/Config.h"
+#include "txn_box/Expr.h"
 #include "txn_box/ts_util.h"
 
 using swoc::TextView;
@@ -18,17 +19,38 @@ using swoc::BufferWriter;
 using swoc::FixedBufferWriter;
 using namespace swoc::literals;
 
+/* ------------------------------------------------------------------------------------ */
+bool Expr::bwf_ex::operator()(std::string_view &literal, Extractor::Spec &spec) {
+  bool zret = false;
+  if (_iter->_type == swoc::bwf::Spec::LITERAL_TYPE) {
+    literal = _iter->_ext;
+    if (++_iter == _specs.end()) { // all done!
+      return zret;
+    }
+  }
+  if (_iter->_type != swoc::bwf::Spec::LITERAL_TYPE) {
+    spec = *_iter;
+    ++_iter;
+    zret = true;
+  }
+  return zret;
+}
+/* ------------------------------------------------------------------------------------ */
+
 Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
   _arena.reset(swoc::MemArena::construct_self_contained(4000 + (cfg ? cfg->_ctx_storage_required : 0)));
 
   if (cfg) {
-    // Provide local storage for regex capture groups.
     _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
                                                , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
                                             , [](void *, void *) -> void {}, this);
-    _rxp_capture = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
-    _rxp_working = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
+    // Pre-allocate match data for the maximum # of capture groups in the configuration.
+    // This avoids multiple allocations due to the order of which matches are done first.
+    _rxp_working._match = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
+    _rxp_working._n = cfg->_capture_groups;
+    _rxp_active._match = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
+    _rxp_active._n = cfg->_capture_groups;
 
     // Directive shared storage
     _ctx_store = _arena->alloc(cfg->_ctx_storage_required);
@@ -82,15 +104,12 @@ Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
   _cur_hook = Hook::REMAP;
   _remap_info = rri;
   this->clear_cache();
+  // Ugly, but need to make sure the regular expression storage is sufficient for both working
+  // and committed match data.
+  this->rxp_match_require(rule_cfg._capture_groups);
+  this->rxp_commit_match(""); // swap
+  this->rxp_match_require(rule_cfg._capture_groups);
 
-  // Ugly, but need to make sure the regular expression storage is sufficient.
-  if (!_cfg || rule_cfg._capture_groups > _cfg->_capture_groups) {
-    _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
-                                               , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
-                                            , [](void *, void *) -> void {}, this);
-    _rxp_capture = pcre2_match_data_create(rule_cfg._capture_groups, _rxp_ctx);
-    _rxp_working = pcre2_match_data_create(rule_cfg._capture_groups, _rxp_ctx);
-  }
   // What about directive storage?
 
   // Remap rule directives.
@@ -115,38 +134,32 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
   spec._exf->format(w, spec, *this);
 }
 
-Feature Context::extract(Extractor::Format const &fmt) {
-  if (fmt._direct_p) {
-    return dynamic_cast<DirectFeature *>(fmt[0]._exf)->direct_view(*this, fmt[0]);
-  } else if (fmt._literal_p) {
-    return fmt._literal;
+Feature Expr::bwf_visitor::operator()(const Composite &comp) {
+  FixedBufferWriter w{_ctx._arena->remnant()};
+  // double write - try in the remnant first. If that suffices, done.
+  // Otherwise the size is now known and the needed space can be correctly allocated.
+  w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
+  if (!w.error()) {
+    return w.view();
   } else {
-    switch (fmt._result_type) {
-      case STRING: {
-        FixedBufferWriter w{_arena->remnant()};
-        // double write - try in the remnant first. If that suffices, done.
-        // Otherwise the size is now known and the needed space can be correctly allocated.
-        w.print_nfv(*this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
-        if (fmt._force_c_string_p) {
-          w.write('\0');
-        }
-        if (!w.error()) {
-          return w.view();
-        } else {
-          FixedBufferWriter w2{_arena->require(w.extent()).remnant()};
-          w2.print_nfv(*this, Extractor::FmtEx{fmt._specs}, ArgPack(*this));
-          return w2.view();
-        }
-        break;
-      }
-      case IP_ADDR: break;
-      case INTEGER:
-      case BOOLEAN:
-      case VARIABLE:
-        return fmt[0]._exf->extract(*this, fmt[0]);
-    }
+    FixedBufferWriter w2{_ctx._arena->require(w.extent()).remnant()};
+    w2.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
+    return w2.view();
   }
-  return {};
+}
+
+Feature Expr::bwf_visitor::operator()(List const & list) {
+  auto expr_tuple = _ctx._arena->make<feature_type_for<ValueType::TUPLE>>();
+  unsigned idx = 0;
+  for ( auto const& expr : list._exprs ) {
+    Feature feature { _ctx.extract(expr) };
+    (*expr_tuple)[idx++] = feature;
+  }
+  return *expr_tuple;
+}
+
+Feature Context::extract(Expr const &expr) {
+  return std::visit(Expr::bwf_visitor(*this), expr._expr);
 }
 
 Context& Context::commit(Feature &feature) {
@@ -246,13 +259,31 @@ int Context::ts_callback(TSCont cont, TSEvent evt, void *payload) {
   return TS_SUCCESS;
 }
 
+Context & Context::rxp_match_require(unsigned n) {
+  if (_rxp_working._n < n) {
+    // Bump up at least 7, or 50%, or at least @a n.
+    n = std::max(_rxp_working._n + 7, n);
+    n = std::max(3 * _rxp_working._n / 2 , n);
+    _rxp_working._match = pcre2_match_data_create(n, _rxp_ctx);
+    _rxp_working._n = n;
+  }
+  return *this;
+}
+
+void Context::set_literal_capture(swoc::TextView text) {
+  auto ovector = pcre2_get_ovector_pointer(_rxp_active._match);
+  ovector[0] = 0;
+  ovector[1] = text.size()-1;
+  _rxp_src = text;
+}
+
 unsigned Context::ArgPack::count() const {
-  return _ctx._rxp_capture ? pcre2_get_ovector_count(_ctx._rxp_capture) : 0;
+  return pcre2_get_ovector_count(_ctx._rxp_active._match);
 }
 
 BufferWriter& Context::ArgPack::print(unsigned idx, BufferWriter &w
                                       , swoc::bwf::Spec const &spec) const {
-  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_capture);
+  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_active._match);
   idx *= 2; // To account for offset pairs.
   return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx+1] - ovector[idx]));
 }

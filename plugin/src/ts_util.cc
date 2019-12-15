@@ -20,7 +20,7 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
-#include "txn_box/FeatureMod.h"
+#include "txn_box/Modifier.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
@@ -115,7 +115,7 @@ ts::HttpField::~HttpField() {
   TSHandleMLocRelease(_buff, _hdr, _loc);
 }
 
-TextView ts::HttpField::value() {
+TextView ts::HttpField::value() const {
   int size;
   char const *text;
   if (this->is_valid() &&
@@ -284,6 +284,18 @@ TextView ts::HttpSsn::inbound_sni() const {
     }
   }
   return {};
+}
+
+TextView ts::HttpSsn::proto_contains(const swoc::TextView &tag) const {
+  TextView probe { tag };
+  if (tag.empty() || tag.back() != '\0') {
+    char* span = static_cast<char*>(alloca(tag.size() + 1));
+    memcpy(span, tag.data(), tag.size());
+    span[tag.size()] = '\0';
+    probe.assign(span, tag.size() + 1);
+  }
+  auto result = TSHttpSsnClientProtocolStackContains(_ssn, probe.data());
+  return { result, result ? strlen(result) : 0 };
 }
 
 Errata ts::HttpTxn::cache_key_assign(TextView const &key) {

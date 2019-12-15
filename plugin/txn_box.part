@@ -7,7 +7,6 @@ DependsOn([
     Component("openssl"),
     Component("trafficserver", version_range='7.*-*'),
     Component("swoc++"),
-    Component("yaml-cpp")
 ])
 
 
