@@ -295,7 +295,7 @@ public:
   TSRecordDataType type() const { return _ts_type; }
 
   template < typename T > bool is_valid(typename std::decay<T>::type value) { return false; }
-  bool is_valid(feature_type_for<INTEGER>) const { return true; }
+  bool is_valid(intmax_t) const { return true; }
   bool is_valid(swoc::TextView const&) const { return true; }
 protected:
   swoc::TextView _name; ///< Name.
