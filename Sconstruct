@@ -44,3 +44,4 @@ Part("#lib/libyaml-cpp.part")
 
 # The main build.
 Part("plugin/txn_box.part", package_group='txn_box')
+Part("test/unit_tests/unit_tests.part")
