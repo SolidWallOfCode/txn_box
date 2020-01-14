@@ -59,3 +59,5 @@ include/tscpp
 /var
 /_vcs
 /_sdk
+/_unit_tests
+Pipfile.lock

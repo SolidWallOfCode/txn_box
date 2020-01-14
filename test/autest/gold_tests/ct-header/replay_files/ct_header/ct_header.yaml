@@ -1,0 +1,411 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+
+  # Set the ct-policy variable for later use in the transaction.
+  - when: creq
+    do:
+    - with: cssn-proto<tls>
+      select:
+      - prefix: "tls"
+        do:
+        - var<ct-policy>:
+          - creq-host
+          - filter:
+            - match: "u.protected.com"
+              replace: "enforce"
+            - replace: "report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\""
+
+  # Remove all Cookies going to protected.com
+  - when: creq
+    do:
+    - with: creq-host
+      select:
+      - tld: "protected.com"   # protected.com or any subdomain
+        do:
+        - creq-field<Cookie>: NULL
+
+  # Filter out set-cookie fields concerning protected.com
+  - when: ursp
+    do:
+    - ursp-field<Set-Cookie>: # filter set-cookie fields
+      - ursp-field<Set-Cookie> # get the current list
+      - filter: # keep the ones
+        - none-of: # that do *not* match
+          - rxp<nc>: "domain=(?:[^=]*[.])?protected[.]com" # this regex
+
+  - when: prsp
+    do:
+    # set a referrer policy if not already present.
+    - prsp-field<Referrer-Policy>: [ prsp-field<Referrer-Policy>, { else: "no-referrer-when-downgrade" } ]
+
+    # For proxy response, fix up (add) the cross site fields if it's TLS.
+    - with: cssn-proto<tls>
+      select:
+      - prefix: "tls"
+        do:
+        - prsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
+        - prsp-field<X-XSS-Protection>: "1; mode=block"
+        - prsp-field<X-Content-Type-Options>: "nosniff"
+
+sessions:
+
+  #
+  # Test 1: For non-TLS connections, we should not add cross site fields.
+  #
+- protocol: [ tcp ]
+  transactions:
+
+  - all: { headers: { fields:  [[ uuid, 1 ]]}}
+
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers: { fields: [[ Host, example.one]]}
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 72 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 72 ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ expect-ct, "", absent]
+        - [ x-xss-protection, "", absent]
+        - [ x-content-type-options, "", absent]
+
+
+  #
+  # Test 2: Since this is TLS, expect the cross site fields.
+  #
+- protocol: [ tls ]
+  transactions:
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers: { fields: [[ Host, example.one ]]}
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 72 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 72 ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ expect-ct, "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", equal]
+        - [ x-xss-protection, "1; mode=block", equal ]
+        - [ x-content-type-options, "nosniff", equal ]
+
+  #
+  # Test 3: For u.protected.com, expect the 'enforce' ct-policy.
+  #
+  - all: { headers: { fields: [[ uuid, 3 ]]}}
+
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://u.protected.com/config/settings.yaml"
+      headers: { fields: [[ Host, u.protected.com ]]}
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 72 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 72 ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ expect-ct, "max-age=31536000, enforce", equal]
+        - [ x-xss-protection, "1; mode=block", equal ]
+        - [ x-content-type-options, "nosniff", equal ]
+
+  #
+  # Test 4: Not u.protected.com, so expect the default ct-policy.
+  #
+  - all: { headers: { fields: [[ uuid, 4 ]]}}
+
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://protected.com/config/settings.yaml"
+      headers: { fields: [[ Host, protected.com ]]}
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 72 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 72 ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ expect-ct, "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", equal]
+
+- protocol: [ tcp ]
+  transactions:
+
+  #
+  # Test 5: Cookies to non protected.com hosts should be unaltered.
+  #
+  - all: { headers: { fields: [[ uuid, 5 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://example.one/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ Cookie, "w=some; delicous=cookie" ]
+
+    proxy-request:
+      method: "GET"
+      headers:
+        fields:
+        - [ Cookie, "w=some; delicous=cookie", equal ]
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields: &srv-response-fields
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+
+    proxy-response:
+      status: 200
+
+  #
+  # Test 6: Cookies to protected.com should be removed.
+  #
+  - all: { headers: { fields: [[ uuid, 6 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+        - [ Cookie, "w=some; delicous=cookie" ]
+
+    proxy-request:
+      headers:
+        fields:
+        - [ Cookie, "", absent ]
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields: *srv-response-fields
+
+    proxy-response:
+      status: 200
+
+  #
+  # Test 7: Set-Cookie fields with non protected.com content should not be altered.
+  #
+  - all: { headers: { fields: [[ uuid, 7 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", equal ]
+
+  #
+  # Test 8: Set-Cookie fields with protected.com content should be removed.
+  #
+  - all: { headers: { fields: [[ uuid, 8 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ set-cookie, "", absent ]
+
+#
+# Test 9: Filter out Set-Cookie fields with protected.com content when with another.
+#
+  - all: { headers: { fields: [[ uuid, 9 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ set-cookie, [ "A1=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ], equal ]
+
+  #
+  # Test 10: Filter out Set-Cookie fields with protected.com content when with two others.
+  #
+  - all: { headers: { fields: [[ uuid, 10 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+
+    proxy-request:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ set-cookie, [ "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ], equal ]
+
+  #
+  # Test 10: Filter out Set-Cookie fields with protected.com content when in between two others.
+  #
+  - all: { headers: { fields: [[ uuid, 11 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.protected.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.protected.com ]
+
+    proxy-request:
+      method: "GET"
+      headers:
+        fields:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ set-cookie,
+            [ "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly",
+              "A3=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ],
+            equal ]

@@ -82,8 +82,8 @@ int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
 Errata
 TxnBoxInit(int argc, char const *argv[]) {
   static constexpr std::array<option, 3> Options = {
-      {{"config", 1, nullptr, 'c'}
-          , { "key", 1, nullptr, 'k' }
+      {{"config", required_argument, nullptr, 'c'}
+          , { "key", required_argument, nullptr, 'k' }
           , {nullptr, 0, nullptr, 0}}};
 
   Errata errata;
