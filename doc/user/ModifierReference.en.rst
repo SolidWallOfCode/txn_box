@@ -20,10 +20,17 @@ else
 The :code:`else` modifier leaves the feature unchanged unless it is the :code:`NULL` value or is an
 empty string. In that case, the feature is changed to be the value of the modifier.
 
+hash
+====
+
+Compute the hash of a feature and take the result modulo the value. This modifier requires a value
+that is a positive integer.
+
 as-integer
 ==========
 
-Coared the feature in to an Integer type if possible. If the feature is already an Integer, it is
+Coerce the feature to an Integer type if possible. If the feature is already an Integer, it is
 left unchanged. If it is a string, it is parsed as an integer string and if that is successfull, the
 feature is changed to be the resulting integer value. If not, the modifier value is used. This is the
-:code:`NULL` value if unspecified.
+:code:`NULL` value if unspecified. That can be detected using the :txb:cmp:`is-empty` or
+:txb:cmp:`is-null`.

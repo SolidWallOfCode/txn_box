@@ -66,10 +66,6 @@ and not the same as assigning the empty string, such that the field is present b
 
    creq-field<X-Forwarded-For>: ""
 
-or ::
-
-   creq-field<X-Forwarded-For>:
-
 This can be done even more elaborately by trying to use the client request "Host" field value and
 if that's not present, using the host from the client request URL. ::
 
@@ -84,6 +80,31 @@ set either, to the value of "Client-IP", and if none of those, to "INVALID", one
    - { else: creq-field<X-Forwarded-For> }
    - { else: creq-field<Client-IP> }
    - { else: "INVALID" }
+
+Rewriting URLs
+**************
+
+There are a number of ways to rewrite URLs in a client request. It can be done by specifying the
+entire replacement URL or by changing it piecewise.
+
+The primary directive for this is the :txb:directive:`remap` directive. This always applies to
+the proxy request, and takes a full URL as its value. The proxy request is updated to be to that
+URL. If the existing URL is a full URL, it is changed to the URL in the value. Otherwise only
+the path is copied over. If the value URL scheme is different, the request is modified to use
+that scheme (e.g., if the value URL has "https://" then the proxy request will use TLS). The
+"Host field is also updated to contain the host from the value URL.
+
+For instance, to send the request to the upstream "app.txnbox" ::
+
+   preq-host: "app.txnbox"
+
+This will change the host in the URL if already present and set the "Host" field. This could also
+be done as ::
+
+   preq-url-host: "app.txnbox"
+   preq-field<Host>: "app-txnbox"
+
+The difference is this will cause the host to be in the URL regardless if it was already present.
 
 Using Variables
 ***************
@@ -141,7 +162,24 @@ indicate which remap rule triggered.
 Diverting Traffic
 *****************
 
-These examples are about sending inbound traffic to different upstream destination.
+Requests can be routed to one of a set of upstreams in a deterministic or random fashion. This can
+be used for A/B testing or for gradually ramping traffic from one set of upstreams to another.
+
+The random mechanism uses the :txb:extractor:`random` extractor. This generates a random integer
+in a range which is used to select the specific upstream. This enables sending a specific fraction
+of traffic to each upstream. A common case is ramping up to transition from one service to another.
+Suppose the current service was at "v1.app.txbox" and the new version at "v2.app.txnbox". To divert
+5% of the traffic to the new upstream ::
+
+   with: random # default is 0..99
+   select:
+   -  lt 5: # selected 5% of the time.
+      do:
+         preq-host: "v2.app.txnbox"
+   -  whatever:
+      do:
+         preq-host: "v1.app.txnbox"
+
 
 .. rubric:: Footnotes
 

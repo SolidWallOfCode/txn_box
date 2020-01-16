@@ -20,6 +20,8 @@ import sphinx
 
 import re
 
+def txb_value_type_options(argument):
+    return directives.choice(argument, ('NULL', 'string', 'integer', 'boolean'))
 
 class TxbDirective(std.Target):
     """
@@ -105,6 +107,10 @@ class TxbExtractor(std.Target):
     final_argument_whitespace = True
     has_content = True
 
+    option_spec = {
+        'result': txb_value_type_options
+    }
+
     # External entry point
     def run(self):
         env = self.state.document.settings.env
@@ -140,6 +146,10 @@ class TxbExtractor(std.Target):
         # or if it even matters, although I now think it should not be used.
         self.state.document.note_explicit_target(title)
         env.domaindata['txb']['extractor'][txb_name] = env.docname
+
+        fl = nodes.field_list()
+        if ('result' in self.options):
+            fl.append(self.make_field('Result', sphinx.addnodes.literal_emphasis(self.options['result'])))
 
         # Get any contained content
         nn = nodes.compound()

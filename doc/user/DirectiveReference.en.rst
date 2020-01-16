@@ -1,7 +1,7 @@
 .. include:: /common.defs
 
 .. highlight:: yaml
-.. default-domain:: cpp
+.. default-domain:: yaml
 
 .. _directive_reference:
 
