@@ -59,7 +59,7 @@ static const std::string YAML_MERGE_KEY { "<<" };
  *
  * See https://yaml.org/type/merge.html
  */
-YAML::Node yaml_merge(YAML::Node & root);
+YAML::Node yaml_merge(YAML::Node root);
 
 swoc::Rv<YAML::Node> yaml_load(swoc::file::path const& path);
 

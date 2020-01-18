@@ -57,43 +57,6 @@ namespace {
  std::shared_ptr<Config> Plugin_Config;
 } // namespace
 /* ------------------------------------------------------------------------------------ */
-YAML::Node yaml_merge(YAML::Node & root) {
-  static constexpr auto flatten = [] (YAML::Node & dst, YAML::Node & src) -> void {
-    if (src.IsMap()) {
-      for ( auto const& [ key, value ] : src ) {
-        // don't need to check for nested merge key, because this function is called only if
-        // that's already set in @a dst therefore it won't be copied up from @a src.
-        if (!dst[key]) {
-          dst[key] = value;
-        }
-      }
-    }
-  };
-
-  if (root.IsSequence()) {
-    for ( auto && child : root ) {
-      yaml_merge(child);
-    }
-  } else if (root.IsMap()) {
-    // Do all nested merges first, so the result is iteration order independent.
-    for ( auto && [ key, value ] : root ) {
-      value = yaml_merge(value);
-    }
-    // If there's a merge key, merge it in.
-    if ( auto merge_node { root[YAML_MERGE_KEY] } ; merge_node ) {
-      if (merge_node.IsMap()) {
-        flatten(root, merge_node);
-      } else if (merge_node.IsSequence()) {
-        for (auto &&src : merge_node) {
-          flatten(root, src);
-        }
-      }
-      root.remove(YAML_MERGE_KEY);
-    }
-  }
-  return root;
-}
-/* ------------------------------------------------------------------------------------ */
 void Global::reserve_txn_arg() {
   if (G.TxnArgIdx < 0) {
     auto && [ idx, errata ] { ts::HttpTxn::reserve_arg(Config::ROOT_KEY, "Transaction Box") };
