@@ -1,5 +1,19 @@
 Import('*')
 PartName("libyaml-cpp")
-PartVersion("0.6.3")
+PartVersion(GitVersionFromTag("0.6.3"))
 
-# Empty part, because it's really in TS.
+env.AppendUnique(
+    CPPPATH=["${CHECK_OUT_DIR}/include"],
+    # add these to C++ compiler (CCFLAGS are for both c and C++, CFLAGS for C only)
+    CXXFLAGS=["-std=c++17"],
+)
+
+files = env.Pattern(src_dir="${CHECK_OUT_DIR}/src",includes=['*.cpp']).files()
+
+env.InstallLib(
+    env.StaticLibrary("yaml-cpp",files)
+    )
+
+# include headers
+env.SdkInclude(env.Pattern(src_dir="${CHECK_OUT_DIR}/include",includes=['*.h']))
+

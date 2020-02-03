@@ -42,4 +42,4 @@ Part("#lib/trafficserver.part",CUSTOM_PATH=path,VERSION="10.0.0"),
 
 path = GetOption("with_ssl")
 Part("#lib/openssl.part",CUSTOM_PATH=path)
-Part("#lib/libyaml-cpp.part")
+Part("#lib/ts-libyaml-cpp.part")
