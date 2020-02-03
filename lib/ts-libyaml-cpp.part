@@ -1,5 +1,0 @@
-Import('*')
-PartName("libyaml-cpp")
-PartVersion("0.6.3")
-
-# Empty part, because it's really in TS.
