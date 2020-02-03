@@ -3,7 +3,7 @@ from parts import *
 
 #enable smart linking
 SetOptionDefault("LINKFLAGS", ['-Wl,--copy-dt-needed-entries', '-Wl,--as-needed'])
-SetOptionDefault("CXXFLAGS", ['-std=c++17', '-fPIC', '-O2'])
+SetOptionDefault("CXXFLAGS", ['-std=c++17'])
 SetOptionDefault("INSTALL_ROOT", "#")
 #SetOptionDefault("INSTALL_LIB",  "#lib")
 #SetOptionDefault("INSTALL_BIN",  "#bin")
@@ -44,6 +44,7 @@ Part("#lib/trafficserver.part", PKG_PREFIX=ts_path, PKG_VERSION="10.0.0")
 
 path = GetOption("with_ssl")
 Part("#lib/openssl.part", CUSTOM_PATH=path)
+Part("#lib/libyaml-cpp.part")
 
 # The main build.
 Part("plugin/txn_box.part", package_group='txn_box')
