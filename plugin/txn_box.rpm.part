@@ -22,7 +22,7 @@ url = "https://github.com/SolidWallOfCode/txn_box"
 
 out = env.RPMPackage(
     '${NAME}-${VERSION}-${RELEASE}${DIST}.${TARGET_ARCH}.rpm',
-    sources=["$PART_ROOT_NAME"],
+    source=["$PART_ROOT_NAME"],
     TARGET_ARCH='x86_64',
     NAME='${PART_ROOT_NAME}',
     VERSION='${PART_VERSION}',
