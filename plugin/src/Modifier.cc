@@ -7,6 +7,7 @@
 #include "txn_box/Modifier.h"
 #include "txn_box/Context.h"
 #include "txn_box/Config.h"
+#include "txn_box/Comparison.h"
 #include "txn_box/yaml_util.h"
 
 using swoc::TextView;
@@ -61,7 +62,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Errata operator()(Context& ctx, Feature & feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -71,7 +72,7 @@ public:
   bool is_valid_for(ValueType ftype) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type() const override;
+  ValueType result_type(ValueType) const override;
 
   /** Create an instance from YAML config.
    *
@@ -97,14 +98,13 @@ bool Mod_Hash::is_valid_for(ValueType ftype) const {
   return STRING == ftype;
 }
 
-ValueType Mod_Hash::result_type() const {
+ValueType Mod_Hash::result_type(ValueType) const {
   return INTEGER;
 }
 
-Errata Mod_Hash::operator()(Context &ctx, Feature &feature) {
+Rv<Feature> Mod_Hash::operator()(Context &ctx, Feature const& feature) {
   feature_type_for<INTEGER> value = std::hash<std::string_view>{}(std::get<IndexFor(STRING)>(feature));
-  feature = feature_type_for<INTEGER>{value % _n};
-  return {};
+  return Feature{feature_type_for<INTEGER>{value % _n}};
 }
 
 Rv<Modifier::Handle> Mod_Hash::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
@@ -125,6 +125,193 @@ Rv<Modifier::Handle> Mod_Hash::load(Config &cfg, YAML::Node mod_node, YAML::Node
 }
 
 // ---
+/// Filter a list.
+class Mod_Filter : public Modifier {
+  using self_type = Mod_Filter;
+  using super_type = Modifier;
+public:
+  static constexpr TextView KEY = "filter"; ///< Identifier name.
+  static constexpr TextView REPLACE_KEY = "@replace"; ///< Replace element.
+  static constexpr TextView DROP_KEY = "@drop"; ///< Drop / remove element.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modify that feature type, @c false if not.
+   */
+  bool is_valid_for(ValueType ftype) const override;
+
+  /// Resulting type of feature after modifying.
+  ValueType result_type(ValueType in_type) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+
+protected:
+  enum Action {
+    PASS = 0, ///< No action
+    DROP, ///< Remove element from result.
+    REPLACE ///< Replace element in result.
+  };
+
+  /// A filter comparison case.
+  struct Case {
+    Action _action; ///< Action on match.
+    Expr _expr; ///< Replacement expression, if any.
+    Comparison::Handle _cmp; ///< Comparison.
+  };
+
+  std::vector<Case> _cases;
+
+  Mod_Filter(std::vector<Case> && cases) : _cases(std::move(cases)) {}
+
+  static Errata load_case(Config& cfg, std::vector<Case> & cases, YAML::Node cmp_node);
+
+  Case const* compare(Context& ctx, Feature const& feature) const;
+};
+
+bool Mod_Filter::is_valid_for(ValueType) const {
+  return true;
+}
+
+ValueType Mod_Filter::result_type(ValueType in_type) const {
+  return in_type;
+}
+
+auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case const * {
+  for ( auto const& c : _cases) {
+    if (! c._cmp || (*c._cmp)(ctx, feature)) {
+      return &c;
+    }
+  }
+  return nullptr;
+}
+
+Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
+  Action action;
+  Feature zret;
+  if (feature.is_list()) {
+    auto src = std::get<IndexFor(TUPLE)>(feature);
+    auto farray = static_cast<Feature*>(alloca(sizeof(Feature) * src.size()));
+    feature_type_for<TUPLE> dst{farray, src.size() };
+    unsigned dst_idx = 0;
+    for ( Feature f = feature ; ! is_nil(f) ; f = cdr(f) ) {
+      auto c = this->compare(ctx, car(f));
+      Action action = c ? c->_action : DROP;
+      switch (action) {
+        case DROP:
+          break;
+        case PASS:
+          dst[dst_idx++] = f;
+          break;
+        case REPLACE:
+          dst[dst_idx++] = ctx.extract(c->_expr);
+          break;
+      }
+    }
+    auto span = ctx.span<Feature>(dst_idx);
+    for ( unsigned idx = 0 ; idx < dst_idx ; ++idx) {
+      span[idx] = dst[idx];
+    }
+    zret = span;
+  } else {
+    auto c = this->compare(ctx, feature);
+    Action action = c ? c->_action : DROP;
+    switch (action) {
+      case DROP: zret = NIL_FEATURE; break;
+      case PASS: zret = feature; break;
+      case REPLACE: zret = ctx.extract(c->_expr); break;
+    }
+  }
+  return zret;
+}
+
+Errata Mod_Filter::load_case(Config &cfg, std::vector<Case> & cases, YAML::Node cmp_node) {
+  if (!cmp_node.IsMap()) {
+    return Error("List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
+  }
+
+  Action action = PASS;
+  Expr replace_expr;
+
+  YAML::Node drop_node = cmp_node[DROP_KEY];
+  if (drop_node) {
+    action = DROP;
+    cmp_node.remove(DROP_KEY);
+  }
+
+  YAML::Node replace_node = cmp_node[REPLACE_KEY];
+  if (replace_node) {
+    if (drop_node) {
+      return Error("{} comparison at {} has both {} and {} keys.", KEY, cmp_node.Mark(), DROP_KEY, REPLACE_KEY);
+    }
+    cmp_node.remove(REPLACE_KEY);
+    auto &&[expr, errata] = cfg.parse_expr(replace_node);
+    if (! errata.is_ok()) {
+      errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), REPLACE_KEY, cmp_node.Mark());
+      return std::move(errata);
+    }
+    replace_expr = std::move(expr);
+  }
+
+  if (cmp_node.size() < 1) {
+    // It's allowed to have no comparison which always matches and doesn't modify the element.
+    cases.emplace_back(Case{action, std::move(replace_expr) });
+    return {};
+  }
+
+  Comparison::Handle cmp;
+
+  auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, ACTIVE, cmp_node)};
+  if (cmp_errata.is_ok()) {
+    cmp = std::move(cmp_handle);
+  } else {
+    cmp_errata.info(R"(While parsing "{}" modifier comparison at {}.)", KEY, cmp_node.Mark());
+    return std::move(cmp_errata);
+  }
+
+  // Everything is fine, update the case load and return.
+  cases.emplace_back(Case{action, std::move(replace_expr), std::move(cmp)});
+  return {};
+}
+
+Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+  std::vector<Case> cases;
+  if (key_node.IsMap()) {
+    auto errata { self_type::load_case(cfg, cases, key_node)};
+    if (! errata.is_ok()) {
+      errata.info("While parsing {} modifier at {}.", KEY, mod_node.Mark());
+      return std::move(errata);
+    }
+  } else if (key_node.IsSequence()) {
+    for ( auto child : key_node ) {
+      auto errata { self_type::load_case(cfg, cases, child)};
+      if (! errata.is_ok()) {
+        errata.info("While parsing {} modifier at {}.", KEY, mod_node.Mark());
+        return std::move(errata);
+      }
+    }
+  } else {
+    return Error("{} modifier at {} requires a comparison or a list of comparisons.", KEY, mod_node.Mark());
+  }
+  return { Handle (new self_type{std::move(cases)})};
+}
+
+// ---
 
 /// Replace the feature with another feature if the input is nil or empty.
 class Mod_Else : public Modifier {
@@ -139,7 +326,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Errata operator()(Context& ctx, Feature & feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -149,7 +336,7 @@ public:
   bool is_valid_for(ValueType ftype) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type() const override;
+  ValueType result_type(ValueType) const override;
 
   /** Create an instance from YAML config.
    *
@@ -170,15 +357,12 @@ bool Mod_Else::is_valid_for(ValueType ftype) const {
   return STRING == ftype || NIL == ftype;
 }
 
-ValueType Mod_Else::result_type() const {
+ValueType Mod_Else::result_type(ValueType) const {
   return _value.result_type();
 }
 
-Errata Mod_Else::operator()(Context &ctx, Feature &feature) {
-  if (is_empty(feature)) {
-    feature = ctx.extract(_value);
-  }
-  return {};
+Rv<Feature> Mod_Else::operator()(Context &ctx, Feature const& feature) {
+  return is_empty(feature) ? ctx.extract(_value) : feature;
 }
 
 Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
@@ -205,7 +389,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Errata operator()(Context& ctx, Feature & feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -215,7 +399,7 @@ public:
   bool is_valid_for(ValueType ftype) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type() const override;
+  ValueType result_type(ValueType) const override;
 
   /** Create an instance from YAML config.
    *
@@ -256,14 +440,13 @@ bool Mod_As_Integer::is_valid_for(ValueType ftype) const {
   return STRING == ftype || INTEGER == ftype;
 }
 
-ValueType Mod_As_Integer::result_type() const {
+ValueType Mod_As_Integer::result_type(ValueType) const {
   return INTEGER;
 }
 
-Errata Mod_As_Integer::operator()(Context &ctx, Feature &feature) {
+Rv<Feature> Mod_As_Integer::operator()(Context &ctx, Feature const& feature) {
   auto visitor = [&](auto & t) { return this->convert(ctx, t); };
-  feature = std::visit(visitor, feature);
-  return {};
+  return std::visit(visitor, feature);
 }
 
 Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
@@ -282,6 +465,7 @@ namespace {
   Modifier::define(Mod_Hash::KEY, &Mod_Hash::load);
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
   Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
+  Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
   return true;
 } ();
 } // namespace

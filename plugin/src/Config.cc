@@ -197,7 +197,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     bool spec_p = parser(literal, spec);
 
     if (!literal.empty()) {
-      literal_spec._ext = literal;
+      literal_spec._ext = this->localize(literal);
       specs.push_back(literal_spec);
     }
 
@@ -285,7 +285,7 @@ Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
       return std::move(mod_errata);
     }
     if (_feature_state) {
-      _feature_state->_type = mod->result_type();
+      _feature_state->_type = mod->result_type(_feature_state->_type);
     }
     expr._mods.emplace_back(std::move(mod));
   }
@@ -308,7 +308,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
     if (!expr_node.IsScalar()) {
       return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
     }
-    return Expr{FeatureView::Literal(expr_node.Scalar())};
+    return Expr{FeatureView::Literal(this->localize(expr_node.Scalar()))};
   } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
     return Error(R"("{}" tag for extractor expression is not supported.)", expr_tag);
   }

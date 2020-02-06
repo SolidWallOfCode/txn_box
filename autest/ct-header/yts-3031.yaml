@@ -6,29 +6,34 @@ txn_box:
 - when: creq
   do:
   # default Expect-CT policy.
-  - var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
-  - with: creq-host
-    select:
-    # yimg.com or any subdomain
-    - tld: "yimg.com"
-      do:
-      - creq-field<Cookie>: NULL
-      - with: "{*}"  # check subdomains
-        select:
-        - match: "u" # for this one, tweak the Expect CT policy.
-          do:
-            var<ct-policy>: "enforce" # set Expect-CT policy.
+  - when: creq
+    do:
+    - with: cssn-proto<tls>
+      select:
+      - prefix: "tls"
+        do:
+        - with: creq-host
+          select:
+          - match: "u.yimg.com"
+            do:
+            - var<ct-policy>: "enforce" # set Expect-CT policy.
+          - do:
+              var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
+  - when: creq
+    do:
+    - with: creq-host
+      select:
+      - tld: "yimg.com"   # yimg.com or any subdomain
+        do:
+        - creq-field<Cookie>: NULL
 
 - when: ursp
   do:
-  # if any Set-Cookie field has a Domain with yimg.com, clear the field.
-  - with: ursp-field<Set-Cookie>::by-field
-    for-each:
-    - with: ...
-      select:
-      - rxp<nc>: "domain=(?:[^=]*[.])?yimg[.]com"
-        do:
-          ursp-field<...>: NULL
+  - ursp-field<Set-Cookie>: # filter out any Set-Cookie field for yimg.com
+    - ursp-field<Set-Cookie>
+    - filter:
+      - none-of:
+        - rxp<nc>: "domain=(?:[^=]*[.])?yimg[.]com"
 
 - when: prsp
   do:
@@ -42,5 +47,3 @@ txn_box:
       - prsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
       - prsp-field<X-XSS-Protection>: "1; mode=block"
       - prsp-field<X-Content-Type-Options>: "nosniff"
-
-

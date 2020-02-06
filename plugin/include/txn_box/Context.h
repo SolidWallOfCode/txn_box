@@ -105,11 +105,24 @@ public:
    */
   self_type& commit(Feature & feature);
 
+  /** Allocate config space for an array of @a T.
+   *
+   * @tparam T Element type.
+   * @param count # of elements.
+   * @return A span covering the allocated array.
+   *
+   * This allocates in the config storage. No destructors are called when the config is destructed.
+   */
+  template < typename T > swoc::MemSpan<T> span(unsigned count) {
+    return _arena->alloc(sizeof(T) * count).rebind<T>();
+  }
+
   swoc::MemSpan<void> storage_for(Directive* drtv);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
   ts::HttpTxn _txn = nullptr;
+
   /// Current extracted feature.
   Feature _active;
   /// Extension for active feature when needed.
@@ -119,6 +132,18 @@ public:
   /// Should the active feature be updated (e.g., is used later).
   bool _update_remainder_p = false;
 
+  /// Context for working with PCRE - allocates from the transaction arena.
+  pcre2_general_context* _rxp_ctx = nullptr;
+
+  /** Set capture groups for a literal match.
+   *
+   * @param text The literal text.
+   *
+   * THis is used to set capture group 0 for literal matches.
+   */
+  void set_literal_capture(swoc::TextView text);
+
+  /// Need to remember what this does.
   void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
   /** Class for handling numbered arguments to formatting.
@@ -187,15 +212,22 @@ public:
   ts::HttpHeader ursp_hdr();
   ts::HttpHeader prsp_hdr();
 
-  /// Context for working with PCRE - allocates from the transaction arena.
-  pcre2_general_context* _rxp_ctx = nullptr;
-
-  void set_literal_capture(swoc::TextView text);
-
+  /** Store a transaction variable.
+   *
+   * @param name Variable name.
+   * @param value Variable value.
+   * @return @a this
+   */
   self_type & store_txn_var(swoc::TextView const& name, Feature && value) {
     return this->store_txn_var(name, value);
   }
 
+  /** Store a transaction variable.
+   *
+   * @param name Variable name.
+   * @param value Variable value.
+   * @return @a this
+   */
   self_type & store_txn_var(swoc::TextView const& name, Feature & value) {
     auto spot = _txn_vars.find(name);
     this->commit(value);
@@ -207,6 +239,11 @@ public:
     return *this;
   }
 
+  /** Load a transaction variable.
+   *
+   * @param name Variable name.
+   * @return Value of the variable.
+   */
   Feature const& load_txn_var(swoc::TextView const& name) {
     static const Feature NIL; // should really be a global.
     auto spot = _txn_vars.find(name);

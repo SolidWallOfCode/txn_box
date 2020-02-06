@@ -165,7 +165,10 @@ public:
 
   ~HttpField();
 
-  /// Return the current value for the field.
+  /// @return The name of the field.
+  swoc::TextView name() const;
+
+  /// @return  The current value for the field.
   swoc::TextView value() const;
 
   /** Set the @a value for @a this field.
@@ -178,11 +181,26 @@ public:
   /// Destroy the field (remove from the HTTP header).
   bool destroy();
 
-  self_type next_dup() {
+  /** Get the next duplicate field.
+   *
+   * @return The duplicate after @a this.
+   *
+   * Duplicates are fields with the same name.
+   */
+  self_type next_dup() const {
     return this->is_valid()
     ? self_type{_buff, _hdr, TSMimeHdrFieldNextDup(_buff, _hdr, _loc )}
     : self_type{};
   }
+
+  /** Get the number of duplicates for this field.
+   *
+   * @return The number of instances of this field.
+   */
+  unsigned dup_count() const;
+
+  bool operator == (self_type const& that) { return _loc == that._loc; }
+  bool operator != (self_type const& that) { return _loc != that._loc; }
 
 protected:
   HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc);
