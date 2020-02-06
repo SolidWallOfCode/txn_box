@@ -4,10 +4,10 @@
 Name: trafficserver
 Description: The Apache Traffic Server caching HTTP proxy server
 URL: http://trafficserver.apache.org/
-Version: 9.0.0
+Version: pkg_version
 
-prefix=custom_path
-exec_prefix=${prefix}
+prefix=pkg_prefix
+exec_prefix=${prefix}/bin
 includedir=${prefix}/include
 libdir=${exec_prefix}/lib
 

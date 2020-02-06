@@ -8,10 +8,10 @@ ts_ver = Version(env.subst(Component("trafficserver").DelaySubst("$PART_VERSION"
 DependsOn([
     Component("openssl"),
     Component("trafficserver", version_range='7.*-*'),
-    Component("swoc++"),
+    Component("libswoc"),
 ])
 
-if ts_ver < 9:
+if ts_ver < Version("9"):
     DependsOn([ Component("libyaml-cpp") ])
 
 files = Pattern(src_dir="src",includes=["*.cc"]).files()

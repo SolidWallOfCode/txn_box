@@ -31,16 +31,19 @@ AddOption("--with-ssl",
          )
 
 
-Part("plugin/txn_box.part", package_group='txn_box')
-
 # the depends
-Part("swoc++/swoc++.part",vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.0.10"))
+Part("swoc++/swoc++.part"
+        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="dev-1-0-11")
+        )
 Part("#lib/libyaml-cpp.part", vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", protocol="https", tag="yaml-cpp-0.6.3"))
 
 # this is just a shim part. it passes info based on stuff being installed on the box
 # it should have a better check for the real version of trafficserver being used
-path = GetOption("with_trafficserver")
-Part("#lib/trafficserver.part",CUSTOM_PATH=path,VERSION="10.0.0"),
+ts_path = GetOption("with_trafficserver")
+Part("#lib/trafficserver.part", PKG_PREFIX=ts_path, PKG_VERSION="10.0.0")
 
 path = GetOption("with_ssl")
-Part("#lib/openssl.part",CUSTOM_PATH=path)
+Part("#lib/openssl.part", CUSTOM_PATH=path)
+
+# The main build.
+Part("plugin/txn_box.part", package_group='txn_box')
