@@ -171,8 +171,31 @@ inline constexpr unsigned IndexFor(ValueType type) {
 struct Feature : public FeatureVariant {
   using variant_type = FeatureVariant; ///< The base variant type.
   using variant_type::variant_type; ///< Inherit all constructors.
+  using self_type = Feature;
+  using super_type = FeatureVariant;
 
+  /** @a this as the super type (underlying variant class).
+   *
+   * @return @a this as a variant.
+   *
+   * This is used for a few specialized purposes where the standard variant machinery doesn't handle
+   * a subclass and the exact variant class must be used.
+   */
   variant_type & variant() { return *this; }
+
+  bool is_list() const;
+
+  /** Create a string feature by combining this feature.
+   *
+   * @param ctx Runtime context.
+   * @param glue Separate between features.
+   * @return A string feature containing this feature.
+   *
+   * This is simply a string rendering if @a this is a singleton. If it is a list form then the
+   * list elements are rendered, separated by the @a glue. The primary use of this is to force
+   * an arbitrary feature to be a string.
+   */
+  self_type join(Context & ctx, swoc::TextView const& glue) const;
 };
 
 /// @cond NO_DOXYGEN

@@ -115,6 +115,16 @@ ts::HttpField::~HttpField() {
   TSHandleMLocRelease(_buff, _hdr, _loc);
 }
 
+TextView ts::HttpField::name() const {
+  int size;
+  char const *text;
+  if (this->is_valid() &&
+      nullptr != (text = TSMimeHdrFieldNameGet(_buff, _hdr, _loc, &size))) {
+    return {text, static_cast<size_t>(size)};
+  }
+  return {};
+}
+
 TextView ts::HttpField::value() const {
   int size;
   char const *text;
@@ -126,15 +136,23 @@ TextView ts::HttpField::value() const {
 }
 
 bool ts::HttpField::assign(swoc::TextView value) {
-  int n;
   return this->is_valid() &&
-      ( (value.data() == TSMimeHdrFieldValueStringGet(_buff, _hdr, _loc, -1, &n) && n == value.size()) ||
-         TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size())
-      );
+       TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size())
+       ;
 }
 
 bool ts::HttpField::destroy() {
   return TS_SUCCESS == TSMimeHdrFieldDestroy(_buff, _hdr, _loc);
+}
+
+unsigned ts::HttpField::dup_count() const {
+  unsigned zret = 0;
+  if (this->is_valid()) {
+    for ( auto f = ts::HttpHeader{_buff, _hdr }.field(this->name()) ; f.is_valid() ; f = f.next_dup() ) {
+      ++zret;
+    }
+  }
+  return zret;
 }
 
 ts::URL ts::HttpRequest::url() {

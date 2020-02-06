@@ -153,13 +153,18 @@ Feature Expr::bwf_visitor::operator()(List const & list) {
   unsigned idx = 0;
   for ( auto const& expr : list._exprs ) {
     Feature feature { _ctx.extract(expr) };
+    _ctx.commit(feature);
     (*expr_tuple)[idx++] = feature;
   }
   return *expr_tuple;
 }
 
 Feature Context::extract(Expr const &expr) {
-  return std::visit(Expr::bwf_visitor(*this), expr._expr);
+  auto value = std::visit(Expr::bwf_visitor(*this), expr._expr);
+  for ( auto const& mod : expr._mods) {
+    value = (*mod)(*this, value);
+  }
+  return value;
 }
 
 Context& Context::commit(Feature &feature) {

@@ -35,9 +35,58 @@ swoc::Lexicon<ValueType> ValueTypeNames {{
   , { ValueType::GENERIC, "generic"}
   , { ValueType::VARIABLE, "var" }
   , { ValueType::ACTIVE, "active" }
+  , { ValueType::NO_VALUE, "no value" }
 }};
 
 /* ------------------------------------------------------------------------------------ */
+bool Feature::is_list() const {
+  auto idx = this->index();
+  return IndexFor(TUPLE) == idx || IndexFor(CONS) == idx;
+}
+
+namespace {
+struct join_visitor {
+  swoc::BufferWriter & _w;
+  TextView _glue;
+  unsigned _recurse = 0;
+
+  swoc::BufferWriter&  glue() {
+    if (_w.size()) {
+      _w.write(_glue);
+    }
+    return _w;
+  }
+
+  void operator()(feature_type_for<NIL>) {}
+  void operator()(feature_type_for<STRING> const& s) { this->glue().write(s); }
+  void operator()(feature_type_for<INTEGER> n) { this->glue().print("{}", n); }
+  void operator()(feature_type_for<BOOLEAN> flag) { this->glue().print("{}", flag);}
+  void operator()(feature_type_for<TUPLE> t) {
+    this->glue();
+    if (_recurse) {
+      _w.write("( "_tv);
+    }
+    auto lw = swoc::FixedBufferWriter{_w.aux_span()};
+    for ( auto const& item : t) {
+      std::visit(join_visitor{lw, _glue, _recurse + 1}, item);
+    }
+    _w.commit(lw.size());
+    if (_recurse) {
+      _w.write(" )"_tv);
+    }
+  }
+
+  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, void> {}
+};
+
+
+}
+
+Feature Feature::join(Context &ctx, const swoc::TextView &glue) const {
+  swoc::FixedBufferWriter w{ ctx._arena->remnant()};
+  std::visit(join_visitor{w, glue}, *this);
+  return w.view();
+}
 /* ------------------------------------------------------------------------------------ */
 Feature car(Feature const& feature) {
   switch (feature.index()) {
@@ -59,12 +108,14 @@ Feature & cdr(Feature & feature) {
   switch (feature.index()) {
     case IndexFor(CONS):
       feature = std::get<feature_type_for<CONS>>(feature)->_cdr;
+      break;
     case IndexFor(TUPLE): {
       Feature cdr { feature };
       auto &span = std::get<feature_type_for<TUPLE>>(cdr);
       span.remove_prefix(1);
       feature = span.empty() ? NIL_FEATURE : cdr;
     }
+    break;
     case IndexFor(GENERIC): {
       auto & generic = std::get<feature_type_for<GENERIC>>(feature);
       if (TupleIterator::TAG == generic->_tag) {
@@ -73,6 +124,7 @@ Feature & cdr(Feature & feature) {
         feature = NIL_FEATURE;
       }
     }
+    break;
   }
   return feature;
 }
@@ -320,6 +372,7 @@ public:
     auto span = cfg.span<Data>(1);
     spec._data = span;
     auto & data = span[0];
+    data.opt.all = 0;
     data._arg = cfg.localize(arg);
     if (0 == strcasecmp(spec._ext, "by-field"_tv)) {
       data.opt.f.by_field = true;
@@ -346,6 +399,14 @@ protected:
 
   /// @return The key (name) for the extractor.
   virtual TextView const& key() const = 0;
+
+  /** Get the appropriate @c HttpHeader.
+   *
+   * @param ctx Runtime context.
+   * @return The HTTP header to manipulate.
+   *
+   * This is used by subclasses to specify which HTTP header in the transaction is in play.
+   */
   virtual ts::HttpHeader hdr(Context & ctx) const = 0;
 };
 
@@ -358,15 +419,22 @@ Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
     return NIL_FEATURE;
   }
 
-  FeatureView zret;
-  zret._direct_p = true;
-  zret = TextView{};
   if ( ts::HttpHeader hdr { this->hdr(ctx) } ; hdr.is_valid()) {
-    if ( auto field { hdr.field(spec._data.view()) } ; field.is_valid()) {
-      zret = field.value();
+    if ( auto field { hdr.field(data._arg) } ; field.is_valid()) {
+      if (field.next_dup().is_valid()) {
+        auto n = field.dup_count();
+        auto span = ctx.span<Feature>(n);
+        for ( auto & item : span) {
+          item = field.value();
+          field = field.next_dup();
+        }
+        return span;
+      } else {
+        return field.value();
+      }
     }
   }
-  return zret;
+  return {};
 };
 
 BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ctx) {

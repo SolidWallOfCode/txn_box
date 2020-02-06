@@ -39,11 +39,11 @@ public:
    *
    * @param ctx Runtime transaction context.
    * @param feature Feature to modify.
-   * @return Errors, if any
+   * @return Modified feature, or errors.
    *
    * The @a feature is modified in place.
    */
-  virtual swoc::Errata operator()(Context& ctx, Feature & feature) = 0;
+  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature const& feature) = 0;
 
   /** Check if the comparison is valid for @a type.
    *
@@ -54,9 +54,10 @@ public:
 
   /** Output type of the modifier.
    *
+   * @param in The input type for the modifier.
    * @return The type of the modified feature.
    */
-  virtual ValueType result_type() const = 0;
+  virtual ValueType result_type(ValueType in) const = 0;
 
   /** Define a mod for @a name.
    *

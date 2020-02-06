@@ -51,23 +51,31 @@ public:
   /// @defgroup Comparison overloads.
   /// These must match the set of types in @c FeatureTypes.
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
-  /// The feature is passed by reference because comparisons are allowed to perform updates.
+  /// Context state updates are done through the @c Context argument.
   /// @{
   virtual bool operator()(Context&, std::monostate& nil) const { return false; }
-  virtual bool operator()(Context&, FeatureView& view) const { return false; }
-  virtual bool operator()(Context&, intmax_t& n) const { return false; }
-  virtual bool operator()(Context&, bool& f) const { return false; }
-  virtual bool operator()(Context&, swoc::IPAddr& addr) const { return false; }
-  virtual bool operator()(Context&, Cons* cons) const { return false; }
-  virtual bool operator()(Context&, FeatureTuple& tuple) const { return false; }
-  virtual bool operator()(Context&, Generic* g) const;
+  virtual bool operator()(Context&, FeatureView const& view) const { return false; }
+  virtual bool operator()(Context&, intmax_t n) const { return false; }
+  virtual bool operator()(Context&, bool f) const { return false; }
+  virtual bool operator()(Context&, swoc::IPAddr const& addr) const { return false; }
+  virtual bool operator()(Context&, Cons const* cons) const { return false; }
+  virtual bool operator()(Context&, FeatureTuple const& tuple) const { return false; }
+  virtual bool operator()(Context&, Generic const* g) const;
   /// @}
 
-  bool operator()(Context& ctx, Feature& feature) const {
+  /** External comparison entry.
+   *
+   * @param ctx Runtime context.
+   * @param feature Feature to compare.
+   * @return @c true if matched, @c false if not.
+   *
+   * Subclasses should override this method only if they will handle all feature types. If the
+   * comparison is limited to a few or a single feature type, it is better to overload the
+   * type specific comparisons.
+   */
+  virtual bool operator()(Context& ctx, Feature const& feature) const {
     auto visitor = [&](auto && value) { return (*this)(ctx, value); };
-// This should work, but it doesn't. Need to find out why not.
-//    return std::visit(visitor, data);
-    return std::visit(visitor, static_cast<Feature::variant_type&>(feature));
+    return std::visit(visitor, feature);
   }
 
   /** Define a comparison.

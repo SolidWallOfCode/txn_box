@@ -333,30 +333,118 @@ class FieldDirective : public Directive {
   using super_type = Directive; ///< Parent type.
 protected:
   TextView _name; ///< Field name.
-  Expr _value_fmt; ///< Feature for value.
+  Expr _expr; ///< Value for field.
 
-  FieldDirective(TextView const& name, Expr && fmt);
+  /** Base constructor.
+   *
+   * @param name Name of the field.
+   * @param expr Value to assign to the field.
+   */
+  FieldDirective(TextView const& name, Expr && expr);
 
+  /** Load from configuration.
+   *
+   * @param cfg Configuration.
+   * @param maker Subclass maker.
+   * @param key Name of the key identifying the directive.
+   * @param name Field name (directive argumnet).
+   * @param key_value  Value of the node for @a key.
+   * @return An instance of the directive for @a key, or errors.
+   */
+  static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node const& key_value);
+
+  /** Invoke the directive.
+   *
+   * @param ctx Runtime context.
+   * @param hdr HTTP header containing the field.
+   * @return Errors, if any.
+   */
   Errata invoke(Context& ctx, ts::HttpHeader && hdr);
 
-  void apply(Context& ctx, ts::HttpField && field);
+  void apply(Context& ctx, ts::HttpHeader & hdr, TextView const& name);
 
+  /** Get the directive name (key).
+   *
+   * @return The directive key.
+   *
+   * Used by subclasses to provide the key for diagnostics.
+   */
   virtual swoc::TextView key() const = 0;
 
-  static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node const& key_value);
+  template < typename T > void apply(Context& ctx, ts::HttpHeader && hdr, T const& value) {}
+
+  /// Visitor which performs the assignemnt.
+  struct Apply {
+    Context & _ctx; ///< Runtime context.
+    ts::HttpHeader & _hdr; ///< HTTP Header to modify.
+    ts::HttpField _field; ///< Working field.
+    TextView const& _name; ///< Field name.
+
+    Apply(Context & ctx, ts::HttpHeader & hdr, TextView const& name) : _ctx(ctx), _hdr(hdr), _field(hdr.field(name)), _name(name) {}
+
+    /// Clear all duplicate fields past @a _field.
+    void clear_dups() {
+      if (_field.is_valid()) {
+        for (auto nf = _field.next_dup(); nf.is_valid();) {
+          nf.destroy();
+        }
+      }
+    }
+
+    /// Assigned @a text to a single field, creating as needed.
+    /// @return @c true if a field value was changed, @c false if the current value is @a text.
+    void assign(TextView const& text) {
+      if (_field.is_valid()) {
+        if (_field.value() != text) {
+          _field.assign(text);
+        }
+      } else {
+        _hdr.field_create(_name).assign(text);
+      }
+    }
+
+    /// Nil / NULL means destroy the field.
+    void operator()(feature_type_for<NIL>) {
+      if (_field.is_valid()) {
+        this->clear_dups();
+        _field.destroy();
+      }
+    }
+
+    /// Assign the string, clear out any dups.
+    void operator()(feature_type_for<STRING>& text) {
+      this->assign(text);
+      this->clear_dups();
+    }
+
+    /// Assign the tuple elements to duplicate fields.
+    void operator()(feature_type_for<TUPLE>& t) {
+      bool reuse_p = false; // reuse existing fields.
+      for (auto const& tf : t) {
+        auto text { std::get<STRING>(tf.join(_ctx, ", "_tv)) };
+        // skip to next equal field, destroying mismatched fields.
+        // once @a _field becomes invalid, it remains in that state.
+        while (_field.is_valid() && _field.value() != text) {
+          auto tmp = _field.next_dup();
+          _field.destroy();
+          _field = std::move(tmp);
+        }
+        this->assign(text);
+        _field = _field.next_dup(); // does nothing if @a _field is invalid.
+      }
+    }
+
+    // Other types, do nothing.
+    template<typename T> auto operator()(T&&value) -> EnableForFeatureTypes<T, void> {}
+  };
+
 };
 
-FieldDirective::FieldDirective(TextView const &name, Expr &&fmt) : _name(name), _value_fmt(std::move(fmt)) {}
+FieldDirective::FieldDirective(TextView const &name, Expr &&expr) : _name(name), _expr(std::move(expr)) {}
 
-void FieldDirective::apply(Context & ctx, ts::HttpField && field) {
-  if (field.is_valid()) {
-    auto value { ctx.extract(_value_fmt)};
-    if (value.index() == IndexFor(NIL)) {
-      field.destroy();
-    } else if (auto content { std::get_if<STRING>(&value) } ; content != nullptr ) {
-      field.assign(*content);
-    }
-  }
+void FieldDirective::apply(Context & ctx, ts::HttpHeader & hdr, TextView const& name) {
+  auto value{ctx.extract(_expr)};
+  std::visit(Apply{ctx, hdr, name}, value);
 }
 
 Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
@@ -367,13 +455,21 @@ Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
         if (TupleIterator::TAG == (*g)->_tag) {
           if (static_cast<TupleIterator*>(*g)->iter_tag() == this->key()) {
             auto & iter = *static_cast<HttpFieldTuple*>(*g);
-            this->apply(ctx, std::move(iter.current()));
+            auto & field = iter.current();
+            if (field.is_valid()) {
+              auto value { ctx.extract(_expr)};
+              if (ValueTypeOf(value) == NIL) {
+                field.destroy();
+              } else {
+                field.assign(std::get<STRING>(value.join(ctx, ", "_tv)));
+              }
+            }
             return {};
           }
         }
       }
     } else {
-      this->apply(ctx, hdr.field_obtain(_name));
+      this->apply(ctx, hdr, _name);
       return {};
     }
     return Errata().error(R"(Failed to find or create field "{}")", _name);
@@ -395,8 +491,8 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
   if (expr_type == NO_VALUE) {
     return Error(R"(Directive "{}" must have a value.)", key);
   }
-  if (STRING != expr_type && NIL != expr_type) {
-    return Error(R"(Value for "{}" directive at {} must be a string or NULL.)", key, key_value.Mark());
+  if (STRING != expr_type && NIL != expr_type && TUPLE != expr_type) {
+    return Error(R"(Value for "{}" directive at {} must be a NULL, a string or a list of strings.)", key, key_value.Mark());
   }
 
   return maker(cfg.localize(arg), std::move(expr));
@@ -1354,6 +1450,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
   if (node.IsMap()) {
     Case c;
     YAML::Node do_node { node[DO_KEY]};
+    auto n_count = node.size();
     // It's allowed to have no comparison, which is either an empty map or only a DO key.
     // In that case the comparison always matches.
     if (node.size() > 1 || (node.size() == 1 && !do_node)) {
@@ -1361,7 +1458,6 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
       if (cmp_errata.is_ok()) {
         c._cmp = std::move(cmp_handle);
       } else {
-        cmp_errata.info(R"(While parsing "{}" key at {}.)", SELECT_KEY, node.Mark());
         return std::move(cmp_errata);
       }
     }
@@ -1370,7 +1466,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
       Config::FeatureRefState ref;
       ref._feature_active_p = true;
       ref._type = _ex.result_type();
-      ref._rxp_group_count = c._cmp->rxp_group_count();
+      ref._rxp_group_count = c._cmp ? c._cmp->rxp_group_count() : 0;
       ref._rxp_line = node.Mark().line;
       auto &&[handle, errata]{cfg.parse_directive(do_node, ref)};
       if (errata.is_ok()) {

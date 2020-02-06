@@ -107,7 +107,11 @@ public:
       ValueType operator () (Composite const&) { return STRING; }
       ValueType operator () (List const&) { return TUPLE; }
     };
-    return _mods.empty() ? std::visit(Visitor{}, _expr) : _mods.back()->result_type();
+    ValueType zret = std::visit(Visitor{}, _expr);
+    for ( auto const& mod : _mods) {
+      zret = mod->result_type(zret);
+    }
+    return zret;
   }
 
   bool is_literal() const { return _expr.index() == LITERAL; }
