@@ -705,7 +705,7 @@ public:
   static const std::string KEY; ///< Comparison name.
 
   bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override {
-    auto value = ctx.extract(_value_fmt);
+    auto value = ctx.extract(_expr);
     return P(n, std::get<IndexFor(INTEGER)>(value));
   }
 
@@ -721,9 +721,9 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
-  Expr _value_fmt;
+  Expr _expr;
 
-  Cmp_Binary_Integer(Expr && fmt) : _value_fmt(std::move(fmt)) {}
+  Cmp_Binary_Integer(Expr && fmt) : _expr(std::move(fmt)) {}
 };
 
 template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
