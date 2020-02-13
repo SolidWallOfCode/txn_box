@@ -6,28 +6,26 @@ meta:
   # 3) set X-XSS-Protection to prevent XSS attacks.
 
   txn_box:
+  # default Expect-CT policy.
   - when: creq
     do:
-    # default Expect-CT policy.
-    - when: creq
-      do:
-      - with: cssn-proto<tls>
-        select:
-        - prefix: "tls"
-          do:
-          - var<ct-policy>:
-            - creq-host
-            - filter:
-              - match: "u.yimg.com"
-                replace: "enforce"
-              - replace: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
-    - when: creq
-      do:
-      - with: creq-host
-        select:
-        - tld: "yimg.com"   # yimg.com or any subdomain
-          do:
-          - creq-field<Cookie>: NULL
+    - with: cssn-proto<tls>
+      select:
+      - prefix: "tls"
+        do:
+        - var<ct-policy>:
+          - creq-host
+          - filter:
+            - match: "u.yimg.com"
+              replace: "enforce"
+            - replace: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
+  - when: creq
+    do:
+    - with: creq-host
+      select:
+      - tld: "yimg.com"   # yimg.com or any subdomain
+        do:
+        - creq-field<Cookie>: NULL
 
   - when: ursp
     do:

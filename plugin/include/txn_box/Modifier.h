@@ -19,15 +19,14 @@
 /** Feature modification / transformation.
  *
  */
-
 class Modifier {
-  using self_type = Modifier;
+  using self_type = Modifier; ///< Self reference type.
 
 public:
   /// Handle for instances.
   using Handle = std::unique_ptr<self_type>;
 
-  /** Function to create an instance from YAML configuraion.
+  /** Function to create an instance from YAML configuration.
    * @param cfg The configuration state object.
    * @param mod_node The YAML node for the feature modifier.
    * @param key_node The YAML node in @a mod_node that identified the modifier.
@@ -40,8 +39,6 @@ public:
    * @param ctx Runtime transaction context.
    * @param feature Feature to modify.
    * @return Modified feature, or errors.
-   *
-   * The @a feature is modified in place.
    */
   virtual swoc::Rv<Feature> operator()(Context& ctx, Feature const& feature) = 0;
 

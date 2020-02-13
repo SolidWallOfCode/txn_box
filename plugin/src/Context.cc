@@ -282,6 +282,32 @@ void Context::set_literal_capture(swoc::TextView text) {
   _rxp_src = text;
 }
 
+Context::RxpCapture *Context::rxp_commit_match(swoc::TextView const&src) {
+  _rxp_src = src;
+  std::swap(_rxp_active, _rxp_working);
+  return &_rxp_active;
+}
+
+Feature const&Context::load_txn_var(swoc::TextView const&name) {
+  auto spot = _txn_vars.find(name);
+  if (spot == _txn_vars.end()) {
+    // Later, need to search ssn and global variables and retrieve those if found.
+    return NIL_FEATURE;
+  }
+  return spot->_value;
+}
+
+Context::self_type&Context::store_txn_var(swoc::TextView const&name, Feature&value) {
+  auto spot = _txn_vars.find(name);
+  this->commit(value);
+  if (spot == _txn_vars.end()) {
+    _txn_vars.insert(_arena->make<TxnVar>(name, value));
+  } else {
+    spot->_value = value;
+  }
+  return *this;
+}
+
 unsigned Context::ArgPack::count() const {
   return pcre2_get_ovector_count(_ctx._rxp_active._match);
 }

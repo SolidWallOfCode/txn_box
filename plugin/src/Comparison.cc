@@ -754,56 +754,47 @@ template<> const std::string Cmp_gt::KEY { "gt" };
 template<> const std::string Cmp_ge::KEY { "ge" };
 
 /* ------------------------------------------------------------------------------------ */
-class Cmp_none_of : public Comparison {
-  using self_type = Cmp_none_of; ///< Self reference type.
+class ComboComparison : public Comparison {
+  using self_type = ComboComparison; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
-  static constexpr TextView KEY = "none-of"; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  virtual TextView const& key() const = 0;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<std::vector<Handle>> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
   /// List of sub-comparisons.
   std::vector<Handle> _cmps;
 
-  Cmp_none_of(std::vector<Handle> && cmps) : _cmps(std::move(cmps)) {}
+  ComboComparison(std::vector<Handle> && cmps) : _cmps(std::move(cmps)) {}
 
   static Errata load_case(Config& cfg, std::vector<Handle> & cmps, YAML::Node node);
 };
 
-const ValueMask Cmp_none_of::TYPES { ~0UL };
-
-bool Cmp_none_of::operator()(Context &ctx, Feature const& feature) const {
-  return std::none_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
-    return (*cmp)(ctx, feature);
-  });
-}
-
-Rv<Comparison::Handle> Cmp_none_of::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) -> Rv<std::vector<Handle>> {
   std::vector<Handle> cmps;
   if (value_node.IsMap()) {
     auto errata = self_type::load_case(cfg, cmps, value_node);
     if (!errata.is_ok()) {
-      errata.info("While parsing {} comparison at {}.", KEY, cmp_node.Mark());
+      errata.info("While parsing {} comparison at {}.", key, cmp_node.Mark());
     }
   } else if (value_node.IsSequence()) {
     cmps.reserve(cmp_node.size());
     for ( auto child : value_node ) {
       auto errata = self_type::load_case(cfg, cmps, child);
       if (! errata.is_ok()) {
-        errata.info("While parsing {} comparison at {}.", KEY, cmp_node.Mark());
+        errata.info("While parsing {} comparison at {}.", key, cmp_node.Mark());
         return std::move(errata);
       }
     }
   }
-  return Handle(new self_type{std::move(cmps)});
+  return std::move(cmps);
 }
 
-Errata Cmp_none_of::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::Node node) {
+Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::Node node) {
   auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, ACTIVE, node)};
   if (!cmp_errata.is_ok()) {
     return std::move(cmp_errata);
@@ -811,6 +802,102 @@ Errata Cmp_none_of::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::Node 
   cmps.emplace_back(std::move(cmp_handle));
   return {};
 }
+
+const ValueMask ComboComparison::TYPES { ~0UL };
+
+// ---
+
+class Cmp_any_of : public ComboComparison {
+  using self_type = Cmp_any_of; ///< Self reference type.
+  using super_type = ComboComparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "any-of"; ///< Comparison name.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Cmp_any_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+};
+
+bool Cmp_any_of::operator()(Context &ctx, Feature const& feature) const {
+  return std::any_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
+    return (*cmp)(ctx, feature);
+  });
+}
+
+auto Cmp_any_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  return Handle{new self_type{std::move(cmps)}};
+}
+
+// ---
+
+class Cmp_all_of : public ComboComparison {
+  using self_type = Cmp_all_of; ///< Self reference type.
+  using super_type = ComboComparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "all-of"; ///< Comparison name.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Cmp_all_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+};
+
+bool Cmp_all_of::operator()(Context &ctx, Feature const& feature) const {
+  return std::all_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
+    return (*cmp)(ctx, feature);
+  });
+}
+
+auto Cmp_all_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  return Handle{new self_type{std::move(cmps)}};
+}
+
+// ---
+
+class Cmp_none_of : public ComboComparison {
+  using self_type = Cmp_none_of; ///< Self reference type.
+  using super_type = ComboComparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "none-of"; ///< Comparison name.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Cmp_none_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+};
+
+bool Cmp_none_of::operator()(Context &ctx, Feature const& feature) const {
+  return std::none_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
+    return (*cmp)(ctx, feature);
+  });
+}
+
+auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  return Handle{new self_type{std::move(cmps)}};
+}
+
 /* ------------------------------------------------------------------------------------ */
 
 namespace {
@@ -831,6 +918,8 @@ namespace {
   Comparison::define(Cmp_ge::KEY, Cmp_ge::TYPES, Cmp_ge::load);
 
   Comparison::define(Cmp_none_of::KEY, Cmp_none_of::TYPES, Cmp_none_of::load);
+  Comparison::define(Cmp_all_of::KEY, Cmp_all_of::TYPES, Cmp_all_of::load);
+  Comparison::define(Cmp_any_of::KEY, Cmp_any_of::TYPES, Cmp_any_of::load);
 
   BoolNames.set_default(BoolTag::INVALID);
 
