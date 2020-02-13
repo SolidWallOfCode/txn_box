@@ -29,7 +29,7 @@ template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, A
   return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
 }
 
-/// Separator character for names vs. argument.
+/// Separate a name and argument for a directive or extractor.
 extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView & key);
 
 /** Data for a feature that is a view / string.

@@ -199,6 +199,7 @@ public:
 
   /// Directives for a particular hook.
   struct HookInfo {
+    /// @c IntrusiveDList support.
     using List = swoc::IntrusiveDList<Callback::Linkage>;
     List cb_list; ///< List of directives to call back.
     bool hook_set_p = false; ///< If a TS level callback for this hook has already been set.
@@ -218,9 +219,7 @@ public:
    * @param value Variable value.
    * @return @a this
    */
-  self_type & store_txn_var(swoc::TextView const& name, Feature && value) {
-    return this->store_txn_var(name, value);
-  }
+  self_type & store_txn_var(swoc::TextView const& name, Feature && value);
 
   /** Store a transaction variable.
    *
@@ -228,33 +227,18 @@ public:
    * @param value Variable value.
    * @return @a this
    */
-  self_type & store_txn_var(swoc::TextView const& name, Feature & value) {
-    auto spot = _txn_vars.find(name);
-    this->commit(value);
-    if (spot == _txn_vars.end()) {
-      _txn_vars.insert(_arena->make<TxnVar>(name, value));
-    } else {
-      spot->_value = value;
-    }
-    return *this;
-  }
+  self_type & store_txn_var(swoc::TextView const& name, Feature & value);
 
   /** Load a transaction variable.
    *
    * @param name Variable name.
    * @return Value of the variable.
    */
-  Feature const& load_txn_var(swoc::TextView const& name) {
-    static const Feature NIL; // should really be a global.
-    auto spot = _txn_vars.find(name);
-    if (spot == _txn_vars.end()) {
-      // Later, need to search ssn and global variables and retrieve those if found.
-      return NIL;
-    }
-    return spot->_value;
-  }
+  Feature const& load_txn_var(swoc::TextView const& name);
 
+  /// Storage for remap txn information, if a remap rule is active.
   TSRemapRequestInfo* _remap_info = nullptr;
+  /// Value to return from a remap invocation.
   TSRemapStatus _remap_status = TSREMAP_NO_REMAP;
 
   /// Match data support for PCRE.
@@ -275,11 +259,7 @@ public:
   pcre2_match_data * rxp_working_match_data() { return _rxp_working._match; }
 
   /// Commit the working match data as the active match data.
-  RxpCapture * rxp_commit_match(swoc::TextView const& src) {
-    _rxp_src = src;
-    std::swap(_rxp_active, _rxp_working);
-    return &_rxp_active;
-  }
+  RxpCapture * rxp_commit_match(swoc::TextView const& src);
 
   /** Clear cached data.
    *
@@ -348,3 +328,10 @@ protected:
    */
   static int ts_callback(TSCont cont, TSEvent evt, void * payload);
 };
+
+// --- Implementation ---
+
+inline auto Context::store_txn_var(swoc::TextView const&name, Feature&&value) -> self_type & {
+  return this->store_txn_var(name, value);
+}
+
