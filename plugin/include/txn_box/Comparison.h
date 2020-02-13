@@ -53,7 +53,7 @@ public:
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// Context state updates are done through the @c Context argument.
   /// @{
-  virtual bool operator()(Context&, std::monostate& nil) const { return false; }
+  virtual bool operator()(Context&, std::monostate) const { return false; }
   virtual bool operator()(Context&, FeatureView const& view) const { return false; }
   virtual bool operator()(Context&, intmax_t n) const { return false; }
   virtual bool operator()(Context&, bool f) const { return false; }
