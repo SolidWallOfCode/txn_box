@@ -131,8 +131,9 @@ class Mod_Filter : public Modifier {
   using super_type = Modifier;
 public:
   static constexpr TextView KEY = "filter"; ///< Identifier name.
-  static constexpr TextView REPLACE_KEY = "@replace"; ///< Replace element.
-  static constexpr TextView DROP_KEY = "@drop"; ///< Drop / remove element.
+  static constexpr TextView REPLACE_KEY = "replace"; ///< Replace element.
+  static constexpr TextView DROP_KEY = "drop"; ///< Drop / remove element.
+  static constexpr TextView PASS_KEY = "pass"; ///< Pass unalterated.
 
   /** Modify the feature.
    *
@@ -206,17 +207,18 @@ Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
   Feature zret;
   if (feature.is_list()) {
     auto src = std::get<IndexFor(TUPLE)>(feature);
-    auto farray = static_cast<Feature*>(alloca(sizeof(Feature) * src.size()));
-    feature_type_for<TUPLE> dst{farray, src.size() };
+    auto farray = static_cast<Feature*>(alloca(sizeof(Feature) * src.count()));
+    feature_type_for<TUPLE> dst{farray, src.count() };
     unsigned dst_idx = 0;
     for ( Feature f = feature ; ! is_nil(f) ; f = cdr(f) ) {
-      auto c = this->compare(ctx, car(f));
+      Feature item = car(f);
+      auto c = this->compare(ctx, item);
       Action action = c ? c->_action : DROP;
       switch (action) {
         case DROP:
           break;
         case PASS:
-          dst[dst_idx++] = f;
+          dst[dst_idx++] = item;
           break;
         case REPLACE:
           dst[dst_idx++] = ctx.extract(c->_expr);
@@ -247,25 +249,37 @@ Errata Mod_Filter::load_case(Config &cfg, std::vector<Case> & cases, YAML::Node 
 
   Action action = PASS;
   Expr replace_expr;
+  unsigned action_count = 0;
 
   YAML::Node drop_node = cmp_node[DROP_KEY];
   if (drop_node) {
     action = DROP;
     cmp_node.remove(DROP_KEY);
+    ++action_count;
+  }
+
+  YAML::Node pass_node = cmp_node[PASS_KEY];
+  if (pass_node) {
+    action = PASS;
+    cmp_node.remove(PASS_KEY);
+    ++action_count;
   }
 
   YAML::Node replace_node = cmp_node[REPLACE_KEY];
   if (replace_node) {
-    if (drop_node) {
-      return Error("{} comparison at {} has both {} and {} keys.", KEY, cmp_node.Mark(), DROP_KEY, REPLACE_KEY);
-    }
-    cmp_node.remove(REPLACE_KEY);
     auto &&[expr, errata] = cfg.parse_expr(replace_node);
     if (! errata.is_ok()) {
       errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), REPLACE_KEY, cmp_node.Mark());
       return std::move(errata);
     }
     replace_expr = std::move(expr);
+    action = REPLACE;
+    cmp_node.remove(REPLACE_KEY);
+    ++action_count;
+  }
+
+  if (action_count > 1) {
+    return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", REPLACE_KEY, DROP_KEY, PASS_KEY, KEY, cmp_node.Mark());
   }
 
   if (cmp_node.size() < 1) {

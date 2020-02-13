@@ -173,7 +173,7 @@ protected:
   };
 };
 
-const ValueMask Cmp_LiteralString::TYPES = MaskFor({ STRING, TUPLE });
+const ValueMask Cmp_LiteralString::TYPES = MaskFor({ STRING, TUPLE, ACTIVE });
 
 Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
 

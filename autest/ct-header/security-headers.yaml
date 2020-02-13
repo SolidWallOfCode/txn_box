@@ -15,13 +15,12 @@ meta:
         select:
         - prefix: "tls"
           do:
-          - with: creq-host
-            select:
-            - match: "u.yimg.com"
-              do:
-              - var<ct-policy>: "enforce" # set Expect-CT policy.
-            - do:
-                var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
+          - var<ct-policy>:
+            - creq-host
+            - filter:
+              - match: "u.yimg.com"
+                replace: "enforce"
+              - replace: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
     - when: creq
       do:
       - with: creq-host
