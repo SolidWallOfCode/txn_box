@@ -312,7 +312,69 @@ sessions:
         - [ Content-Type, text/html ]
         - [ Content-Length, 84 ]
         - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.yimg.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      # Should only get one set-cookie here, but can't check for that in this version of Proxy Verifier.
+
+  - all: { headers: { fields: [[ uuid, 10 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.yimg.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.yimg.com ]
+
+    proxy-request:
+      method: "GET"
+      headers:
+        fields:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
+        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.yimg.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBO; Max-Age=31557600; Domain=.yimg.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+
+    proxy-response:
+      status: 200
+      # Should only get one set-cookie here, but can't check for that in this version of Proxy Verifier.
+
+  - all: { headers: { fields: [[ uuid, 11 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "http://s.yimg.com/fancy-picture.jpg"
+      headers:
+        fields:
+        - [ Host, s.yimg.com ]
+
+    proxy-request:
+      method: "GET"
+      headers:
+        fields:
+
+    server-response:
+      status: 200
+      reason: OK
+      content: { size: 84 }
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 84 ]
         - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.yimg.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
+        - [ set-cookie, "A3=d=AQABBO; Max-Age=31557600; Domain=.yahoo.com; Path=/; SameSite=Lax; Secure; HttpOnly" ]
 
     proxy-response:
       status: 200
