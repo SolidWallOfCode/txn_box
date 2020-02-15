@@ -18,12 +18,16 @@ Issues
 #. There are some use cases that want to check just for an extract string to be empty or non-empty.
    Should there be a forcing to the ``bool`` type for these, which are then ``true`` for non-empty
    and ``false`` for empty? Specific match operators for empty and non-empty (although this can be
-   done with regular expressions)?
+   done with ``match: ""``)?
 
 #. How optional should ``do`` nodes be? For instance, for selection cases is it OK to omit the
    node entirely if there's nothing to actually do, it's just a match for some other reason (e.g.
    to prevent requests that match from matching subsequent cases)?
 
+   Thinking about this more, it should be possible to omit the comparison or the ``do``.
+
+   *  If the comparison is omitted, it always matches.
+   *  If the ``do`` is omitted, then nothing is done.
 
 .. codeblock::
 
@@ -46,6 +50,128 @@ Issues
                # more comparisons
 
 
+Working with HTTP Fields
+========================
+
+Due to history and bad practices, working with the fields in an HTTP message can be challenging.
+Unfortunately this makes the configuration for these more intricate.
+
+The general case, where there is a single field with a single value it straight forward. A field
+extractor (such as :txb:exf:`preq-field`) can be used to get the value, and a field directive
+(such as :txb:drtv:`preq-field`) to change it.
+
+Some fields are defined to be `multi-valued <https://tools.ietf.org/html/rfc7230#section-3.2.6>`__
+in which case the field value is really a list. On the other hand, there are exceptions to this
+as well, most notably `Set-Cookie <https://tools.ietf.org/html/rfc6265#section-4.1>`__ which,
+while multi-valued, does not follow the standard mechanism.
+
+To handle all of these cases, the extendsion field of the field extractors can be used to force
+the field to be handled either by value or by field. In both cases the result is a tuple to which
+the standard :txb:drtv:`with` tuple handling can be used.
+
+In addition, if the field is handled by field, there is special support in the corresponding field
+directive to modifying that specific field in the message.
+
+For illustrative purposes, the examples will use the upstream response ("ursp") extractors and
+directives, but all of this applies to the client request ("creq"), proxy request ("preq"), and
+proxy response ("prsp") extractors and directives in exactly the same way.
+
+In the case of single valued field such as "Server" fields, the value is extracted using
+``ursp-field<Server>` and can be changed with the directive ``ursp-field<Server>``. Here is an
+example that looks at the "Transfer-Encoding" field to check for chunked encoding ::
+
+   with: ursp-field<Transfer-Encoding>
+   select:
+   -  match<nc>: "chunked"
+      do:
+         # ... whatever
+
+Another example is setting the "Server" field to "TxnBox-Enhanced-Server" if it is not already set
+::
+
+   ursp-field<Server>: [ ursp-field<Server> , { else: "TxnBox-Enhanced-Server" } ]
+
+TBD: Tuple / multi-valued fields.
+
+For a multi-valued field, if it is useful to handle it as distinct values (instead of one string)
+this can be done with the extension "by-value". This extracts a list of items, one for each value
+in the field. This includes duplicate fields. In this case, normal comparisons won't work, as they
+apply only to single values. There are comparison specific to lists that must be used which apply
+single value comparisons to elements of the list. This can be done in two ways, either as a list
+(where the same comparison is applied to every element) or as a tuple, where different comparisons
+can be applied to each element.
+
+The list comparisons are
+
+for-all
+   Apply the comparison(s) to each element and match if every element successfully matches.
+
+for-any
+   Apply the comparison(s) to each element and match if any element successfully matches.
+
+for-none
+   Apply the comparison(s) to each element and match if no element successfully matches.
+
+For performance reasons the comparison ends as soon as the result is known. For example ``for-all``
+stops as soon as any comparison doesn't match.
+
+The comparison ``tuple`` takes a list of comparisons and applies them in order to the list. Any of
+the list comparisons can be used as the last comparison of a tuple in which case it is applied to
+the remaining elements of the tuple. Note an empty comparison always matches which
+can be used to skip elements in the tuple.
+
+As an example, to check if any element of the "Via" field has the string "trafficserver" ::
+
+   with: creq-field<via>::by-value
+   select:
+   -  for-any:
+      -  contains<nc>: "trafficserver"
+      do: # invoked if any Via value matched
+
+Note selecting on just :code:`creq-field<via>` would only check the first "Via" field.
+
+Finally, for fields like "Set-Cookie", handling must be done by the actual fields in the message
+header. Here is an example that walks the "Set-Cookie" fields and if the domain is set to
+"example.one", that specific field is removed. ::
+
+   with: ursp-field<Set-Cookie>::by-field
+   for-each:
+   -  with: ...
+      select:
+      -  contains<nc>: "Domain=example.one;"
+         do:
+         -  ursp-field<...>: NULL
+
+The notation "..." is a reference to the active feature, just as it as an extractor. Not all
+directives support this - if one does, this is noted in the deescription along with the associated
+extractor(s) that extract a corresponding active feature. In particular, a field directive of
+this form can only be used with an active feature by the corresponding extractor. In this case,
+``creq-field<...>`` would be invalid, only ``ursp-field<...>`` will work because the active feature
+was extracted by the ``ursp-field`` extractor.
+
+It's interesting to compare this to an alternative that looks similar but isn't quite the same ::
+
+   with: ursp-field<Set-Cookie>::by-field
+   select:
+   -  for-all:
+      -  contains<nc>: "Domain=example.one;"
+         do:
+         -  ursp-field<...>: NULL
+
+The difference is ``for-all`` is a comparison and will stop at the first element that doesn't match.
+``for-each`` will always do all elements. Similar differences exist if ``for-any`` or ``for-none``
+are used. A way around this difference would be ::
+
+   with: ursp-field<Set-Cookie>::by-field
+   select:
+   -  for-all:
+      -  contains<nc>: "Domain=example.one;"
+         do:
+         -  ursp-field<...>: NULL
+      - {} # always match
+
+While this will work by causing every element to match, it's a bit obscure and easy to get wrong. If
+every element in a tuple needs to be processed, use ``for-each``.
 
 Examples
 ********
