@@ -5,10 +5,6 @@ from parts import *
 SetOptionDefault("LINKFLAGS", ['-Wl,--copy-dt-needed-entries', '-Wl,--as-needed'])
 SetOptionDefault("CXXFLAGS", ['-std=c++17'])
 SetOptionDefault("INSTALL_ROOT", "#")
-#SetOptionDefault("INSTALL_LIB",  "#lib")
-#SetOptionDefault("INSTALL_BIN",  "#bin")
-#SetOptionDefault("INSTALL_INCLUDE",  "#include")
-#SetOptionDefault("INSTALL_PKGCONFIG", "#lib/pkgconfig")
 
 # control shim for trafficserver
 AddOption("--with-trafficserver",
