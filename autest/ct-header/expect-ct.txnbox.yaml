@@ -1,0 +1,23 @@
+txn_box:
+- when: creq
+  do:
+  - with: cssn-proto<tls>
+    select:
+    - prefix: "tls"
+      do:
+      - var<ct-policy>: "report-uri=\"http://csp.yahoo.com/beacon/csp?src=yahoocom-expect-ct-report-only\""
+      - with: creq-host
+        select:
+        - match: "u.yimg.com"
+          do:
+            var<ct-policy>: "enforce" # set Expect-CT policy.
+
+- when: prsp
+  do:
+  - with: cssn-proto<tls>
+    select:
+    - prefix: "tls"
+      do:
+      - prsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
+
+
