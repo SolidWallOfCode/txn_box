@@ -366,7 +366,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 
     // Ignorable keys in the directive. Currently just one, so hand code it. Make this better
     // if there is ever more than one.
-    if (name == Directive::DO_KEY) {
+    if (name == Global::DO_KEY) {
       continue;
     }
     // See if this is in the factory. It's not an error if it's not, to enable adding extra

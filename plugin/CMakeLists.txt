@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_library(plugin SHARED
 	src/txn_box.cc
 	src/txn_box_remap.cc
+	src/Accelerator.cc
     	src/Comparison.cc
 	src/Config.cc
 	src/Context.cc

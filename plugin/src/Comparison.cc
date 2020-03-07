@@ -47,7 +47,7 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Nod
     if (!arg_errata.is_ok()) {
       return std::move(arg_errata);
     }
-    if (key == Directive::DO_KEY) {
+    if (key == Global::DO_KEY) {
       continue;
     }
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
@@ -898,7 +898,35 @@ auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key
   return Handle{new self_type{std::move(cmps)}};
 }
 
-/* ------------------------------------------------------------------------------------ */
+// --- ComparisonGroup --- //
+
+Errata ComparisonGroupBase::load(Config& cfg, YAML::Node node) {
+  if (node.IsMap()) {
+    auto errata { this->load_case(cfg, node)};
+    if (! errata.is_ok()) {
+      return std::move(errata);
+    }
+  } else if (node.IsSequence()) {
+    for ( auto child : node ) {
+      if (auto errata { this->load_case(cfg, child)} ; ! errata.is_ok()) {
+        return std::move(errata);
+      }
+    }
+  } else {
+    return Error("The node at {} was not comparison nor a list of comparisons as required.", node.Mark());
+  }
+  return {};
+}
+
+Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node node) {
+  auto && [handle, errata]{Comparison::load(cfg, ACTIVE, node)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  return std::move(handle);
+}
+
+// --- Initialization --- //
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {

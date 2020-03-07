@@ -31,6 +31,9 @@ class Directive {
   friend Context;
 
 public:
+  /// Import global value for convienence.
+  static constexpr swoc::TextView DO_KEY = Global::DO_KEY;
+
   /// Options for a directive instance.
   class Options {
   private:
@@ -66,12 +69,6 @@ public:
     size_t _cfg_size = 0; ///< Amount of config storage.
     size_t _ctx_size = 0; ///< Amount of shared per context storage.
   };
-
-  /// Standard name for nested directives.
-  /// This key is never matched as a directive name.
-  /// It is defined here, even though not all directives use it, in order to be consistent across
-  /// those that do.
-  static const std::string DO_KEY;
 
   /// Generic handle for all directives.
   using Handle = std::unique_ptr<self_type>;

@@ -171,16 +171,20 @@ protected:
 
   /// A filter comparison case.
   struct Case {
-    Action _action; ///< Action on match.
+    Action _action = PASS; ///< Action on match.
     Expr _expr; ///< Replacement expression, if any.
     Comparison::Handle _cmp; ///< Comparison.
+
+    void assign(Comparison::Handle && handle) {
+      _cmp = std::move(handle);
+    }
+
+    bool operator () (Context& ctx, Feature const& feature);
+
+    Errata pre_load(Config & cfg, YAML::Node node);
   };
 
-  std::vector<Case> _cases;
-
-  Mod_Filter(std::vector<Case> && cases) : _cases(std::move(cases)) {}
-
-  static Errata load_case(Config& cfg, std::vector<Case> & cases, YAML::Node cmp_node);
+  ComparisonGroup<Case> _cases;
 
   Case const* compare(Context& ctx, Feature const& feature) const;
 };
@@ -212,8 +216,8 @@ Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
     unsigned dst_idx = 0;
     for ( Feature f = feature ; ! is_nil(f) ; f = cdr(f) ) {
       Feature item = car(f);
-      auto c = this->compare(ctx, item);
-      Action action = c ? c->_action : DROP;
+      auto c = _cases(ctx, item);
+      Action action = ((c != _cases.end()) ? c->_action : DROP);
       switch (action) {
         case DROP:
           break;
@@ -242,25 +246,30 @@ Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
   return zret;
 }
 
-Errata Mod_Filter::load_case(Config &cfg, std::vector<Case> & cases, YAML::Node cmp_node) {
+Errata Mod_Filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   if (!cmp_node.IsMap()) {
     return Error("List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
   }
 
-  Action action = PASS;
   Expr replace_expr;
   unsigned action_count = 0;
 
+  if (auto do_node = cmp_node[Global::DO_KEY] ; do_node) {
+    return Error(R"("{}" at line {} is not allowed in a modifier comparison.)"
+        , Global::DO_KEY, do_node.Mark()
+    );
+  }
+
   YAML::Node drop_node = cmp_node[DROP_KEY];
   if (drop_node) {
-    action = DROP;
+    _action = DROP;
     cmp_node.remove(DROP_KEY);
     ++action_count;
   }
 
   YAML::Node pass_node = cmp_node[PASS_KEY];
   if (pass_node) {
-    action = PASS;
+    _action = PASS;
     cmp_node.remove(PASS_KEY);
     ++action_count;
   }
@@ -272,8 +281,8 @@ Errata Mod_Filter::load_case(Config &cfg, std::vector<Case> & cases, YAML::Node 
       errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), REPLACE_KEY, cmp_node.Mark());
       return std::move(errata);
     }
-    replace_expr = std::move(expr);
-    action = REPLACE;
+    _expr = std::move(expr);
+    _action = REPLACE;
     cmp_node.remove(REPLACE_KEY);
     ++action_count;
   }
@@ -282,47 +291,22 @@ Errata Mod_Filter::load_case(Config &cfg, std::vector<Case> & cases, YAML::Node 
     return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", REPLACE_KEY, DROP_KEY, PASS_KEY, KEY, cmp_node.Mark());
   }
 
-  if (cmp_node.size() < 1) {
-    // It's allowed to have no comparison which always matches and doesn't modify the element.
-    cases.emplace_back(Case{action, std::move(replace_expr) });
-    return {};
-  }
-
-  Comparison::Handle cmp;
-
-  auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, ACTIVE, cmp_node)};
-  if (cmp_errata.is_ok()) {
-    cmp = std::move(cmp_handle);
-  } else {
-    cmp_errata.info(R"(While parsing "{}" modifier comparison at {}.)", KEY, cmp_node.Mark());
-    return std::move(cmp_errata);
-  }
-
-  // Everything is fine, update the case load and return.
-  cases.emplace_back(Case{action, std::move(replace_expr), std::move(cmp)});
   return {};
 }
 
+bool Mod_Filter::Case::operator()(Context& ctx, Feature const& feature) {
+  return ! _cmp || (*_cmp)(ctx, feature);
+}
+
 Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  std::vector<Case> cases;
-  if (key_node.IsMap()) {
-    auto errata { self_type::load_case(cfg, cases, key_node)};
-    if (! errata.is_ok()) {
-      errata.info("While parsing {} modifier at {}.", KEY, mod_node.Mark());
-      return std::move(errata);
-    }
-  } else if (key_node.IsSequence()) {
-    for ( auto child : key_node ) {
-      auto errata { self_type::load_case(cfg, cases, child)};
-      if (! errata.is_ok()) {
-        errata.info("While parsing {} modifier at {}.", KEY, mod_node.Mark());
-        return std::move(errata);
-      }
-    }
-  } else {
-    return Error("{} modifier at {} requires a comparison or a list of comparisons.", KEY, mod_node.Mark());
+  auto self = new self_type;
+  Handle handle(self);
+
+  if (auto errata = self->_cases.load(cfg, key_node) ; ! errata.is_ok()) {
+    errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, mod_node.Mark());
   }
-  return { Handle (new self_type{std::move(cases)})};
+
+  return std::move(handle);
 }
 
 // ---

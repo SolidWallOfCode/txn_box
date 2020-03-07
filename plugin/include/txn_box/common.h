@@ -475,6 +475,11 @@ struct Global {
   int TxnArgIdx = -1;
 
   void reserve_txn_arg();
+
+  // -- Reserved keys -- //
+  /// Standard name for nested directives and therefore reserved globally.
+  static constexpr swoc::TextView DO_KEY = "do";
+
 };
 
 /// Global data.
