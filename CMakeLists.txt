@@ -16,4 +16,4 @@ pkg_check_modules(libswoc++ REQUIRED IMPORTED_TARGET libswoc++)
 pkg_check_modules(trafficserver REQUIRED IMPORTED_TARGET trafficserver)
 
 add_subdirectory(plugin)
-add_subdirectory(unit_tests)
+add_subdirectory(test/unit_tests)

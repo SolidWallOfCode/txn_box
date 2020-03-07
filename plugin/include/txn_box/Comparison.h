@@ -15,6 +15,7 @@
 #include <swoc/Errata.h>
 
 #include "txn_box/common.h"
+#include "txn_box/Accelerator.h"
 #include "txn_box/yaml_util.h"
 
 /** Base class for comparisons.
@@ -78,6 +79,37 @@ public:
     return std::visit(visitor, feature);
   }
 
+  /** Accelerator candidate marking.
+   *
+   * @param counts  Array of acceleration counters.
+   *
+   * If a comparison can be accelerated, it is required to override this method. The implementation
+   * must increment the counter(s) corresponding to the accelerators that can be used by this
+   * comparison. By default a comparison cannot be accelerated and in that case nothing should be
+   * done.
+   *
+   * If the counter is bumped for specific accelerator, the comparison must also override the
+   * corresponding overload of @c accelerate to register itself if the framework decides there
+   * are enough acceleratable comparisons to make it useful.
+   *
+   * @see accelerate
+   */
+  virtual void can_accelerate(Accelerator::Counters& counters) const {}
+
+  /** String acceleration.
+   *
+   * @param str_accel An accelerator instance.
+   *
+   * If a comparison supports string acceleration, it must override this method and register with
+   * @a str_accel.
+   *
+   * @note The comparison must also override @c can_accelerate to bump the strint accelerator
+   * counter.
+   *
+   * @see can_accelerate
+   */
+  virtual void accelerate(StringAccelerator* str_accel) const {}
+
   /** Define a comparison.
    *
    * @param name Name for key node to indicate this comparison.
@@ -100,3 +132,100 @@ protected:
   /// The assemblers.
   static Factory _factory;
 };
+
+class ComparisonGroupBase {
+  using self_type = ComparisonGroupBase;
+  using Errata = swoc::Errata;
+public:
+  virtual Errata load(Config& cfg, YAML::Node node);
+protected:
+  virtual Errata load_case(Config& cfg, YAML::Node node) = 0;
+  swoc::Rv<Comparison::Handle> load_cmp(Config& cfg, YAML::Node node);
+};
+
+/** Container for an ordered list of Comparisons.
+ *
+ * @tparam W Wrapper class for comparisons.
+ *
+ * It is assumed additional informatoin needs to be associated with each @c Comparison and
+ * therefore each @c Comparison will be stored in a wrapper class @a W which holds the
+ * ancillary data.
+ */
+template < typename W > class ComparisonGroup : protected ComparisonGroupBase {
+  using self_type = ComparisonGroup;
+  using super_type = ComparisonGroupBase;
+
+  using container = std::vector<W>;
+
+  using Errata = swoc::Errata;
+public:
+  using value_type = W; ///< Export template parameter.
+
+  using iterator = typename container::iterator;
+  using const_iterator = typename container::const_iterator;
+
+  ComparisonGroup() = default;
+
+  /** Load the group from the value in @a node.
+   *
+   * @param cfg Configuration context.
+   * @param node The value for the comparisons.
+   * @return Errors, if any.
+   *
+   * @a node can be an object, in which case it is treated as a list of length 1 containing that
+   * object. Otherwise @a node must be a list of objects.
+   */
+  Errata load(Config& cfg, YAML::Node node) override;
+
+  iterator operator()(Context& ctx, Feature const& feature) {
+    for ( auto spot = _cmps.begin() , limit = _cmps.end() ; spot != limit ; ++spot ) {
+      if ((*spot)(ctx, feature)) {
+        return spot;
+      }
+    }
+    return _cmps.end();
+  }
+
+  iterator begin() { return _cmps. begin(); }
+  iterator end() { return _cmps.end(); }
+  const_iterator begin() const { return _cmps.begin(); }
+  const_iterator end() const { return _cmps.end(); }
+
+protected:
+  std::vector<W> _cmps;
+
+  /** Load comparison case.
+   *
+   * @param cfg Configuration context.
+   * @param node Value node containing the case.
+   * @return Errors, if any.
+   */
+  Errata load_case(Config& cfg, YAML::Node node) override;
+};
+
+template < typename W > auto ComparisonGroup<W>::load(Config &cfg, YAML::Node node) -> Errata {
+  if (node.IsSequence()) {
+    _cmps.reserve(node.size());
+  }
+  return this->super_type::load(cfg, node);
+}
+
+template < typename W > auto ComparisonGroup<W>::load_case(Config &cfg, YAML::Node node) -> Errata {
+  W w;
+  if (auto errata = w.pre_load(cfg, node); !errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  // It is permitted to have an empty comparison, which always matches and is marked by a
+  // nil handle.
+  if (node.size() >= 1) {
+    auto &&[handle, errata] = this->load_cmp(cfg, node);
+    if (!errata.is_ok()) {
+      return std::move(errata);
+    }
+    w.assign(std::move(handle));
+  }
+
+  _cmps.emplace_back(std::move(w));
+  return {};
+}
