@@ -577,9 +577,9 @@ BufferWriter& Ex_cssn_proto::format(BufferWriter &w, Spec const &spec, Context &
   return bwformat(w, spec, tag);
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_random : public IntegerExtractor {
+class Ex_random : public Extractor {
   using self_type = Ex_random; ///< Self reference type.
-  using super_type = IntegerExtractor; ///< Parent type.
+  using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME { "random" };
 
@@ -608,12 +608,12 @@ BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Co
 
 Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto values = cfg.span<feature_type_for<INTEGER>>(2);
-  spec._data = values.rebind<void>();
-  feature_type_for<INTEGER> min = 0, max = 99;
-  // Use these values if anything goes wrong.
+  spec._data = values.rebind<void>(); // remember where the storage is.
+  feature_type_for<INTEGER> min = 0, max = 99; // temporaries for parsing output.
+  // Config storage for parsed output.
   values[0] = min;
   values[1] = max;
-  // Parse the paramenter.
+  // Parse the parameter.
   if (arg) {
     auto max_arg { arg };
     auto min_arg = max_arg.split_prefix_at(',');

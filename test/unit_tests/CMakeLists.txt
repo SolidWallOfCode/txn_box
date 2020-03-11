@@ -14,6 +14,6 @@ set_target_properties(test_txn_box PROPERTIES CLANG_FORMAT_DIRS ${CMAKE_CURRENT_
 target_link_libraries(test_txn_box PUBLIC PkgConfig::libswoc++ pcre2-8)
 # After fighting with CMake over the include paths, it's just not worth it to be correct.
 # target_link_libraries should make this work but it doesn't. I can't figure out why.
-target_include_directories(test_txn_box PRIVATE ../plugin/include ${trafficserver_INCLUDE_DIRS})
+target_include_directories(test_txn_box PRIVATE ../../plugin/include ${trafficserver_INCLUDE_DIRS})
 
 

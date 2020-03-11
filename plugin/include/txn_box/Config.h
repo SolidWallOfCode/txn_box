@@ -215,7 +215,7 @@ protected:
    * A bit obscure but necessary because the active feature and the active capture groups must
    * be tracked independently because either can be overwritten independent of the other. When
    * directives are processed, a state instance can be passed to track back references. This is
-   * checked and the pointers updated to point to that iff the incoming state marks the corresopnding
+   * checked and the pointers updated to point to that iff the incoming state marks the corresponding
    * tracking as active. These can therefore point to different states at different levels of
    * recursion, or the same. This allows the tracking to operate in a simple way, updating the data
    * for the specific tracking without having to do value checks.

@@ -36,7 +36,7 @@ bool Comparison::operator()(Context &ctx, Generic const* g) const {
   return IndexFor(GENERIC) == f.index() ? false : (*this)(ctx, f);
 }
 
-Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Node node) {
+Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
   if (! node.IsMap()) {
     return Error("Comparison at {} is not an object.", node.Mark());
   }
@@ -54,8 +54,8 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, ValueType ftype, YAML::Nod
     // keys to comparison. First key that is in the factory determines the comparison type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
       auto &&[loader, types] = spot->second;
-      if (! types[IndexFor(ftype)]) {
-        return Error(R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark(), ftype);
+      if (! types[IndexFor(cfg.active_feature_type())]) {
+        return Error(R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark(), cfg.active_feature_type());
       }
 
       auto &&[handle, errata]{loader(cfg, node, key, arg, value_node)};
@@ -734,7 +734,7 @@ Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const
   }
   auto expr_type = expr.result_type();
   if (!TYPES[expr_type]) {
-    return Error(R"(The type {} of the value for "{}" at {} is not one of {} as required.)", expr_type, KEY, value_node.Mark(), TYPES);
+    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, KEY, value_node.Mark(), TYPES);
   }
   return Handle(new self_type(std::move(expr)));
 }
