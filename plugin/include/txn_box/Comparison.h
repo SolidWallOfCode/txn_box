@@ -122,11 +122,10 @@ public:
   /** Load a comparison from a YAML @a node.
    *
    * @param cfg Configuration object.
-   * @param ftype Type of feature for comparison.
    * @param node Node with comparison config.
    * @return A constructed instance or errors on failure.
    */
-  static swoc::Rv<Handle> load(Config & cfg, ValueType ftype, YAML::Node node);
+  static swoc::Rv<Handle> load(Config & cfg, YAML::Node node);
 
 protected:
   /// The assemblers.

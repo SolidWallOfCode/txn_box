@@ -1399,6 +1399,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
   self_type * self = new self_type;
   Handle handle(self); // for return, and cleanup in case of error.
   self->_ex = std::move(expr);
+  Config::FeatureRefState ref_state{cfg._feature_state};
 
   YAML::Node select_node { drtv_node[SELECT_KEY] };
   if (select_node) {

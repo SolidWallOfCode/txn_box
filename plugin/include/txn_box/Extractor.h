@@ -158,6 +158,7 @@ public:
 
 inline auto StringExtractor::result_type() const -> ValueType { return STRING; }
 
+/// @deprecated - feature / value type is returned via @c validate now.
 class IntegerExtractor : public Extractor {
 public:
   /// Type of extracted feature.
@@ -166,6 +167,7 @@ public:
 
 inline auto IntegerExtractor::result_type() const -> ValueType { return INTEGER; }
 
+/// @deprecated - feature / value type is returned via @c validate now.
 class BooleanExtractor : public Extractor {
 public:
   /// C++ type of extracted feature.
