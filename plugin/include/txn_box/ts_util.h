@@ -378,6 +378,8 @@ public:
 
   HttpSsn ssn() const;;
 
+  bool set_upstream_addr(swoc::IPAddr const& addr) const;
+
   swoc::Errata override_assign(TxnConfigVar const& var, int n);
   swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
 

@@ -46,14 +46,82 @@ public:
   static const std::string ROOT_KEY; ///< Root key for plugin configuration.
 
   /// Track the state of provided features.
-  struct FeatureRefState {
-    ValueType _type { STRING }; ///< Type of active feature.
-    bool _feature_active_p = false; ///< Feature is active (provided).
-    bool _feature_ref_p = false; ///< Feature has been referenced / used.
-    bool _rxp_group_ref_p = false; ///< Regular expression capture groups referenced / used.
-    unsigned _rxp_group_count = 0; ///< Number of active capture groups - 0 => not active.
-    int _rxp_line = -1; ///< Line of the active regular expression.
+  struct ActiveFeatureState {
+    ValueType _type { NO_VALUE }; ///< Type of active feature.
+    bool _ref_p = false; ///< Feature has been referenced / used.
   };
+
+  class ActiveFeatureScope {
+    using self_type = ActiveFeatureScope;
+    friend class Config;
+
+    ActiveFeatureState _state;
+    Config * _cfg = nullptr;
+
+  public:
+    ActiveFeatureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
+
+    ActiveFeatureScope(self_type && that) : _cfg(that._cfg), _state(that._state) {
+      that._cfg = nullptr;
+    }
+
+    // No copying.
+    ActiveFeatureScope(self_type const& that) = delete;
+    self_type & operator = (self_type const& that) = delete;
+
+    ~ActiveFeatureScope() {
+      if (_cfg) {
+        _cfg->_active_feature = _state;
+      }
+    }
+  };
+  friend ActiveFeatureScope;
+  ActiveFeatureScope feature_scope(ValueType vtype) {
+    ActiveFeatureScope scope(*this);
+    _active_feature._ref_p = false;
+    _active_feature._type = vtype;
+    return std::move(scope);
+  }
+
+  /// Track the state of the active capture groups.
+  struct ActiveCaptureState {
+    unsigned _count = 0; ///< Number of active capture groups - 0 => not active.
+    int _line = -1; ///< Line of the active regular expression.
+    bool _ref_p = false; ///< Regular expression capture groups referenced / used.
+  };
+
+  class ActiveCaptureScope {
+    using self_type = ActiveCaptureScope;
+    friend class Config;
+
+    ActiveCaptureState _state;
+    Config * _cfg = nullptr;
+
+  public:
+    ActiveCaptureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
+
+    ActiveCaptureScope(self_type && that) : _cfg(that._cfg), _state(that._state) {
+      that._cfg = nullptr;
+    }
+
+    // No copying.
+    ActiveCaptureScope(self_type const& that) = delete;
+    self_type & operator = (self_type const& that) = delete;
+
+    ~ActiveCaptureScope() {
+      if (_cfg) {
+        _cfg->_active_capture = _state;
+      }
+    }
+  };
+  friend ActiveCaptureScope;
+  ActiveCaptureScope capture_scope(unsigned count, unsigned line_no) {
+    ActiveCaptureScope scope(*this);
+    _active_capture._count = count;
+    _active_capture._line = line_no;
+    _active_capture._ref_p = false;
+    return std::move(scope);
+  }
 
   /// Global and session variable map.
   using Variables = std::map<swoc::TextView, unsigned>;
@@ -99,18 +167,6 @@ public:
    * @return A new directive instance, or errors if loading failed.
    */
   swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node);
-
-  /** Load / create a directive from a node.
-   *
-   * @param drtv_node Directive node.
-   * @param state A reference state to use for the directives in @a node.
-   *
-   * @return A new directive instance, or errors if loading failed.
-   *
-   * This is used by directives that provide a feature and contain other directives. The
-   * @a state provides information on feature provision.
-   */
-  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node, FeatureRefState& state);
 
   /** Check the node structure of a value.
    *
@@ -168,7 +224,8 @@ public:
    */
   Hook current_hook() const;
 
-  ValueType active_feature_type() const { return _feature_state ? _feature_state->_type : NO_VALUE; }
+  ValueType active_feature_type() const { return _active_feature._type; }
+
 
   /** Require regular expression capture vectors to support at least @a n groups.
    *
@@ -221,8 +278,8 @@ protected:
    * for the specific tracking without having to do value checks.
    */
   /// @{
-  FeatureRefState* _feature_state = nullptr; ///< Feature.
-  FeatureRefState* _rxp_group_state = nullptr; ///< Regular expression capture groups.
+  ActiveFeatureState _active_feature; ///< Feature.
+  ActiveCaptureState _active_capture; ///< Regular expression capture groups.
   /// #}
 
   /// Current amount of shared config storage required.

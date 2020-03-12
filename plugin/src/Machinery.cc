@@ -1206,6 +1206,7 @@ Rv<Directive::Handle> Do_cache_key::load(Config& cfg, YAML::Node const& drtv_nod
 
   return std::move(Handle(new self_type(std::move(fmt))));
 }
+
 /* ------------------------------------------------------------------------------------ */
 /// Set a transaction configuration variable override.
 class Do_txn_conf : public Directive {
@@ -1227,17 +1228,17 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
 
 protected:
-  Expr _fmt; ///< Cache key.
+  Expr _expr; ///< Value for override.
   ts::TxnConfigVar *_var = nullptr;
 
-  Do_txn_conf(Expr && fmt, ts::TxnConfigVar * var) : _fmt(std::move(fmt)), _var(var) {}
+  Do_txn_conf(Expr && fmt, ts::TxnConfigVar * var) : _expr(std::move(fmt)), _var(var) {}
 };
 
 const std::string Do_txn_conf::KEY { "txn-conf" };
 const HookMask Do_txn_conf::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
 
 Errata Do_txn_conf::invoke(Context &ctx) {
-  auto value = ctx.extract(_fmt);
+  auto value = ctx.extract(_expr);
   if (value.index() == IndexFor(INTEGER)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(INTEGER)>(value));
   } else if (value.index() == IndexFor(BOOLEAN)) {
@@ -1265,6 +1266,57 @@ Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node const& drtv_node
 }
 
 /* ------------------------------------------------------------------------------------ */
+/// Set the address for the upstream.
+class Do_upstream_addr : public Directive {
+  using self_type = Do_upstream_addr; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Expr _expr; ///< Address.
+  ts::TxnConfigVar *_var = nullptr;
+
+  Do_upstream_addr(Expr && expr) : _expr(std::move(expr)) {}
+};
+
+const std::string Do_upstream_addr::KEY { "upstream-addr" };
+const HookMask Do_upstream_addr::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+
+Errata Do_upstream_addr::invoke(Context &ctx) {
+  auto value = ctx.extract(_expr);
+  if (value.index() == IndexFor(IP_ADDR)) {
+    ctx._txn.set_upstream_addr(std::get<IndexFor(IP_ADDR)>(value));
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_upstream_addr::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  if (IP_ADDR != expr.result_type()) {
+    return Error(R"(Value for "{}" must be an IP address.)");
+  }
+
+  return std::move(Handle(new self_type(std::move(expr))));
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set a transaction local variable.
 class Do_var : public Directive {
   using self_type = Do_var; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
@@ -1399,7 +1451,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node,
   self_type * self = new self_type;
   Handle handle(self); // for return, and cleanup in case of error.
   self->_ex = std::move(expr);
-  Config::FeatureRefState ref_state{cfg._feature_state};
+  auto f_scope = cfg.feature_scope(self->_ex.result_type());
 
   YAML::Node select_node { drtv_node[SELECT_KEY] };
   if (select_node) {
@@ -1455,7 +1507,8 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
     // It's allowed to have no comparison, which is either an empty map or only a DO key.
     // In that case the comparison always matches.
     if (node.size() > 1 || (node.size() == 1 && !do_node)) {
-      auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, _ex.result_type(), node)};
+      auto f_scope = cfg.feature_scope(_ex.result_type());
+      auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg,  node)};
       if (cmp_errata.is_ok()) {
         c._cmp = std::move(cmp_handle);
       } else {
@@ -1464,12 +1517,8 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
     }
 
     if (do_node) {
-      Config::FeatureRefState ref;
-      ref._feature_active_p = true;
-      ref._type = _ex.result_type();
-      ref._rxp_group_count = c._cmp ? c._cmp->rxp_group_count() : 0;
-      ref._rxp_line = node.Mark().line;
-      auto &&[handle, errata]{cfg.parse_directive(do_node, ref)};
+      auto c_scope = cfg.capture_scope((c._cmp ? c._cmp->rxp_group_count() : 0), node.Mark().line);
+      auto &&[handle, errata]{cfg.parse_directive(do_node)};
       if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {

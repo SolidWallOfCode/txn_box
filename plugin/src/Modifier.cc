@@ -372,7 +372,7 @@ Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node mod_node, YAML::Node
   return Handle(new self_type{std::move(fmt)});
 };
 
-// ---
+// --- //
 
 /// Convert the feature to an Integer.
 class Mod_As_Integer : public Modifier {
@@ -456,7 +456,79 @@ Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node mod_node, YAML
   return Handle(new self_type{std::move(fmt)});
 };
 
-// ---
+// --- //
+
+/// Convert the feature to an IP address.
+class Mod_As_IP_Addr : public Modifier {
+  using self_type = Mod_As_IP_Addr;
+  using super_type = Modifier;
+public:
+  static const std::string KEY; ///< Identifier name.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ValueType ftype) const override;
+
+  /// Resulting type of feature after modifying.
+  ValueType result_type(ValueType) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+
+protected:
+  explicit Mod_As_IP_Addr() = default;
+
+  /// Identity conversion.
+  Feature convert(Context & ctx, feature_type_for<IP_ADDR> n) { return n; }
+  /// Convert from string
+  Feature convert(Context & ctx, feature_type_for<STRING> s) {
+    swoc::IPAddr addr{s};
+    return addr.is_valid() ? Feature{addr} : NIL_FEATURE;
+  }
+
+  /// Generic failure case.
+  template < typename T > auto convert(Context & ctx, T & t) -> EnableForFeatureTypes<T, Feature> {
+    return NIL_FEATURE;
+  }
+};
+
+const std::string Mod_As_IP_Addr::KEY { "as-ip-addr" };
+
+bool Mod_As_IP_Addr::is_valid_for(ValueType ftype) const {
+  return STRING == ftype || IP_ADDR == ftype;
+}
+
+ValueType Mod_As_IP_Addr::result_type(ValueType) const {
+  return IP_ADDR;
+}
+
+Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature const& feature) {
+  auto visitor = [&](auto & t) { return this->convert(ctx, t); };
+  return std::visit(visitor, feature);
+}
+
+Rv<Modifier::Handle> Mod_As_IP_Addr::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+  return Handle(new self_type);
+};
+
+// --- //
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {

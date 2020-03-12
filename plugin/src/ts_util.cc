@@ -272,6 +272,10 @@ void ts::HttpTxn::error_body_set(swoc::TextView body, swoc::TextView content_typ
   TSHttpTxnErrorBodySet(_txn, body_double.data(), body_double.size(), ts_dup(content_type).data());
 }
 
+bool ts::HttpTxn::set_upstream_addr(const swoc::IPAddr &addr) const {
+  return TS_SUCCESS == TSHttpTxnServerAddrSet(_txn, (swoc::IPEndpoint(addr)));
+}
+
 swoc::MemSpan<char> ts::HttpTxn::ts_dup(swoc::TextView const &text) {
   auto dup = static_cast<char *>(TSmalloc(text.size() + 1));
   memcpy(dup, text.data(), text.size());
