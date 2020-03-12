@@ -679,7 +679,7 @@ Rv<Comparison::Handle> Cmp_false::load(Config &cfg, YAML::Node, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 /* ------------------------------------------------------------------------------------ */
-// Comarison functions.
+// Integer comparison functions.
 // Because of template issues, can't use standard functors (e.g. std::equal_to) nor lambdas.
 // Well, I _could_, but it would be as verbose as this style and more obscure.
 namespace {
@@ -753,6 +753,127 @@ template<> const std::string Cmp_le::KEY { "le" };
 template<> const std::string Cmp_gt::KEY { "gt" };
 template<> const std::string Cmp_ge::KEY { "ge" };
 
+// --- //
+/// Compare against a range.
+class Cmp_in: public Comparison {
+  using self_type = Cmp_in; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const ValueMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
+  bool operator() (Context& ctx, feature_type_for<IP_ADDR> const& addr) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+
+protected:
+  Expr _min;
+  Expr _max;
+};
+
+const std::string Cmp_in::KEY { "in" };
+const ValueMask Cmp_in::TYPES { MaskFor({ INTEGER, IP_ADDR }) };
+
+bool Cmp_in::operator()(Context &ctx, feature_type_for<IP_ADDR> const& addr) const {
+  auto lhs = ctx.extract(_min);
+  auto rhs = ctx.extract(_max);
+  return (lhs.index() == rhs.index()) &&
+         (lhs.index() == IndexFor(IP_ADDR) )&&
+         (std::get<IndexFor(IP_ADDR)>(lhs) <= addr) &&
+         (addr <= std::get<IndexFor(IP_ADDR)>(rhs));
+}
+
+bool Cmp_in::operator()(Context &ctx, feature_type_for<INTEGER> n) const {
+  auto lhs = ctx.extract(_min);
+  auto rhs = ctx.extract(_max);
+  return (lhs.index() == rhs.index()) &&
+     (lhs.index() == IndexFor(INTEGER)) &&
+      (std::get<IndexFor(INTEGER)>(lhs) <= n) &&
+      (n <= std::get<IndexFor(INTEGER)>(rhs));
+}
+
+Rv<Comparison::Handle> Cmp_in::load(Config &cfg, YAML::Node, YAML::Node node) {
+  auto self = new self_type;
+  Handle handle{self};
+
+  if (node.IsScalar()) {
+    // Check if it's a valid IP range - all done.
+    swoc::IPRange ip_range;
+    if (ip_range.load(node.Scalar())) {
+      if (cfg.active_feature_type() != IP_ADDR) {
+        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
+            , KEY, node.Mark(), IP_ADDR, cfg.active_feature_type());
+      }
+      self->_min = Feature{ip_range.min()};
+      self->_max = Feature{ip_range.max()};
+      return std::move(handle);
+    }
+
+    // Need to parse and verify it's a range of integers.
+    TextView max_text = node.Scalar();
+    auto min_text = max_text.take_prefix_at('-');
+    TextView parsed;
+
+    if (max_text.empty()) {
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])", KEY, node.Mark());
+    }
+    auto n_min = svtoi(min_text.trim_if(&isspace), &parsed);
+    if (parsed.size() != min_text.size()) {
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])", KEY, node.Mark(), min_text);
+    }
+    auto n_max = svtoi(max_text.trim_if(&isspace), &parsed);
+    if (parsed.size() != max_text.size()) {
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])", KEY, node.Mark(), max_text);
+    }
+
+    if (cfg.active_feature_type() != INTEGER) {
+      return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
+                   , KEY, node.Mark(), INTEGER, cfg.active_feature_type());
+    }
+
+    self->_min = Feature(n_min);
+    self->_max = Feature(n_max);
+    return std::move(handle);
+  } else if (node.IsSequence()) {
+    if (node.size() == 2) {
+      auto &&[lhs, lhs_errata] = cfg.parse_expr(node[0]);
+      if (! lhs_errata.is_ok()) {
+        return std::move(lhs_errata);
+      }
+      auto lhs_type = lhs.result_type();
+
+      auto &&[rhs, rhs_errata] = cfg.parse_expr(node[1]);
+      if (! rhs_errata.is_ok()) {
+        return std::move(rhs_errata);
+      }
+      auto rhs_type = rhs.result_type();
+
+      if (lhs_type != rhs_type) {
+        return Error(R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)"
+            , KEY, node.Mark(), lhs_type, rhs_type);
+      }
+
+      if (INTEGER != lhs_type && IP_ADDR != lhs_type) {
+        return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)"
+                     , KEY, node.Mark(), INTEGER, IP_ADDR, lhs_type);
+      }
+
+      if (cfg.active_feature_type() != lhs_type) {
+        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
+                     , KEY, node.Mark(), lhs_type, cfg.active_feature_type());
+      }
+      self->_min = std::move(lhs);
+      self->_max = std::move(rhs);
+      return std::move(handle);
+    } else {
+      return Error(R"(The list for "{}" at line {} is not exactly 2 elements are required.)", KEY, node.Mark());
+    }
+  }
+
+  return Error(R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)", KEY, node.Mark());
+}
 /* ------------------------------------------------------------------------------------ */
 class ComboComparison : public Comparison {
   using self_type = ComboComparison; ///< Self reference type.
@@ -795,7 +916,7 @@ auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView con
 }
 
 Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::Node node) {
-  auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, ACTIVE, node)};
+  auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, node)};
   if (!cmp_errata.is_ok()) {
     return std::move(cmp_errata);
   }
@@ -919,7 +1040,7 @@ Errata ComparisonGroupBase::load(Config& cfg, YAML::Node node) {
 }
 
 Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node node) {
-  auto && [handle, errata]{Comparison::load(cfg, ACTIVE, node)};
+  auto && [handle, errata]{Comparison::load(cfg, node)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }

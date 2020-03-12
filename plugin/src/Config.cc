@@ -152,7 +152,7 @@ Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
   TextView parsed;
   auto n = swoc::svtoi(text, &parsed);
   if (parsed.size() == text.size()) {
-    return Expr{FeatureView::Literal(text)};
+    return Expr{Feature{n}};
   }
 
   // bool?
@@ -255,16 +255,16 @@ Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
   if (zret.is_ok()) {
     auto & expr = zret.result();
     if (expr._max_arg_idx >= 0) {
-      if (!_rxp_group_state || _rxp_group_state->_rxp_group_count == 0) {
+      if (_active_capture._count == 0) {
         return Error(R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
-      } else if (expr._max_arg_idx >= _rxp_group_state->_rxp_group_count) {
+      } else if (expr._max_arg_idx >= _active_capture._count) {
         return Error(R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)"
-            , expr._max_arg_idx, node.Mark(), _rxp_group_state->_rxp_group_count-1, _rxp_group_state->_rxp_line);
+            , expr._max_arg_idx, node.Mark(), _active_capture._count-1, _active_capture._line);
       }
     }
 
-    if (expr._ctx_ref_p && _feature_state && _feature_state->_feature_ref_p) {
-      _feature_state->_feature_ref_p = true;
+    if (expr._ctx_ref_p) {
+      _active_feature._ref_p = true;
     }
   }
   return std::move(zret);
@@ -283,9 +283,6 @@ Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
     if (! mod_errata.is_ok()) {
       mod_errata.info(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
       return std::move(mod_errata);
-    }
-    if (_feature_state) {
-      _feature_state->_type = mod->result_type(_feature_state->_type);
     }
     expr._mods.emplace_back(std::move(mod));
   }
@@ -419,30 +416,6 @@ Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
     return Directive::Handle(new NilDirective);
   }
   return Error(R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
-}
-
-// Basically a wrapper for @c load_directive to handle stacking feature provisioning. During load,
-// all paths must be explored and so the active feature needs to be stacked up so it can be restored
-// after a tree descent. During runtime, only one path is followed and therefore this isn't
-// required. This is used only when parsing directives in branching directives, such as
-// @c with / @c select
-Rv<Directive::Handle>
-Config::parse_directive(YAML::Node const& drtv_node, FeatureRefState &state) {
-  // Set up state preservation.
-  auto saved_feature = _feature_state;
-  auto saved_rxp = _rxp_group_state;
-  if (state._feature_active_p) {
-    _feature_state = &state;
-  }
-  if (state._rxp_group_count > 0) {
-    _rxp_group_state = &state;
-  }
-  scope_exit cleanup([&]() {
-    _feature_state = saved_feature;
-    _rxp_group_state = saved_rxp;
-  });
-  // Now do normal parsing.
-  return this->parse_directive(drtv_node);
 }
 
 Errata Config::load_top_level_directive(YAML::Node drtv_node) {
