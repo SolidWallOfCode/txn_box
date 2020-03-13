@@ -536,6 +536,7 @@ namespace {
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
   Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
+  Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);
   return true;
 } ();
 } // namespace

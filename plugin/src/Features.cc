@@ -492,6 +492,35 @@ void HttpFieldTuple::advance() {
 Feature HttpFieldTuple::extract() const { return _current.value(); }
 
 /* ------------------------------------------------------------------------------------ */
+class Ex_preq_host : public Extractor {
+public:
+  static constexpr TextView NAME { "preq-host" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const&) override;
+};
+
+Feature Ex_preq_host::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.host();
+      if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
+        if ( auto field { hdr.field(ts::HTTP_FIELD_HOST) } ; field.is_valid()) {
+          zret = field.value();
+        }
+      }
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_preq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+/* ------------------------------------------------------------------------------------ */
 class Ex_ursp_status : public IntegerExtractor {
 public:
   static constexpr TextView NAME { "ursp-status" };
@@ -543,6 +572,27 @@ Feature Ex_cssn_sni::extract(Context & ctx, Spec const& spec) {
 }
 
 BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+/// Extract the client session remote address.
+class Ex_cssn_remote_addr : public Extractor {
+public:
+  static constexpr TextView NAME { "cssn-remote-addr" };
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Rv<ValueType> Ex_cssn_remote_addr::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+  return IP_ADDR;
+}
+
+Feature Ex_cssn_remote_addr::extract(Context & ctx, Spec const& spec) {
+  return ctx._txn.ssn().remote_addr();
+}
+
+BufferWriter& Ex_cssn_remote_addr::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -705,6 +755,8 @@ Ex_creq_path creq_path;
 Ex_creq_url_host creq_url_host;
 Ex_creq_field creq_field;
 
+Ex_preq_host preq_host;
+
 Ex_prsp_field prsp_field;
 Ex_ursp_field ursp_field;
 
@@ -713,6 +765,7 @@ Ex_is_internal is_internal;
 
 Ex_cssn_sni cssn_sni;
 Ex_cssn_proto cssn_proto;
+Ex_cssn_remote_addr cssn_remote_addr;
 
 Ex_random random;
 
@@ -732,6 +785,8 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
   Extractor::define(Ex_creq_field::NAME, &creq_field);
 
+  Extractor::define(Ex_preq_host::NAME, &preq_host);
+
   Extractor::define(Ex_prsp_field::NAME, &prsp_field);
   Extractor::define(Ex_ursp_field::NAME, &ursp_field);
 
@@ -742,6 +797,8 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
   Extractor::define(Ex_cssn_proto::NAME, &cssn_proto);
+  Extractor::define(Ex_cssn_remote_addr::NAME, &cssn_remote_addr);
+
   return true;
 } ();
 } // namespace
