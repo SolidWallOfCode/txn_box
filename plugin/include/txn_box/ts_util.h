@@ -307,6 +307,8 @@ public:
   swoc::TextView inbound_sni() const;
 
   swoc::TextView proto_contains(swoc::TextView const& tag) const;
+
+  swoc::IPEndpoint remote_addr() const;
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
 

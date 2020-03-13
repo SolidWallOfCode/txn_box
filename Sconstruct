@@ -29,7 +29,7 @@ AddOption("--with-ssl",
 
 # the depends
 Part("swoc++/swoc++.part"
-        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.1.0")
+        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.1.1")
         )
 Part("#lib/libyaml-cpp.part", vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", protocol="https", tag="yaml-cpp-0.6.3"))
 

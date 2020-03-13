@@ -766,7 +766,7 @@ public:
   bool operator() (Context& ctx, feature_type_for<IP_ADDR> const& addr) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+  static Rv<Handle> load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node);
 
 protected:
   Expr _min;
@@ -794,17 +794,17 @@ bool Cmp_in::operator()(Context &ctx, feature_type_for<INTEGER> n) const {
       (n <= std::get<IndexFor(INTEGER)>(rhs));
 }
 
-Rv<Comparison::Handle> Cmp_in::load(Config &cfg, YAML::Node, YAML::Node node) {
-  auto self = new self_type;
+auto Cmp_in::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+auto self = new self_type;
   Handle handle{self};
 
-  if (node.IsScalar()) {
+  if (value_node.IsScalar()) {
     // Check if it's a valid IP range - all done.
     swoc::IPRange ip_range;
-    if (ip_range.load(node.Scalar())) {
+    if (ip_range.load(value_node.Scalar())) {
       if (cfg.active_feature_type() != IP_ADDR) {
         return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-            , KEY, node.Mark(), IP_ADDR, cfg.active_feature_type());
+            , KEY, cmp_node.Mark(), IP_ADDR, cfg.active_feature_type());
       }
       self->_min = Feature{ip_range.min()};
       self->_max = Feature{ip_range.max()};
@@ -812,39 +812,39 @@ Rv<Comparison::Handle> Cmp_in::load(Config &cfg, YAML::Node, YAML::Node node) {
     }
 
     // Need to parse and verify it's a range of integers.
-    TextView max_text = node.Scalar();
+    TextView max_text = value_node.Scalar();
     auto min_text = max_text.take_prefix_at('-');
     TextView parsed;
 
     if (max_text.empty()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])", KEY, node.Mark());
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])", KEY, cmp_node.Mark());
     }
     auto n_min = svtoi(min_text.trim_if(&isspace), &parsed);
     if (parsed.size() != min_text.size()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])", KEY, node.Mark(), min_text);
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])", KEY, cmp_node.Mark(), min_text);
     }
     auto n_max = svtoi(max_text.trim_if(&isspace), &parsed);
     if (parsed.size() != max_text.size()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])", KEY, node.Mark(), max_text);
+      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])", KEY, cmp_node.Mark(), max_text);
     }
 
     if (cfg.active_feature_type() != INTEGER) {
       return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                   , KEY, node.Mark(), INTEGER, cfg.active_feature_type());
+                   , KEY, cmp_node.Mark(), INTEGER, cfg.active_feature_type());
     }
 
     self->_min = Feature(n_min);
     self->_max = Feature(n_max);
     return std::move(handle);
-  } else if (node.IsSequence()) {
-    if (node.size() == 2) {
-      auto &&[lhs, lhs_errata] = cfg.parse_expr(node[0]);
+  } else if (value_node.IsSequence()) {
+    if (value_node.size() == 2) {
+      auto &&[lhs, lhs_errata] = cfg.parse_expr(value_node[0]);
       if (! lhs_errata.is_ok()) {
         return std::move(lhs_errata);
       }
       auto lhs_type = lhs.result_type();
 
-      auto &&[rhs, rhs_errata] = cfg.parse_expr(node[1]);
+      auto &&[rhs, rhs_errata] = cfg.parse_expr(value_node[1]);
       if (! rhs_errata.is_ok()) {
         return std::move(rhs_errata);
       }
@@ -852,27 +852,27 @@ Rv<Comparison::Handle> Cmp_in::load(Config &cfg, YAML::Node, YAML::Node node) {
 
       if (lhs_type != rhs_type) {
         return Error(R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)"
-            , KEY, node.Mark(), lhs_type, rhs_type);
+            , KEY, cmp_node.Mark(), lhs_type, rhs_type);
       }
 
       if (INTEGER != lhs_type && IP_ADDR != lhs_type) {
         return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)"
-                     , KEY, node.Mark(), INTEGER, IP_ADDR, lhs_type);
+                     , KEY, cmp_node.Mark(), INTEGER, IP_ADDR, lhs_type);
       }
 
       if (cfg.active_feature_type() != lhs_type) {
         return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                     , KEY, node.Mark(), lhs_type, cfg.active_feature_type());
+                     , KEY, cmp_node.Mark(), lhs_type, cfg.active_feature_type());
       }
       self->_min = std::move(lhs);
       self->_max = std::move(rhs);
       return std::move(handle);
     } else {
-      return Error(R"(The list for "{}" at line {} is not exactly 2 elements are required.)", KEY, node.Mark());
+      return Error(R"(The list for "{}" at line {} is not exactly 2 elements are required.)", KEY, cmp_node.Mark());
     }
   }
 
-  return Error(R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)", KEY, node.Mark());
+  return Error(R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)", KEY, cmp_node.Mark());
 }
 /* ------------------------------------------------------------------------------------ */
 class ComboComparison : public Comparison {
@@ -1065,6 +1065,8 @@ namespace {
   Comparison::define(Cmp_le::KEY, Cmp_lt::TYPES, Cmp_le::load);
   Comparison::define(Cmp_gt::KEY, Cmp_gt::TYPES, Cmp_gt::load);
   Comparison::define(Cmp_ge::KEY, Cmp_ge::TYPES, Cmp_ge::load);
+
+  Comparison::define(Cmp_in::KEY, Cmp_in::TYPES, Cmp_in::load);
 
   Comparison::define(Cmp_none_of::KEY, Cmp_none_of::TYPES, Cmp_none_of::load);
   Comparison::define(Cmp_all_of::KEY, Cmp_all_of::TYPES, Cmp_all_of::load);

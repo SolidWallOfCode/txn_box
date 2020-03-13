@@ -1597,6 +1597,7 @@ namespace {
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
   Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
+  Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
   return true;

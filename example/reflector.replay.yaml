@@ -1,0 +1,100 @@
+# If the request is going to loopback, point the connection back to the client address.
+
+meta:
+  version: "1.0"
+
+  txn_box:
+    when: post-remap
+    do:
+      with: [ preq-host, { as-ip-addr: } ]
+      select:
+        in: 127.0.0.0/8
+        do:
+          upstream-addr: cssn-remote-addr
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 100
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 100 ]
+    proxy-response:
+      status: 200
+
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.two ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.two ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 200
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 200 ]
+    proxy-response:
+      status: 200
+
+  - client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.three ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.three ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 300
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 300 ]
+    proxy-response:
+      status: 200

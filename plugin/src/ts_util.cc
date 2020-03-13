@@ -320,6 +320,10 @@ TextView ts::HttpSsn::proto_contains(const swoc::TextView &tag) const {
   return { result, result ? strlen(result) : 0 };
 }
 
+swoc::IPEndpoint ts::HttpSsn::remote_addr() const {
+  return swoc::IPEndpoint{ TSHttpSsnClientAddrGet(_ssn) };
+}
+
 Errata ts::HttpTxn::cache_key_assign(TextView const &key) {
   TSCacheUrlSet(_txn, key.data(), key.size());
   return {};
