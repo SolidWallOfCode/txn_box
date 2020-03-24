@@ -666,7 +666,7 @@ Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView c
   // Parse the parameter.
   if (arg) {
     auto max_arg { arg };
-    auto min_arg = max_arg.split_prefix_at(',');
+    auto min_arg = max_arg.split_prefix_at(",-");
     TextView parsed;
     if (min_arg) {
       min = swoc::svtoi(min_arg, &parsed);
@@ -686,6 +686,7 @@ Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView c
     return Error(R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
   }
 
+  // Update the stored values now that *both* input values are validated.
   values[0] = min;
   values[1] = max;
   return INTEGER;
