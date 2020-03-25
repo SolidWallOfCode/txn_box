@@ -985,8 +985,8 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
 
 protected:
-  Expr _tag_fmt;
-  Expr _msg_fmt;
+  Expr _tag;
+  Expr _msg;
 
   Do_debug_msg(Expr && tag, Expr && msg);
 };
@@ -994,12 +994,14 @@ protected:
 const std::string Do_debug_msg::KEY { "debug" };
 const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
-Do_debug_msg::Do_debug_msg(Expr &&tag, Expr &&msg) : _tag_fmt(std::move(tag)), _msg_fmt(std::move(msg)) {}
+Do_debug_msg::Do_debug_msg(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 
 Errata Do_debug_msg::invoke(Context &ctx) {
-  TextView tag = std::get<IndexFor(STRING)>(ctx.extract(_tag_fmt));
-  TextView msg = std::get<IndexFor(STRING)>(ctx.extract(_msg_fmt));
-  TSDebug(tag.data(), "%.*s", static_cast<int>(msg.size()), msg.data());
+  TextView tag = std::get<IndexFor(STRING)>(ctx.extract(_tag));
+  auto msg = ctx.extract(_msg);
+  swoc::ArenaWriter w(*(ctx._arena));
+  w.print("{}", msg);
+  TSDebug(tag.data(), "%.*s", static_cast<int>(w.view().size()), w.view().data());
   return {};
 }
 
