@@ -36,13 +36,18 @@ static constexpr char ARG_PREFIX = '<';
 static constexpr char ARG_SUFFIX = '>';
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<Hook> HookName {{ {Hook::CREQ, {"read-request", "creq"}}
+swoc::Lexicon<Hook> HookName {{
+                                {Hook::POST_LOAD, {"post-load"}}
+                              , {Hook::TXN_START, {"txn-open"}}
+                              , {Hook::CREQ, {"read-request", "creq"}}
                               , {Hook::PREQ, {"send-request", "preq"}}
                               , {Hook::URSP, {"read-response", "ursp"}}
                               , {Hook::PRSP, {"send-response", "prsp"}}
                               , {Hook::PRE_REMAP, {"pre-remap"}}
                               , {Hook::POST_REMAP, {"post-remap"}}
+                              , {Hook::TXN_CLOSE, {"txn-close"}}
                               , {Hook::REMAP, {"remap"}}
+                              , {Hook::MSG, {"msg"}}
                               }};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
@@ -58,12 +63,14 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   HookName.set_default(Hook::INVALID);
 
+  TS_Hook[IndexFor(Hook::TXN_START)] = TS_HTTP_TXN_START_HOOK;
   TS_Hook[IndexFor(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
   TS_Hook[IndexFor(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
   TS_Hook[IndexFor(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
   TS_Hook[IndexFor(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
   TS_Hook[IndexFor(Hook::PRE_REMAP)] = TS_HTTP_PRE_REMAP_HOOK;
   TS_Hook[IndexFor(Hook::POST_REMAP)] = TS_HTTP_POST_REMAP_HOOK;
+  TS_Hook[IndexFor(Hook::TXN_CLOSE)] = TS_HTTP_TXN_CLOSE_HOOK;
 
   return true;
 } ();
@@ -72,10 +79,10 @@ namespace {
 
 Config::Factory Config::_factory;
 
-template < typename F > struct scope_exit {
+template < typename F > struct on_scope_exit {
   F _f;
-  explicit scope_exit(F &&f) : _f(std::move(f)) {}
-  ~scope_exit() { _f(); }
+  explicit on_scope_exit(F &&f) : _f(std::move(f)) {}
+  ~on_scope_exit() { _f(); }
 };
 
 swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
@@ -94,7 +101,6 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 /* ------------------------------------------------------------------------------------ */
 Config::Config() {
   _drtv_info.resize(Directive::StaticInfo::_counter + 1);
-
 }
 
 Config::self_type &Config::localize(Feature &feature) {

@@ -378,19 +378,22 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &
 /// Supported hooks.
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
+  POST_LOAD, ///< After configuration loading.
+  TXN_START, ///< Transaction start.
   CREQ, ///< Read Request from user agent.
   PRE_REMAP, ///< Before remap.
-  REMAP, ///< Remap (special).
   POST_REMAP, ///< After remap.
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
   PRSP, ///< Send response to user agent from proxy.
-  CLOSE, ///< Transaction close.
+  TXN_CLOSE, ///< Transaction close.
+  REMAP, ///< Remap (implicit).
+  MSG ///< During plugin message handling (implicit).
 };
 
 /// Make @c tuple_size work for the @c Hook enum.
 namespace std {
-template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::CLOSE)+1> {};
+template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::MSG)+1> {};
 }; // namespace std
 
 /** Convert a @c Hook enumeration to an unsigned value.
