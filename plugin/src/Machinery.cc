@@ -236,6 +236,7 @@ Do_remap_host::Do_remap_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
 Errata Do_remap_host::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(host);
+  ctx._remap_status = TSREMAP_DID_REMAP;
   return {};
 }
 
