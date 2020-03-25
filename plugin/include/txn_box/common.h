@@ -376,18 +376,20 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &
 }
 
 /// Supported hooks.
+/// @internal These must be in order because that is used to check if the value for the _when_
+/// directive is valid from the current hook.
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
   POST_LOAD, ///< After configuration loading.
   TXN_START, ///< Transaction start.
   CREQ, ///< Read Request from user agent.
   PRE_REMAP, ///< Before remap.
+  REMAP, ///< Remap (implicit).
   POST_REMAP, ///< After remap.
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
   PRSP, ///< Send response to user agent from proxy.
   TXN_CLOSE, ///< Transaction close.
-  REMAP, ///< Remap (implicit).
   MSG ///< During plugin message handling (implicit).
 };
 
