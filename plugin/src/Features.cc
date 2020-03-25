@@ -492,6 +492,28 @@ void HttpFieldTuple::advance() {
 Feature HttpFieldTuple::extract() const { return _current.value(); }
 
 /* ------------------------------------------------------------------------------------ */
+/** The entire URL.
+ * Because of the nature of the C API, this can only be a transient external string and
+ * therefore must be copied in to context storage.
+ */
+class Ex_preq_url : public StringExtractor {
+public:
+  static constexpr TextView NAME { "preq-url" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+BufferWriter& Ex_preq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  FeatureView zret;
+  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      bwformat(w, spec, url.view());
+    }
+  }
+  return w;
+}
+
+/* ------------------------------------------------------------------------------------ */
 class Ex_preq_host : public Extractor {
 public:
   static constexpr TextView NAME { "preq-host" };
@@ -758,6 +780,7 @@ Ex_creq_field creq_field;
 
 Ex_preq_host preq_host;
 
+Ex_preq_url preq_url;
 Ex_prsp_field prsp_field;
 Ex_ursp_field ursp_field;
 
@@ -788,6 +811,7 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(Ex_preq_host::NAME, &preq_host);
 
+  Extractor::define(Ex_preq_url::NAME, &preq_url);
   Extractor::define(Ex_prsp_field::NAME, &prsp_field);
   Extractor::define(Ex_ursp_field::NAME, &ursp_field);
 

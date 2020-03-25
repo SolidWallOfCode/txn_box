@@ -312,13 +312,15 @@ Errata Do_apply_remap_rule::invoke(Context &ctx) {
     // Need to do better - see if Context can provide an ArenaWriter?
     swoc::LocalBufferWriter<(1<<16) - 1> url_w;
     url_w.write(replacement_path);
-    if (request_path.size() > replacement_path.size()) {
-      if (replacement_path.size() > 0 && url_w.view()[replacement_path.size()-1] != '/') {
+    if (request_path.size() > target_path.size()) {
+      // Always slash separate the replacement from the remnant of the incoming request path.
+      if (url_w.size() && url_w.view()[url_w.size()-1] != '/') {
         url_w.write('/');
       }
-      url_w.write(request_path.substr(replacement_path.size()).ltrim('/'));
+      // Already have the separating slash, trim it from the target path.
+      url_w.write(request_path.substr(target_path.size()).ltrim('/'));
     }
-    request_url.path_set(url_w.view());
+    request_url.path_set(TextView{url_w.view()}.ltrim('/'));
   };
 
 //  TSUrlCopy(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl, ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl);
@@ -1541,7 +1543,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
 
 /* ------------------------------------------------------------------------------------ */
 const std::string When::KEY { "when" };
-const HookMask When::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP }) };
+const HookMask When::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP }) };
 
 When::When(Hook hook_idx, Directive::Handle &&directive) : _hook(hook_idx), _directive(std::move
 (directive)) {}
