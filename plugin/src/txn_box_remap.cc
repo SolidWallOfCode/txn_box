@@ -53,7 +53,7 @@ public:
   struct ConfigGroup {
     YAML::Node _root; ///< Root of YAMl in file.
     /// Configurations from file, indexed by base key of the configuration.
-    std::unordered_map<TextView, Config, std::hash<std::string_view>> _cfgs;
+    std::unordered_map<std::string, Config> _cfgs;
   };
 
   /// Obtain the active instance.
@@ -75,11 +75,10 @@ public:
   Rv<ConfigGroup *> obtain(swoc::file::path const& path);
 
 protected:
-  using ConfigTable = std::unordered_map<TextView, ConfigGroup, std::hash<std::string_view>>;
+  using ConfigTable = std::unordered_map<std::string, ConfigGroup>;
   ConfigTable _cfg_table;
 
   unsigned _ref_count { 0 }; ///< Reference count.
-  swoc::MemArena _arena;
 
   /// Active instance.
   static self_type * _instance;
@@ -104,7 +103,7 @@ void RemapConfig::release() { if (--_ref_count == 0) { delete this; } }
 void RemapConfig::clear() { _instance = nullptr; }
 
 Rv<RemapConfig::ConfigGroup *> RemapConfig::obtain(swoc::file::path const &path) {
-  if ( auto spot = _cfg_table.find(path.view()) ; spot != _cfg_table.end()) {
+  if ( auto spot = _cfg_table.find(path.string()) ; spot != _cfg_table.end()) {
     return &spot->second;
   }
   // Try loading and parsing the file.
@@ -113,7 +112,7 @@ Rv<RemapConfig::ConfigGroup *> RemapConfig::obtain(swoc::file::path const &path)
     errata.info(R"(While loading file "{}".)", path);
     return std::move(errata);
   }
-  auto & cg = _cfg_table[path.view()];
+  auto & cg = _cfg_table[path.string()];
   cg._root = root; // looks good, stash it.
   return &cg;
 }
@@ -151,7 +150,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   }
 
   swoc::file::path config_path { ts::make_absolute(swoc::file::path(argv[2])) };
-  TextView key_path = ".";
+  std::string key_path = ".";
   std::string text;
 
   if (argc > 3) {
