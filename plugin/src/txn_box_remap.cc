@@ -91,14 +91,26 @@ protected:
 RemapConfig* RemapConfig::_instance = nullptr;
 
 RemapConfig::self_type &RemapConfig::acquire() {
+  #if TS_VERSION_MAJOR < 8
+  // pre-8, there's no general reload signal, so must just have a separate instance for each
+  // rule.
+  auto self = new self_type;
+  ++(self->_ref_count);
+  return *self;
+  #else
   if (nullptr == _instance) {
     _instance = new self_type;
   }
   ++(_instance->_ref_count);
   return *_instance;
+  #endif
 }
 
-void RemapConfig::release() { if (--_ref_count == 0) { delete this; } }
+void RemapConfig::release() {
+  if (--_ref_count == 0) {
+    delete this;
+  }
+}
 
 void RemapConfig::clear() { _instance = nullptr; }
 
