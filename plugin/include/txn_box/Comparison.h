@@ -40,6 +40,8 @@ public:
   // Factory that maps from names to assemblers.
   using Factory = std::unordered_map<swoc::TextView, std::tuple<Loader, ValueMask>, std::hash<std::string_view>>;
 
+  virtual ~Comparison() = default;
+
   /** Number of regular expression capture groups provided by a match.
    *
    * @return The number of capture groups, or 0 if it is not a regular expression.
@@ -136,6 +138,7 @@ class ComparisonGroupBase {
   using self_type = ComparisonGroupBase;
   using Errata = swoc::Errata;
 public:
+  virtual ~ComparisonGroupBase() = default;
   virtual Errata load(Config& cfg, YAML::Node node);
 protected:
   virtual Errata load_case(Config& cfg, YAML::Node node) = 0;

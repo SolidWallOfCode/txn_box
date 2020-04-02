@@ -174,6 +174,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
     cg_errata.info(R"(While parsing config for {})", Config::PLUGIN_TAG);
     TSError("%s", swoc::bwprint(text, "{}", cg_errata).c_str());
     w.print("Error while parsing configuration for {} - see diagnostic log for more detai0", Config::PLUGIN_TAG);
+    r_cfg.release();
     return TS_ERROR;
   }
 
@@ -184,6 +185,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
     cg_errata.info(R"(While parsing config "{}" for {})", config_path, Config::PLUGIN_TAG);
     TSError("%s", swoc::bwprint(text, "{}", cfg_errata).c_str());
     w.print("Error while parsing configuration for {} - see diagnostic log for more detail.\0", Config::PLUGIN_TAG);
+    r_cfg.release();
     return TS_ERROR;
   }
 

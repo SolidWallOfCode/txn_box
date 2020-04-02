@@ -46,6 +46,8 @@ public:
     swoc::MemSpan<void> _data;
   };
 
+  virtual ~Extractor() = default;
+
   /** Validate the use of the extractor in a feature string.
    *
    * @param cfg Configuration.

@@ -82,6 +82,8 @@ public:
    */
   using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value)>;
 
+  virtual ~Directive() = default;
+
   /** Invoke the directive.
    *
    * @param ctx The transaction context.

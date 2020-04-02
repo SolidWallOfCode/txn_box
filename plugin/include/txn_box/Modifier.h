@@ -34,6 +34,8 @@ public:
    */
   using Worker = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node const& mod_node, YAML::Node const& key_node)>;
 
+  virtual ~Modifier() = default;
+
   /** Modification operator.
    *
    * @param ctx Runtime transaction context.

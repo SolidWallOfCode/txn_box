@@ -3,7 +3,7 @@ from parts import *
 
 #enable smart linking
 SetOptionDefault("LINKFLAGS", ['-Wl,--copy-dt-needed-entries', '-Wl,--as-needed'])
-SetOptionDefault("CXXFLAGS", ['-std=c++17', '-fPIC'])
+SetOptionDefault("CXXFLAGS", ['-std=c++17', '-fPIC', '-Wnon-virtual-dtor'])
 SetOptionDefault("INSTALL_ROOT", "#")
 
 # control shim for trafficserver
@@ -29,7 +29,7 @@ AddOption("--with-ssl",
 
 # the depends
 Part("swoc++/swoc++.part"
-        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.1.1")
+        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.1.4")
         )
 Part("#lib/libyaml-cpp.part", vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", protocol="https", tag="yaml-cpp-0.6.3"))
 #Part("#lib/libyaml-cpp.part")
