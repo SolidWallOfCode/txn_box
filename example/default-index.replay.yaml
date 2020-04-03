@@ -1,0 +1,98 @@
+meta:
+  txn_box:
+    with: creq-path
+    select:
+    - match: ""
+      do:
+      - remap-path: "index.html"
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 1]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/config/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/settings.yaml"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 100
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 100 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 2]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/index.html"
+      headers:
+        fields:
+        - [ Host, stage.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 100
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 100 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 3]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/index.html"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 150
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 150 ]
+    proxy-response:
+      status: 200
+

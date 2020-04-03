@@ -250,7 +250,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
 Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
   Rv<Expr> zret;
   TextView text { node.Scalar() };
-  if (text.empty()) { // no value at all
+  if (node.IsNull()) {
     return Expr{};
   } else if (node.Tag() == "?"_tv) { // unquoted, must be extractor.
     zret = this->parse_unquoted_expr(text);

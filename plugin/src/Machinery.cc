@@ -225,16 +225,16 @@ public:
                           , swoc::TextView const& arg, YAML::Node const& key_value);
 
 protected:
-  Expr _fmt; ///< Host feature.
+  Expr _expr; ///< Host feature.
 };
 
 const std::string Do_remap_host::KEY { "remap-host" };
 const HookMask Do_remap_host::HOOKS { MaskFor(Hook::REMAP) };
 
-Do_remap_host::Do_remap_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_remap_host::Do_remap_host(Expr &&fmt) : _expr(std::move(fmt)) {}
 
 Errata Do_remap_host::invoke(Context &ctx) {
-  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
   ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(host);
   ctx._remap_status = TSREMAP_DID_REMAP;
   return {};
@@ -329,6 +329,132 @@ Errata Do_apply_remap_rule::invoke(Context &ctx) {
 
 swoc::Rv<Directive::Handle> Do_apply_remap_rule::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
   return Handle(new self_type);
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the path for the request.
+ */
+class Do_creq_path : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_creq_path; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_creq_path(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_creq_path::KEY { "creq-path" };
+const HookMask Do_creq_path::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_creq_path::Do_creq_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_creq_path::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.url().path_set(host);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_creq_path::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (expr.result_type() != STRING) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the path for remap.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_remap_path : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_remap_path; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_remap_path(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node const& key_value);
+
+protected:
+  Expr _expr; ///< Path feature.
+};
+
+const std::string Do_remap_path::KEY { "remap-path" };
+const HookMask Do_remap_path::HOOKS { MaskFor(Hook::REMAP) };
+
+Do_remap_path::Do_remap_path(Expr &&fmt) : _expr(std::move(fmt)) {}
+
+Errata Do_remap_path::invoke(Context &ctx) {
+  TextView path{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
+  ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).path_set(path);
+  ctx._remap_status = TSREMAP_DID_REMAP;
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_remap_path::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (expr.result_type() != STRING) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
 class FieldDirective : public Directive {
@@ -1594,6 +1720,8 @@ namespace {
   Config::define(Do_creq_host::KEY, Do_creq_host::HOOKS, Do_creq_host::load);
   Config::define(Do_preq_host::KEY, Do_preq_host::HOOKS, Do_preq_host::load);
   Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
+  Config::define(Do_creq_path::KEY, Do_creq_path::HOOKS, Do_creq_path::load);
+  Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
   Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
   Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
   Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
