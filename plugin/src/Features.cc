@@ -366,6 +366,27 @@ BufferWriter& Ex_creq_field::format(BufferWriter &w, Spec const &spec, Context &
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_remap_path : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_path::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if (nullptr != ctx._remap_info) {
+    zret = ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).path();
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 class ExHttpField : public Extractor {
 public:
   Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
@@ -512,7 +533,6 @@ BufferWriter& Ex_preq_url::format(BufferWriter &w, Spec const &spec, Context &ct
   }
   return w;
 }
-
 /* ------------------------------------------------------------------------------------ */
 class Ex_preq_host : public Extractor {
 public:
@@ -784,6 +804,8 @@ Ex_preq_url preq_url;
 Ex_prsp_field prsp_field;
 Ex_ursp_field ursp_field;
 
+Ex_remap_path remap_path;
+
 Ex_ursp_status ursp_status;
 Ex_is_internal is_internal;
 
@@ -816,6 +838,9 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ursp_field::NAME, &ursp_field);
 
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);
+
+  Extractor::define(Ex_remap_path::NAME, &remap_path);
+
   Extractor::define(Ex_is_internal::NAME, &is_internal);
   Extractor::define(Ex_random::NAME, &random);
   Extractor::define(Ex_var::NAME, &var);

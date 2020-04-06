@@ -1,6 +1,6 @@
 meta:
   txn_box:
-    with: creq-path
+    with: remap-path
     select:
     - match: ""
       do:
