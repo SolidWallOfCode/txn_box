@@ -46,11 +46,11 @@ using namespace swoc::literals;
  * effect, each rule instance acts as a smart pointer. This can't use a normal smart pointer because
  * only a raw pointer can be stored in the rule instance context.
  */
-class RemapConfig {
-  using self_type = RemapConfig; ///< Self reference type.
+class RemapMetaConfig {
+  using self_type = RemapMetaConfig; ///< Self reference type.
 public:
   /// Configurations from a single file.
-  struct ConfigGroup {
+  struct ConfigFile {
     YAML::Node _root; ///< Root of YAMl in file.
     /// Configurations from file, indexed by base key of the configuration.
     std::unordered_map<std::string, Config> _cfgs;
@@ -65,17 +65,17 @@ public:
   /// Drop active instance, force new instance on next @c acquire.
   static void clear();
 
-  /** Get the @c ConfigGroup for the file @a path.
+  /** Get the @c ConfigFile for the file @a path.
    *
    * @param path Absolute path to configuration file.
-   * @return The @c ConfigGroup or errors if the file cannot be loaded and parsed.
+   * @return The @c ConfigFile or errors if the file cannot be loaded and parsed.
    *
    * If the file is not already in the table, it is loaded and parsed and the table updated.
    */
-  Rv<ConfigGroup *> obtain(swoc::file::path const& path);
+  Rv<ConfigFile *> obtain(swoc::file::path const& path);
 
 protected:
-  using ConfigTable = std::unordered_map<std::string, ConfigGroup>;
+  using ConfigTable = std::unordered_map<std::string, ConfigFile>;
   ConfigTable _cfg_table;
 
   unsigned _ref_count { 0 }; ///< Reference count.
@@ -83,14 +83,14 @@ protected:
   /// Active instance.
   static self_type * _instance;
 
-  RemapConfig() = default;
-  RemapConfig(self_type const& that) = delete;
+  RemapMetaConfig() = default;
+  RemapMetaConfig(self_type const& that) = delete;
   self_type & operator = (self_type const& that) = delete;
 };
 
-RemapConfig* RemapConfig::_instance = nullptr;
+RemapMetaConfig* RemapMetaConfig::_instance = nullptr;
 
-RemapConfig::self_type &RemapConfig::acquire() {
+RemapMetaConfig::self_type &RemapMetaConfig::acquire() {
   #if TS_VERSION_MAJOR < 8
   // pre-8, there's no general reload signal, so must just have a separate instance for each
   // rule.
@@ -106,15 +106,15 @@ RemapConfig::self_type &RemapConfig::acquire() {
   #endif
 }
 
-void RemapConfig::release() {
+void RemapMetaConfig::release() {
   if (--_ref_count == 0) {
     delete this;
   }
 }
 
-void RemapConfig::clear() { _instance = nullptr; }
+void RemapMetaConfig::clear() { _instance = nullptr; }
 
-Rv<RemapConfig::ConfigGroup *> RemapConfig::obtain(swoc::file::path const &path) {
+Rv<RemapMetaConfig::ConfigFile *> RemapMetaConfig::obtain(swoc::file::path const &path) {
   if ( auto spot = _cfg_table.find(path.string()) ; spot != _cfg_table.end()) {
     return &spot->second;
   }
@@ -132,7 +132,7 @@ Rv<RemapConfig::ConfigGroup *> RemapConfig::obtain(swoc::file::path const &path)
 class RemapContext {
   using self_type = RemapContext; ///< Self reference type.
 public:
-  RemapConfig& shared_cfg; ///< Shared remap configuration.
+  RemapMetaConfig& shared_cfg; ///< Shared remap configuration.
   Config* rule_cfg; ///< Configuration for a specific rule in @a r_cfg;
 };
 /* ------------------------------------------------------------------------------------ */
@@ -149,12 +149,12 @@ TSRemapInit(TSRemapInterface* rctx, char* errbuff, int errbuff_size) {
 };
 
 void TSRemapConfigReload() {
-  RemapConfig::clear();
+  RemapMetaConfig::clear();
 }
 
 TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbuff, int errbuff_size) {
   swoc::FixedBufferWriter w(errbuff, errbuff_size);
-  auto & r_cfg = RemapConfig::acquire();
+  auto & meta_cfg = RemapMetaConfig::acquire();
 
   if (argc < 3) {
     w.print("{} plugin requires a configuration file parameter.\0", Config::PLUGIN_NAME);
@@ -169,27 +169,33 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
     key_path.assign(argv[3], strlen(argv[3]));
   }
 
-  auto && [ cg, cg_errata ] = r_cfg.obtain(config_path);
+  auto && [ cg_file, cg_errata ] = meta_cfg.obtain(config_path);
   if (! cg_errata.is_ok()) {
     cg_errata.info(R"(While parsing config for {})", Config::PLUGIN_TAG);
     TSError("%s", swoc::bwprint(text, "{}", cg_errata).c_str());
     w.print("Error while parsing configuration for {} - see diagnostic log for more detai0", Config::PLUGIN_TAG);
-    r_cfg.release();
+    meta_cfg.release();
     return TS_ERROR;
   }
 
-  Config& rule_cfg = cg->_cfgs[key_path];
-  auto cfg_errata = rule_cfg.parse_yaml(cg->_root, key_path, Hook::REMAP);
-  if (! cfg_errata.is_ok()) {
-    cg->_cfgs.erase(key_path);
-    cg_errata.info(R"(While parsing config "{}" for {})", config_path, Config::PLUGIN_TAG);
-    TSError("%s", swoc::bwprint(text, "{}", cfg_errata).c_str());
-    w.print("Error while parsing configuration for {} - see diagnostic log for more detail.\0", Config::PLUGIN_TAG);
-    r_cfg.release();
-    return TS_ERROR;
+  auto cfg_spot = cg_file->_cfgs.find(key_path);
+  Config* rule_cfg = nullptr;
+  if (cfg_spot == cg_file->_cfgs.end()) {
+    rule_cfg = &(cg_file->_cfgs[key_path]);
+    auto cfg_errata = rule_cfg->parse_yaml(cg_file->_root, key_path, Hook::REMAP);
+    if (!cfg_errata.is_ok()) {
+      cg_file->_cfgs.erase(key_path);
+      cg_errata.info(R"(While parsing config "{}" for {})", config_path, Config::PLUGIN_TAG);
+      TSError("%s", swoc::bwprint(text, "{}", cfg_errata).c_str());
+      w.print("Error while parsing configuration for {} - see diagnostic log for more detail.\0", Config::PLUGIN_TAG);
+      meta_cfg.release();
+      return TS_ERROR;
+    }
+  } else {
+    rule_cfg = &(cfg_spot->second);
   }
 
-  *ih = new RemapContext { r_cfg, &rule_cfg };
+  *ih = new RemapContext {meta_cfg, rule_cfg };
   return TS_SUCCESS;
 }
 
