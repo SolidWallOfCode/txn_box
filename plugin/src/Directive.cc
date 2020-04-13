@@ -15,8 +15,6 @@ using swoc::Rv;
 using swoc::TextView;
 
 /* ------------------------------------------------------------------------------------ */
-unsigned Directive::StaticInfo::_counter = 0;
-/* ------------------------------------------------------------------------------------ */
 DirectiveList& DirectiveList::push_back(Directive::Handle &&d) {
   _directives.emplace_back(std::move(d));
   return *this;

@@ -129,6 +129,15 @@ TxnBoxInit(int argc, char const *argv[]) {
   }
 
   if (TSPluginRegister(&info) == TS_SUCCESS) {
+    auto& post_load_directives = Plugin_Config->hook_directives(Hook::POST_LOAD);
+    if (post_load_directives.size() > 0) {
+      // No real context for post load directives, pass a null one so it crashes if any directive
+      // touches a context. Only non-context based directives should be enabled for this "hook".
+      Context& ctx = *static_cast<Context*>(nullptr);
+      for (auto&& drtv : post_load_directives) {
+        drtv->invoke(ctx);
+      }
+    }
     if (Plugin_Config->has_top_level_directive()) {
       TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
       TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);

@@ -57,6 +57,14 @@ Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
   }
 }
 
+Context::~Context() {
+  // Invoke all the finalizers to do additional cleanup.
+  for ( auto && f : _finalizers ) {
+    f._f(f._ptr);
+    std::destroy_at(&f._f); // clean up the cleaner too, just in case.
+  }
+}
+
 Errata Context::on_hook_do(Hook hook_idx, Directive *drtv) {
   auto & info { _hooks[IndexFor(hook_idx)] };
   if (! info.hook_set_p) { // no hook to invoke this directive, set one up.
