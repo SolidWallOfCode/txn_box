@@ -19,7 +19,6 @@
 #include "txn_box/common.h"
 #include "txn_box/Extractor.h"
 
-class Config;
 class Context;
 
 /** Base class for directives.
@@ -34,42 +33,6 @@ public:
   /// Import global value for convienence.
   static constexpr swoc::TextView DO_KEY = Global::DO_KEY;
 
-  /// Options for a directive instance.
-  class Options {
-  private:
-    using self_type = Options; ///< Self reference type.
-  public:
-    Options() = default;
-    /** Set the amount of shared configuration storage needed.
-     *
-     * Configuration storage is allocated per directive class, not instance, and shared
-     * among all configuration instances and all transactions.
-     *
-     * @param n Number of bytes.
-     * @return @a this
-     */
-    self_type & cfg_storage(size_t n) {
-      _cfg_size = n;
-      return *this;
-    }
-
-    /** Set the amount of shared configuration storage needed.
-     *
-     * This storage is allocated per context per directive and shared among all directive instances
-     * in the configuration, but not shared across transactions.
-     *
-     * @param n Number of bytes.
-     * @return @a this
-     */
-    self_type & ctx_storage(size_t n) {
-      _ctx_size = n;
-      return *this;
-    }
-
-    size_t _cfg_size = 0; ///< Amount of config storage.
-    size_t _ctx_size = 0; ///< Amount of shared per context storage.
-  };
-
   /// Generic handle for all directives.
   using Handle = std::unique_ptr<self_type>;
 
@@ -80,7 +43,24 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using Worker = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value)>;
+  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value)>;
+
+  using TypeInitializer = std::function<swoc::Errata (Config& cfg)>;
+
+  /** Information about a directive type.
+   * Each instance of a directive of a specific type has a pointer to this record, which is used to
+   * provide the equivalent of run time type information.
+   */
+  struct Info {
+    HookMask _hook_mask; ///< Valid hooks for this directive.
+    Directive::InstanceLoader _load_cb; ///< Functor to load the directive from YAML data.
+    Directive::TypeInitializer _type_init_cb; ///< Configuration init callback.
+    unsigned _count = 0; ///< Number of instances.
+    // @c Context storage can't be stored as a span, because it's different in every @c context instance.
+    size_t _ctx_storage_size = 0; ///< Amount of shared context storage required.
+    size_t _ctx_storage_offset = 0; ///< Offset into shared context storage block.
+    swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
+  };
 
   virtual ~Directive() = default;
 
@@ -93,32 +73,10 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
+  static swoc::Errata type_init(Config&) { return {}; }
+
 protected:
-  /// Information about a specific type of Directive per @c Config instance.
-  /// This data can vary between @c Config instances and is initialized during instance construction
-  /// and configuration file loading. It is constant during runtime (transaction processing).
-  /// @internal Equivalent to run time type information.
-  struct CfgInfo {
-    unsigned _idx = 0; ///< Identifier.
-    unsigned _count = 0; ///< Number of instances.
-    size_t _ctx_storage_size = 0; ///< Amount of shared context storage required.
-    size_t _ctx_storage_offset = 0; ///< Offset into shared context storage block.
-    swoc::MemSpan<void> _cfg_span; ///< Shared config storage.
-  };
-
-  /// Per directive type static information.
-  /// This is the same for all @c Config instances and is initialized at process static initialization.
-  /// @internal Equivalent to class static information.
-  struct StaticInfo {
-    unsigned _idx = 0; ///< Indentifier.
-    size_t _cfg_storage_required = 0;
-    size_t _ctx_storage_required = 0;
-
-    /// Number of directive types, used to generate identifiers.
-    static unsigned _counter;
-  };
-
-  CfgInfo const* _rtti; ///< Run time (per Config) information.
+  Info const* _rtti = nullptr; ///< Run time (per Config) information.
 };
 
 /** An ordered list of directives.

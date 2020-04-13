@@ -489,3 +489,40 @@ struct Global {
 
 /// Global data.
 extern Global G;
+
+/// Used for clean up in @c Config and @c Context.
+/// A list of these is used to perform additional cleanup for extensions to the basic object.
+struct Finalizer {
+  using self_type = Finalizer; ///< Self reference type.
+  void * _ptr = nullptr; ///< Pointer to object to destroy.
+  std::function<void (void*)> _f; ///< Functor to destroy @a _ptr.
+
+  self_type * _prev = nullptr; ///< List support.
+  self_type * _next = nullptr; ///< List support.
+  using Linkage = swoc::IntrusiveLinkage<Finalizer>; ///< For @c IntrusiveDList
+
+  Finalizer(void* ptr, std::function<void (void*)> && f);
+};
+
+inline Finalizer::Finalizer(void* ptr, std::function<void (void*)> && f) : _ptr(ptr), _f(std::move(f)) {}
+
+/** Scoping value change.
+ *
+ * @tparam T Type of variable to scope.
+ */
+template < typename T > struct let {
+  T & _var; ///< Reference to scoped variable.
+  T _value; ///< Original value.
+
+  /** Construct a scope.
+   *
+   * @param var Variable to scope.
+   * @param value Temporary value to assign.
+   */
+  let(T & var, T && value);
+  ~let();
+};
+
+template < typename T > let<T>::let(T& var, T&& value) : _var(var), _value(var)  {}
+
+template < typename T > let<T>::~let() { _var = _value; }

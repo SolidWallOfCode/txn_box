@@ -76,6 +76,13 @@ namespace {
 } ();
 }; // namespace
 
+Config::~Config() {
+  // Invoke all the finalizers to do additional cleanup.
+  for ( auto && f : _finalizers ) {
+    f._f(f._ptr);
+    std::destroy_at(&f._f); // clean up the cleaner too, just in case.
+  }
+}
 
 Config::Factory Config::_factory;
 
@@ -100,7 +107,6 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 
 /* ------------------------------------------------------------------------------------ */
 Config::Config() {
-  _drtv_info.resize(Directive::StaticInfo::_counter + 1);
 }
 
 Config::self_type &Config::localize(Feature &feature) {
@@ -376,24 +382,24 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
     // keys to directives. First key that is in the factory determines the directive type.
     // If none of the keys are in the factory, that's an error and is reported after the loop.
     if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
-      auto const& [ hooks, worker, static_info ] { spot->second };
-      if (! hooks[IndexFor(this->current_hook())]) {
+      auto& info = spot->second;
+      let scope(_rtti, &info);
+
+      if (! info._hook_mask[IndexFor(this->current_hook())]) {
         return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
       }
-      auto && [ drtv, drtv_errata ] { worker(*this, drtv_node, name, arg, key_value) };
+
+      // If this is the first use of the directive, do config level setup for the directive type.
+      if (info._count == 0) {
+        info._type_init_cb(*this);
+      }
+
+      auto && [ drtv, drtv_errata ] { info._load_cb(*this, drtv_node, name, arg, key_value) };
       if (! drtv_errata.is_ok()) {
         drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
         return std::move(drtv_errata);
       }
-      // Fill in config dependent data and pass a pointer to it to the directive instance.
-      auto & rtti = _drtv_info[static_info._idx];
-      if (++rtti._count == 1) { // first time this directive type has been used.
-        rtti._idx = static_info._idx;
-        rtti._cfg_span = _arena.alloc(static_info._cfg_storage_required);
-        rtti._ctx_storage_offset = _ctx_storage_required;
-        _ctx_storage_required += static_info._ctx_storage_required;
-      }
-      drtv->_rtti = &rtti;
+      drtv->_rtti = &info;
 
       return std::move(drtv);
     }
@@ -433,7 +439,9 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
         auto when = static_cast<When*>(handle.get());
         // Steal the directive out of the When.
         _roots[IndexFor(when->_hook)].emplace_back(std::move(when->_directive));
-        _has_top_level_directive_p = true;
+        if (Hook::POST_LOAD != _hook) { // post load hooks don't count.
+          _has_top_level_directive_p = true;
+        }
       } else {
         return std::move(errata);
       }
@@ -500,13 +508,10 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   return std::move(errata);
 };
 
-Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Worker const &worker, Directive::Options const& opts) {
-  auto & record { _factory[name] };
-  std::get<0>(record) = hooks;
-  std::get<1>(record) = worker;
-  auto & info { std::get<2>(record) };
-  info._idx = ++Directive::StaticInfo::_counter;
-  info._cfg_storage_required = opts._cfg_size;
-  info._ctx_storage_required = opts._ctx_size;
+Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::TypeInitializer && type_initializer) {
+  auto & info { _factory[name] };
+  info._hook_mask = hooks;
+  info._load_cb = std::move(worker);
+  info._type_init_cb = std::move(type_initializer);
   return {};
 }

@@ -46,6 +46,8 @@ public:
   /// Construct based a specific configuration.
   explicit Context(std::shared_ptr<Config> const& cfg);
 
+  ~Context();
+
   /** Schedule a directive for a @a hook.
    *
    * @param hook Hook on which to invoke.
@@ -105,13 +107,15 @@ public:
    */
   self_type& commit(Feature & feature);
 
-  /** Allocate config space for an array of @a T.
+  /** Allocate context (txn scoped) space for an array of @a T.
    *
    * @tparam T Element type.
    * @param count # of elements.
    * @return A span covering the allocated array.
    *
-   * This allocates in the config storage. No destructors are called when the config is destructed.
+   * This allocates in the context storage. No destructors are called when the config is destructed.
+   *
+   * @see mark_for_cleanup
    */
   template < typename T > swoc::MemSpan<T> span(unsigned count) {
     return _arena->alloc(sizeof(T) * count).rebind<T>();
@@ -271,6 +275,16 @@ public:
     _prsp = {};
   }
 
+  /** Mark @a ptr for cleanup when @a this is destroyed.
+   *
+   * @tparam T Type of @a ptr
+   * @param ptr Object to clean up.
+   * @return @a this
+   *
+   * @a ptr is cleaned up by calling
+   */
+  template <typename T> self_type & mark_for_cleanup(T* ptr);
+
 protected:
   // HTTP header objects for the transaction.
   ts::HttpRequest _creq; ///< Client request header.
@@ -294,6 +308,9 @@ protected:
 
   /// Active view to which the capture groups refer.
   FeatureView _rxp_src;
+
+  /// Additional clean up needed when @a this is destroyed.
+  swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
 
   /// A transaction scope variable.
   struct TxnVar {
@@ -335,3 +352,8 @@ inline auto Context::store_txn_var(swoc::TextView const&name, Feature&&value) ->
   return this->store_txn_var(name, value);
 }
 
+template < typename T > Context& Context::mark_for_cleanup(T *ptr) {
+  auto f = _arena->make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
+  _finalizers.append(f);
+  return *this;
+}

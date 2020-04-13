@@ -224,6 +224,11 @@ public:
   static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
                           , swoc::TextView const& arg, YAML::Node const& key_value);
 
+  static Errata type_init(Config& cfg) {
+    cfg.reserve_ctx_storage(sizeof(TextView));
+    return {};
+  }
+
 protected:
   Expr _expr; ///< Host feature.
 };
@@ -950,6 +955,8 @@ public:
    */
   static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
 
+  static Errata type_init(Config& cfg);
+
 protected:
   using index_type = FeatureGroup::index_type;
   FeatureGroup _fg;
@@ -1100,6 +1107,11 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node const& drtv_node
   }
 
   return { std::move(handle), {} };
+}
+
+Errata Do_redirect::type_init(Config &cfg) {
+  cfg.reserve_ctx_storage(sizeof(TextView));
+  return {};
 }
 /* ------------------------------------------------------------------------------------ */
 /// Send a debug message.
@@ -1490,6 +1502,112 @@ Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node const& drtv_node, swo
   return std::move(Handle(new self_type(cfg.localize(arg), std::move(fmt))));
 }
 /* ------------------------------------------------------------------------------------ */
+/// Define a static text block.
+class Do_text_define : public Directive {
+  using self_type = Do_text_define; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+
+  static Errata type_init(Config& cfg);
+
+protected:
+  struct Map {
+    using Handle = std::unique_ptr<Map>;
+  };
+
+  static const std::string NAME_TAG;
+  static const std::string PATH_TAG;
+  static const std::string TEXT_TAG;
+  static const std::string DURATION_TAG;
+
+  TextView _name;
+  swoc::file::path _path;
+  TextView _text;
+
+  Map* instance();
+
+  Do_text_define();
+};
+
+const std::string Do_text_define::KEY{"text-define" };
+const HookMask Do_text_define::HOOKS{MaskFor(Hook::POST_LOAD)};
+
+auto Do_text_define::instance() -> Map* { return _rtti->_cfg_store.rebind<Map::Handle>()[0].get(); }
+
+Errata Do_text_define::invoke(Context &ctx) {
+  auto map = this->instance();
+  return {};
+}
+
+Rv<Directive::Handle> Do_text_define::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+  auto name_node = key_value[NAME_TAG];
+  if (name_node.IsNull()) {
+    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
+  }
+  auto &&[name_expr, name_errata] { cfg.parse_expr(name_node) };
+  if (! name_errata.is_ok()) {
+    name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    return std::move(name_errata);
+  }
+  if (! name_expr.is_literal() || name_expr.result_type() != IndexFor(STRING)) {
+    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
+  }
+  YAML::Node{drtv_node}.remove(NAME_TAG); // ugly, need to fix the overall API.
+
+  auto path_node = key_value[PATH_TAG];
+  auto &&[path_expr, path_errata]{cfg.parse_expr(path_node)};
+  if (! path_errata.is_ok()) {
+    path_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    return std::move(path_errata);
+  }
+  if (! path_expr.is_literal() || path_expr.result_type() != IndexFor(STRING)) {
+    return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY, drtv_node.Mark());
+  }
+  YAML::Node{drtv_node}.remove(PATH_TAG); // ugly, need to fix the overall API.
+
+  auto text_node = key_value[TEXT_TAG];
+  auto &&[text_expr, text_errata]{cfg.parse_expr(text_node)};
+  if (! text_errata.is_ok()) {
+    text_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    return std::move(text_errata);
+  }
+  if (! text_expr.is_literal() || text_expr.result_type() != IndexFor(STRING)) {
+    return Error("{} value at {} for {} directive at {} must be a literal string.", TEXT_TAG, text_node.Mark(), KEY, drtv_node.Mark());
+  }
+  YAML::Node{drtv_node}.remove(TEXT_TAG); // ugly, need to fix the overall API.
+
+  if (text_node.IsNull() && path_node.IsNull()) {
+    return Error("{} directive at {} must have a {} or a {} key..", KEY, drtv_node.Mark(), PATH_TAG, TEXT_TAG);
+  }
+
+  auto self = new self_type();
+  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr))});
+  self->_text = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr))});
+  self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr));
+  return std::move(Handle(self));
+}
+
+Errata Do_text_define::type_init(Config &cfg) {
+  // Note - @a h gets a pointer to the Handle.
+  auto h = cfg.allocate_cfg_storage(sizeof(Map::Handle)).rebind<Map::Handle>().data();
+  new (h) Map::Handle(std::make_unique<Map>());
+  cfg.mark_for_cleanup(h);
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
  * This is a core directive that has lots of special properties.
@@ -1729,10 +1847,11 @@ namespace {
   Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
-  Config::define(Do_redirect::KEY, Do_redirect::HOOKS, Do_redirect::load, Directive::Options().ctx_storage(sizeof(TextView)));
+  Config::define<Do_redirect>();
   Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
+  Config::define<Do_text_define>();
   return true;
 } ();
 } // namespace

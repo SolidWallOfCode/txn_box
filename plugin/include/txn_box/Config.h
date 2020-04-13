@@ -129,6 +129,8 @@ public:
   /// Default constructor, makes an empty instance.
   Config();
 
+  ~Config();
+
   /** Parse YAML from @a node to initialize @a this configuration.
    *
    * @param root Root node.
@@ -213,6 +215,9 @@ public:
    * @return A span covering the allocated array.
    *
    * This allocates in the config storage. No destructors are called when the config is destructed.
+   * If that is required use @c mark_for_cleanup
+   *
+   * @see mark_for_cleanup
    */
   template < typename T > swoc::MemSpan<T> span(unsigned count) {
     return _arena.alloc(sizeof(T) * count).rebind<T>();
@@ -226,7 +231,6 @@ public:
 
   ValueType active_feature_type() const { return _active_feature._type; }
 
-
   /** Require regular expression capture vectors to support at least @a n groups.
    *
    * @param n Number of capture groups.
@@ -234,7 +238,11 @@ public:
    */
   self_type &require_rxp_group_count(unsigned n);
 
-
+  /** Indicate a directive may be scheduled on a @a hook at runtime.
+   *
+   * @param hook Runtime dispatch hook.
+   * @return @a this
+   */
   self_type &reserve_slot(Hook hook) { ++_directive_count[IndexFor(hook)]; return *this; }
 
   /// Check for top level directives.
@@ -244,14 +252,54 @@ public:
   /** Get the top level directives for a @a hook.
    *
    * @param hook The hook identifier.
-   * @return A reference to the vector of top level directives.
+   * @return A reference to the vector of top level directives for @a hook.
    */
   std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
 
+  /** Mark @a ptr for cleanup when @a this is destroyed.
+   *
+   * @tparam T Type of @a ptr
+   * @param ptr Object to clean up.
+   * @return @a this
+   *
+   * @a ptr is cleaned up by calling
+   */
+  template <typename T> self_type & mark_for_cleanup(T* ptr);
+
+  template < typename D > static swoc::Errata define() {
+    return self_type::define(D::KEY, D::HOOKS, &D::load, D::type_init);
+  }
+
   /** Define a directive.
    *
+   * @param name Directive name.
+   * @param hooks Mask of valid hooks.
+   * @param worker Functor to load / construct the directive from YAML.
+   * @param cfg_init Config time initialization if needed.
+   * @return Errors, if any.
    */
-  static swoc::Errata define(swoc::TextView name, HookMask const& hooks, Directive::Worker const& worker, Directive::Options const& opts = Directive::Options {});
+  static swoc::Errata define(swoc::TextView name, HookMask const& hooks
+                             , Directive::InstanceLoader && worker
+                             , Directive::TypeInitializer && cfg_init = [](Config&) -> swoc::Errata { return {}; });
+
+  /** Allocate / reserve storage space in @a this.
+   *
+   * @param n Size in bytes.
+   * @return The allocated span.
+   *
+   * This also stores the span in the RTTI / TypeInfo for the directive so it is accessible when
+   * the directive is invoked at run time.
+   */
+  swoc::MemSpan<void> allocate_cfg_storage(size_t n) {
+    return _rtti->_cfg_store = _arena.alloc(n);
+  }
+
+  Errata reserve_ctx_storage(size_t n) {
+    _rtti->_ctx_storage_offset = _ctx_storage_required;
+    _rtti->_ctx_storage_size = n;
+    _ctx_storage_required += n;
+    return {};
+  }
 
 protected:
   friend class When;
@@ -260,6 +308,9 @@ protected:
   // Transient properties
   /// Current hook for directives being loaded.
   Hook _hook = Hook::INVALID;
+
+  /// Stash for directive load type initializer callback.
+  Directive::Info * _rtti = nullptr;
 
   /// Mark whether there are any top level directives.
   bool _has_top_level_directive_p { false };
@@ -288,11 +339,8 @@ protected:
   /// Current amount of shared context storage required.
   size_t _ctx_storage_required = 0;
 
-  /// Directive info for all directive types.
-  std::vector<Directive::CfgInfo> _drtv_info;
-
   /// A factory that maps from directive names to generator functions (@c Loader instances).
-  using Factory = std::unordered_map<std::string_view, std::tuple<HookMask, Directive::Worker, Directive::StaticInfo>>;
+  using Factory = std::unordered_map<std::string_view, Directive::Info>;
 
   /// The set of defined directives..
   static Factory _factory;
@@ -306,6 +354,9 @@ protected:
 
   /// For localizing data at a configuration level, primarily strings.
   swoc::MemArena _arena;
+
+  /// Additional clean up to perform when @a this is destroyed.
+  swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
 
   swoc::Rv<Directive::Handle> load_directive(YAML::Node const& drtv_node);
 
@@ -352,7 +403,13 @@ inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) 
   return _roots[static_cast<unsigned>(hook)];
 }
 
-inline Config::self_type &Config::require_rxp_group_count(unsigned n) {
+inline Config& Config::require_rxp_group_count(unsigned n) {
   _capture_groups = std::max(_capture_groups, n);
+  return *this;
+}
+
+template < typename T > auto Config::mark_for_cleanup(T *ptr) -> self_type & {
+  auto f = _arena.make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
+  _finalizers.append(f);
   return *this;
 }
