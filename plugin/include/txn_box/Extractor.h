@@ -58,7 +58,7 @@ public:
    * The base implementation returns successfully as a @c STRING. If the extractor returns some other
    * type or needs to actually validate @a spec, it must override this method.
    */
-  virtual swoc::Rv<ValueType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return STRING; }
+  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return ActiveType{STRING }; }
 
   /** Whether the extractor uses data from the context.
    *
@@ -79,6 +79,21 @@ public:
    * @return The extracted feature.
    */
   virtual Feature extract(Context & ctx, Spec const& spec) = 0;
+
+  /** Extract from the configuration.
+   *
+   * @param cfg Configuration.
+   * @param spec Specifier for the extractor.
+   * @return The extracted feature.
+   *
+   * @note Unlike @c Context based extraction, this is optional and should only be overridden for
+   * extractors that do not extract runtime dependent data. In such cases the @c validate method
+   * should indicate this method is available by marking the type as config extractable.
+   *
+   * @see validate
+   * @see extract(Context & ctx, Spec const& spec)
+   */
+  virtual Feature extract(Config & cfg, Spec const& spec) { return NIL_FEATURE; }
 
   /** Generate string output for the feature.
    *
@@ -137,7 +152,7 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
 
-  virtual swoc::Rv<ValueType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return VARIABLE; }
+  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg);
 
   Feature extract(Context& ctx, Spec const& spec);
 
@@ -180,32 +195,4 @@ public:
 };
 
 inline auto BooleanExtractor::result_type() const -> ValueType { return BOOLEAN; }
-
-class HttpFieldTuple : public TupleIterator {
-  using self_type = HttpFieldTuple;
-  using super_type = TupleIterator;
-public:
-  HttpFieldTuple(swoc::TextView const& key, ts::HttpHeader const& hdr, swoc::TextView const& name) : _key(key), _hdr(hdr), _name(name) {
-    this->rewind();
-  }
-
-  ts::HttpField & current() { return _current; }
-
-  void advance() override;
-
-  self_type & rewind() override;
-
-  swoc::TextView iter_tag() const override { return _key; }
-  ValueType value_type() const { return STRING; }
-  Feature extract() const override;
-  bool is_nil() const override { return ! _current.is_valid(); }
-protected:
-  swoc::TextView _key;
-  swoc::TextView _name; ///< Name of the field.
-  ts::HttpHeader _hdr; ///< Header with fields.
-  ts::HttpField _current; ///< Current header.
-  ts::HttpField _next; ///< Next header.
-
-  void update();
-};
 

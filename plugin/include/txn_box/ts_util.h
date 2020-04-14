@@ -421,6 +421,18 @@ public:
 protected:
 };
 
+struct TaskHandle {
+  TSAction _action = nullptr; ///< Internal handle returned from task scheduling.
+
+  void cancel() {
+    if (_action != nullptr) {
+      TSActionCancel(_action);
+    }
+  }
+};
+
+TaskHandle PerformAsTask(std::function<void ()> && task);
+
 inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(loc) {}
 
 inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nullptr; }

@@ -42,21 +42,33 @@ public:
    * @param feature Feature to modify.
    * @return Modified feature, or errors.
    */
-  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature const& feature) = 0;
+  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature const& feature) {
+    auto visitor = [&](auto && value) { return (*this)(ctx, value); };
+    return std::visit(visitor, feature);
+  }
+
+  /** Modification operator.
+   *
+   * @param ctx Runtime transaction context.
+   * @param feature The feature to modify.
+   * @return The modified feature.
+   */
+  virtual swoc::Rv<Feature> operator()(Context& ctx, std::monostate) { return NIL_FEATURE; }
+  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature) { return NIL_FEATURE; }
 
   /** Check if the comparison is valid for @a type.
    *
    * @param type Type of feature to compare.
    * @return @c true if this comparison can compare to that feature type, @c false otherwise.
    */
-  virtual bool is_valid_for(ValueType type) const = 0;
+  virtual bool is_valid_for(ActiveType const& type) const = 0;
 
   /** Output type of the modifier.
    *
    * @param in The input type for the modifier.
    * @return The type of the modified feature.
    */
-  virtual ValueType result_type(ValueType in) const = 0;
+  virtual ActiveType result_type(ActiveType  const& ex_type) const = 0;
 
   /** Define a mod for @a name.
    *
@@ -71,10 +83,10 @@ public:
    *
    * @param cfg Config state object.
    * @param node Node containing the modifier.
-   * @param ftype Feature type to modify.
+   * @param ex_type Feature type to modify.
    * @return
    */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& node, ValueType ftype);
+  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& node, ActiveType ex_type);
 
 protected:
   /// Set of defined modifiers.

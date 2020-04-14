@@ -132,7 +132,7 @@ FeatureNodeStyle Config::feature_node_style(YAML::Node value) {
   return FeatureNodeStyle::INVALID;
 }
 
-Rv<ValueType> Config::validate(Extractor::Spec &spec) {
+Rv<ActiveType> Config::validate(Extractor::Spec &spec) {
   if (spec._name.empty()) {
     return Error(R"(Extractor name required but not found.)");
   }
@@ -156,7 +156,7 @@ Rv<ValueType> Config::validate(Extractor::Spec &spec) {
     }
     return Error(R"(Extractor "{}" not found.)", name);
   }
-  return STRING; // non-negative index => capture group => always a string
+  return { STRING }; // non-negative index => capture group => always a string
 }
 
 Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
@@ -190,11 +190,15 @@ Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
     return std::move(errata);
   }
 
+  if (vt.is_cfg_const()) {
+    return Expr{ spec._exf->extract(*this, spec)};
+  }
+
   return Expr{spec, vt};
 }
 
 Rv<Expr> Config::parse_composite_expr(TextView const& text) {
-  ValueType single_vt;
+  ActiveType single_vt;
   auto parser { swoc::bwf::Format::bind(text) };
   std::vector<Extractor::Spec> specs;
   // Used to handle literals in @a format_string. Can't be const because it must be updated
@@ -514,4 +518,9 @@ Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Ins
   info._load_cb = std::move(worker);
   info._type_init_cb = std::move(type_initializer);
   return {};
+}
+
+Directive::Info const* Config::drtv_info(swoc::TextView name) {
+  auto spot = _factory.find(name);
+  return spot == _factory.end() ? nullptr : &spot->second;
 }

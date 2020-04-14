@@ -12,7 +12,7 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 #pkg_check_modules(yaml-cpp REQUIRED IMPORTED_TARGET yaml-cpp)
-pkg_check_modules(libswoc++ REQUIRED IMPORTED_TARGET libswoc++)
+pkg_check_modules(libswoc REQUIRED IMPORTED_TARGET libswoc.static)
 pkg_check_modules(trafficserver REQUIRED IMPORTED_TARGET trafficserver)
 
 add_subdirectory(plugin)

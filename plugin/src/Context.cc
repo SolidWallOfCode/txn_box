@@ -320,8 +320,8 @@ unsigned Context::ArgPack::count() const {
   return pcre2_get_ovector_count(_ctx._rxp_active._match);
 }
 
-BufferWriter& Context::ArgPack::print(unsigned idx, BufferWriter &w
-                                      , swoc::bwf::Spec const &spec) const {
+BufferWriter& Context::ArgPack::print(BufferWriter &w
+                                      , swoc::bwf::Spec const &spec, unsigned idx) const {
   auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_active._match);
   idx *= 2; // To account for offset pairs.
   return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx+1] - ovector[idx]));

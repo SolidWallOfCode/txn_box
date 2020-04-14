@@ -43,7 +43,7 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value)>;
+  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
 
   using TypeInitializer = std::function<swoc::Errata (Config& cfg)>;
 
@@ -123,7 +123,7 @@ public:
    * @param key_node Child of @a dctv_node which matched the directive key.
    * @return A new directive instance on success, error notes on failure.
    */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Hook _hook { Hook::INVALID };

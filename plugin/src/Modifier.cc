@@ -26,7 +26,7 @@ Errata Modifier::define(swoc::TextView name, Modifier::Worker const &f) {
   return Error(R"(Modifier "{}" is already defined.)", name);
 }
 
-Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ValueType ftype) {
+Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ActiveType ex_type) {
   if (! node.IsMap()) {
     return Error(R"(Modifier at {} is not an object as required.)", node.Mark());
   }
@@ -40,8 +40,8 @@ Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ValueTy
       if (!errata.is_ok()) {
         return std::move(errata);
       }
-      if (! handle->is_valid_for(ftype)) {
-        return Error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ftype);
+      if (! handle->is_valid_for(ex_type)) {
+        return Error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ex_type);
       }
 
       return std::move(handle);
@@ -62,17 +62,17 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
-   * @param ftype Type of feature to modify.
+   * @param ex_type Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(ValueType ftype) const override;
+  bool is_valid_for(ActiveType const& ex_type) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type(ValueType) const override;
+  ActiveType result_type(ActiveType const&) const override;
 
   /** Create an instance from YAML config.
    *
@@ -94,16 +94,16 @@ const std::string Mod_Hash::KEY { "hash" };
 
 Mod_Hash::Mod_Hash(unsigned n) : _n(n) {}
 
-bool Mod_Hash::is_valid_for(ValueType ftype) const {
-  return STRING == ftype;
+bool Mod_Hash::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(STRING);
 }
 
-ValueType Mod_Hash::result_type(ValueType) const {
-  return INTEGER;
+ActiveType Mod_Hash::result_type(ActiveType const&) const {
+  return { NIL, INTEGER };
 }
 
-Rv<Feature> Mod_Hash::operator()(Context &ctx, Feature const& feature) {
-  feature_type_for<INTEGER> value = std::hash<std::string_view>{}(std::get<IndexFor(STRING)>(feature));
+Rv<Feature> Mod_Hash::operator()(Context &ctx, feature_type_for<STRING> feature) {
+  feature_type_for<INTEGER> value = std::hash<std::string_view>{}(feature);
   return Feature{feature_type_for<INTEGER>{value % _n}};
 }
 
@@ -148,10 +148,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modify that feature type, @c false if not.
    */
-  bool is_valid_for(ValueType ftype) const override;
+  bool is_valid_for(ActiveType const& ex_type) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type(ValueType in_type) const override;
+  ActiveType result_type(ActiveType const& ex_type) const override;
 
   /** Create an instance from YAML config.
    *
@@ -189,12 +189,12 @@ protected:
   Case const* compare(Context& ctx, Feature const& feature) const;
 };
 
-bool Mod_Filter::is_valid_for(ValueType) const {
+bool Mod_Filter::is_valid_for(ActiveType const& ex_type) const {
   return true;
 }
 
-ValueType Mod_Filter::result_type(ValueType in_type) const {
-  return in_type;
+ActiveType Mod_Filter::result_type(ActiveType const& ex_type) const {
+  return ex_type;
 }
 
 auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case const * {
@@ -331,10 +331,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(ValueType ftype) const override;
+  bool is_valid_for(ActiveType const& ex_type) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type(ValueType) const override;
+  ActiveType result_type(ActiveType const&) const override;
 
   /** Create an instance from YAML config.
    *
@@ -351,11 +351,11 @@ protected:
   explicit Mod_Else(Expr && fmt) : _value(std::move(fmt)) {}
 };
 
-bool Mod_Else::is_valid_for(ValueType ftype) const {
-  return STRING == ftype || NIL == ftype;
+bool Mod_Else::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(MaskFor({STRING, NIL}));
 }
 
-ValueType Mod_Else::result_type(ValueType) const {
+ActiveType Mod_Else::result_type(ActiveType const&) const {
   return _value.result_type();
 }
 
@@ -394,10 +394,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(ValueType ftype) const override;
+  bool is_valid_for(ActiveType const& ex_type) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type(ValueType) const override;
+  ActiveType result_type(ActiveType const&) const override;
 
   /** Create an instance from YAML config.
    *
@@ -434,12 +434,12 @@ protected:
 
 const std::string Mod_As_Integer::KEY { "as-integer" };
 
-bool Mod_As_Integer::is_valid_for(ValueType ftype) const {
-  return STRING == ftype || INTEGER == ftype;
+bool Mod_As_Integer::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(MaskFor({STRING, INTEGER}));
 }
 
-ValueType Mod_As_Integer::result_type(ValueType) const {
-  return INTEGER;
+ActiveType Mod_As_Integer::result_type(ActiveType const& ex_type) const {
+  return {MaskFor({NIL, INTEGER})};
 }
 
 Rv<Feature> Mod_As_Integer::operator()(Context &ctx, Feature const& feature) {
@@ -478,10 +478,10 @@ public:
    * @param ftype Type of feature to modify.
    * @return @c true if this modifier can modity that feature type, @c false if not.
    */
-  bool is_valid_for(ValueType ftype) const override;
+  bool is_valid_for(ActiveType const& ex_type) const override;
 
   /// Resulting type of feature after modifying.
-  ValueType result_type(ValueType) const override;
+  ActiveType result_type(ActiveType const&) const override;
 
   /** Create an instance from YAML config.
    *
@@ -511,12 +511,12 @@ protected:
 
 const std::string Mod_As_IP_Addr::KEY { "as-ip-addr" };
 
-bool Mod_As_IP_Addr::is_valid_for(ValueType ftype) const {
-  return STRING == ftype || IP_ADDR == ftype;
+bool Mod_As_IP_Addr::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(MaskFor({IP_ADDR, STRING}));
 }
 
-ValueType Mod_As_IP_Addr::result_type(ValueType) const {
-  return IP_ADDR;
+ActiveType Mod_As_IP_Addr::result_type(ActiveType const&) const {
+  return {MaskFor({NIL, IP_ADDR})};
 }
 
 Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature const& feature) {

@@ -33,9 +33,6 @@ swoc::Lexicon<ValueType> ValueTypeNames {{
   , { ValueType::CONS, "cons" }
   , { ValueType::TUPLE, "tuple" }
   , { ValueType::GENERIC, "generic"}
-  , { ValueType::VARIABLE, "var" }
-  , { ValueType::ACTIVE, "active" }
-  , { ValueType::NO_VALUE, "no value" }
 }};
 
 /* ------------------------------------------------------------------------------------ */
@@ -116,15 +113,6 @@ Feature & cdr(Feature & feature) {
       feature = span.empty() ? NIL_FEATURE : cdr;
     }
     break;
-    case IndexFor(GENERIC): {
-      auto & generic = std::get<feature_type_for<GENERIC>>(feature);
-      if (TupleIterator::TAG == generic->_tag) {
-        static_cast<TupleIterator*>(generic)->advance();
-      } else {
-        feature = NIL_FEATURE;
-      }
-    }
-    break;
   }
   return feature;
 }
@@ -144,14 +132,18 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
     span = span.prefix(spec._max);
   }
   swoc::FixedBufferWriter lw{span};
-  for (auto const& [ e, v] : ValueTypeNames) {
-    if (!mask[e]) {
-      continue;
+  if (mask.any()) {
+    for (auto const&[e, v] : ValueTypeNames) {
+      if (!mask[e]) {
+        continue;
+      }
+      if (lw.extent()) {
+        lw.write(", ");
+      }
+      bwformat(lw, spec, v);
     }
-    if (lw.extent()) {
-      w.write(", ");
-    }
-    bwformat(w, spec, v);
+  } else {
+    bwformat(lw, spec, "*no value"_tv);
   }
   w.commit(lw.extent());
   return w;
@@ -162,17 +154,28 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &fe
     return bwformat(w, spec, "NULL"_tv);
   } else {
     auto visitor = [&](auto &&arg) -> BufferWriter & { return bwformat(w, spec, arg); };
-    //  return std::visit(visitor, static_cast<FeatureData::variant_type const&>(feature));
     return std::visit(visitor, feature);
   }
 }
 } // namespace swoc
+
+BufferWriter &
+bwformat(BufferWriter& w, bwf::Spec const& spec, ActiveType const& type) {
+  bwformat(w, spec, type._base_type);
+  if (type._tuple_type.any()) {
+    w.write(", Tuples of [");
+    bwformat(w, spec, type._tuple_type);
+    w.write(']');
+  }
+  return w;
+}
+
 /* ------------------------------------------------------------------------------------ */
 class Ex_var : public Extractor {
 public:
   static constexpr TextView NAME { "var" };
 
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const&) override;
@@ -180,11 +183,11 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ValueType> Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
+Rv<ActiveType> Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
   auto name = cfg.span<feature_type_for<STRING>>(1);
   spec._data = name.rebind<void>();
   name[0] = cfg.localize(arg);
-  return VARIABLE;
+  return ActiveType::any_type();
 }
 
 Feature Ex_var::extract(Context &ctx, Spec const& spec) {
@@ -341,9 +344,9 @@ class Ex_creq_field : public Extractor {
 public:
   static constexpr TextView NAME { "creq-field" };
 
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
     spec._data.assign(const_cast<char*>(arg.data()), arg.size());
-    return STRING;
+    return ActiveType{ NIL, STRING, ActiveType::TuplesOf(STRING) };
   }
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
@@ -389,7 +392,7 @@ BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &
 /* ------------------------------------------------------------------------------------ */
 class ExHttpField : public Extractor {
 public:
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
     auto span = cfg.span<Data>(1);
     spec._data = span;
     auto & data = span[0];
@@ -400,7 +403,7 @@ public:
     } else if (0 == strcasecmp(spec._ext, "by-value"_tv)) {
       data.opt.f.by_value = true;
     }
-    return data.opt.f.by_field ? GENERIC : STRING;
+    return ActiveType{ NIL, STRING, ActiveType::TuplesOf(STRING) };
   }
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
@@ -434,8 +437,7 @@ protected:
 Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
   Data & data = spec._data.rebind<Data>()[0];
   if (data.opt.f.by_field) {
-    auto iter = ctx._arena->make<HttpFieldTuple>(this->key(), this->hdr(ctx), data._arg);
-    return iter;
+    return NIL_FEATURE;
   } else if (data.opt.f.by_value) {
     return NIL_FEATURE;
   }
@@ -490,27 +492,6 @@ TextView const& Ex_ursp_field::key() const { return NAME; }
 ts::HttpHeader Ex_ursp_field::hdr(Context & ctx) const {
   return ctx.ursp_hdr();
 }
-
-void HttpFieldTuple::update() {
-  if (_current.is_valid()) {
-    _next = _current.next_dup();
-  } else {
-    _next = ts::HttpField{};
-  }
-}
-
-HttpFieldTuple& HttpFieldTuple::rewind() {
-  _current = _hdr.field(_name);
-  this->update();
-  return *this;
-}
-
-void HttpFieldTuple::advance() {
-  std::swap(_next, _current);
-  this->update();
-}
-
-Feature HttpFieldTuple::extract() const { return _current.value(); }
 
 /* ------------------------------------------------------------------------------------ */
 /** The entire URL.
@@ -621,13 +602,13 @@ BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ct
 class Ex_cssn_remote_addr : public Extractor {
 public:
   static constexpr TextView NAME { "cssn-remote-addr" };
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Rv<ValueType> Ex_cssn_remote_addr::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
-  return IP_ADDR;
+Rv<ActiveType> Ex_cssn_remote_addr::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+  return { IP_ADDR };
 }
 
 Feature Ex_cssn_remote_addr::extract(Context & ctx, Spec const& spec) {
@@ -645,12 +626,12 @@ class Ex_cssn_proto : public StringExtractor {
 public:
   static constexpr TextView NAME { "cssn-proto" };
 
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ValueType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &arg) {
+Rv<ActiveType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
@@ -660,7 +641,7 @@ Rv<ValueType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &a
   text[arg.size()] = 0; // API call, need C string.
   view[0].assign(text.data(), arg.size() + 1);
   spec._data = view.rebind<void>();
-  return STRING;
+  return { STRING };
 }
 
 BufferWriter& Ex_cssn_proto::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -675,7 +656,7 @@ class Ex_random : public Extractor {
 public:
   static constexpr TextView NAME { "random" };
 
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const& spec) override;
@@ -698,7 +679,7 @@ BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Co
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
-Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+Rv<ActiveType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto values = cfg.span<feature_type_for<INTEGER>>(2);
   spec._data = values.rebind<void>(); // remember where the storage is.
   feature_type_for<INTEGER> min = 0, max = 99; // temporaries for parsing output.
@@ -731,7 +712,7 @@ Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView c
   // Update the stored values now that *both* input values are validated.
   values[0] = min;
   values[1] = max;
-  return INTEGER;
+  return { INTEGER };
 }
 /* ------------------------------------------------------------------------------------ */
 template < typename T, const TextView* KEY> class Ex_duration : public Extractor {
@@ -741,23 +722,29 @@ template < typename T, const TextView* KEY> class Ex_duration : public Extractor
 public:
   static constexpr TextView NAME { *KEY };
 
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const& spec) override;
+  /// Extract the feature from the config.
+  Feature extract(Config& cfg, Extractor::Spec const& spec) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-template < typename T, const TextView* KEY > Feature Ex_duration<T,KEY>::extract(Context &ctx, Extractor::Spec const& spec) {
+template < typename T, const TextView* KEY > Feature Ex_duration<T,KEY>::extract(Context &, Extractor::Spec const& spec) {
   return spec._data.rebind<ftype>()[0];
-};
+}
+
+template < typename T, const TextView* KEY > Feature Ex_duration<T,KEY>::extract(Config &, Extractor::Spec const& spec) {
+  return spec._data.rebind<ftype>()[0];
+}
 
 template < typename T, const TextView* KEY > BufferWriter& Ex_duration<T,KEY>::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
-template < typename T, const TextView* KEY> Rv<ValueType> Ex_duration<T,KEY>::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+template < typename T, const TextView* KEY> Rv<ActiveType> Ex_duration<T,KEY>::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto span = cfg.span<ftype>(1);
   spec._data = span.rebind<void>(); // remember where the storage is.
 
@@ -772,7 +759,10 @@ template < typename T, const TextView* KEY> Rv<ValueType> Ex_duration<T,KEY>::va
   }
 
   span[0] = T{n};
-  return DURATION;
+
+  ActiveType zret { DURATION };
+  zret.mark_cfg_const();
+  return zret;
 }
 /* ------------------------------------------------------------------------------------ */
 /// The active feature.
@@ -781,7 +771,7 @@ class Ex_active_feature : public Extractor {
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME = ACTIVE_FEATURE_KEY;
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return ACTIVE; }
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return cfg.active_type(); }
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
@@ -801,7 +791,7 @@ class Ex_remainder_feature : public Extractor {
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME = REMAINDER_FEATURE_KEY;
-  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return STRING; }
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
@@ -813,6 +803,10 @@ Feature Ex_remainder_feature::extract(class Context & ctx, const struct Extracto
 BufferWriter& Ex_remainder_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._remainder);
 }
+
+Rv<ActiveType>
+Ex_remainder_feature::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) { return { STRING }; }
+
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   Feature feature {_fg->extract(ctx, spec._ext)};
@@ -822,6 +816,8 @@ BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Cont
 Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {
   return _fg->extract(ctx, spec._ext);
 }
+
+swoc::Rv<ActiveType> Ex_this::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) { return cfg.active_type(); }
 /* ------------------------------------------------------------------------------------ */
 // Needs to be external visible.
 Ex_this ex_this;

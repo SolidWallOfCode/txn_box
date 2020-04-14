@@ -47,7 +47,7 @@ public:
 
   /// Track the state of provided features.
   struct ActiveFeatureState {
-    ValueType _type { NO_VALUE }; ///< Type of active feature.
+    ActiveType _type; ///< Type of active feature.
     bool _ref_p = false; ///< Feature has been referenced / used.
   };
 
@@ -76,10 +76,10 @@ public:
     }
   };
   friend ActiveFeatureScope;
-  ActiveFeatureScope feature_scope(ValueType vtype) {
+  ActiveFeatureScope feature_scope(ActiveType const& ex_type) {
     ActiveFeatureScope scope(*this);
     _active_feature._ref_p = false;
-    _active_feature._type = vtype;
+    _active_feature._type = ex_type;
     return std::move(scope);
   }
 
@@ -229,7 +229,7 @@ public:
    */
   Hook current_hook() const;
 
-  ValueType active_feature_type() const { return _active_feature._type; }
+  ActiveType active_type() const { return _active_feature._type; }
 
   /** Require regular expression capture vectors to support at least @a n groups.
    *
@@ -300,6 +300,10 @@ public:
     _ctx_storage_required += n;
     return {};
   }
+
+  Directive::Info const * drtv_info() const { return _rtti; }
+
+  Directive::Info const* drtv_info(swoc::TextView name);
 
 protected:
   friend class When;
@@ -393,7 +397,7 @@ protected:
    *
    * @see Extractor::validate
    */
-  swoc::Rv<ValueType> validate(Extractor::Spec &spec);
+  swoc::Rv<ActiveType> validate(Extractor::Spec &spec);
 };
 
 inline Hook Config::current_hook() const { return _hook; }
