@@ -38,7 +38,7 @@ public:
   using Loader = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node const& cmp_node, swoc::TextView const& key, swoc::TextView const& arg, YAML::Node const& value_node)>;
 
   // Factory that maps from names to assemblers.
-  using Factory = std::unordered_map<swoc::TextView, std::tuple<Loader, ValueMask>, std::hash<std::string_view>>;
+  using Factory = std::unordered_map<swoc::TextView, std::tuple<Loader, ActiveType>, std::hash<std::string_view>>;
 
   virtual ~Comparison() = default;
 
@@ -60,7 +60,8 @@ public:
   virtual bool operator()(Context&, FeatureView const& view) const { return false; }
   virtual bool operator()(Context&, intmax_t n) const { return false; }
   virtual bool operator()(Context&, bool f) const { return false; }
-  virtual bool operator()(Context&, swoc::IPAddr const& addr) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<IP_ADDR> const& addr) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<DURATION> feature) const { return false; }
   virtual bool operator()(Context&, Cons const* cons) const { return false; }
   virtual bool operator()(Context&, FeatureTuple const& tuple) const { return false; }
   virtual bool operator()(Context&, Generic const* g) const;
@@ -119,7 +120,7 @@ public:
    * @param worker Assembler to construct instance from configuration node.
    * @return A handle to a constructed instance on success, errors on failure.
    */
-  static swoc::Errata define(swoc::TextView name, ValueMask const& types, Loader && worker);
+  static swoc::Errata define(swoc::TextView name, ActiveType const& types, Loader && worker);
 
   /** Load a comparison from a YAML @a node.
    *

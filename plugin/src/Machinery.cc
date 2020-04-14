@@ -13,6 +13,7 @@
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
 #include <swoc/bwf_ex.h>
+#include <swoc/bwf_std.h>
 
 #include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
@@ -43,8 +44,8 @@ public:
   explicit Do_preq_url_host(TextView text) : _host(text) {}
 
   Errata invoke(Context &ctx) override;
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
   std::string _host;
 };
 
@@ -56,7 +57,7 @@ Errata Do_preq_url_host::invoke(Context &ctx) {
   return zret;
 }
 
-swoc::Rv<Directive::Handle> Do_preq_url_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_preq_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return { Handle{new self_type{key_value.Scalar()}}, {} };
 }
 
@@ -93,8 +94,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _fmt; ///< Host feature.
@@ -113,14 +114,14 @@ Errata Do_creq_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_creq_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_creq_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
-  if (expr.result_type() != STRING) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -157,8 +158,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                        , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                        , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _fmt; ///< Host feature.
@@ -177,13 +178,13 @@ Errata Do_preq_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_preq_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_preq_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
-  if (expr.result_type() != STRING) {
+  if (! expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return  Handle(new self_type(std::move(expr)));
@@ -221,8 +222,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
   static Errata type_init(Config& cfg) {
     cfg.reserve_ctx_storage(sizeof(TextView));
@@ -245,13 +246,13 @@ Errata Do_remap_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
-  if (expr.result_type() != STRING) {
+  if (!expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
@@ -282,8 +283,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 };
 
 const std::string Do_apply_remap_rule::KEY { "apply-remap-rule" };
@@ -332,7 +333,7 @@ Errata Do_apply_remap_rule::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_apply_remap_rule::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_apply_remap_rule::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return Handle(new self_type);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -367,8 +368,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _fmt; ///< Host feature.
@@ -387,13 +388,13 @@ Errata Do_creq_path::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_creq_path::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_creq_path::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
-  if (expr.result_type() != STRING) {
+  if (!expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
@@ -431,8 +432,8 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _expr; ///< Path feature.
@@ -450,13 +451,13 @@ Errata Do_remap_path::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_remap_path::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> Do_remap_path::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
-  if (expr.result_type() != STRING) {
+  if (! expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
@@ -485,7 +486,7 @@ protected:
    * @param key_value  Value of the node for @a key.
    * @return An instance of the directive for @a key, or errors.
    */
-  static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node key_value);
 
   /** Invoke the directive.
    *
@@ -584,29 +585,8 @@ void FieldDirective::apply(Context & ctx, ts::HttpHeader & hdr, TextView const& 
 Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
   if (hdr.is_valid()) {
     ts::HttpField field;
-    if (_name == ACTIVE_FEATURE_KEY) {
-      if (auto g { std::get_if<IndexFor(GENERIC)>(&ctx._active_ext)} ; g) {
-        if (TupleIterator::TAG == (*g)->_tag) {
-          if (static_cast<TupleIterator*>(*g)->iter_tag() == this->key()) {
-            auto & iter = *static_cast<HttpFieldTuple*>(*g);
-            auto & field = iter.current();
-            if (field.is_valid()) {
-              auto value { ctx.extract(_expr)};
-              if (ValueTypeOf(value) == NIL) {
-                field.destroy();
-              } else {
-                field.assign(std::get<STRING>(value.join(ctx, ", "_tv)));
-              }
-            }
-            return {};
-          }
-        }
-      }
-    } else {
-      this->apply(ctx, hdr, _name);
-      return {};
-    }
-    return Errata().error(R"(Failed to find or create field "{}")", _name);
+    this->apply(ctx, hdr, _name);
+    return {};
   }
   return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
 }
@@ -614,7 +594,7 @@ Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
 auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
                          , Expr &&)> const &maker
                          , TextView const &key, TextView const &arg
-                         , YAML::Node const &key_value) -> Rv<Handle> {
+                         , YAML::Node key_value) -> Rv<Handle> {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing value for "{}".)", key);
@@ -622,10 +602,10 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
   }
 
   auto expr_type = expr.result_type();
-  if (expr_type == NO_VALUE) {
+  if (! expr_type.has_value()) {
     return Error(R"(Directive "{}" must have a value.)", key);
   }
-  if (STRING != expr_type && NIL != expr_type && TUPLE != expr_type) {
+  if (!expr_type.can_satisfy({ NIL, STRING, ActiveType::TuplesOf(STRING)})) {
     return Error(R"(Value for "{}" directive at {} must be a NULL, a string or a list of strings.)", key, key_value.Mark());
   }
 
@@ -643,7 +623,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   using super_type::super_type; // Inherit super_type constructors.
@@ -657,7 +637,7 @@ Errata Do_creq_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.creq_hdr());
 }
 
-Rv<Directive::Handle> Do_creq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_creq_field::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
@@ -670,7 +650,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   using super_type::super_type; // Inherit super_type constructors.
@@ -684,7 +664,7 @@ Errata Do_preq_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.preq_hdr());
 }
 
-Rv<Directive::Handle> Do_preq_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_preq_field::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
@@ -697,7 +677,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   using super_type::super_type; // Inherit super_type constructors.
@@ -711,7 +691,7 @@ Errata Do_prsp_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.prsp_hdr());
 }
 
-Rv<Directive::Handle> Do_prsp_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_prsp_field::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 
@@ -724,7 +704,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   using super_type::super_type; // Inherit super_type constructors.
@@ -738,7 +718,7 @@ Errata Do_ursp_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.ursp_hdr());
 }
 
-Rv<Directive::Handle> Do_ursp_field::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_ursp_field::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -759,7 +739,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
@@ -798,7 +778,7 @@ Errata Do_set_ursp_status::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -838,7 +818,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
@@ -856,12 +836,12 @@ Errata Do_set_ursp_reason::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }
-  if (STRING != expr.result_type()) {
+  if (! expr.result_type().can_satisfy(STRING)) {
     return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
   auto self = new self_type;
@@ -889,7 +869,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
@@ -907,12 +887,12 @@ Errata Do_set_prsp_body::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }
-  if (STRING != expr.result_type()) {
+  if (! expr.result_type().can_satisfy(STRING)) {
     return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
   auto self = new self_type;
@@ -953,7 +933,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
   static Errata type_init(Config& cfg);
 
@@ -975,9 +955,9 @@ protected:
   Errata load_status();
 
   /// Load the location value from configuration.
-  Errata load_location(Config& cfg, YAML::Node const& node);
-  Errata load_reason(Config& cfg, YAML::Node const& node);
-  Errata load_body(Config& cfg, YAML::Node const& node);
+  Errata load_location(Config& cfg, YAML::Node node);
+  Errata load_reason(Config& cfg, YAML::Node node);
+  Errata load_body(Config& cfg, YAML::Node node);
 
   /// Do post invocation fixup.
   Errata fixup(Context &ctx);
@@ -1078,7 +1058,7 @@ Errata Do_redirect::load_status() {
   return {};
 }
 
-Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   Handle handle{new self_type{cfg}};
   Errata errata;
   auto self = static_cast<self_type *>(handle.get());
@@ -1123,7 +1103,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _tag;
@@ -1146,7 +1126,7 @@ Errata Do_debug_msg::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   if (key_value.IsScalar()) {
     auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value);
     if (! msg_errata.is_ok()) {
@@ -1240,7 +1220,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node key_value);
 
 protected:
   TextView _arg;
@@ -1256,9 +1236,9 @@ Errata Do_set_creq_query::invoke(Context &ctx) {
   return this->QueryDirective::invoke(ctx, _expr, ctx.creq_hdr().url(), _arg);
 }
 
-Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node const &drtv_node
+Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node drtv_node
                                              , swoc::TextView const &name, swoc::TextView arg
-                                             , YAML::Node const &key_value) {
+                                             , YAML::Node key_value) {
 
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
@@ -1277,7 +1257,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node key_value);
 
 protected:
   TextView _arg;
@@ -1289,9 +1269,9 @@ protected:
 const std::string Do_remap_query::KEY { "remap-query" };
 const HookMask Do_remap_query::HOOKS { MaskFor({Hook::CREQ, Hook::REMAP}) };
 
-Rv<Directive::Handle> Do_remap_query::load(Config &cfg, YAML::Node const &drtv_node
+Rv<Directive::Handle> Do_remap_query::load(Config &cfg, YAML::Node drtv_node
                                               , swoc::TextView const &name, swoc::TextView arg
-                                              , YAML::Node const &key_value) {
+                                              , YAML::Node key_value) {
 
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
@@ -1324,7 +1304,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _fmt; ///< Cache key.
@@ -1341,7 +1321,7 @@ Errata Do_cache_key::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_cache_key::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_cache_key::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[fmt, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -1368,7 +1348,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _expr; ///< Value for override.
@@ -1392,7 +1372,7 @@ Errata Do_txn_conf::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto txn_var = ts::HttpTxn::find_override(arg);
   if (! txn_var) {
     return Error(R"("{}" is not recognized as an overridable transaction configuration variable.)", arg);
@@ -1426,7 +1406,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _expr; ///< Address.
@@ -1446,13 +1426,13 @@ Errata Do_upstream_addr::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_upstream_addr::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_upstream_addr::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }
 
-  if (IP_ADDR != expr.result_type()) {
+  if (! expr.result_type().can_satisfy(IP_ADDR)) {
     return Error(R"(Value for "{}" must be an IP address.)");
   }
 
@@ -1476,7 +1456,7 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   TextView _name; ///< Variable name.
@@ -1493,119 +1473,13 @@ Errata Do_var::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[fmt, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }
 
   return std::move(Handle(new self_type(cfg.localize(arg), std::move(fmt))));
-}
-/* ------------------------------------------------------------------------------------ */
-/// Define a static text block.
-class Do_text_define : public Directive {
-  using self_type = Do_text_define; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
-public:
-  static const std::string KEY; ///< Directive name.
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  Errata invoke(Context & ctx) override; ///< Runtime activation.
-
-  /** Load from YAML configuration.
-   *
-   * @param cfg Configuration data.
-   * @param drtv_node Node containing the directive.
-   * @param key_value Value for directive @a KEY
-   * @return A directive, or errors on failure.
-   */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
-
-  static Errata type_init(Config& cfg);
-
-protected:
-  struct Map {
-    using Handle = std::unique_ptr<Map>;
-  };
-
-  static const std::string NAME_TAG;
-  static const std::string PATH_TAG;
-  static const std::string TEXT_TAG;
-  static const std::string DURATION_TAG;
-
-  TextView _name;
-  swoc::file::path _path;
-  TextView _text;
-
-  Map* instance();
-
-  Do_text_define();
-};
-
-const std::string Do_text_define::KEY{"text-define" };
-const HookMask Do_text_define::HOOKS{MaskFor(Hook::POST_LOAD)};
-
-auto Do_text_define::instance() -> Map* { return _rtti->_cfg_store.rebind<Map::Handle>()[0].get(); }
-
-Errata Do_text_define::invoke(Context &ctx) {
-  auto map = this->instance();
-  return {};
-}
-
-Rv<Directive::Handle> Do_text_define::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
-  auto name_node = key_value[NAME_TAG];
-  if (name_node.IsNull()) {
-    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
-  }
-  auto &&[name_expr, name_errata] { cfg.parse_expr(name_node) };
-  if (! name_errata.is_ok()) {
-    name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-    return std::move(name_errata);
-  }
-  if (! name_expr.is_literal() || name_expr.result_type() != IndexFor(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
-  }
-  YAML::Node{drtv_node}.remove(NAME_TAG); // ugly, need to fix the overall API.
-
-  auto path_node = key_value[PATH_TAG];
-  auto &&[path_expr, path_errata]{cfg.parse_expr(path_node)};
-  if (! path_errata.is_ok()) {
-    path_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-    return std::move(path_errata);
-  }
-  if (! path_expr.is_literal() || path_expr.result_type() != IndexFor(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY, drtv_node.Mark());
-  }
-  YAML::Node{drtv_node}.remove(PATH_TAG); // ugly, need to fix the overall API.
-
-  auto text_node = key_value[TEXT_TAG];
-  auto &&[text_expr, text_errata]{cfg.parse_expr(text_node)};
-  if (! text_errata.is_ok()) {
-    text_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-    return std::move(text_errata);
-  }
-  if (! text_expr.is_literal() || text_expr.result_type() != IndexFor(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", TEXT_TAG, text_node.Mark(), KEY, drtv_node.Mark());
-  }
-  YAML::Node{drtv_node}.remove(TEXT_TAG); // ugly, need to fix the overall API.
-
-  if (text_node.IsNull() && path_node.IsNull()) {
-    return Error("{} directive at {} must have a {} or a {} key..", KEY, drtv_node.Mark(), PATH_TAG, TEXT_TAG);
-  }
-
-  auto self = new self_type();
-  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr))});
-  self->_text = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr))});
-  self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr));
-  return std::move(Handle(self));
-}
-
-Errata Do_text_define::type_init(Config &cfg) {
-  // Note - @a h gets a pointer to the Handle.
-  auto h = cfg.allocate_cfg_storage(sizeof(Map::Handle)).rebind<Map::Handle>().data();
-  new (h) Map::Handle(std::make_unique<Map>());
-  cfg.mark_for_cleanup(h);
-  return {};
 }
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
@@ -1622,7 +1496,7 @@ public:
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context &ctx) override;
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value);
+  static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Expr _ex; ///< Extractor format.
@@ -1689,7 +1563,7 @@ Errata With::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   // Need to parse this first, so the feature type can be determined.
   auto && [ expr, errata ] = cfg.parse_expr(key_value);
 
@@ -1797,7 +1671,7 @@ Errata When::invoke(Context &ctx) {
   return ctx.on_hook_do(_hook, _directive.get());
 }
 
-swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node const& drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node const& key_value) {
+swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   Errata zret;
   if (Hook hook{HookName[key_value.Scalar()]} ; hook != Hook::INVALID) {
     if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
@@ -1851,7 +1725,6 @@ namespace {
   Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
-  Config::define<Do_text_define>();
   return true;
 } ();
 } // namespace

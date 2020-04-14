@@ -103,7 +103,7 @@ public:
 /// This includes all of the types of features, plus some "meta" types to describe situations
 /// in which the type may not be known at configuration load time.
 enum ValueType : int8_t {
-  NIL = 0, ///< No data.
+  NIL = 0, ///< Explicitly no data.
   STRING, ///< View of a string.
   INTEGER, ///< Integer.
   IP_ADDR, ///< IP Address
@@ -112,18 +112,15 @@ enum ValueType : int8_t {
   CONS, ///< Pointer to cons cell.
   TUPLE, ///< Array of features (@c FeatureTuple)
   GENERIC, ///< Extended type.
-  NO_VALUE, ///< No value, non-existent feature.
-  VARIABLE, ///< Variable / indeterminate type.
-  ACTIVE, ///< The active / current feature type.
 };
 
 namespace std {
-template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::ACTIVE) + 1> {};
+template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::GENERIC) + 1> {};
 }; // namespace std
 
 // *** @c FeatureTypeList and @c FeatureType must be kept in parallel synchronization! ***
 /// Type list of feature types.
-/// The initial values in @c ValueType must match this list exactly.
+/// The values in @c ValueType must match this list exactly.
 using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, std::chrono::nanoseconds, Cons *, FeatureTuple, Generic*>;
 
 /** Basic feature data type.
@@ -216,7 +213,7 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 /// @endcond
 
 inline ValueType ValueTypeOf(Feature const& f) {
-  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN, CONS, TUPLE, GENERIC };
+  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN, DURATION,CONS, TUPLE, GENERIC };
   return T[f.index()];
 }
 /// Nil value feature.
@@ -236,9 +233,86 @@ using FeatureMask = std::bitset<FeatureTypeList::size>;
 /// A mask indicating a set of @c ValueType.
 using ValueMask = std::bitset<std::tuple_size<ValueType>::value>;
 
-/// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
-/// @tparam F ValueType enumeration value.
-template < ValueType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
+/** The active type.
+ * This is a mask of feature types, representing the possible types of the active feature.
+ */
+class ActiveType {
+  using self_type = ActiveType;
+public:
+  struct TuplesOf {
+    ValueMask _mask;
+    TuplesOf() = default;
+    TuplesOf(ValueMask mask) : _mask(mask) {}
+    template < typename ... Rest > TuplesOf(ValueType vt, Rest && ... rest ) : TuplesOf(rest...) {
+      _mask[vt] = true;
+    }
+  };
+  ActiveType() = default;
+  template < typename ... Rest > ActiveType(ValueType vt, Rest && ... rest );
+  template < typename ... Rest > ActiveType(TuplesOf const& tt, Rest && ... rest );
+
+  self_type & operator=(ValueType vt);
+  self_type & operator|=(ValueType vt);
+
+  bool operator==(self_type const& that) { return _base_type == that._base_type && _tuple_type == that._tuple_type; }
+  bool operator!=(self_type const& that) { return ! (*this == that); }
+
+  /// Check if this is any type and therefore has a value.
+  bool has_value() const { return _base_type.any(); }
+
+  bool can_satisfy(ValueType vt) const {
+    return _base_type[vt];
+  }
+  bool can_satisfy(ValueMask vmask) const {
+    return (_base_type & vmask).any();
+  }
+  bool can_satisfy(self_type const& that) const {
+    auto c = _base_type & that._base_type;
+    // TUPLE is a common type iff the tuple element types have a common type.
+    if (c[TUPLE] && (that._tuple_type & _tuple_type).none()) {
+      c[TUPLE] = false;
+    }
+    return c.any();
+  }
+
+  self_type & mark_cfg_const() { _cfg_const_p = true; return *this; }
+  bool is_cfg_const() const { return _cfg_const_p; }
+
+  static self_type any_type() {
+    self_type zret;
+    zret._base_type.set();
+    zret._tuple_type.set();
+    return zret;
+  }
+
+protected:
+  ValueMask _base_type; ///< Base type of the feature.
+  ValueMask _tuple_type; ///< Types of the elements of a tuple.
+  bool _cfg_const_p = false; ///< Config time constant.
+  friend swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);
+};
+
+template<typename... Rest>
+ActiveType::ActiveType(ValueType vt, Rest&& ... rest) : ActiveType(rest...) {
+  _base_type[vt] = true;
+}
+
+template < typename ... Rest >
+ActiveType::ActiveType(TuplesOf const& tt, Rest && ... rest ) : ActiveType(rest...) {
+_tuple_type |= tt._mask;
+_base_type[TUPLE] = true;
+}
+
+inline auto ActiveType::operator=(ValueType vt) -> self_type & {
+  _base_type.reset();
+  _base_type[vt] = true;
+  return *this;
+}
+
+inline auto ActiveType::operator|=(ValueType vt) -> self_type & {
+  _base_type[vt] = true;
+  return *this;
+}
 
 /** Create a @c FeatureMask containing a single @a type.
  *
@@ -302,6 +376,10 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
  */
 template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
+/// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
+/// @tparam F ValueType enumeration value.
+template < ValueType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
+
 /// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) {
   if (auto gf = std::get_if<GENERIC>(&feature)) {
@@ -342,41 +420,6 @@ static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "*" };
 
 /// Conversion between @c ValueType and printable names.
 extern swoc::Lexicon<ValueType> ValueTypeNames;
-
-class TupleIterator : public Generic {
-  using self_type = TupleIterator;
-  using super_type = Generic;
-public:
-  static constexpr swoc::TextView TAG { "ITERATOR" };
-
-  TupleIterator() : super_type{TAG} {}
-  virtual ~TupleIterator() {}
-
-  /** The value type of the tuple elements.
-   *
-   * @return The type of each element if the iteration is homogenous, @c ACTIVE if it is not.
-   */
-  virtual ValueType value_type() const { return ACTIVE; }
-
-  /// @return @c true if the iterator has a value, @c false if at end.
-  explicit virtual operator bool () const { return false; }
-
-  virtual void advance() = 0;
-
-  /// Restart iteration
-  virtual self_type & rewind() = 0;
-
-  /// Iteration key, to distinguish the area of iteration.
-  virtual swoc::TextView iter_tag() const = 0;
-
-};
-
-// BufferWriter support.
-namespace swoc {
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
-}
 
 /// Supported hooks.
 /// @internal These must be in order because that is used to check if the value for the _when_
@@ -458,7 +501,6 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
 
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
-extern swoc::BufferWriter& bwformat(swoc::BufferWriter& w, swoc::bwf::Spec const& spec, Hook hook);
 
 /** Create a feature that is a literal string of @a view.
  *
@@ -526,6 +568,16 @@ template < typename T > struct let {
   ~let();
 };
 
-template < typename T > let<T>::let(T& var, T&& value) : _var(var), _value(var)  {}
+template < typename T > let<T>::let(T& var, T&& value) : _var(var), _value(var)  { _var = value; }
 
 template < typename T > let<T>::~let() { _var = _value; }
+
+// BufferWriter support.
+namespace swoc {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
+//BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ActiveType const& type);
+}
+swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
+swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);

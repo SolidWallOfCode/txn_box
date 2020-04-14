@@ -357,7 +357,7 @@ TxnConfigVar * HttpTxn::find_override(swoc::TextView const& name) {
   return std::get<0>(result)->second.get();
 }
 
-Errata ts::HttpTxn::override_assign(TxnConfigVar const &var, int n) {
+Errata HttpTxn::override_assign(TxnConfigVar const &var, int n) {
   if (!var.is_valid(n)) {
     return Error(R"(Integer value {} is not valid for transaction overridable configuration "{}".)", var.name());
   }
@@ -367,7 +367,7 @@ Errata ts::HttpTxn::override_assign(TxnConfigVar const &var, int n) {
   return {};
 }
 
-Errata ts::HttpTxn::override_assign(ts::TxnConfigVar const &var, TextView const& text){
+Errata HttpTxn::override_assign(TxnConfigVar const &var, TextView const& text){
   if (!var.is_valid(text)) {
     return Error(R"(String value "{}" is not valid for transaction overridable configuration "{}".)", var.name());
   }
@@ -377,8 +377,27 @@ Errata ts::HttpTxn::override_assign(ts::TxnConfigVar const &var, TextView const&
   return {};
 }
 
-Errata &ts::HttpTxn::init(swoc::Errata &errata) {
+Errata &HttpTxn::init(swoc::Errata &errata) {
   return errata;
+}
+
+TaskHandle PerformAsTask(std::function<void ()> &&task) {
+  struct Context {
+    std::function<void ()> _f;
+    Context(std::function<void ()> && f) : _f(std::move(f)) {}
+  };
+
+  static auto lambda = [](TSCont contp, TSEvent ev_code, void * data) -> int {
+    auto context = static_cast<Context*>(TSContDataGet(contp));
+    context->_f();
+    delete context;
+    TSContDestroy(contp);
+    return 0;
+  };
+  auto contp = TSContCreate(lambda, TSMutexCreate());
+  auto context = new Context(std::move(task));
+  TSContDataSet(contp, context);
+  return { TSContScheduleOnPool(contp, 0, TS_THREAD_POOL_TASK) };
 }
 /* ------------------------------------------------------------------------ */
 } // namespace ts

@@ -177,7 +177,7 @@ public:
      *
      * For now this is unimplemented - it will get filled out when regex support is done.
      */
-    swoc::BufferWriter &print(unsigned idx, swoc::BufferWriter &w, swoc::bwf::Spec const &spec) const override;
+    swoc::BufferWriter &print(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, unsigned idx) const override;
 
     /// Number of arguments in the pack.
     unsigned count() const override;
@@ -284,6 +284,10 @@ public:
    * @a ptr is cleaned up by calling
    */
   template <typename T> self_type & mark_for_cleanup(T* ptr);
+
+  Config& cfg() { return *_cfg; }
+
+  std::shared_ptr<Config> acquire_cfg() { return _cfg; }
 
 protected:
   // HTTP header objects for the transaction.

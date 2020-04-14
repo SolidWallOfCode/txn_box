@@ -26,7 +26,7 @@ Comparison::Factory Comparison::_factory;
 
 unsigned Comparison::rxp_group_count() const { return 0; }
 
-Errata Comparison::define(swoc::TextView name, ValueMask const& types, Comparison::Loader &&worker) {
+Errata Comparison::define(swoc::TextView name, ActiveType const& types, Comparison::Loader &&worker) {
   _factory[name] = std::make_tuple(std::move(worker), types);
   return {};
 }
@@ -54,8 +54,8 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
     // keys to comparison. First key that is in the factory determines the comparison type.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
       auto &&[loader, types] = spot->second;
-      if (! types[IndexFor(cfg.active_feature_type())]) {
-        return Error(R"(Comparison "{}" at {} is not valid for a feature of type "{}".)", key, node.Mark(), cfg.active_feature_type());
+      if (! cfg.active_type().can_satisfy(types)) {
+        return Error(R"(Comparison "{}" at {} is not valid for active feature.)", key, node.Mark());
       }
 
       auto &&[handle, errata]{loader(cfg, node, key, arg, value_node)};
@@ -117,7 +117,7 @@ public:
   static constexpr TextView TLD_KEY { "tld" };
 
   /// Mark for @c STRING support only.
-  static const ValueMask TYPES;
+  static const ActiveType TYPES;
 
   /** Compare @a text for a match.
    *
@@ -159,21 +159,15 @@ protected:
   virtual bool operator()(Context & ctx, TextView const& text, TextView active) const = 0;
 
   struct expr_validator {
-    bool _nested_p = false;
-
     bool operator () (std::monostate const& nil) { return false; }
     bool operator () (Feature const& f) { return ValueTypeOf(f) == STRING; }
-    bool operator () (Expr::Direct const& d) { return d._result_type == STRING; }
+    bool operator () (Expr::Direct const& d) { return d._result_type.can_satisfy(STRING); }
     bool operator () (Expr::Composite const& comp) { return true; }
-    bool operator () (Expr::List const& list) {
-      return !_nested_p && std::all_of(list._exprs.begin(), list._exprs.end(), [](Expr const& x) {
-        return std::visit(expr_validator{true}, x._expr);
-      });
-    }
+    bool operator () (Expr::List const& list) { return list._types[STRING]; }
   };
 };
 
-const ValueMask Cmp_LiteralString::TYPES = MaskFor({ STRING, TUPLE, ACTIVE });
+const ActiveType Cmp_LiteralString::TYPES{STRING, ActiveType::TuplesOf(STRING)};
 
 Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
 
@@ -374,13 +368,8 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
   }
 
   auto expr_type = expr.result_type();
-  if (!TYPES[IndexFor(expr_type)]) {
+  if (expr_type.can_satisfy(TYPES)) {
     return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
-                 , expr_type, key, cmp_node.Mark());
-  }
-
-  if (TUPLE == expr_type && ! std::visit(expr_validator{}, expr._expr)) {
-    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported - lists must be of string values only.)"
                  , expr_type, key, cmp_node.Mark());
   }
 
@@ -415,7 +404,7 @@ class Cmp_Rxp : public Cmp_String {
 
 public:
   static constexpr TextView KEY { "rxp" };
-  static const ValueMask TYPES;
+  static const ActiveType TYPES;
 
   static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
@@ -504,7 +493,7 @@ protected:
   std::vector<Item> _rxp;
 };
 
-const ValueMask Cmp_Rxp::TYPES {MaskFor({ STRING, ACTIVE }) };
+const ActiveType Cmp_Rxp::TYPES {STRING, ActiveType::TuplesOf(STRING)};
 
 bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
   auto result = rxp(_src, _ctx.rxp_working_match_data());
@@ -551,7 +540,7 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::List & l) {
   auto rxm = new Cmp_RxpList{_rxp_opt};
   Cmp_RxpList::expr_visitor ev {rxm->_rxp, _rxp_opt};
   for ( auto && elt : l._exprs) {
-    if (elt.result_type() != STRING) {
+    if (! elt.result_type().can_satisfy(STRING)) {
       return Error(R"("{}" literal must be a string.)", KEY);
     }
     std::visit(ev, elt._expr);
@@ -693,9 +682,9 @@ bool ge(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return l
 
 /// Comment elements for all binary integer comparisons.
 struct Binary_Integer_Compare_Commons {
-  static const ValueMask TYPES; ///< Feature type supported.
+  static const ActiveType TYPES; ///< Feature type supported.
 };
-const ValueMask Binary_Integer_Compare_Commons::TYPES { MaskFor(INTEGER) };
+const ActiveType Binary_Integer_Compare_Commons::TYPES { INTEGER };
 
 template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
 class Cmp_Binary_Integer : public Comparison, public Binary_Integer_Compare_Commons {
@@ -733,7 +722,7 @@ Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const
     return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, value_node.Mark()));
   }
   auto expr_type = expr.result_type();
-  if (!TYPES[expr_type]) {
+  if (! expr_type.can_satisfy(TYPES)) {
     return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, KEY, value_node.Mark(), TYPES);
   }
   return Handle(new self_type(std::move(expr)));
@@ -760,7 +749,7 @@ class Cmp_in: public Comparison {
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
-  static const ValueMask TYPES; ///< Supported types.
+  static const ActiveType TYPES; ///< Supported types.
 
   bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
   bool operator() (Context& ctx, feature_type_for<IP_ADDR> const& addr) const override;
@@ -774,7 +763,7 @@ protected:
 };
 
 const std::string Cmp_in::KEY { "in" };
-const ValueMask Cmp_in::TYPES { MaskFor({ INTEGER, IP_ADDR }) };
+const ActiveType Cmp_in::TYPES { INTEGER, IP_ADDR };
 
 bool Cmp_in::operator()(Context &ctx, feature_type_for<IP_ADDR> const& addr) const {
   auto lhs = ctx.extract(_min);
@@ -802,9 +791,9 @@ auto self = new self_type;
     // Check if it's a valid IP range - all done.
     swoc::IPRange ip_range;
     if (ip_range.load(value_node.Scalar())) {
-      if (cfg.active_feature_type() != IP_ADDR) {
+      if (! cfg.active_type().can_satisfy(IP_ADDR)) {
         return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-            , KEY, cmp_node.Mark(), IP_ADDR, cfg.active_feature_type());
+            , KEY, cmp_node.Mark(), IP_ADDR, cfg.active_type());
       }
       self->_min = Feature{ip_range.min()};
       self->_max = Feature{ip_range.max()};
@@ -828,9 +817,9 @@ auto self = new self_type;
       return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])", KEY, cmp_node.Mark(), max_text);
     }
 
-    if (cfg.active_feature_type() != INTEGER) {
+    if (! cfg.active_type().can_satisfy(INTEGER)) {
       return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                   , KEY, cmp_node.Mark(), INTEGER, cfg.active_feature_type());
+                   , KEY, cmp_node.Mark(), INTEGER, cfg.active_type());
     }
 
     self->_min = Feature(n_min);
@@ -855,14 +844,14 @@ auto self = new self_type;
             , KEY, cmp_node.Mark(), lhs_type, rhs_type);
       }
 
-      if (INTEGER != lhs_type && IP_ADDR != lhs_type) {
+      if (! lhs_type.can_satisfy(MaskFor({INTEGER, IP_ADDR}))) {
         return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)"
                      , KEY, cmp_node.Mark(), INTEGER, IP_ADDR, lhs_type);
       }
 
-      if (cfg.active_feature_type() != lhs_type) {
+      if (cfg.active_type() != lhs_type) {
         return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                     , KEY, cmp_node.Mark(), lhs_type, cfg.active_feature_type());
+                     , KEY, cmp_node.Mark(), lhs_type, cfg.active_type());
       }
       self->_min = std::move(lhs);
       self->_max = std::move(rhs);
@@ -879,7 +868,7 @@ class ComboComparison : public Comparison {
   using self_type = ComboComparison; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
-  static const ValueMask TYPES; ///< Supported types.
+  static const ActiveType TYPES; ///< Supported types.
 
   virtual TextView const& key() const = 0;
 
@@ -924,7 +913,7 @@ Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::N
   return {};
 }
 
-const ValueMask ComboComparison::TYPES { ~0UL };
+const ActiveType ComboComparison::TYPES { ActiveType::any_type() };
 
 // ---
 

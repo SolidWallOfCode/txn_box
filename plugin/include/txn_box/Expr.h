@@ -36,14 +36,14 @@ public:
   };
 
   /// Single extractor that generates a direct view.
-  /// Always a @c STRING
   struct Direct {
-    Direct(Spec const& spec, ValueType vtype) : _spec(spec), _result_type(vtype) {}
+    Direct(Spec const& spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
     Spec _spec; ///< Specifier with extractor.
-    ValueType _result_type = STRING;
+    ActiveType _result_type = STRING; ///< Type of view, default is a string.
   };
 
   /// A composite of extractors and literals.
+  /// Always a string.
   struct Composite {
     /// Specifiers / elements of the parsed format string.
     std::vector<Spec> _specs;
@@ -52,6 +52,7 @@ public:
   struct List {
     /// Expressions which are the elements of the tuple.
     std::vector<self_type> _exprs;
+    ValueMask _types; ///< Types of the expressions.
   };
 
   /// Concrete types for a specific expression.
@@ -94,20 +95,20 @@ public:
   Expr(Direct && d) : _expr(std::move(d)) {}
   Expr(Composite && comp) : _expr(std::move(comp)) {}
 
-  Expr(Spec const& spec, ValueType vt) {
-    _expr.emplace<DIRECT>(spec, vt);
+  Expr(Spec const& spec, ActiveType t) {
+    _expr.emplace<DIRECT>(spec, t);
     _max_arg_idx = spec._idx;
   }
 
-  ValueType result_type() const {
+  ActiveType result_type() const {
     struct Visitor {
-      ValueType operator () (std::monostate const&) { return NO_VALUE; }
-      ValueType operator () (Feature const& f) { return ValueTypeOf(f); }
-      ValueType operator () (Direct const& d) { return d._result_type; }
-      ValueType operator () (Composite const&) { return STRING; }
-      ValueType operator () (List const&) { return TUPLE; }
+      ActiveType operator () (std::monostate const&) { return {}; }
+      ActiveType operator () (Feature const& f) { return ValueTypeOf(f); }
+      ActiveType operator () (Direct const& d) { return d._result_type; }
+      ActiveType operator () (Composite const&) { return STRING; }
+      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TuplesOf(l._types)}; }
     };
-    ValueType zret = std::visit(Visitor{}, _expr);
+    ActiveType zret = std::visit(Visitor{}, _expr);
     for ( auto const& mod : _mods) {
       zret = mod->result_type(zret);
     }
