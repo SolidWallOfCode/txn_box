@@ -734,6 +734,48 @@ Rv<ValueType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView c
   return INTEGER;
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_nanoseconds : public Extractor {
+  using self_type = Ex_nanoseconds; ///< Self reference type.
+  using super_type = Extractor; ///< Parent type.
+  using ftype = feature_type_for<DURATION>;
+public:
+  static constexpr TextView NAME { "nanoseconds" };
+
+  Rv<ValueType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Extractor::Spec const& spec) override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Feature Ex_nanoseconds::extract(Context &ctx, Extractor::Spec const& spec) {
+  return spec._data.rebind<ftype>()[0];
+};
+
+BufferWriter& Ex_nanoseconds::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+Rv<ValueType> Ex_nanoseconds::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+  auto span = cfg.span<ftype>(1);
+  spec._data = span.rebind<void>(); // remember where the storage is.
+
+  if (! arg) {
+    return Error(R"("{}" extractor requires an integer argument.)", NAME);
+  }
+
+  TextView parsed;
+  auto n = swoc::svtoi(arg, &parsed);
+  if (parsed.size() != arg.size()) {
+    return Error(R"(Parameter "{}" for "{}" is not an integer as required)", arg, NAME);
+  }
+
+  // Update the stored values now that *both* input values are validated.
+  span[0] = ftype{n};
+  return DURATION;
+}
+/* ------------------------------------------------------------------------------------ */
 /// The active feature.
 class Ex_active_feature : public Extractor {
   using self_type = Ex_active_feature; ///< Self reference type.

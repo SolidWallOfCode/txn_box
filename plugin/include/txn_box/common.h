@@ -9,6 +9,8 @@
 
 #include <tuple>
 #include <variant>
+#include <chrono>
+#include <functional>
 
 #include <swoc/swoc_meta.h>
 #include <swoc/TextView.h>
@@ -106,6 +108,7 @@ enum ValueType : int8_t {
   INTEGER, ///< Integer.
   IP_ADDR, ///< IP Address
   BOOLEAN, ///< Boolean.
+  DURATION, ///< Duration (time span).
   CONS, ///< Pointer to cons cell.
   TUPLE, ///< Array of features (@c FeatureTuple)
   GENERIC, ///< Extended type.
@@ -121,7 +124,7 @@ template <> struct tuple_size<ValueType> : public std::integral_constant<size_t,
 // *** @c FeatureTypeList and @c FeatureType must be kept in parallel synchronization! ***
 /// Type list of feature types.
 /// The initial values in @c ValueType must match this list exactly.
-using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, Cons *, FeatureTuple, Generic*>;
+using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, std::chrono::nanoseconds, Cons *, FeatureTuple, Generic*>;
 
 /** Basic feature data type.
  * This is split out in order to make self-reference work. This is the actual variant, and
@@ -517,7 +520,7 @@ template < typename T > struct let {
   /** Construct a scope.
    *
    * @param var Variable to scope.
-   * @param value Temporary value to assign.
+   * @param value temporary value to assign.
    */
   let(T & var, T && value);
   ~let();
