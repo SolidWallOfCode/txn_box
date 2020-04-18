@@ -346,24 +346,23 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   }
 
   // Else, after all this, it's a tuple, treat each element as an expression.
+  ActiveType l_types;
   std::vector<Expr> xa;
   xa.reserve(expr_node.size());
   for ( auto const& child : expr_node ) {
     auto && [ expr , errata ] { this->parse_expr(child) };
-    if (errata.is_ok()) {
-      xa.emplace_back(std::move(expr));
-    } else {
+    if (! errata.is_ok()) {
       errata.info("While parsing feature expression list at {}.", expr_node.Mark());
       return std::move(errata);
     }
+    l_types |= expr.result_type().base_types();
+    xa.emplace_back(std::move(expr));
   }
 
   Expr expr;
   auto & list = expr._expr.emplace<Expr::LIST>();
-  list._exprs.reserve(xa.size());
-  for ( auto && x : xa) {
-    list._exprs.emplace_back(std::move(x));
-  }
+  list._types = l_types;
+  list._exprs = std::move(xa);
   return std::move(expr);
 }
 

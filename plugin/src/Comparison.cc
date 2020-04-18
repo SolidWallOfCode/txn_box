@@ -163,7 +163,7 @@ protected:
     bool operator () (Feature const& f) { return ValueTypeOf(f) == STRING; }
     bool operator () (Expr::Direct const& d) { return d._result_type.can_satisfy(STRING); }
     bool operator () (Expr::Composite const& comp) { return true; }
-    bool operator () (Expr::List const& list) { return list._types[STRING]; }
+    bool operator () (Expr::List const& list) { return list._types.can_satisfy(STRING); }
   };
 };
 
@@ -368,7 +368,7 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
   }
 
   auto expr_type = expr.result_type();
-  if (expr_type.can_satisfy(TYPES)) {
+  if (! expr_type.can_satisfy(TYPES)) {
     return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
                  , expr_type, key, cmp_node.Mark());
   }
@@ -1008,6 +1008,61 @@ auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key
   return Handle{new self_type{std::move(cmps)}};
 }
 
+// ---
+
+/// Compare the active feature as a tuple to a list of comparisons.
+class Cmp_as_tuple : public ComboComparison {
+  using self_type = Cmp_as_tuple; ///< Self reference type.
+  using super_type = ComboComparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "as-tuple"; ///< Comparison name.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Cmp_as_tuple(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+};
+
+bool Cmp_as_tuple::operator()(Context &ctx, Feature const& feature) const {
+  if (_cmps.empty()) {
+    return true;
+  }
+
+  auto vtype = ValueTypeOf(feature);
+  if (TUPLE != vtype) {
+    return (*_cmps[0])(ctx, feature);
+  }
+
+  auto t = std::get<TUPLE>(feature);
+  auto t_size = t.size();
+  auto c_size = _cmps.size();
+  auto limit = std::min(t_size, c_size);
+  size_t idx = 0;
+  while (idx < limit) {
+    if (! (*_cmps[idx])(ctx, t[idx])) {
+      return false;
+    }
+    ++idx;
+  }
+  return true;
+}
+
+auto Cmp_as_tuple::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+  auto vtype = cfg.active_type().base_types();
+  auto ttype = cfg.active_type().tuple_types();
+//  auto scope = cfg.feature_scope({cfg.active_type().tuple_types()}); // drop tuple, use nested type.
+  ActiveType atype{ttype};
+  auto scope = cfg.feature_scope(ttype); // drop tuple, use nested type.
+  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  return Handle{new self_type{std::move(cmps)}};
+}
+
 // --- ComparisonGroup --- //
 
 Errata ComparisonGroupBase::load(Config& cfg, YAML::Node node) {
@@ -1060,6 +1115,7 @@ namespace {
   Comparison::define(Cmp_none_of::KEY, Cmp_none_of::TYPES, Cmp_none_of::load);
   Comparison::define(Cmp_all_of::KEY, Cmp_all_of::TYPES, Cmp_all_of::load);
   Comparison::define(Cmp_any_of::KEY, Cmp_any_of::TYPES, Cmp_any_of::load);
+  Comparison::define(Cmp_as_tuple::KEY, Cmp_as_tuple::TYPES, Cmp_as_tuple::load);
 
   BoolNames.set_default(BoolTag::INVALID);
 

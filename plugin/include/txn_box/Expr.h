@@ -52,7 +52,7 @@ public:
   struct List {
     /// Expressions which are the elements of the tuple.
     std::vector<self_type> _exprs;
-    ValueMask _types; ///< Types of the expressions.
+    ActiveType _types; ///< Types of the expressions.
   };
 
   /// Concrete types for a specific expression.
@@ -106,7 +106,7 @@ public:
       ActiveType operator () (Feature const& f) { return ValueTypeOf(f); }
       ActiveType operator () (Direct const& d) { return d._result_type; }
       ActiveType operator () (Composite const&) { return STRING; }
-      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TuplesOf(l._types)}; }
+      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TuplesOf(l._types.base_types())}; }
     };
     ActiveType zret = std::visit(Visitor{}, _expr);
     for ( auto const& mod : _mods) {

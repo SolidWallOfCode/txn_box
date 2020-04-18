@@ -150,7 +150,7 @@ protected:
  *
  * @tparam W Wrapper class for comparisons.
  *
- * It is assumed additional informatoin needs to be associated with each @c Comparison and
+ * It is assumed additional information needs to be associated with each @c Comparison and
  * therefore each @c Comparison will be stored in a wrapper class @a W which holds the
  * ancillary data.
  */

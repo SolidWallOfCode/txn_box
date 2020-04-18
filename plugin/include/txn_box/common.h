@@ -242,17 +242,20 @@ public:
   struct TuplesOf {
     ValueMask _mask;
     TuplesOf() = default;
-    TuplesOf(ValueMask mask) : _mask(mask) {}
+    explicit TuplesOf(ValueMask mask) : _mask(mask) {}
     template < typename ... Rest > TuplesOf(ValueType vt, Rest && ... rest ) : TuplesOf(rest...) {
       _mask[vt] = true;
     }
   };
   ActiveType() = default;
+  ActiveType(self_type const& that) = default;
+  ActiveType(ValueMask vtypes) : _base_type(vtypes) {};
   template < typename ... Rest > ActiveType(ValueType vt, Rest && ... rest );
   template < typename ... Rest > ActiveType(TuplesOf const& tt, Rest && ... rest );
 
   self_type & operator=(ValueType vt);
   self_type & operator|=(ValueType vt);
+  self_type & operator|=(ValueMask vtypes) { _base_type |= vtypes; return *this; }
 
   bool operator==(self_type const& that) { return _base_type == that._base_type && _tuple_type == that._tuple_type; }
   bool operator!=(self_type const& that) { return ! (*this == that); }
@@ -274,6 +277,9 @@ public:
     }
     return c.any();
   }
+
+  ValueMask base_types() const { return _base_type; }
+  ValueMask tuple_types() const { return _tuple_type; }
 
   self_type & mark_cfg_const() { _cfg_const_p = true; return *this; }
   bool is_cfg_const() const { return _cfg_const_p; }
