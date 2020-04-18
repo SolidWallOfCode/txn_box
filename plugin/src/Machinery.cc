@@ -723,8 +723,8 @@ Rv<Directive::Handle> Do_ursp_field::load(Config& cfg, YAML::Node drtv_node, swo
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set upstream response status code.
-class Do_set_ursp_status : public Directive {
-  using self_type = Do_set_ursp_status; ///< Self reference type.
+class Do_ursp_status : public Directive {
+  using self_type = Do_ursp_status; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -742,43 +742,47 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
-  Expr _status_fmt; ///< Return status.
+  Expr _expr; ///< Return status.
 
-  Do_set_ursp_status() = default;
+  Do_ursp_status() = default;
 };
 
-const std::string Do_set_ursp_status::KEY { "set-ursp-status" };
-const HookMask Do_set_ursp_status::HOOKS { MaskFor({Hook::URSP}) };
+const std::string Do_ursp_status::KEY {"ursp-status" };
+const HookMask Do_ursp_status::HOOKS {MaskFor({Hook::URSP}) };
 
-Errata Do_set_ursp_status::invoke(Context &ctx) {
+Errata Do_ursp_status::invoke(Context &ctx) {
   int status = TS_HTTP_STATUS_NONE;
-  if (_status) {
-    status = _status;
-  } else {
-    auto value = ctx.extract(_status_fmt);
-    if (value.index() == IndexFor(INTEGER)) {
-      status = std::get<IndexFor(INTEGER)>(value);
-    } else { // it's a string.
-      TextView src{std::get<IndexFor(STRING)>(value)}, parsed;
-      auto n = swoc::svtou(src, &parsed);
-      if (parsed.size() == src.size()) {
-        status = n;
-      } else {
-        return Errata().error(R"(Invalid status "{}" for "{}" directive.)", value, KEY);
+  Feature value = ctx.extract(_expr);
+  auto vtype = ValueTypeOf(value);
+  if (INTEGER == vtype) {
+    status = std::get<IndexFor(INTEGER)>(value);
+  } else if (TUPLE == vtype) {
+    auto t = std::get<IndexFor(TUPLE)>(value);
+    if (0 < t.size() <= 2) {
+      if (ValueTypeOf(t[0]) != INTEGER) {
+        return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
+      status = std::get<IndexFor(INTEGER)>(t[0]);
+      if (t.size() == 2) {
+        if (ValueTypeOf(t[1]) != STRING) {
+          return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+        }
+        ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
+      }
+    } else {
+      return Error(R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
     }
   }
   if (100 <= status && status <= 599) {
     ctx._txn.ursp_hdr().status_set(static_cast<TSHttpStatus>(status));
   } else {
-    return Errata().error(R"(Status value {} out of range 100..599 for "{}" directive.)", status
+    return Errata().error(R"(Status value {} out of range 100..599 for "{}".)", status
                           , KEY);
   }
   return {};
 }
 
-Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_ursp_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -787,23 +791,16 @@ Rv<Directive::Handle> Do_set_ursp_status::load(Config& cfg, YAML::Node drtv_node
   Handle handle(self);
 
   auto expr_type = expr.result_type();
-  if (expr_type == INTEGER) {
-    feature_type_for<INTEGER> status = 0; // BROKEN - need to fix up for new literal and extraction support.
-    if (status < 100 || status > 599) {
-      return Error(R"(Status "{}" at {} is not a positive integer 100..599 as required.)", key_value.Scalar(), key_value.Mark());
-    }
-    self->_status = static_cast<TSHttpStatus>(status);
-  } else if (expr_type == STRING) {
-    self->_status_fmt = std::move(expr);
-  } else {
-    return Error(R"(Status "{}" at {} is not an integer nor string as required.)", key_value.Scalar(), key_value.Mark());
+  if (!expr_type.can_satisfy(MaskFor({INTEGER, TUPLE}))) {
+    return Error(R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
   }
+  self->_expr = std::move(expr);
   return std::move(handle);
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set upstream response reason phrase.
-class Do_set_ursp_reason : public Directive {
-  using self_type = Do_set_ursp_reason; ///< Self reference type.
+class Do_ursp_reason : public Directive {
+  using self_type = Do_ursp_reason; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -824,19 +821,22 @@ protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
   Expr _fmt; ///< Reason phrase.
 
-  Do_set_ursp_reason() = default;
+  Do_ursp_reason() = default;
 };
 
-const std::string Do_set_ursp_reason::KEY { "set-ursp-reason" };
-const HookMask Do_set_ursp_reason::HOOKS { MaskFor({Hook::URSP}) };
+const std::string Do_ursp_reason::KEY { "ursp-reason" };
+const HookMask Do_ursp_reason::HOOKS { MaskFor({Hook::URSP}) };
 
-Errata Do_set_ursp_reason::invoke(Context &ctx) {
+Errata Do_ursp_reason::invoke(Context &ctx) {
   auto value = ctx.extract(_fmt);
+  if (STRING != ValueTypeOf(value)) {
+    return Error(R"(Value for "{}" is not a string.)", KEY);
+  }
   ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
   return {};
 }
 
-Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_ursp_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -852,9 +852,84 @@ Rv<Directive::Handle> Do_set_ursp_reason::load(Config& cfg, YAML::Node drtv_node
   return std::move(handle);
 }
 /* ------------------------------------------------------------------------------------ */
-/// Set body content for the proxy response.
-class Do_set_prsp_body : public Directive {
-  using self_type = Do_set_prsp_body; ///< Self reference type.
+/// Set proxy response status code.
+class Do_prsp_status : public Directive {
+  using self_type = Do_prsp_status; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Return status.
+
+  Do_prsp_status() = default;
+};
+
+const std::string Do_prsp_status::KEY {"prsp-status" };
+const HookMask Do_prsp_status::HOOKS {MaskFor({Hook::PRSP}) };
+
+Errata Do_prsp_status::invoke(Context &ctx) {
+  int status = TS_HTTP_STATUS_NONE;
+  Feature value = ctx.extract(_expr);
+  auto vtype = ValueTypeOf(value);
+  if (INTEGER == vtype) {
+    status = std::get<IndexFor(INTEGER)>(value);
+  } else if (TUPLE == vtype) {
+    auto t = std::get<IndexFor(TUPLE)>(value);
+    if (0 < t.count() <= 2) {
+      if (ValueTypeOf(t[0]) != INTEGER) {
+        return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+      }
+      status = std::get<IndexFor(INTEGER)>(t[0]);
+      if (t.count() == 2) {
+        if (ValueTypeOf(t[1]) != STRING) {
+          return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+        }
+        ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
+      }
+    } else {
+      return Error(R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
+    }
+  }
+  if (100 <= status && status <= 599) {
+    ctx._txn.prsp_hdr().status_set(static_cast<TSHttpStatus>(status));
+  } else {
+    return Errata().error(R"(Status value {} out of range 100..599 for "{}".)", status, KEY);
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_prsp_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  auto self = new self_type;
+  Handle handle(self);
+
+  auto expr_type = expr.result_type();
+  if (!expr_type.can_satisfy(MaskFor({INTEGER, TUPLE}))) {
+    return Error(R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
+  }
+  self->_expr = std::move(expr);
+  return std::move(handle);
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set proxy response reason phrase.
+class Do_prsp_reason : public Directive {
+  using self_type = Do_prsp_reason; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -873,21 +948,24 @@ public:
 
 protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
-  Expr _expr; ///< Reason phrase.
+  Expr _fmt; ///< Reason phrase.
 
-  Do_set_prsp_body() = default;
+  Do_prsp_reason() = default;
 };
 
-const std::string Do_set_prsp_body::KEY { "set-prsp-body" };
-const HookMask Do_set_prsp_body::HOOKS { MaskFor({Hook::URSP}) };
+const std::string Do_prsp_reason::KEY { "prsp-reason" };
+const HookMask Do_prsp_reason::HOOKS { MaskFor({Hook::PRSP}) };
 
-Errata Do_set_prsp_body::invoke(Context &ctx) {
-  auto value = ctx.extract(_expr);
-  ctx._txn.error_body_set(std::get<IndexFor(STRING)>(value), "text/hmtl"_tv);
+Errata Do_prsp_reason::invoke(Context &ctx) {
+  auto value = ctx.extract(_fmt);
+  if (STRING != ValueTypeOf(value)) {
+    return Error(R"(Value for "{}" is not a string.)", KEY);
+  }
+  ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
   return {};
 }
 
-Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_prsp_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -898,9 +976,69 @@ Rv<Directive::Handle> Do_set_prsp_body::load(Config& cfg, YAML::Node drtv_node, 
   auto self = new self_type;
   Handle handle(self);
 
-  self->_expr = std::move(expr);
+  self->_fmt = std::move(expr);
 
   return std::move(handle);
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set body content for the proxy response.
+class Do_prsp_body : public Directive {
+  using self_type = Do_prsp_body; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Body content.
+
+  Do_prsp_body(Expr && expr) : _expr(std::move(expr)) {}
+};
+
+const std::string Do_prsp_body::KEY {"prsp-body" };
+const HookMask Do_prsp_body::HOOKS {MaskFor({Hook::PRSP}) };
+
+Errata Do_prsp_body::invoke(Context &ctx) {
+  auto value = ctx.extract(_expr);
+  auto vtype = ValueTypeOf(value);
+  TextView content_type = "text/html";
+  if (STRING == vtype) {
+    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(value), content_type);
+  } else if (TUPLE == vtype) {
+    auto t = std::get<IndexFor(TUPLE)>(value);
+    if (t.size() > 0) {
+      if (t.size() > 1 && STRING == ValueTypeOf(t[1])) {
+        content_type = std::get<IndexFor(STRING)>(t[1]);
+      }
+      if (STRING == ValueTypeOf(t[0])) {
+        ctx._txn.error_body_set(std::get<IndexFor(STRING)>(t[0]), content_type);
+      }
+    }
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_prsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
+  }
+
+  return std::move(Handle(new self_type(std::move(expr))));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Redirect.
@@ -1286,6 +1424,8 @@ Errata Do_remap_query::invoke(Context &ctx) {
 //  ctx._remap_status = TSREMAP_DID_REMAP;
   return this->QueryDirective::invoke(ctx, _expr, ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl), _arg);
 }
+/* ------------------------------------------------------------------------------------ */
+
 /* ------------------------------------------------------------------------------------ */
 /// Set the cache key.
 class Do_cache_key : public Directive {
@@ -1715,9 +1855,11 @@ namespace {
   Config::define(Do_creq_path::KEY, Do_creq_path::HOOKS, Do_creq_path::load);
   Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
   Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
-  Config::define(Do_set_ursp_status::KEY, Do_set_ursp_status::HOOKS, Do_set_ursp_status::load);
-  Config::define(Do_set_ursp_reason::KEY, Do_set_ursp_reason::HOOKS, Do_set_ursp_reason::load);
-  Config::define(Do_set_prsp_body::KEY, Do_set_prsp_body::HOOKS, Do_set_prsp_body::load);
+  Config::define(Do_ursp_status::KEY, Do_ursp_status::HOOKS, Do_ursp_status::load);
+  Config::define(Do_ursp_reason::KEY, Do_ursp_reason::HOOKS, Do_ursp_reason::load);
+  Config::define<Do_prsp_status>();
+  Config::define<Do_prsp_reason>();
+  Config::define<Do_prsp_body>();
   Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);

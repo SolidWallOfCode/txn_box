@@ -548,11 +548,17 @@ class Ex_ursp_status : public IntegerExtractor {
 public:
   static constexpr TextView NAME { "ursp-status" };
 
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const&) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
+
+Rv<ActiveType> Ex_ursp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+  return { INTEGER };
+}
 
 Feature Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) {
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.ursp_hdr().status());
@@ -560,6 +566,30 @@ Feature Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) {
 
 BufferWriter& Ex_ursp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.ursp_hdr().status());
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_prsp_status : public IntegerExtractor {
+public:
+  static constexpr TextView NAME { "prsp-status" };
+
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Extractor::Spec const&) override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Rv<ActiveType> Ex_prsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+  return { INTEGER };
+}
+
+Feature Ex_prsp_status::extract(Context &ctx, Extractor::Spec const&) {
+  return static_cast<feature_type_for<INTEGER>>(ctx._txn.prsp_hdr().status());
+}
+
+BufferWriter& Ex_prsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, ctx._txn.prsp_hdr().status());
 }
 /* ------------------------------------------------------------------------------------ */
 class Ex_is_internal : public BooleanExtractor {
@@ -846,6 +876,8 @@ Ex_remap_path remap_path;
 Ex_ursp_status ursp_status;
 Ex_is_internal is_internal;
 
+Ex_prsp_status prsp_status;
+
 Ex_cssn_sni cssn_sni;
 Ex_cssn_proto cssn_proto;
 Ex_cssn_remote_addr cssn_remote_addr;
@@ -880,6 +912,8 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ursp_field::NAME, &ursp_field);
 
   Extractor::define(Ex_ursp_status::NAME, &ursp_status);
+
+  Extractor::define(Ex_prsp_status::NAME, &prsp_status);
 
   Extractor::define(Ex_remap_path::NAME, &remap_path);
 
