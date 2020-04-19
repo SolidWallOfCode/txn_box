@@ -381,23 +381,55 @@ Errata &HttpTxn::init(swoc::Errata &errata) {
   return errata;
 }
 
-TaskHandle PerformAsTask(std::function<void ()> &&task) {
-  struct Context {
-    std::function<void ()> _f;
-    Context(std::function<void ()> && f) : _f(std::move(f)) {}
-  };
+void TaskHandle::cancel() {
+  if (_action != nullptr) {
+    TSMutex m = TSContMutexGet(_cont);
+    auto data = static_cast<Data *>(TSContDataGet(_cont));
+    if (TSMutexLockTry(m)) {
+      TSActionCancel(_action);
+      TSMutexUnlock(m);
+      delete data;
+      TSContDestroy(_cont);
+    } else {
+      bool canceled = false; // Need reference for first argument.
+      data->_active.compare_exchange_strong(canceled, true);
+    }
+  }
+}
 
-  static auto lambda = [](TSCont contp, TSEvent ev_code, void * data) -> int {
-    auto context = static_cast<Context*>(TSContDataGet(contp));
-    context->_f();
-    delete context;
+TaskHandle PerformAsTask(std::function<void ()> &&task) {
+  static auto lambda = [](TSCont contp, TSEvent ev_code, void *) -> int {
+    auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));
+    if (data->_active) {
+      data->_f();
+    }
+    delete data;
     TSContDestroy(contp);
     return 0;
   };
+
   auto contp = TSContCreate(lambda, TSMutexCreate());
-  auto context = new Context(std::move(task));
-  TSContDataSet(contp, context);
+  auto data = new TaskHandle::Data(std::move(task));
+  TSContDataSet(contp, data);
   return { TSContScheduleOnPool(contp, 0, TS_THREAD_POOL_TASK) };
+}
+
+TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::milliseconds period) {
+  static auto lambda = [](TSCont contp, TSEvent ev_code, void *event) -> int {
+    auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));
+    if (data->_active) {
+      data->_f();
+    } else {
+      TSActionCancel(static_cast<TSAction>(event));
+      delete data;
+      TSContDestroy(contp);
+    }
+    return 0;
+  };
+  auto contp = TSContCreate(lambda, TSMutexCreate());
+  auto data = new TaskHandle::Data(std::move(task));
+  TSContDataSet(contp, data);
+  return { TSContScheduleEveryOnPool(contp, period.count(), TS_THREAD_POOL_TASK) };
 }
 /* ------------------------------------------------------------------------ */
 } // namespace ts

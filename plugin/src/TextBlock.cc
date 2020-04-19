@@ -42,6 +42,16 @@ public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
+  /// Functor to do file content updating as needed.
+  struct Updater {
+    std::weak_ptr<Config> _cfg; ///< Configuration.
+    Do_text_block_define * _block; ///< Text block holder.
+
+    void operator()(); ///< Do the update check.
+  };
+
+  ~Do_text_block_define();
+
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
   /** Load from YAML configuration.
@@ -67,21 +77,24 @@ protected:
   std::chrono::system_clock::time_point _last_modified; ///< Last modified time of the file.
   std::shared_ptr<std::string> _content; ///< Content of the file.
   int _line_no = 0; ///< For debugging name conflicts.
-  std::shared_mutex _mutex; ///< Lock for access @a content.
+  std::shared_mutex _content_mutex; ///< Lock for access @a content.
+  ts::TaskHandle _task; ///< Handle for periodic checking task.
 
   static const std::string NAME_TAG;
   static const std::string PATH_TAG;
   static const std::string TEXT_TAG;
   static const std::string DURATION_TAG;
 
+  /// Map of names to text blocks.
   static Map* map(Directive::Info const * rtti);
 
+  /// Check if it is time to do a modified check on the file content.
   bool should_check();
 
   Do_text_block_define() = default;
 
   friend class Ex_text_block;
-  friend struct BlockUpdate;
+  friend Updater;
 };
 
 const std::string Do_text_block_define::KEY{"text-block-define" };
@@ -90,6 +103,10 @@ const std::string Do_text_block_define::PATH_TAG{"path" };
 const std::string Do_text_block_define::TEXT_TAG{"text" };
 const std::string Do_text_block_define::DURATION_TAG{"duration" };
 const HookMask Do_text_block_define::HOOKS{MaskFor(Hook::POST_LOAD)};
+
+Do_text_block_define::~Do_text_block_define() noexcept {
+  _task.cancel();
+}
 
 auto Do_text_block_define::map(Directive::Info const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
 
@@ -110,8 +127,12 @@ bool Do_text_block_define::should_check() {
 }
 
 Errata Do_text_block_define::invoke(Context &ctx) {
-  // Nothing to do - unfortunately everything useful has to be checked during config load,
-  // so there's nothing left for the invocation.
+  // Set up the update checking.
+  if (_duration.count()) {
+    _task = ts::PerformAsTaskEvery(Updater{ctx.acquire_cfg(), this}
+                                   , std::chrono::duration_cast<std::chrono::milliseconds>(_duration)
+    );
+  }
   return {};
 }
 
@@ -214,35 +235,39 @@ Errata Do_text_block_define::type_init(Config &cfg) {
   return {};
 }
 
-/* ------------------------------------------------------------------------------------ */
-struct BlockUpdate {
-  std::shared_ptr<Config> _cfg;
-  Do_text_block_define * _block;
-
-  void operator()() {
-    std::error_code ec;
-    auto fs = swoc::file::status(_block->_path, ec);
-    if (!ec) {
-      auto mtime = swoc::file::modify_time(fs);
-      if (mtime <= _block->_last_modified) {
-        return; // same as it ever was...
-      }
-      auto content = std::make_shared<std::string>();
-      *content = swoc::file::load(_block->_path, ec);
-      if (!ec) { // swap in updated content.
-        std::unique_lock lock(_block->_mutex);
-        _block->_content = content;
-        _block->_last_modified = mtime;
-        return;
-      }
-    }
-    // If control flow gets here, the file is no longer accessible and the content
-    // should be cleared. If the file shows up again, it should have a modified time
-    // later than the previously existing file, so that can be left unchanged.
-    std::unique_lock lock(_block->_mutex);
-    _block->_content.reset();
+void Do_text_block_define::Updater::operator()() {
+  auto cfg = _cfg.lock(); // Make sure the config is still around while work is done.
+  if (!cfg) {
+    return;
   }
-};
+
+  if (! _block->should_check()) {
+    return; // not time yet.
+  }
+
+  std::error_code ec;
+  auto fs = swoc::file::status(_block->_path, ec);
+  if (!ec) {
+    auto mtime = swoc::file::modify_time(fs);
+    if (mtime <= _block->_last_modified) {
+      return; // same as it ever was...
+    }
+    auto content = std::make_shared<std::string>();
+    *content = swoc::file::load(_block->_path, ec);
+    if (!ec) { // swap in updated content.
+      std::unique_lock lock(_block->_content_mutex);
+      _block->_content = content;
+      _block->_last_modified = mtime;
+      return;
+    }
+  }
+  // If control flow gets here, the file is no longer accessible and the content
+  // should be cleared. If the file shows up again, it should have a modified time
+  // later than the previously existing file, so that can be left unchanged.
+  std::unique_lock lock(_block->_content_mutex);
+  _block->_content.reset();
+}
+
 /* ------------------------------------------------------------------------------------ */
 /// Text block extractor.
 class Ex_text_block : public Extractor {
@@ -278,16 +303,12 @@ Feature Ex_text_block::extract(Context &ctx, const Spec &spec) {
       std::shared_ptr<std::string>& content = *ctx._arena->make<std::shared_ptr<std::string>>();
 
       { // grab a copy of the shared pointer to file content.
-        std::shared_lock lock(block->_mutex);
+        std::shared_lock lock(block->_content_mutex);
         content = block->_content;
       }
 
       if (content) {
         ctx.mark_for_cleanup(&content); // only need to cleanup if non-nullptr.
-        // If it's time for an update check, schedule that on a task thread.
-        if (block->should_check()) {
-          ts::PerformAsTask(BlockUpdate{ctx.acquire_cfg(), block});
-        }
         return FeatureView{*content};
       }
       // No file content, see if there's alternate text.

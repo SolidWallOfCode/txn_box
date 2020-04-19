@@ -422,16 +422,25 @@ protected:
 };
 
 struct TaskHandle {
-  TSAction _action = nullptr; ///< Internal handle returned from task scheduling.
+  /// Wrapper for data needed when the event is dispatched.
+  struct Data {
+    std::function<void ()> _f; ///< Functor to dispatch.
+    std::atomic<bool> _active = true; ///< Set @c false if the task has been canceled.
 
-  void cancel() {
-    if (_action != nullptr) {
-      TSActionCancel(_action);
-    }
-  }
+    /// Construct from functor @a f.
+    Data(std::function<void ()> && f) : _f(std::move(f)) {}
+  };
+
+  TSAction _action = nullptr; ///< Internal handle returned from task scheduling.
+  TSCont _cont = nullptr; ///< Continuation for @a _action.
+
+  /// Cancel the task.
+  void cancel();
 };
 
 TaskHandle PerformAsTask(std::function<void ()> && task);
+
+TaskHandle PerformAsTaskEvery(std::function<void ()> && task, std::chrono::milliseconds period);
 
 inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(loc) {}
 
