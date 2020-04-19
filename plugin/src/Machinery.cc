@@ -508,7 +508,7 @@ protected:
 
   template < typename T > void apply(Context& ctx, ts::HttpHeader && hdr, T const& value) {}
 
-  /// Visitor which performs the assignemnt.
+  /// Visitor to perform the assignment.
   struct Apply {
     Context & _ctx; ///< Runtime context.
     ts::HttpHeader & _hdr; ///< HTTP Header to modify.
@@ -758,12 +758,12 @@ Errata Do_ursp_status::invoke(Context &ctx) {
     status = std::get<IndexFor(INTEGER)>(value);
   } else if (TUPLE == vtype) {
     auto t = std::get<IndexFor(TUPLE)>(value);
-    if (0 < t.size() <= 2) {
+    if (0 < t.count() <= 2) {
       if (ValueTypeOf(t[0]) != INTEGER) {
         return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
       status = std::get<IndexFor(INTEGER)>(t[0]);
-      if (t.size() == 2) {
+      if (t.count() == 2) {
         if (ValueTypeOf(t[1]) != STRING) {
           return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
         }
@@ -982,8 +982,8 @@ Rv<Directive::Handle> Do_prsp_reason::load(Config& cfg, YAML::Node drtv_node, sw
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set body content for the proxy response.
-class Do_prsp_body : public Directive {
-  using self_type = Do_prsp_body; ///< Self reference type.
+class Do_proxy_resp_body : public Directive {
+  using self_type = Do_proxy_resp_body; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -1003,33 +1003,91 @@ public:
 protected:
   Expr _expr; ///< Body content.
 
-  Do_prsp_body(Expr && expr) : _expr(std::move(expr)) {}
+  Do_proxy_resp_body(Expr && expr) : _expr(std::move(expr)) {}
 };
 
-const std::string Do_prsp_body::KEY {"prsp-body" };
-const HookMask Do_prsp_body::HOOKS {MaskFor({Hook::PRSP}) };
+const std::string Do_proxy_resp_body::KEY {"proxy-response-body" };
+const HookMask Do_proxy_resp_body::HOOKS {MaskFor({Hook::URSP}) };
 
-Errata Do_prsp_body::invoke(Context &ctx) {
+Errata Do_proxy_resp_body::invoke(Context &ctx) {
+  auto static transform = [](TSCont contp, TSEvent ev_code, void * data) -> int {
+    if (TSVConnClosedGet(contp)) {
+      TSContDestroy(contp);
+      return 0;
+    }
+
+    auto in_vio = TSVConnWriteVIOGet(contp);
+    switch (ev_code) {
+      case TS_EVENT_ERROR:TSContCall(TSVIOContGet(in_vio), TS_EVENT_ERROR, in_vio);
+        break;
+      case TS_EVENT_VCONN_WRITE_COMPLETE:
+        TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
+        break;
+      default:
+        // Consume all input data.
+        auto in_todo = TSVIONTodoGet(in_vio);
+        auto in_reader = TSVIOReaderGet(in_vio);
+        if (in_reader && in_todo) {
+          auto avail = TSIOBufferReaderAvail(in_reader);
+          in_todo = std::min(in_todo, avail);
+          if (in_todo > 0) {
+            TSIOBufferReaderConsume(in_reader, in_todo);
+            TSVIONDoneSet(in_vio, TSVIONDoneGet(in_vio) + in_todo);
+            TSContCall(TSVIOContGet(in_vio)
+                       , (TSVIONTodoGet(in_vio) <= 0) ? TS_EVENT_VCONN_WRITE_COMPLETE
+                                                      : TS_EVENT_VCONN_WRITE_READY
+                       , in_vio);
+          }
+          // If the view is there, create the output buffer and write it, then clear it.
+          auto view = static_cast<TextView *>(TSContDataGet(contp));
+          if (view) {
+            auto out_vconn = TSTransformOutputVConnGet(contp);
+            auto out_buff = TSIOBufferCreate();
+            auto out_vio = TSVConnWrite(out_vconn, contp, TSIOBufferReaderAlloc(out_buff), view->size());
+            TSIOBufferWrite(out_buff, view->data(), view->size());
+            TSContDataSet(contp, nullptr);
+            TSVIOReenable(out_vio);
+          }
+        }
+        break;
+    }
+
+    return 0;
+  };
+
   auto value = ctx.extract(_expr);
   auto vtype = ValueTypeOf(value);
+  TextView* content = nullptr;
   TextView content_type = "text/html";
   if (STRING == vtype) {
-    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(value), content_type);
+    content = &std::get<IndexFor(STRING)>(value);
   } else if (TUPLE == vtype) {
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (t.size() > 0) {
-      if (t.size() > 1 && STRING == ValueTypeOf(t[1])) {
-        content_type = std::get<IndexFor(STRING)>(t[1]);
-      }
       if (STRING == ValueTypeOf(t[0])) {
-        ctx._txn.error_body_set(std::get<IndexFor(STRING)>(t[0]), content_type);
+        content = &std::get<IndexFor(STRING)>(t[0]);
+        if (t.size() > 1 && STRING == ValueTypeOf(t[1])) {
+          content_type = std::get<IndexFor(STRING)>(t[1]);
+        }
       }
     }
   }
+
+  if (content) {
+    // The view contents are in the transaction data, but the view in the feature is not.
+    // Make a copy there and pass its address to the continuation.
+    auto ctx_view = ctx.span<TextView>(1);
+    auto cont = TSTransformCreate(transform, ctx._txn);
+    ctx_view[0] = *content;
+    TSContDataSet(cont, ctx_view.data());
+    TSHttpTxnHookAdd(ctx._txn, TS_HTTP_RESPONSE_TRANSFORM_HOOK, cont);
+    ctx._txn.ursp_hdr().field_obtain("Content-Type"_tv).assign(content_type);
+  }
+
   return {};
 }
 
-Rv<Directive::Handle> Do_prsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_proxy_resp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -1859,7 +1917,7 @@ namespace {
   Config::define(Do_ursp_reason::KEY, Do_ursp_reason::HOOKS, Do_ursp_reason::load);
   Config::define<Do_prsp_status>();
   Config::define<Do_prsp_reason>();
-  Config::define<Do_prsp_body>();
+  Config::define<Do_proxy_resp_body>();
   Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);

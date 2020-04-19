@@ -136,6 +136,7 @@ TextView ts::HttpField::value() const {
 }
 
 bool ts::HttpField::assign(swoc::TextView value) {
+  value.rtrim_if(&isspace);
   return this->is_valid() &&
        TS_SUCCESS == TSMimeHdrFieldValueStringSet(_buff, _hdr, _loc, -1, value.data(), value.size())
        ;
