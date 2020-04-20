@@ -39,10 +39,10 @@ static constexpr char ARG_SUFFIX = '>';
 swoc::Lexicon<Hook> HookName {{
                                 {Hook::POST_LOAD, {"post-load"}}
                               , {Hook::TXN_START, {"txn-open"}}
-                              , {Hook::CREQ, {"read-request", "creq"}}
-                              , {Hook::PREQ, {"send-request", "preq"}}
-                              , {Hook::URSP, {"read-response", "ursp"}}
-                              , {Hook::PRSP, {"send-response", "prsp"}}
+                              , {Hook::CREQ, {"ua-req", "creq"}}
+                              , {Hook::PREQ, {"proxy-req", "preq"}}
+                              , {Hook::URSP, {"upstream-resp", "ursp"}}
+                              , {Hook::PRSP, {"proxy-resp", "prsp"}}
                               , {Hook::PRE_REMAP, {"pre-remap"}}
                               , {Hook::POST_REMAP, {"post-remap"}}
                               , {Hook::TXN_CLOSE, {"txn-close"}}
@@ -107,6 +107,13 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 
 /* ------------------------------------------------------------------------------------ */
 Config::Config() {
+  // Set up the run time type information for the directives.
+  _drtv_info = this->span<Directive::CfgInfo>(_factory.size());
+  for ( auto const& [ name, factory_info ] : _factory ) {
+    auto & di = _drtv_info[factory_info._idx];
+    new (&di) Directive::CfgInfo;
+    di._static = &factory_info;
+  }
 }
 
 Config::self_type &Config::localize(Feature &feature) {
@@ -385,24 +392,25 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
     // keys to directives. First key that is in the factory determines the directive type.
     // If none of the keys are in the factory, that's an error and is reported after the loop.
     if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
-      auto& info = spot->second;
-      let scope(_rtti, &info);
+      auto & info = spot->second;
+      let scope(_rtti, &_drtv_info[info._idx]);
 
       if (! info._hook_mask[IndexFor(this->current_hook())]) {
         return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
       }
 
       // If this is the first use of the directive, do config level setup for the directive type.
-      if (info._count == 0) {
+      if (_rtti->_count == 0) {
         info._type_init_cb(*this);
       }
+      ++(_rtti->_count);
 
       auto && [ drtv, drtv_errata ] { info._load_cb(*this, drtv_node, name, arg, key_value) };
       if (! drtv_errata.is_ok()) {
         drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
         return std::move(drtv_errata);
       }
-      drtv->_rtti = &info;
+      drtv->_rtti = _rtti;
 
       return std::move(drtv);
     }
@@ -513,13 +521,14 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
 
 Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::TypeInitializer && type_initializer) {
   auto & info { _factory[name] };
+  info._idx = _factory.size() - 1;
   info._hook_mask = hooks;
   info._load_cb = std::move(worker);
   info._type_init_cb = std::move(type_initializer);
   return {};
 }
 
-Directive::Info const* Config::drtv_info(swoc::TextView name) {
+Directive::CfgInfo const* Config::drtv_info(swoc::TextView name) {
   auto spot = _factory.find(name);
-  return spot == _factory.end() ? nullptr : &spot->second;
+  return spot == _factory.end() ? nullptr : &_drtv_info[spot->second._idx];
 }

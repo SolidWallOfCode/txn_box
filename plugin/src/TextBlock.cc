@@ -86,7 +86,7 @@ protected:
   static const std::string DURATION_TAG;
 
   /// Map of names to text blocks.
-  static Map* map(Directive::Info const * rtti);
+  static Map* map(Directive::CfgInfo const * rtti);
 
   /// Check if it is time to do a modified check on the file content.
   bool should_check();
@@ -108,7 +108,7 @@ Do_text_block_define::~Do_text_block_define() noexcept {
   _task.cancel();
 }
 
-auto Do_text_block_define::map(Directive::Info const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
+auto Do_text_block_define::map(Directive::CfgInfo const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
 
 bool Do_text_block_define::should_check() {
   using Clock = std::chrono::system_clock;

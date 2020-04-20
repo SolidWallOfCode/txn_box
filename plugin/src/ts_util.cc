@@ -58,13 +58,13 @@ int HttpTxn::_arg_idx = -1;
 // API changes.
 namespace compat {
 
-template<typename S> auto
-ts_status_set(ts::HttpTxn &txn, S status, swoc::meta::CaseTag<0>) -> bool {
+template<typename S = void> auto
+status_set(ts::HttpTxn &txn, TSHttpStatus status, swoc::meta::CaseTag<0>) -> bool {
   return txn.prsp_hdr().status_set(status);
 }
 
 // New for ATS 9, prefer this if available.
-template<typename S> auto ts_status_set(ts::HttpTxn &txn, S status
+template<typename S = void> auto status_set(ts::HttpTxn &txn, TSHttpStatus status
                                         , swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn, status), bool()) {
   TSHttpTxnStatusSet(txn, status); // no error return, sigh.
   return true;
@@ -73,15 +73,67 @@ template<typename S> auto ts_status_set(ts::HttpTxn &txn, S status
 // ---
 
 // This API changed name in ATS 9.
-template<typename T> auto
-ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
+template<typename T > auto
+vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
   return TSVConnSSLConnectionGet(vc);
 }
 
-template<typename T> auto
-ts_vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
+template<typename T > auto
+vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
   return TSVConnSslConnectionGet(vc);
 }
+
+// ---
+// Txn / Ssn args were changed for ATS 10. Prefer the new API.
+// Because SFINAE happens after trying to compile a template, and deprecated isn't a real compiler
+// failure, need to do this for a clean compile in versions of ATS that only deprecate the old stuff.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+// First a meta-template to provide a compile time constant on whether TSUserArg are available.
+template < typename A, typename = void> struct has_TS_USER_ARGS : public std::false_type {};
+template < typename A > struct has_TS_USER_ARGS<A, std::void_t<decltype(&TSUserArgGet)>> : public std::true_type {};
+
+template < typename A = void >
+auto user_arg_get(TSHttpTxn txnp, int arg_idx) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, void *> {
+  return TSHttpTxnArgGet(txnp, arg_idx);
+}
+
+template < typename A = void >
+auto user_arg_get(TSHttpTxn txnp, int arg_idx) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, void *> {
+  return TSUserArgGet(txnp, arg_idx);
+}
+
+template < typename A >
+auto user_arg_set(TSHttpTxn txnp, A arg_idx, void *arg) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, void> {
+  TSHttpTxnArgSet(txnp, arg_idx, arg);
+}
+
+template < typename A >
+auto user_arg_set(TSHttpTxn txnp, A arg_idx, void *arg) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, void> {
+  TSUserArgSet(txnp, arg_idx, arg);
+}
+
+template < typename A >
+auto user_arg_index_reserve(const char *name, const char *description, A arg_idx) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, TSReturnCode> {
+  return TSHttpTxnArgIndexReserve(name, description, arg_idx);
+}
+
+template < typename A >
+auto user_arg_index_reserve(const char *name, const char *description, A *arg_idx) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, TSReturnCode> {
+  return TSUserArgIndexReserve(TS_USER_ARGS_TXN, name, description, arg_idx);
+}
+
+template < typename A >
+auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **description) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, TSReturnCode> {
+  return TSHttpTxnArgIndexNameLookup(name, arg_idx, description);
+}
+
+template < typename A >
+auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **description) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, TSReturnCode> {
+  return TSUserArgIndexNameLookup(TS_USER_ARGS_TXN, name, arg_idx, description);
+}
+
+#pragma GCC diagnostic pop
 
 } // namespace detail
 
@@ -285,7 +337,7 @@ swoc::MemSpan<char> ts::HttpTxn::ts_dup(swoc::TextView const &text) {
 }
 
 void ts::HttpTxn::status_set(int status) {
-  compat::ts_status_set(*this, static_cast<TSHttpStatus>(status), swoc::meta::CaseArg);
+  compat::status_set(*this, static_cast<TSHttpStatus>(status), swoc::meta::CaseArg);
 }
 
 ts::String ts::HttpTxn::effective_url_get() const {
@@ -297,7 +349,7 @@ ts::String ts::HttpTxn::effective_url_get() const {
 TextView ts::HttpSsn::inbound_sni() const {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
-    TSSslConnection ts_ssl_ctx = compat::ts_vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
+    TSSslConnection ts_ssl_ctx = compat::vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
     if (ts_ssl_ctx) {
       SSL *ssl = reinterpret_cast<SSL *>(ts_ssl_ctx);
       const char *sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
@@ -330,9 +382,23 @@ Errata ts::HttpTxn::cache_key_assign(TextView const &key) {
   return {};
 }
 
+void * HttpTxn::arg(int idx) {
+  return compat::user_arg_get(_txn, idx);
+}
+
+void HttpTxn::arg_assign(int idx, void * value) {
+  compat::user_arg_set(_txn, idx, value);
+}
+
 swoc::Rv<int> HttpTxn::reserve_arg(swoc::TextView const &name, swoc::TextView const &description) {
   int idx = -1;
-  if (TS_ERROR == TSHttpTxnArgIndexReserve(name.data(), description.data(), &idx)) {
+
+  char const * buff = nullptr;
+  if (TS_SUCCESS == ts::compat::user_arg_index_name_lookup(name.data(), &idx, &buff)) {
+    return idx;
+  }
+
+  if (TS_ERROR == ts::compat::user_arg_index_reserve(name.data(), description.data(), &idx)) {
     return { idx, Error(R"(Failed to reserve transaction argument index.)") };
   }
   return idx;
@@ -412,7 +478,7 @@ TaskHandle PerformAsTask(std::function<void ()> &&task) {
   auto contp = TSContCreate(lambda, TSMutexCreate());
   auto data = new TaskHandle::Data(std::move(task));
   TSContDataSet(contp, data);
-  return { TSContScheduleOnPool(contp, 0, TS_THREAD_POOL_TASK) };
+  return { TSContScheduleOnPool(contp, 0, TS_THREAD_POOL_TASK), contp };
 }
 
 TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::milliseconds period) {
@@ -430,7 +496,7 @@ TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::millis
   auto contp = TSContCreate(lambda, TSMutexCreate());
   auto data = new TaskHandle::Data(std::move(task));
   TSContDataSet(contp, data);
-  return { TSContScheduleEveryOnPool(contp, period.count(), TS_THREAD_POOL_TASK) };
+  return { TSContScheduleEveryOnPool(contp, period.count(), TS_THREAD_POOL_TASK), contp };
 }
 /* ------------------------------------------------------------------------ */
 } // namespace ts

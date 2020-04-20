@@ -288,15 +288,15 @@ BufferWriter& Ex_creq_scheme::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_path : public Extractor {
+class Ex_ua_req_path : public Extractor {
 public:
-  static constexpr TextView NAME { "creq-path" };
+  static constexpr TextView NAME { "ua-req-path" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Feature Ex_creq_path::extract(Context &ctx, Spec const&) {
+Feature Ex_ua_req_path::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -307,7 +307,7 @@ Feature Ex_creq_path::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_creq_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -390,6 +390,29 @@ BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_proxy_req_path : public Extractor {
+public:
+  static constexpr TextView NAME { "proxy-req-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.path();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_proxy_req_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 class ExHttpField : public Extractor {
 public:
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
@@ -465,31 +488,31 @@ BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ct
 }
 
 // -----
-class Ex_prsp_field : public ExHttpField {
+class Ex_proxy_rsp_field : public ExHttpField {
 public:
-  static constexpr TextView NAME { "prsp-field" };
+  static constexpr TextView NAME { "proxy-rsp-field" };
 
 protected:
   TextView const& key() const override;
   ts::HttpHeader hdr(Context & ctx) const override;
 };
 
-TextView const& Ex_prsp_field::key() const { return NAME; }
-ts::HttpHeader Ex_prsp_field::hdr(Context & ctx) const {
+TextView const& Ex_proxy_rsp_field::key() const { return NAME; }
+ts::HttpHeader Ex_proxy_rsp_field::hdr(Context & ctx) const {
   return ctx.prsp_hdr();
 }
 // -----
-class Ex_ursp_field : public ExHttpField {
+class Ex_upstream_rsp_field : public ExHttpField {
 public:
-  static constexpr TextView NAME { "ursp-field" };
+  static constexpr TextView NAME { "upstream-rsp-field" };
 
 protected:
   TextView const& key() const override;
   ts::HttpHeader hdr(Context & ctx) const override;
 };
 
-TextView const& Ex_ursp_field::key() const { return NAME; }
-ts::HttpHeader Ex_ursp_field::hdr(Context & ctx) const {
+TextView const& Ex_upstream_rsp_field::key() const { return NAME; }
+ts::HttpHeader Ex_upstream_rsp_field::hdr(Context & ctx) const {
   return ctx.ursp_hdr();
 }
 
@@ -544,9 +567,9 @@ BufferWriter& Ex_preq_host::format(BufferWriter &w, Spec const &spec, Context &c
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_ursp_status : public IntegerExtractor {
+class Ex_upstream_rsp_status : public IntegerExtractor {
 public:
-  static constexpr TextView NAME { "ursp-status" };
+  static constexpr TextView NAME { "upstream-rsp-status" };
 
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
@@ -556,21 +579,21 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_ursp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+Rv<ActiveType> Ex_upstream_rsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
   return { INTEGER };
 }
 
-Feature Ex_ursp_status::extract(Context &ctx, Extractor::Spec const&) {
+Feature Ex_upstream_rsp_status::extract(Context &ctx, Extractor::Spec const&) {
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.ursp_hdr().status());
 }
 
-BufferWriter& Ex_ursp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_upstream_rsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.ursp_hdr().status());
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_prsp_status : public IntegerExtractor {
+class Ex_proxy_rsp_status : public IntegerExtractor {
 public:
-  static constexpr TextView NAME { "prsp-status" };
+  static constexpr TextView NAME { "proxy-rsp-status" };
 
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
@@ -580,15 +603,15 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_prsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+Rv<ActiveType> Ex_proxy_rsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
   return { INTEGER };
 }
 
-Feature Ex_prsp_status::extract(Context &ctx, Extractor::Spec const&) {
+Feature Ex_proxy_rsp_status::extract(Context &ctx, Extractor::Spec const&) {
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.prsp_hdr().status());
 }
 
-BufferWriter& Ex_prsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_proxy_rsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.prsp_hdr().status());
 }
 /* ------------------------------------------------------------------------------------ */
@@ -861,22 +884,23 @@ Ex_creq_url creq_url;
 Ex_creq_host creq_host;
 Ex_creq_scheme creq_scheme;
 Ex_creq_method creq_method;
-Ex_creq_path creq_path;
+Ex_ua_req_path creq_path;
 Ex_creq_url_host creq_url_host;
 Ex_creq_field creq_field;
 
 Ex_preq_host preq_host;
-
+Ex_proxy_req_path proxy_req_path;
 Ex_preq_url preq_url;
-Ex_prsp_field prsp_field;
-Ex_ursp_field ursp_field;
+
+Ex_proxy_rsp_status proxy_rsp_status;
+Ex_proxy_rsp_field proxy_rsp_field;
+
+Ex_upstream_rsp_field upstream_rsp_field;
 
 Ex_remap_path remap_path;
 
-Ex_ursp_status ursp_status;
+Ex_upstream_rsp_status upstream_rsp_status;
 Ex_is_internal is_internal;
-
-Ex_prsp_status prsp_status;
 
 Ex_cssn_sni cssn_sni;
 Ex_cssn_proto cssn_proto;
@@ -888,6 +912,10 @@ static constexpr TextView NANOSECONDS = "nanoseconds";
 Ex_duration<std::chrono::nanoseconds, &NANOSECONDS> nanoseconds;
 static constexpr TextView SECONDS = "seconds";
 Ex_duration<std::chrono::seconds, &SECONDS> seconds;
+static constexpr TextView MINUTES = "minutes";
+Ex_duration<std::chrono::minutes, &MINUTES> minutes;
+static constexpr TextView HOURS = "hours";
+Ex_duration<std::chrono::hours, &HOURS> hours;
 
 Ex_active_feature ex_with_feature;
 Ex_remainder_feature ex_remainder_feature;
@@ -901,19 +929,19 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_creq_host::NAME, &creq_host);
   Extractor::define(Ex_creq_scheme::NAME, &creq_method);
   Extractor::define(Ex_creq_method::NAME, &creq_scheme);
-  Extractor::define(Ex_creq_path::NAME, &creq_path);
+  Extractor::define(Ex_ua_req_path::NAME, &creq_path);
   Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
   Extractor::define(Ex_creq_field::NAME, &creq_field);
 
   Extractor::define(Ex_preq_host::NAME, &preq_host);
 
   Extractor::define(Ex_preq_url::NAME, &preq_url);
-  Extractor::define(Ex_prsp_field::NAME, &prsp_field);
-  Extractor::define(Ex_ursp_field::NAME, &ursp_field);
+  Extractor::define(Ex_proxy_req_path::NAME, &proxy_req_path);
+  Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
+  Extractor::define(Ex_proxy_rsp_field::NAME, &proxy_rsp_field);
+  Extractor::define(Ex_upstream_rsp_field::NAME, &upstream_rsp_field);
 
-  Extractor::define(Ex_ursp_status::NAME, &ursp_status);
-
-  Extractor::define(Ex_prsp_status::NAME, &prsp_status);
+  Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
 
   Extractor::define(Ex_remap_path::NAME, &remap_path);
 
@@ -927,6 +955,8 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(NANOSECONDS, &nanoseconds);
   Extractor::define(SECONDS, &seconds);
+  Extractor::define(MINUTES, &minutes);
+  Extractor::define(HOURS, &hours);
 
   return true;
 } ();

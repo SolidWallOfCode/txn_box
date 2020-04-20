@@ -301,9 +301,9 @@ public:
     return {};
   }
 
-  Directive::Info const * drtv_info() const { return _rtti; }
+  Directive::CfgInfo const * drtv_info() const { return _rtti; }
 
-  Directive::Info const* drtv_info(swoc::TextView name);
+  Directive::CfgInfo const* drtv_info(swoc::TextView name);
 
 protected:
   friend class When;
@@ -314,7 +314,7 @@ protected:
   Hook _hook = Hook::INVALID;
 
   /// Stash for directive load type initializer callback.
-  Directive::Info * _rtti = nullptr;
+  Directive::CfgInfo * _rtti = nullptr;
 
   /// Mark whether there are any top level directives.
   bool _has_top_level_directive_p { false };
@@ -343,8 +343,11 @@ protected:
   /// Current amount of shared context storage required.
   size_t _ctx_storage_required = 0;
 
+  /// Array of config level information about directives in use.
+  swoc::MemSpan<Directive::CfgInfo> _drtv_info;
+
   /// A factory that maps from directive names to generator functions (@c Loader instances).
-  using Factory = std::unordered_map<std::string_view, Directive::Info>;
+  using Factory = std::unordered_map<std::string_view, Directive::FactoryInfo>;
 
   /// The set of defined directives..
   static Factory _factory;
@@ -352,7 +355,7 @@ protected:
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;
 
-  /// Maximum number of directives that can execute in a hook. These are updated during
+  /// Largest number of directives across the hooks. These are updated during
   /// directive load, if needed. This includes the top level directives.
   std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
 
