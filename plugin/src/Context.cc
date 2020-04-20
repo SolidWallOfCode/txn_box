@@ -247,7 +247,7 @@ Context::self_type &Context::enable_hooks(TSHttpTxn txn) {
 
   // Always set a cleanup hook.
   TSHttpTxnHookAdd(txn, TS_HTTP_TXN_CLOSE_HOOK, _cont);
-  TSHttpTxnArgSet(_txn, G.TxnArgIdx, this);
+  _txn.arg_assign(G.TxnArgIdx, this);
   return *this;
 }
 

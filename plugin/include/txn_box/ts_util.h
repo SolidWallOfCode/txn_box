@@ -387,6 +387,8 @@ public:
 
   static TxnConfigVar * find_override(swoc::TextView const& name);
 
+  void * arg(int idx);
+  void arg_assign(int idx, void * value);
   static swoc::Rv<int> reserve_arg(swoc::TextView const &name, swoc::TextView const &description);
 
   static swoc::Errata & init(swoc::Errata & errata);

@@ -48,18 +48,26 @@ public:
   using TypeInitializer = std::function<swoc::Errata (Config& cfg)>;
 
   /** Information about a directive type.
-   * Each instance of a directive of a specific type has a pointer to this record, which is used to
-   * provide the equivalent of run time type information.
+   * This is stored in the directive factory.
    */
-  struct Info {
+  struct FactoryInfo {
+    unsigned _idx; ///< Index for doing config time type info lookup.
     HookMask _hook_mask; ///< Valid hooks for this directive.
     Directive::InstanceLoader _load_cb; ///< Functor to load the directive from YAML data.
     Directive::TypeInitializer _type_init_cb; ///< Configuration init callback.
+  };
+
+  /** Config level information.
+   * Each instance of a directive of a specific type has a pointer to this record, which is used to
+   * provide the equivalent of run time type information. Instances are stored in the @c Config.
+   */
+  struct CfgInfo {
+    FactoryInfo const * _static; ///< Related static information.
     unsigned _count = 0; ///< Number of instances.
+    swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
     // @c Context storage can't be stored as a span, because it's different in every @c context instance.
     size_t _ctx_storage_size = 0; ///< Amount of shared context storage required.
     size_t _ctx_storage_offset = 0; ///< Offset into shared context storage block.
-    swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
   };
 
   virtual ~Directive() = default;
@@ -76,7 +84,7 @@ public:
   static swoc::Errata type_init(Config&) { return {}; }
 
 protected:
-  Info const* _rtti = nullptr; ///< Run time (per Config) information.
+  CfgInfo const* _rtti = nullptr; ///< Run time (per Config) information.
 };
 
 /** An ordered list of directives.

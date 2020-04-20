@@ -208,7 +208,7 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
     return TSREMAP_NO_REMAP;
   }
 
-  Context * ctx = static_cast<Context*>(TSHttpTxnArgGet(txn, G.TxnArgIdx));
+  Context * ctx = static_cast<Context*>(ts::HttpTxn(txn).arg(G.TxnArgIdx));
   if (nullptr == ctx) {
     ctx = new Context({});
     ctx->enable_hooks(txn);
