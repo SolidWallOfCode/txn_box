@@ -6,6 +6,7 @@ add_executable(test_txn_box
     unit_test_main.cc
 
     test_txn_box.cc
+    test_accl_utils.cc
     )
 
 set_target_properties(test_txn_box PROPERTIES CLANG_FORMAT_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
