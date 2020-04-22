@@ -58,69 +58,77 @@ int HttpTxn::_arg_idx = -1;
 // API changes.
 namespace compat {
 
-template<typename S = void> auto
+// Sigh - apparently it's not possible even in C++17 to detect the absence of an enum type.
+// Therefore it must be declared when it's not around to make the rest of the compat logic work.
+#if TS_VERSION_MAJOR < 9
+enum TSUserArgType : uint8_t { TS_USER_ARGS_TXN };
+#endif
+
+template < typename T, typename U > constexpr auto eraser(U && u) -> U { return std::forward<U>(u); }
+
+template<typename S = TSHttpStatus> auto
 status_set(ts::HttpTxn &txn, TSHttpStatus status, swoc::meta::CaseTag<0>) -> bool {
   return txn.prsp_hdr().status_set(status);
 }
 
 // New for ATS 9, prefer this if available.
-template<typename S = void> auto status_set(ts::HttpTxn &txn, TSHttpStatus status
-                                        , swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnStatusSet(txn, status), bool()) {
-  TSHttpTxnStatusSet(txn, status); // no error return, sigh.
+template<typename S = void > auto status_set(ts::HttpTxn &txn, TSHttpStatus status, swoc::meta::CaseTag<1>
+                                                   ) -> decltype(TSHttpTxnStatusSet(txn, eraser<S>(status)), bool()) {
+  TSHttpTxnStatusSet(txn, eraser<S>(status)); // no error return, sigh.
   return true;
 }
 
 // ---
 
 // This API changed name in ATS 9.
-template<typename T > auto
-vconn_ssl_get(T vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(vc)) {
-  return TSVConnSSLConnectionGet(vc);
+template<typename V = void> auto
+vconn_ssl_get(TSVConn vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnectionGet(eraser<V>(vc))) {
+  return TSVConnSSLConnectionGet(eraser<V>(vc));
 }
 
-template<typename T > auto
-vconn_ssl_get(T vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(vc)) {
-  return TSVConnSslConnectionGet(vc);
+template<typename V = TSVConn> auto
+vconn_ssl_get(V vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(eraser<V>(vc))) {
+  return TSVConnSslConnectionGet(eraser<V>(vc));
 }
 
 // ---
 // Txn / Ssn args were changed for ATS 10. Prefer the new API.
 // Because SFINAE happens after trying to compile a template, and deprecated isn't a real compiler
 // failure, need to do this for a clean compile in versions of ATS that only deprecate the old stuff.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+//#pragma GCC diagnostic push
+//#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 // First a meta-template to provide a compile time constant on whether TSUserArg are available.
 template < typename A, typename = void> struct has_TS_USER_ARGS : public std::false_type {};
-template < typename A > struct has_TS_USER_ARGS<A, std::void_t<decltype(&TSUserArgGet)>> : public std::true_type {};
+template < typename A > struct has_TS_USER_ARGS<A, std::void_t<decltype(TSUserArgGet(nullptr, eraser<A>(0)))>> : public std::true_type {};
 
 template < typename A = void >
 auto user_arg_get(TSHttpTxn txnp, int arg_idx) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, void *> {
-  return TSHttpTxnArgGet(txnp, arg_idx);
+  return TSHttpTxnArgGet(txnp, eraser<A>(arg_idx));
 }
 
 template < typename A = void >
 auto user_arg_get(TSHttpTxn txnp, int arg_idx) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, void *> {
-  return TSUserArgGet(txnp, arg_idx);
+  return TSUserArgGet(txnp, eraser<A>(arg_idx));
 }
 
-template < typename A >
-auto user_arg_set(TSHttpTxn txnp, A arg_idx, void *arg) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, void> {
-  TSHttpTxnArgSet(txnp, arg_idx, arg);
+template < typename A = void >
+auto user_arg_set(TSHttpTxn txnp, int arg_idx, void *arg) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, void> {
+  TSHttpTxnArgSet(txnp, arg_idx, eraser<A>(arg));
 }
 
-template < typename A >
-auto user_arg_set(TSHttpTxn txnp, A arg_idx, void *arg) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, void> {
-  TSUserArgSet(txnp, arg_idx, arg);
+template < typename A = void >
+auto user_arg_set(TSHttpTxn txnp, int arg_idx, void *arg) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, void> {
+  TSUserArgSet(txnp, arg_idx, eraser<A>(arg));
 }
 
-template < typename A >
-auto user_arg_index_reserve(const char *name, const char *description, A arg_idx) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, TSReturnCode> {
-  return TSHttpTxnArgIndexReserve(name, description, arg_idx);
+template < typename A = void >
+auto user_arg_index_reserve(const char *name, const char *description, int *arg_idx) -> std::enable_if_t<!has_TS_USER_ARGS<A>::value, TSReturnCode> {
+  return TSHttpTxnArgIndexReserve(name, description, eraser<A>(arg_idx));
 }
 
-template < typename A >
-auto user_arg_index_reserve(const char *name, const char *description, A *arg_idx) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, TSReturnCode> {
-  return TSUserArgIndexReserve(TS_USER_ARGS_TXN, name, description, arg_idx);
+template < typename A = void>
+auto user_arg_index_reserve(const char *name, const char *description, int *arg_idx) -> std::enable_if_t<eraser<A>(false), TSReturnCode> {
+  return TSUserArgIndexReserve(TS_USER_ARGS_TXN, name, description, eraser<A>(arg_idx));
 }
 
 template < typename A >
@@ -133,7 +141,7 @@ auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **descr
   return TSUserArgIndexNameLookup(TS_USER_ARGS_TXN, name, arg_idx, description);
 }
 
-#pragma GCC diagnostic pop
+//#pragma GCC diagnostic pop
 
 } // namespace detail
 
