@@ -129,9 +129,9 @@ swoc::Rv<Directive::Handle> Do_ua_req_host::load(Config& cfg, YAML::Node drtv_no
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
  */
-class Do_preq_host : public Directive {
+class Do_proxy_req_host : public Directive {
   using super_type = Directive; ///< Parent type.
-  using self_type = Do_preq_host; ///< Self reference type.
+  using self_type = Do_proxy_req_host; ///< Self reference type.
 public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -140,7 +140,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_preq_host(Expr && fmt);
+  Do_proxy_req_host(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -165,12 +165,12 @@ protected:
   Expr _fmt; ///< Host feature.
 };
 
-const std::string Do_preq_host::KEY { "preq-host" };
-const HookMask Do_preq_host::HOOKS { MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const std::string Do_proxy_req_host::KEY {"proxy-req-host" };
+const HookMask Do_proxy_req_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
-Do_preq_host::Do_preq_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_proxy_req_host::Do_proxy_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
-Errata Do_preq_host::invoke(Context &ctx) {
+Errata Do_proxy_req_host::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
     hdr.host_set(host);
@@ -178,7 +178,7 @@ Errata Do_preq_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_preq_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+swoc::Rv<Directive::Handle> Do_proxy_req_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -254,6 +254,197 @@ swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node drtv_nod
   }
   if (!expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the scheme for the inbound request.
+ */
+class Do_ua_req_scheme : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_scheme; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_ua_req_scheme(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_ua_req_scheme::KEY {"ua-req-scheme" };
+const HookMask Do_ua_req_scheme::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_scheme::Do_ua_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_ua_req_scheme::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.scheme_set(host);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_scheme::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the scheme for the outbound request.
+ */
+class Do_proxy_req_scheme : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_scheme; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_proxy_req_scheme(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_proxy_req_scheme::KEY {"proxy-req-scheme" };
+const HookMask Do_proxy_req_scheme::HOOKS {MaskFor({Hook::PRE_REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+
+Do_proxy_req_scheme::Do_proxy_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_proxy_req_scheme::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+    hdr.scheme_set(host);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_scheme::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the scheme for the outbound request.
+ */
+class Do_remap_scheme : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_remap_scheme; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_remap_scheme(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const std::string Do_remap_scheme::KEY {"remap-scheme" };
+const HookMask Do_remap_scheme::HOOKS {MaskFor(Hook::REMAP) };
+
+Do_remap_scheme::Do_remap_scheme(Expr &&fmt) : _expr(std::move(fmt)) {}
+
+Errata Do_remap_scheme::invoke(Context &ctx) {
+  auto value = ctx.extract(_expr);
+  if (STRING == ValueTypeOf(value)) {
+    TextView scheme{std::get<IndexFor(STRING)>(value)};
+    ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).scheme_set(scheme);
+    ctx._remap_status = TSREMAP_DID_REMAP;
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_remap_scheme::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -400,8 +591,70 @@ swoc::Rv<Directive::Handle> Do_ua_req_path::load(Config& cfg, YAML::Node drtv_no
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+/** Set the path for the request.
+ */
+class Do_proxy_req_path : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_path; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_proxy_req_path(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_proxy_req_path::KEY {"proxy-req-path" };
+const HookMask Do_proxy_req_path::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_proxy_req_path::Do_proxy_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_proxy_req_path::invoke(Context &ctx) {
+  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.url().path_set(host);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_path::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (!expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
 /** Set the path for remap.
- * This updates both the URL and the "Host" field, if appropriate.
  */
 class Do_remap_path : public Directive {
   using super_type = Directive; ///< Parent type.
@@ -853,8 +1106,8 @@ Rv<Directive::Handle> Do_upstream_reason::load(Config& cfg, YAML::Node drtv_node
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set proxy response status code.
-class Do_proxy_status : public Directive {
-  using self_type = Do_proxy_status; ///< Self reference type.
+class Do_proxy_rsp_status : public Directive {
+  using self_type = Do_proxy_rsp_status; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -874,13 +1127,13 @@ public:
 protected:
   Expr _expr; ///< Return status.
 
-  Do_proxy_status() = default;
+  Do_proxy_rsp_status() = default;
 };
 
-const std::string Do_proxy_status::KEY {"proxy-status" };
-const HookMask Do_proxy_status::HOOKS {MaskFor({Hook::PRSP}) };
+const std::string Do_proxy_rsp_status::KEY {"proxy-rsp-status" };
+const HookMask Do_proxy_rsp_status::HOOKS {MaskFor({Hook::PRSP}) };
 
-Errata Do_proxy_status::invoke(Context &ctx) {
+Errata Do_proxy_rsp_status::invoke(Context &ctx) {
   int status = TS_HTTP_STATUS_NONE;
   Feature value = ctx.extract(_expr);
   auto vtype = ValueTypeOf(value);
@@ -911,7 +1164,7 @@ Errata Do_proxy_status::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_proxy_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_proxy_rsp_status::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -928,8 +1181,8 @@ Rv<Directive::Handle> Do_proxy_status::load(Config& cfg, YAML::Node drtv_node, s
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set proxy response reason phrase.
-class Do_proxy_reason : public Directive {
-  using self_type = Do_proxy_reason; ///< Self reference type.
+class Do_proxy_rsp_reason : public Directive {
+  using self_type = Do_proxy_rsp_reason; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -950,13 +1203,13 @@ protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
   Expr _fmt; ///< Reason phrase.
 
-  Do_proxy_reason() = default;
+  Do_proxy_rsp_reason() = default;
 };
 
-const std::string Do_proxy_reason::KEY {"proxy-reason" };
-const HookMask Do_proxy_reason::HOOKS {MaskFor({Hook::PRSP}) };
+const std::string Do_proxy_rsp_reason::KEY {"proxy-rsp-reason" };
+const HookMask Do_proxy_rsp_reason::HOOKS {MaskFor({Hook::PRSP}) };
 
-Errata Do_proxy_reason::invoke(Context &ctx) {
+Errata Do_proxy_rsp_reason::invoke(Context &ctx) {
   auto value = ctx.extract(_fmt);
   if (STRING != ValueTypeOf(value)) {
     return Error(R"(Value for "{}" is not a string.)", KEY);
@@ -965,7 +1218,7 @@ Errata Do_proxy_reason::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_proxy_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_proxy_rsp_reason::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -1902,28 +2155,38 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Config::define(When::KEY, When::HOOKS, When::load);
   Config::define(With::KEY, With::HOOKS, With::load);
+
   Config::define(Do_ua_req_field::KEY, Do_ua_req_field::HOOKS, Do_ua_req_field::load);
+  Config::define<Do_ua_req_host>();
+  Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
+  Config::define<Do_ua_req_scheme>();
+
   Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
   Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
-  Config::define(Do_upstream_rsp_field::KEY, Do_upstream_rsp_field::HOOKS, Do_upstream_rsp_field::load);
   Config::define<Do_proxy_req_url_host>();
-  Config::define<Do_ua_req_host>();
-  Config::define(Do_preq_host::KEY, Do_preq_host::HOOKS, Do_preq_host::load);
+  Config::define(Do_proxy_req_host::KEY, Do_proxy_req_host::HOOKS, Do_proxy_req_host::load);
+  Config::define<Do_proxy_req_path>();
+  Config::define<Do_proxy_req_scheme>();
+
   Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
-  Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
-  Config::define("creq-path"_tv, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
   Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
+  Config::define<Do_remap_scheme>();
+  Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
+
+  Config::define(Do_upstream_rsp_field::KEY, Do_upstream_rsp_field::HOOKS, Do_upstream_rsp_field::load);
   Config::define(Do_upstream_rsp_status::KEY, Do_upstream_rsp_status::HOOKS, Do_upstream_rsp_status::load);
   Config::define(Do_upstream_reason::KEY, Do_upstream_reason::HOOKS, Do_upstream_reason::load);
-  Config::define<Do_proxy_status>();
-  Config::define<Do_proxy_reason>();
+
+  Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
+
+  Config::define<Do_proxy_rsp_status>();
+  Config::define<Do_proxy_rsp_reason>();
   Config::define<Do_proxy_rsp_body>();
-  Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
+
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
   Config::define<Do_redirect>();
-  Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
   Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
   return true;

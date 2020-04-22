@@ -229,6 +229,11 @@ bool ts::HttpRequest::host_set(swoc::TextView const &host) {
   return true;
 };
 
+bool ts::HttpRequest::scheme_set(swoc::TextView const &scheme) {
+  this->url().scheme_set(scheme);
+  return true;
+};
+
 ts::HttpRequest ts::HttpTxn::creq_hdr() {
   TSMBuffer buff;
   TSMLoc loc;

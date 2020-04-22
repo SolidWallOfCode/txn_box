@@ -111,17 +111,14 @@ public:
   swoc::TextView path() const; ///< View of the URL path.
   swoc::TextView query() const; ///< View of the query.
 
-  self_type & scheme_set(swoc::TextView text) {
-    TSUrlSchemeSet(_buff, _loc, text.data(), text.size());
-    return *this;
-  }
+  self_type & scheme_set(swoc::TextView const& scheme);
 
   /** Set the host in the URL.
    *
    * @param host Host.
    * @return @a this.
    */
-  self_type & host_set(swoc::TextView host);
+  self_type & host_set(swoc::TextView const& host);
 
   in_port_t port_get() {
     return TSUrlPortGet(_buff, _loc);
@@ -281,6 +278,8 @@ public:
    * there is no @c Host field, only the URL is updated.
    */
   bool host_set(swoc::TextView const& host);
+
+  bool scheme_set(swoc::TextView const& scheme);
 };
 
 class HttpResponse : public HttpHeader {
@@ -456,9 +455,16 @@ inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_
 
 inline swoc::TextView URL::query() const { int length; auto text = TSUrlHttpQueryGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
-inline URL &URL::host_set(swoc::TextView host) {
+inline URL &URL::host_set(swoc::TextView const& host) {
   if (this->is_valid()) {
     TSUrlHostSet(_buff, _loc, host.data(), host.size());
+  }
+  return *this;
+}
+
+inline URL &URL::scheme_set(swoc::TextView const& scheme) {
+  if (this->is_valid()) {
+    TSUrlSchemeSet(_buff, _loc, scheme.data(), scheme.size());
   }
   return *this;
 }
