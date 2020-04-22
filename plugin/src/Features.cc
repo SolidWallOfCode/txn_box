@@ -202,14 +202,14 @@ BufferWriter& Ex_var::format(BufferWriter &w, Spec const &spec, Context &ctx) {
  * Because of the nature of the C API, this can only be a transient external string and
  * therefore must be copied in to context storage.
  */
-class Ex_creq_url : public StringExtractor {
+class Ex_ua_req_url : public StringExtractor {
 public:
-  static constexpr TextView NAME { "creq-url" };
+  static constexpr TextView NAME { "ua-req-url" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
@@ -220,15 +220,15 @@ BufferWriter& Ex_creq_url::format(BufferWriter &w, Spec const &spec, Context &ct
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_url_host : public Extractor {
+class Ex_ua_req_url_host : public Extractor {
 public:
-  static constexpr TextView NAME { "creq-url-host" };
+  static constexpr TextView NAME { "ua-req-url-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Feature Ex_creq_url_host::extract(Context &ctx, Spec const&) {
+Feature Ex_ua_req_url_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -239,20 +239,20 @@ Feature Ex_creq_url_host::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_creq_url_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_url_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_method : public Extractor {
+class Ex_ua_req_method : public Extractor {
 public:
-  static constexpr TextView NAME { "creq-method" };
+  static constexpr TextView NAME { "ua-req-method" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec)  override;
 };
 
-Feature Ex_creq_method::extract(Context &ctx, Spec const&) {
+Feature Ex_ua_req_method::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -261,19 +261,19 @@ Feature Ex_creq_method::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_creq_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_scheme : public Extractor {
+class Ex_ua_req_scheme : public Extractor {
 public:
-  static constexpr TextView NAME { "creq-scheme" };
+  static constexpr TextView NAME { "ua-req-scheme" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Feature Ex_creq_scheme::extract(Context &ctx, Spec const&) {
+Feature Ex_ua_req_scheme::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -284,7 +284,7 @@ Feature Ex_creq_scheme::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_creq_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -311,15 +311,15 @@ BufferWriter& Ex_ua_req_path::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_creq_host : public Extractor {
+class Ex_ua_req_host : public Extractor {
 public:
-  static constexpr TextView NAME { "creq-host" };
+  static constexpr TextView NAME { "ua-req-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const&) override;
 };
 
-Feature Ex_creq_host::extract(Context &ctx, Spec const&) {
+Feature Ex_ua_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
@@ -335,58 +335,7 @@ Feature Ex_creq_host::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_creq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-/* ------------------------------------------------------------------------------------ */
-class Ex_creq_field : public Extractor {
-public:
-  static constexpr TextView NAME { "creq-field" };
-
-  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
-    spec._data.assign(const_cast<char*>(arg.data()), arg.size());
-    return ActiveType{ NIL, STRING, ActiveType::TuplesOf(STRING) };
-  }
-
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  Feature extract(Context & ctx, Spec const& spec) override;
-};
-
-Feature Ex_creq_field::extract(Context &ctx, Spec const& spec) {
-  FeatureView zret;
-  zret._direct_p = true;
-  zret = TextView{};
-  if ( ts::HttpHeader hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    if ( auto field { hdr.field(spec._data.view()) } ; field.is_valid()) {
-      zret = field.value();
-    }
-  }
-  return zret;
-};
-
-BufferWriter& Ex_creq_field::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-/* ------------------------------------------------------------------------------------ */
-class Ex_remap_path : public Extractor {
-public:
-  static constexpr TextView NAME { "remap-path" };
-
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  Feature extract(Context & ctx, Spec const& spec) override;
-};
-
-Feature Ex_remap_path::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
-  if (nullptr != ctx._remap_info) {
-    zret = ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).path();
-  }
-  return zret;
-}
-
-BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_ua_req_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -488,6 +437,20 @@ BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ct
 }
 
 // -----
+class Ex_ua_req_field : public ExHttpField {
+public:
+  static constexpr TextView NAME { "ua-req-field" };
+
+protected:
+  TextView const& key() const override;
+  ts::HttpHeader hdr(Context & ctx) const override;
+};
+
+TextView const& Ex_ua_req_field::key() const { return NAME; }
+ts::HttpHeader Ex_ua_req_field::hdr(Context & ctx) const {
+  return ctx.creq_hdr();
+}
+// -----
 class Ex_proxy_rsp_field : public ExHttpField {
 public:
   static constexpr TextView NAME { "proxy-rsp-field" };
@@ -521,14 +484,14 @@ ts::HttpHeader Ex_upstream_rsp_field::hdr(Context & ctx) const {
  * Because of the nature of the C API, this can only be a transient external string and
  * therefore must be copied in to context storage.
  */
-class Ex_preq_url : public StringExtractor {
+class Ex_proxy_req_url : public StringExtractor {
 public:
-  static constexpr TextView NAME { "preq-url" };
+  static constexpr TextView NAME { "proxy-req-url" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-BufferWriter& Ex_preq_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_proxy_req_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
   if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
@@ -538,15 +501,15 @@ BufferWriter& Ex_preq_url::format(BufferWriter &w, Spec const &spec, Context &ct
   return w;
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_preq_host : public Extractor {
+class Ex_proxy_req_host : public Extractor {
 public:
-  static constexpr TextView NAME { "preq-host" };
+  static constexpr TextView NAME { "proxy-req-host" };
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const&) override;
 };
 
-Feature Ex_preq_host::extract(Context &ctx, Spec const&) {
+Feature Ex_proxy_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
@@ -562,10 +525,53 @@ Feature Ex_preq_host::extract(Context &ctx, Spec const&) {
   return zret;
 }
 
-BufferWriter& Ex_preq_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_proxy_req_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
+/* ------------------------------------------------------------------------------------ */
+class Ex_proxy_req_scheme : public Extractor {
+public:
+  static constexpr TextView NAME { "proxy-req-scheme" };
 
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.scheme();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_proxy_req_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_path : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_path::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if (nullptr != ctx._remap_info) {
+    zret = ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).path();
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
 /* ------------------------------------------------------------------------------------ */
 class Ex_upstream_rsp_status : public IntegerExtractor {
 public:
@@ -635,56 +641,56 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the SNI name from the inbound session.
-class Ex_cssn_sni : public Extractor {
+class Ex_inbound_sni : public Extractor {
 public:
-  static constexpr TextView NAME { "cssn-sni" };
+  static constexpr TextView NAME { "inbound-sni" };
   /// Extract the SNI  name from the inbound session.
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Feature Ex_cssn_sni::extract(Context & ctx, Spec const& spec) {
+Feature Ex_inbound_sni::extract(Context & ctx, Spec const& spec) {
   return ctx._txn.ssn().inbound_sni();
 }
 
-BufferWriter& Ex_cssn_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_inbound_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session remote address.
-class Ex_cssn_remote_addr : public Extractor {
+class Ex_inbound_remote_remote : public Extractor {
 public:
-  static constexpr TextView NAME { "cssn-remote-addr" };
+  static constexpr TextView NAME { "inbound-addr-remote" };
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Rv<ActiveType> Ex_cssn_remote_addr::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+Rv<ActiveType> Ex_inbound_remote_remote::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   return { IP_ADDR };
 }
 
-Feature Ex_cssn_remote_addr::extract(Context & ctx, Spec const& spec) {
+Feature Ex_inbound_remote_remote::extract(Context & ctx, Spec const& spec) {
   return ctx._txn.ssn().remote_addr();
 }
 
-BufferWriter& Ex_cssn_remote_addr::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_inbound_remote_remote::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Client Session protocol information.
-class Ex_cssn_proto : public StringExtractor {
-  using self_type = Ex_cssn_proto; ///< Self reference type.
+class Ex_inbound_protocol : public StringExtractor {
+  using self_type = Ex_inbound_protocol; ///< Self reference type.
   using super_type = StringExtractor; ///< Parent type.
 public:
-  static constexpr TextView NAME { "cssn-proto" };
+  static constexpr TextView NAME { "inbound-protocol" };
 
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &arg) {
+Rv<ActiveType> Ex_inbound_protocol::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
@@ -697,7 +703,7 @@ Rv<ActiveType> Ex_cssn_proto::validate(Config &cfg, Spec &spec, const TextView &
   return { STRING };
 }
 
-BufferWriter& Ex_cssn_proto::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_inbound_protocol::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   auto view = spec._data.rebind<TextView>()[0];
   auto tag = ctx._txn.ssn().proto_contains(view);
   return bwformat(w, spec, tag);
@@ -880,17 +886,18 @@ namespace {
 // These are the singletons.
 Ex_var var;
 
-Ex_creq_url creq_url;
-Ex_creq_host creq_host;
-Ex_creq_scheme creq_scheme;
-Ex_creq_method creq_method;
-Ex_ua_req_path creq_path;
-Ex_creq_url_host creq_url_host;
-Ex_creq_field creq_field;
+Ex_ua_req_url ua_req_url;
+Ex_ua_req_host ureq_host;
+Ex_ua_req_scheme ua_req_scheme;
+Ex_ua_req_method ua_req_method;
+Ex_ua_req_path ua_req_path;
+Ex_ua_req_url_host ua_req_url_host;
+Ex_ua_req_field ua_req_field;
 
-Ex_preq_host preq_host;
+Ex_proxy_req_host proxy_req_host;
 Ex_proxy_req_path proxy_req_path;
-Ex_preq_url preq_url;
+Ex_proxy_req_url proxy_req_url;
+Ex_proxy_req_scheme proxy_req_scheme;
 
 Ex_proxy_rsp_status proxy_rsp_status;
 Ex_proxy_rsp_field proxy_rsp_field;
@@ -902,14 +909,16 @@ Ex_remap_path remap_path;
 Ex_upstream_rsp_status upstream_rsp_status;
 Ex_is_internal is_internal;
 
-Ex_cssn_sni cssn_sni;
-Ex_cssn_proto cssn_proto;
-Ex_cssn_remote_addr cssn_remote_addr;
+Ex_inbound_sni inbound_sni;
+Ex_inbound_protocol inbound_protocol;
+Ex_inbound_remote_remote inbound_remote_addr;
 
 Ex_random random;
 
 static constexpr TextView NANOSECONDS = "nanoseconds";
 Ex_duration<std::chrono::nanoseconds, &NANOSECONDS> nanoseconds;
+static constexpr TextView MILLISECONDS = "milliseconds";
+Ex_duration<std::chrono::milliseconds , &MILLISECONDS> milliseconds;
 static constexpr TextView SECONDS = "seconds";
 Ex_duration<std::chrono::seconds, &SECONDS> seconds;
 static constexpr TextView MINUTES = "minutes";
@@ -925,18 +934,19 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_active_feature::NAME, &ex_with_feature);
   Extractor::define(Ex_remainder_feature::NAME, &ex_remainder_feature);
 
-  Extractor::define(Ex_creq_url::NAME, &creq_url);
-  Extractor::define(Ex_creq_host::NAME, &creq_host);
-  Extractor::define(Ex_creq_scheme::NAME, &creq_method);
-  Extractor::define(Ex_creq_method::NAME, &creq_scheme);
-  Extractor::define(Ex_ua_req_path::NAME, &creq_path);
-  Extractor::define(Ex_creq_url_host::NAME, &creq_url_host);
-  Extractor::define(Ex_creq_field::NAME, &creq_field);
+  Extractor::define(Ex_ua_req_url::NAME, &ua_req_url);
+  Extractor::define(Ex_ua_req_host::NAME, &ureq_host);
+  Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_method);
+  Extractor::define(Ex_ua_req_method::NAME, &ua_req_scheme);
+  Extractor::define(Ex_ua_req_path::NAME, &ua_req_path);
+  Extractor::define(Ex_ua_req_url_host::NAME, &ua_req_url_host);
+  Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
 
-  Extractor::define(Ex_preq_host::NAME, &preq_host);
-
-  Extractor::define(Ex_preq_url::NAME, &preq_url);
+  Extractor::define(Ex_proxy_req_host::NAME, &proxy_req_host);
+  Extractor::define(Ex_proxy_req_url::NAME, &proxy_req_url);
   Extractor::define(Ex_proxy_req_path::NAME, &proxy_req_path);
+  Extractor::define(Ex_proxy_req_scheme::NAME, &proxy_req_scheme);
+
   Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
   Extractor::define(Ex_proxy_rsp_field::NAME, &proxy_rsp_field);
   Extractor::define(Ex_upstream_rsp_field::NAME, &upstream_rsp_field);
@@ -949,11 +959,12 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_random::NAME, &random);
   Extractor::define(Ex_var::NAME, &var);
 
-  Extractor::define(Ex_cssn_sni::NAME, &cssn_sni);
-  Extractor::define(Ex_cssn_proto::NAME, &cssn_proto);
-  Extractor::define(Ex_cssn_remote_addr::NAME, &cssn_remote_addr);
+  Extractor::define(Ex_inbound_sni::NAME, &inbound_sni);
+  Extractor::define(Ex_inbound_protocol::NAME, &inbound_protocol);
+  Extractor::define(Ex_inbound_remote_remote::NAME, &inbound_remote_addr);
 
   Extractor::define(NANOSECONDS, &nanoseconds);
+  Extractor::define(MILLISECONDS, &milliseconds);
   Extractor::define(SECONDS, &seconds);
   Extractor::define(MINUTES, &minutes);
   Extractor::define(HOURS, &hours);
