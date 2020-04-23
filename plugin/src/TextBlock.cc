@@ -170,6 +170,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
     }
     drtv_node.remove(path_node);
     self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._expr));
+    ts::make_absolute(self->_path);
   }
 
   auto text_node = key_value[TEXT_TAG];
