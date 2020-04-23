@@ -127,7 +127,7 @@ auto user_arg_index_reserve(const char *name, const char *description, int *arg_
 }
 
 template < typename A = void>
-auto user_arg_index_reserve(const char *name, const char *description, int *arg_idx) -> std::enable_if_t<eraser<A>(false), TSReturnCode> {
+auto user_arg_index_reserve(const char *name, const char *description, int *arg_idx) -> std::enable_if_t<has_TS_USER_ARGS<A>::value, TSReturnCode> {
   return TSUserArgIndexReserve(TS_USER_ARGS_TXN, name, description, eraser<A>(arg_idx));
 }
 
