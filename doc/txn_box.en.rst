@@ -1,3 +1,6 @@
+' Copyright 2020, Verizon Media
+' SPDX-License-Identifier: Apache-2.0
+
 .. include:: common.defs
 
 .. highlight:: yaml
@@ -16,8 +19,10 @@ can be used in a variety of combinations.
 
 There are several purposes to this project.
 
-*  Providing a more generalized set of operations for working with transactions. This primarily involved
-   separating data access from data use - that is, any data can be used in any context.
+*  Providing a more generalized set of operations for working with transactions. This primarily
+   involved separating data access from data use - that is, any data can be used in any context in a
+   consistent style. In essence, instead of being a specialized plugin for a single task, it is
+   a tool box with which solutions can be constructed.
 
 *  Consolidating transaction manipulation so that rather than a constellation of distinct plugins
    with different syntax and restrictions, |TxB| provides a single toolbox sufficient for
@@ -50,24 +55,31 @@ decision point.
 
 To aid further explanation, some terms need to be defined.
 
+|TxB| has two phases of operation, :term:`load time` and :term:`run time`. Load time is the time
+during which the configuration is being loaded. |TxB| also has :term:`hook`\s which are essentially
+the same as a hook in |TS|. In addition to the hooks in |TS|, |TxB| has additional hooks specific to
+|TxB|.
+
 A :term:`feature` is data of interest for a transaction. :term:`Extraction` is collecting that
-information. An :term:`extractor` retrives the data. A feature is the result of one *or more*
-extractors. The result of applying the feature string to a transaction is a feature. For example, a
-feature could be the path in the URL in the user agent request. In the configuration the extractor
-:txb:xf:`creq-path` specifies that the URL path should be extracted. Although most extractors get
-data from the transaction, others can get data from the session, the environment, and other sources.
-All of these are handled and used in the same way.
+information. An :term:`extractor` retrieves the data. Extractors are used in :term:`feature
+expression"\s which can combine extractors and literals, or simply be a single extractor. During run
+time, as needed, |TxB| will do extraction, which in more detail means to :term:`apply` a
+feature expression (or "expression") resulting in a feature.
 
 Feature extraction is the essence of |TxB|. All data that is used in any way initially comes from an
-extractor. Each feature string yields a feature of a specific type and can be used any place data
-of that type is needed.
+extractor. Each extration yields a feature of a specific type, although an expression may return
+different feature types depending on the data. For instance, extracting an HTTP message field may
+yield a string if the field is present, or the :code:`NIL` value if not.
 
-Extraction is about getting data. A :term:`directive` is an action to be performed. Directives
-generally need data to perform their action and that data is provided by extraction. For example,
-setting the value of a field in an HTTP header is done by a directive. The new value of the field is
-provided by extraction. For example, the directive :code:`prsp-field` sets a field value in the
-proxy's response to the user agent. To set the field "X-SWOC" to "valid" the directive would be
-:code:`prsp-field<X-SWOC>: "valid"`.
+A :term:`directive` is an action to be performed. Some directives can have an :term:`argument` which
+provides additional control of the directive's action. Arguments are enclosed in brackets after the
+name of the directive. Directives generally need data to perform their action and that data is
+provided by extraction. For example, setting the value of a field in an HTTP message header is done
+by a directive. The new value of the field is provided by extraction. For example, the directive
+:code:`prsp-field` sets a field value in the proxy's response to the user agent. To set the field
+"X-SWOC" to "valid" the directive would be :code:`prsp-field<X-SWOC>: "valid"`. Here the directive
+has the argumnet "X-SWOC" to specify the exact field to change, and the expression :code:`"valid"`
+which is a :term:`literal extractor` which always yields the string "valid".
 
 Basing actions on a feature is done by :term:`selection`. This is the conditional mechanism in
 |TxB|. The basics are that a feature is extracted and then compared using various
@@ -133,10 +145,10 @@ selection. The key :code:`select` is used to anchor the list of comparisons.  ::
    select:
    -  match: "mail.example.one"
       do:
-      -  upstream: "https://example.com/mail"
+      -  preq-url: "https://example.com/mail"
    -  match: "search.example.one"
       do:
-      -  upstream: "https://engine.example.one"
+      -  preq-url: "https://engine.example.one"
 
 Here :txb:xf:`creq-host` is an extractor that extracts the host of the URL in the client request.
 The value of the :code:`select` key is a list of objects which consist of a comparison and a list of
@@ -150,75 +162,10 @@ requests to "example com/mail" and requests for "search.example.on" to "engine.e
 The :code:`with` / :code:`select` mechanism is a directive and so selection can be nested to an
 arbitrary depth. Each selection can be on a different feature. As result the relative importance of
 features is determined by the particular configuration. This means decisions can be made in a
-hierachial style rather than a single linear set of rules, which enables a large reduction in "cross
+hierarchial style rather than a single linear set of rules, which enables a large reduction in "cross
 talk" between rules.
 
-Features
-++++++++
-
-Unquoted text is presumed to be an extractor, which can include the full format specifier. If text
-is quoted it is treated as a :term:`feature string` which are very similar to `Python format strings
-<https://docs.python.org/3.4/library/string.html#format-string-syntax>`__ and can contain a mixture
-of extractors and literal strings [*]_.
-
-   **{** [ *name* ] [ **:** [ *format* ] [ **:** *extension* ] ] **}**
-
-:code:`name` specifies the extractor, :code:`format` makes it possible to control the output format
-(such as width), and :code:`extension` is used to pass extra data to the extractor.
-
-When a feature is extracted, it is placed in to a holding container, the "active feature".  The
-active feature can be extracted with the name "...". This is useful because some comparisons
-update the active feature. For example, the :txb:cmp:`suffix` comparison operator matches a
-suffix and if it matches the suffix is removed from the current feature. This makes walking the
-components of a path or host name much easier ::
-
-A key notation is that quoted strings are treated as features strings, which can be just literal
-strings. Values without quotes are treated as extractors.
-
-Regular Expression
-------------------
-
-If a regular expression has successful matched in a comparison, or explicitly applied, its capture
-groups become *active*. This makes the capture groups available as features to be extracted. These
-are numbered in the standard way, with ``0`` meaning the entire matched string, ``1`` the first
-capture group, ``2`` the second capture group, and so on. It is an error to use an index that is
-larger than the available capture groups, or when no regular expression is active. For example if a
-header named "mail-check" should be set if the host contains the domain "mail", it could be done as
-::
-
-   with: creq-host
-   select:
-   - regex: "^(?:(.*?)[.])?mail[.](.*?)$"
-      do:
-      - preq-field@mail-check: "You've got mail from {2}!"
-
-This is a case where the format string is required to use the extractor, otherwise it will be treated
-as an integer value. That is, "2" is the integer 2, while "{2}" is the second active capture group.
-
-Session
--------
-
-Other
------
-
-is-internal [boolean]
-   ``true`` if the transaction is an internal transaction, ``false`` if not.
-
-Formatting
-==========
-
-The second part of an extractor supports controlling the format of the output. This is not generally
-requried, but in some cases it is quite useful. A good example is the extractor
-:txb:xf:`is-internal`. This returns a true or false value, which is in the C style mapped to 1
-and 0. However, it can be changed to "true" and "false" by specifying the output as a string. ::
-
-   preq-field<Carp-Internal>: is-internal:s
-
-Formatting is most commonly useful when setting values, such as field values. The extracted strings
-can be justified, limited in width, and in particular IP addresses can be formatted in a variety of
-ways.
-
-Hook Control
+Hooks
 ============
 
 The directive key :txb:drtv:`when` can be used to specify on which hook directives should be performed.
@@ -234,6 +181,7 @@ Upstream Response  read-response  ursp         READ_RESPONSE_HDR_HOOK
 Proxy Response     send-response  prsp         SEND_RESPONSE_HDR_HOOK
 Pre remap          pre-remap                   PRE_REMAP_HOOK
 Post remap         post-remap                  POST_REMAP_HOOK
+Load time
 ================== =============  ============ ========================
 
 The abbreviations are primarily for consistency between hook tags, extractors, and directives.
