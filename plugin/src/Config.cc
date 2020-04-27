@@ -41,8 +41,8 @@ swoc::Lexicon<Hook> HookName {{
                               , {Hook::TXN_START, {"txn-open"}}
                               , {Hook::CREQ, {"ua-req", "creq"}}
                               , {Hook::PREQ, {"proxy-req", "preq"}}
-                              , {Hook::URSP, {"upstream-resp", "ursp"}}
-                              , {Hook::PRSP, {"proxy-resp", "prsp"}}
+                              , {Hook::URSP, {"upstream-rsp", "ursp"}}
+                              , {Hook::PRSP, {"proxy-rsp", "prsp"}}
                               , {Hook::PRE_REMAP, {"pre-remap"}}
                               , {Hook::POST_REMAP, {"post-remap"}}
                               , {Hook::TXN_CLOSE, {"txn-close"}}

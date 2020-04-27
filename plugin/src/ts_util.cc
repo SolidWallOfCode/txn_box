@@ -86,8 +86,8 @@ vconn_ssl_get(TSVConn vc, swoc::meta::CaseTag<0>) -> decltype(TSVConnSSLConnecti
   return TSVConnSSLConnectionGet(eraser<V>(vc));
 }
 
-template<typename V = TSVConn> auto
-vconn_ssl_get(V vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(eraser<V>(vc))) {
+template<typename V = void> auto
+vconn_ssl_get(TSVConn vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnectionGet(eraser<V>(vc))) {
   return TSVConnSslConnectionGet(eraser<V>(vc));
 }
 
