@@ -2163,6 +2163,7 @@ namespace {
 
   Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
   Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
+  Config::define("prsp-field", Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
   Config::define<Do_proxy_req_url_host>();
   Config::define(Do_proxy_req_host::KEY, Do_proxy_req_host::HOOKS, Do_proxy_req_host::load);
   Config::define<Do_proxy_req_path>();
