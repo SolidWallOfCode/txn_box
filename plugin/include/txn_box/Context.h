@@ -173,7 +173,7 @@ public:
      *
      * For now this is unimplemented - it will get filled out when regex support is done.
      */
-    swoc::BufferWriter &print(unsigned idx, swoc::BufferWriter &w, swoc::bwf::Spec const &spec) const override;
+    swoc::BufferWriter &print(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, unsigned idx) const override;
 
     /// Number of arguments in the pack.
     unsigned count() const override;
