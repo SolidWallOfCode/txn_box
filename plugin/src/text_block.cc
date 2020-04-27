@@ -273,7 +273,7 @@ void Do_text_block_define::Updater::operator()() {
 /// Text block extractor.
 class Ex_text_block : public Extractor {
   using self_type = Ex_text_block; ///< Self reference type.
-  using super_type = StringExtractor; ///< Parent type.
+  using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME{"text-block"};
 

@@ -23,7 +23,6 @@ using swoc::Rv;
 using namespace swoc::literals;
 
 Extractor::Table Extractor::_ex_table;
-extern swoc::Lexicon<bool> PredicateNames;
 
 /* ------------------------------------------------------------------------------------ */
 Errata Extractor::define(TextView name, self_type * ex) {

@@ -31,11 +31,16 @@ Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ActiveT
     return Error(R"(Modifier at {} is not an object as required.)", node.Mark());
   }
 
+
   for ( auto const& [ key_node, value_node ] : node ) {
     TextView key { key_node.Scalar() };
+    auto && [ arg, arg_errata ] { parse_arg(key )};
+    if (!arg_errata.is_ok()) {
+      return std::move(arg_errata);
+    }
     // See if @a key is in the factory.
     if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
-      auto &&[handle, errata]{spot->second(cfg, node, value_node)};
+      auto &&[handle, errata]{spot->second(cfg, node, key, arg, value_node)};
 
       if (!errata.is_ok()) {
         return std::move(errata);
@@ -49,6 +54,8 @@ Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ActiveT
   }
   return Error(R"(No valid modifier key in object at {}.)", node.Mark());
 }
+
+// ---
 
 class Mod_Hash : public Modifier {
   using self_type = Mod_Hash;
@@ -81,7 +88,7 @@ public:
    * @param key_node Node in @a mod_node that identifies the modifier.
    * @return A constructed instance or errors.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
   unsigned _n = 0; ///< Number of hash buckets.
@@ -107,18 +114,18 @@ Rv<Feature> Mod_Hash::operator()(Context &ctx, feature_type_for<STRING> feature)
   return Feature{feature_type_for<INTEGER>{value % _n}};
 }
 
-Rv<Modifier::Handle> Mod_Hash::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  if (! key_node.IsScalar()) {
-    return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_node.Mark(), mod_node.Mark());
+Rv<Modifier::Handle> Mod_Hash::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+  if (! key_value.IsScalar()) {
+    return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_value.Mark(), node.Mark());
   }
-  TextView src{key_node.Scalar()}, parsed;
+  TextView src{key_value.Scalar()}, parsed;
   src.trim_if(&isspace);
   auto n = swoc::svtou(src, &parsed);
   if (src.size() != parsed.size()) {
-    return Error(R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_node.Mark(), mod_node.Mark());
+    return Error(R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_value.Mark(), node.Mark());
   }
   if (n < 2) {
-    return Error(R"(Value "{}" for "{}" at {} in modifier at {} must be at least 2.)", src, KEY, key_node.Mark(), mod_node.Mark());
+    return Error(R"(Value "{}" for "{}" at {} in modifier at {} must be at least 2.)", src, KEY, key_value.Mark(), node.Mark());
   }
 
   return { Handle{new self_type(n)}, {} };
@@ -160,7 +167,7 @@ public:
    * @param key_node Node in @a mod_node that identifies the modifier.
    * @return A constructed instance or errors.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
   enum Action {
@@ -298,12 +305,12 @@ bool Mod_Filter::Case::operator()(Context& ctx, Feature const& feature) {
   return ! _cmp || (*_cmp)(ctx, feature);
 }
 
-Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
   auto self = new self_type;
   Handle handle(self);
 
-  if (auto errata = self->_cases.load(cfg, key_node) ; ! errata.is_ok()) {
-    errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, mod_node.Mark());
+  if (auto errata = self->_cases.load(cfg, key_value) ; ! errata.is_ok()) {
+    errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
   }
 
   return std::move(handle);
@@ -343,7 +350,7 @@ public:
    * @param key_node Node in @a mod_node that identifies the modifier.
    * @return A constructed instance or errors.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
   Expr _value;
@@ -363,10 +370,10 @@ Rv<Feature> Mod_Else::operator()(Context &ctx, Feature const& feature) {
   return is_empty(feature) ? ctx.extract(_value) : feature;
 }
 
-Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  auto && [ fmt, errata ] { cfg.parse_expr(key_node) };
+Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+  auto && [ fmt, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_node.Mark());
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(fmt)});
@@ -406,7 +413,7 @@ public:
    * @param key_node Node in @a mod_node that identifies the modifier.
    * @return A constructed instance or errors.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
   Expr _value; ///< Default value.
@@ -447,13 +454,13 @@ Rv<Feature> Mod_As_Integer::operator()(Context &ctx, Feature const& feature) {
   return std::visit(visitor, feature);
 }
 
-Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
-  auto && [ fmt, errata ] { cfg.parse_expr(key_node) };
+Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+  auto && [ expr, errata ] {cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_node.Mark());
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
-  return Handle(new self_type{std::move(fmt)});
+  return Handle(new self_type{std::move(expr)});
 };
 
 // --- //
@@ -490,7 +497,7 @@ public:
    * @param key_node Node in @a mod_node that identifies the modifier.
    * @return A constructed instance or errors.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node mod_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
   explicit Mod_As_IP_Addr() = default;
@@ -524,7 +531,7 @@ Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature const& feature) {
   return std::visit(visitor, feature);
 }
 
-Rv<Modifier::Handle> Mod_As_IP_Addr::load(Config &cfg, YAML::Node mod_node, YAML::Node key_node) {
+auto Mod_As_IP_Addr::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) -> Rv<Handle>{
   return Handle(new self_type);
 };
 

@@ -45,7 +45,7 @@ public:
    */
   using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
 
-  using TypeInitializer = std::function<swoc::Errata (Config& cfg)>;
+  using CfgInitializer = std::function<swoc::Errata (Config& cfg)>;
 
   /** Information about a directive type.
    * This is stored in the directive factory.
@@ -54,7 +54,7 @@ public:
     unsigned _idx; ///< Index for doing config time type info lookup.
     HookMask _hook_mask; ///< Valid hooks for this directive.
     Directive::InstanceLoader _load_cb; ///< Functor to load the directive from YAML data.
-    Directive::TypeInitializer _type_init_cb; ///< Configuration init callback.
+    Directive::CfgInitializer _cfg_init_cb; ///< Configuration init callback.
   };
 
   /** Config level information.
@@ -81,7 +81,7 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
-  static swoc::Errata type_init(Config&) { return {}; }
+  static swoc::Errata cfg_init(Config&) { return {}; }
 
 protected:
   CfgInfo const* _rtti = nullptr; ///< Run time (per Config) information.

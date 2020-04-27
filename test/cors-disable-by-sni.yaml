@@ -9,13 +9,13 @@ config:
     - target: https://example.two
       result: http://localhost:9090
   txn_box:
-  - when: prsp
+  - when: proxy-rsp
     do:
-    - with: cssn-sni
+    - with: inbound-sni
       select:
       - match: "example.two"
         do:
-        - prsp-field.Access-Control-Allow-Origin: "*"
+        - proxy-rsp-field<Access-Control-Allow-Origin>: "*"
   blocks:
     base_request: &base_request
       version: "1.1"
