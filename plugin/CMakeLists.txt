@@ -16,9 +16,11 @@ add_library(plugin SHARED
 	src/Features.cc
 	src/Machinery.cc
         src/Rxp.cc
-	src/TextBlock.cc
 	src/ts_util.cc
 	src/yaml_util.cc
+
+	src/text_block.cc
+	src/ip_space.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")

@@ -116,6 +116,13 @@ Config::Config() {
   }
 }
 
+Errata Config::reserve_ctx_storage(size_t n) {
+  _rtti->_ctx_storage_offset = _ctx_storage_required;
+  _rtti->_ctx_storage_size = n;
+  _ctx_storage_required += n;
+  return {};
+}
+
 Config::self_type &Config::localize(Feature &feature) {
   std::visit([&](auto & t) { this->localize(t); }, static_cast<Feature::variant_type&>(feature));
   return *this;
@@ -354,6 +361,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
 
   // Else, after all this, it's a tuple, treat each element as an expression.
   ActiveType l_types;
+  bool literal_p = true; // Is the entire sequence literal?
   std::vector<Expr> xa;
   xa.reserve(expr_node.size());
   for ( auto const& child : expr_node ) {
@@ -363,13 +371,25 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
       return std::move(errata);
     }
     l_types |= expr.result_type().base_types();
+    if (! expr.is_literal()) {
+      literal_p = false;
+    }
     xa.emplace_back(std::move(expr));
   }
 
   Expr expr;
-  auto & list = expr._expr.emplace<Expr::LIST>();
-  list._types = l_types;
-  list._exprs = std::move(xa);
+  if (literal_p) {
+    FeatureTuple t = this->span<Feature>(xa.size());
+    unsigned idx = 0;
+    for ( auto f : t) {
+      f = std::get<Expr::LITERAL>(xa[idx++]._expr);
+    }
+    expr._expr = t;
+  } else {
+    auto& list = expr._expr.emplace<Expr::LIST>();
+    list._types = l_types;
+    list._exprs = std::move(xa);
+  }
   return std::move(expr);
 }
 
@@ -401,7 +421,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 
       // If this is the first use of the directive, do config level setup for the directive type.
       if (_rtti->_count == 0) {
-        info._type_init_cb(*this);
+        info._cfg_init_cb(*this);
       }
       ++(_rtti->_count);
 
@@ -519,12 +539,12 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
   return std::move(errata);
 };
 
-Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::TypeInitializer && type_initializer) {
+Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::CfgInitializer && cfg_init_cb) {
   auto & info { _factory[name] };
   info._idx = _factory.size() - 1;
   info._hook_mask = hooks;
   info._load_cb = std::move(worker);
-  info._type_init_cb = std::move(type_initializer);
+  info._cfg_init_cb = std::move(cfg_init_cb);
   return {};
 }
 

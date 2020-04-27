@@ -121,7 +121,18 @@ public:
     return _arena->alloc(sizeof(T) * count).rebind<T>();
   }
 
-  swoc::MemSpan<void> storage_for(Directive* drtv);
+  /** Access per context storage for directive @a drtv.
+   *
+   * @param drtv Directive pointer.
+   * @return Storage allocated.
+   *
+   * This must have been allocated during configuration loading by calling @c Config::reserve_ctx_storage.
+   *
+   * @see Config::reserve_ctx_storage
+   */
+  swoc::MemSpan<void> storage_for(Directive const* drtv);
+
+  swoc::MemSpan<void> storage_for(Directive::CfgInfo const* rtti);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
@@ -147,7 +158,14 @@ public:
    */
   void set_literal_capture(swoc::TextView text);
 
-  /// Need to remember what this does.
+  /** BWF interface for name binding.
+   *
+   * @param w Output writer.
+   * @param spec Specifier with name to bind.
+   *
+   * Generate output to @a w based on data in @a spec.
+   * Conceptually
+   */
   void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
 
   /** Class for handling numbered arguments to formatting.

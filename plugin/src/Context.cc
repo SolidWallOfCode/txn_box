@@ -193,10 +193,14 @@ Context& Context::commit(Feature &feature) {
   return *this;
 }
 
-swoc::MemSpan<void> Context::storage_for(Directive *drtv) {
+swoc::MemSpan<void> Context::storage_for(Directive const * drtv) {
+  return this->storage_for(drtv->_rtti);
+}
+
+swoc::MemSpan<void> Context::storage_for(Directive::CfgInfo const * rtti) {
   auto zret { _ctx_store };
-  zret.remove_prefix(drtv->_rtti->_ctx_storage_offset);
-  zret.remove_suffix(zret.size() - drtv->_rtti->_ctx_storage_offset);
+  zret.remove_prefix(rtti->_ctx_storage_offset);
+  zret.remove_suffix(zret.size() - rtti->_ctx_storage_offset);
   return zret;
 }
 

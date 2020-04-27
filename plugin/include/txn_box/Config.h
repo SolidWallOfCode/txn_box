@@ -267,7 +267,7 @@ public:
   template <typename T> self_type & mark_for_cleanup(T* ptr);
 
   template < typename D > static swoc::Errata define() {
-    return self_type::define(D::KEY, D::HOOKS, &D::load, D::type_init);
+    return self_type::define(D::KEY, D::HOOKS, &D::load, &D::cfg_init);
   }
 
   /** Define a directive.
@@ -275,12 +275,12 @@ public:
    * @param name Directive name.
    * @param hooks Mask of valid hooks.
    * @param worker Functor to load / construct the directive from YAML.
-   * @param cfg_init Config time initialization if needed.
+   * @param cfg_init_cb Config time initialization if needed.
    * @return Errors, if any.
    */
   static swoc::Errata define(swoc::TextView name, HookMask const& hooks
                              , Directive::InstanceLoader && worker
-                             , Directive::TypeInitializer && cfg_init = [](Config&) -> swoc::Errata { return {}; });
+                             , Directive::CfgInitializer && cfg_init_cb = [](Config&) -> swoc::Errata { return {}; });
 
   /** Allocate / reserve storage space in @a this.
    *
@@ -290,19 +290,39 @@ public:
    * This also stores the span in the RTTI / TypeInfo for the directive so it is accessible when
    * the directive is invoked at run time.
    */
-  swoc::MemSpan<void> allocate_cfg_storage(size_t n) {
-    return _rtti->_cfg_store = _arena.alloc(n);
-  }
+  swoc::MemSpan<void> allocate_cfg_storage(size_t n);
 
-  Errata reserve_ctx_storage(size_t n) {
-    _rtti->_ctx_storage_offset = _ctx_storage_required;
-    _rtti->_ctx_storage_size = n;
-    _ctx_storage_required += n;
-    return {};
-  }
+  /** Prepare for context storage.
+   *
+   * @param n Number of bytes.
+   * @return Errors, if any.
+   *
+   * This storage is not immediately allocated (in contrast to @c allocate_cfg_storage. Instead it
+   * is allocated when a @c Context is created, for each @c Context instance. This is shared among
+   * instances of the directive, similarly to class static storage. This should be invoked during
+   * directive type setup or object loading. Per instance context storage should be allocated during
+   * invocation.
+   *
+   * Access to the storage is via @c Context::storage_for
+   *
+   * @see Context::storage_for
+   */
+  Errata reserve_ctx_storage(size_t n);
 
+  /** Get current directive info.
+   *
+   * @return Current directive configuration information or @c nullptr if no current directive.
+   *
+   * This is useful only during configuration loading. Just before a directive is loaded
+   * this is set for that directive, and cleared after the directive is loaded.
+   */
   Directive::CfgInfo const * drtv_info() const { return _rtti; }
 
+  /** Get directive info for directive @a name.
+   *
+   * @param name Name of directive.
+   * @return Directive configuration information, or @c nullptr if @a name is not found.
+   */
   Directive::CfgInfo const* drtv_info(swoc::TextView name);
 
 protected:
@@ -419,4 +439,8 @@ template < typename T > auto Config::mark_for_cleanup(T *ptr) -> self_type & {
   auto f = _arena.make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
   _finalizers.append(f);
   return *this;
+}
+
+inline swoc::MemSpan<void> Config::allocate_cfg_storage(size_t n) {
+  return _rtti->_cfg_store = _arena.alloc(n);
 }

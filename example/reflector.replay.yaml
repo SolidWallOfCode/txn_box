@@ -6,11 +6,11 @@ meta:
   txn_box:
     when: post-remap
     do:
-      with: [ preq-host, { as-ip-addr: } ]
+      with: [ proxy-req-host, { as-ip-addr: } ]
       select:
         in: 127.0.0.0/8
         do:
-          upstream-addr: cssn-remote-addr
+          upstream-addr: inbound-addr-remote
 
 sessions:
 - protocol: [ ipv4, tcp ]

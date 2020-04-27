@@ -8,7 +8,7 @@ ts_ver = Version(env.subst(Component("trafficserver").DelaySubst("$PART_VERSION"
 DependsOn([
     Component("openssl"),
     Component("trafficserver", version_range='7.*-*'),
-    Component("libswoc.static", version_range='1.2.1-*'),
+    Component("libswoc.static", version_range='1.2.3-*'),
 ])
 
 if ts_ver < Version("9"):

@@ -570,11 +570,20 @@ template < typename T > struct let {
    * @param var Variable to scope.
    * @param value temporary value to assign.
    */
+  let(T & var, T const& value);
+
+  /** Construct a scope.
+   *
+   * @param var Variable to scope.
+   * @param value temporary value to assign.
+   */
   let(T & var, T && value);
+
   ~let();
 };
 
-template < typename T > let<T>::let(T& var, T&& value) : _var(var), _value(var)  { _var = value; }
+template < typename T > let<T>::let(T& var, T const& value) : _var(var), _value(var)  { _var = value; }
+template < typename T > let<T>::let(T& var, T && value) : _var(var), _value(std::move(var))  { _var = value; }
 
 template < typename T > let<T>::~let() { _var = _value; }
 

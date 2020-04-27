@@ -29,10 +29,12 @@ public:
   /** Function to create an instance from YAML configuration.
    * @param cfg The configuration state object.
    * @param mod_node The YAML node for the feature modifier.
-   * @param key_node The YAML node in @a mod_node that identified the modifier.
+   * @param key The name of @a mod_node, the key name matched to select this modifier.
+   * @param arg The argument in the key, if any.
+   * @param key_value The YAML node in @a mod_node that identified the modifier.
    * @return A handle for the new instance, or errors if any.
    */
-  using Worker = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node const& mod_node, YAML::Node const& key_node)>;
+  using Worker = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node mod_node, swoc::TextView key, swoc::TextView arg, YAML::Node key_value)>;
 
   virtual ~Modifier() = default;
 
@@ -54,7 +56,10 @@ public:
    * @return The modified feature.
    */
   virtual swoc::Rv<Feature> operator()(Context& ctx, std::monostate) { return NIL_FEATURE; }
+
+  // Do-nothing base implementations - subclasses should override methods for supported types.
   virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature) { return NIL_FEATURE; }
+  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<IP_ADDR> feature) { return NIL_FEATURE; }
 
   /** Check if the comparison is valid for @a type.
    *

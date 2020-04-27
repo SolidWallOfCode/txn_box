@@ -1539,6 +1539,7 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc:
 }
 
 Errata Do_redirect::type_init(Config &cfg) {
+  // WRONG - this is per directive type, not per instance.
   cfg.reserve_ctx_storage(sizeof(TextView));
   return {};
 }
