@@ -24,7 +24,7 @@ using swoc::Rv;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
-swoc::Lexicon<ValueType> ValueTypeNames {{
+swoc::Lexicon<ValueType> const ValueTypeNames {{
     { ValueType::NIL, "nil" }
   , { ValueType::STRING, "string"}
   , { ValueType::INTEGER, "integer"}

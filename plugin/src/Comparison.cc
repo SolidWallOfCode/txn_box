@@ -584,8 +584,9 @@ bool Cmp_RxpList::operator()(Context &ctx, FeatureView const& active) const {
 }
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<BoolTag> BoolNames { { BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
-                                   , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}
+swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
+                                        , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
+                                       , BoolTag::INVALID
 };
 
 /** Compare a boolean value.
@@ -1116,8 +1117,6 @@ namespace {
   Comparison::define(Cmp_all_of::KEY, Cmp_all_of::TYPES, Cmp_all_of::load);
   Comparison::define(Cmp_any_of::KEY, Cmp_any_of::TYPES, Cmp_any_of::load);
   Comparison::define(Cmp_as_tuple::KEY, Cmp_as_tuple::TYPES, Cmp_as_tuple::load);
-
-  BoolNames.set_default(BoolTag::INVALID);
 
   return true;
 } ();
