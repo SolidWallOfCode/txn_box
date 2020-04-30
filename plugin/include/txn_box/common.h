@@ -425,7 +425,7 @@ static constexpr swoc::TextView ACTIVE_FEATURE_KEY { "..." };
 static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "*" };
 
 /// Conversion between @c ValueType and printable names.
-extern swoc::Lexicon<ValueType> ValueTypeNames;
+extern swoc::Lexicon<ValueType> const ValueTypeNames;
 
 /// Supported hooks.
 /// @internal These must be in order because that is used to check if the value for the _when_
@@ -523,7 +523,7 @@ enum BoolTag {
 };
 /// Mapping of strings to boolean values.
 /// This is for handling various synonymns in a consistent manner.
-extern swoc::Lexicon<BoolTag> BoolNames;
+extern swoc::Lexicon<BoolTag> const BoolNames;
 
 /// Container for global data.
 struct Global {
