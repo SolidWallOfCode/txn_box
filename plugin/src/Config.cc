@@ -381,7 +381,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   if (literal_p) {
     FeatureTuple t = this->span<Feature>(xa.size());
     unsigned idx = 0;
-    for ( auto f : t) {
+    for ( auto & f : t) {
       f = std::get<Expr::LITERAL>(xa[idx++]._expr);
     }
     expr._expr = t;
