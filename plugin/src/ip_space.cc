@@ -372,8 +372,8 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
     // Iterate over the columns. If the input data runs out, then @a token becomes the empty
     // view, which the various cases deal with (in most an empty token isn't a problem).
     // This guarantees that every column in every row is initialized.
-    for ( unsigned idx = 1 ; idx < _cols.size() ; ++idx ) {
-      Column& c = _cols[idx];
+    for (unsigned col_idx = 1 ; col_idx < _cols.size() ; ++col_idx ) {
+      Column& c = _cols[col_idx];
       MemSpan<void> data{row.data() + c._row_offset, c._row_size};
       token = line.take_prefix_at(',').ltrim_if(&isspace);
       switch (c._type) {
@@ -392,10 +392,10 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
         }
           break;
         case Column::ENUM:
-          if (auto tidx = c._tags[token] ; INVALID_TAG == tidx) {
+          if (auto idx = c._tags[token] ; INVALID_TAG == idx) {
             return Error(R"("{}" is not a valid tag for column {}{} at line {}.)", token, c._idx, bwf::Optional(R"( "{}")", c._name), line_no);
           } else {
-            if (AUTO_TAG == tidx) {
+            if (AUTO_TAG == idx) {
               idx = c._tags.count();
               c._tags.define(idx, token);
             }
@@ -406,11 +406,11 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
           TextView key;
           BitSpan bits { data };
           bits.reset(); // start with no bits set.
-          while (! (key = token.take_prefix_if([](char c)->bool{return !('-' == c || '_' ==c || isalnum(c));})).empty()) {
+          while (! (key = token.take_prefix_if([](char c)->bool{return !('-' == c || '_' == c || isalnum(c));})).empty()) {
             if (auto idx = c._tags[key] ; idx >= 0) {
               bits[idx] = true;
             } else {
-              return Error(R"("{}" is not a valid tag for column {}{} at line {}.)", token, c._idx, bwf::Optional(R"( "{}")", c._name), line_no);
+              return Error(R"("{}" is not a valid tag for column {}{} at line {}".)", key, c._idx, bwf::Optional(R"( "{}")", c._name), line_no);
             }
           }
         }
@@ -465,15 +465,15 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
     } else {
       // key value must be a string or a tuple of strings.
       auto &&[tags_expr, tags_errata]{cfg.parse_expr(tags_node)};
-      if (!type_errata.is_ok()) {
-        type_errata.info("While parsing {} key at {} in {} at {}.", VALUES_TAG, node.Mark(), COLUMNS_TAG, node.Mark());
+      if (!tags_errata.is_ok()) {
+        tags_errata.info("While parsing {} key at {} in {} at {}.", VALUES_TAG, tags_node.Mark(), COLUMNS_TAG, node.Mark());
         return std::move(type_errata);
       }
-      if (! type_expr.is_literal()) {
-        return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, name_node.Mark(), COLUMNS_TAG, node.Mark());
+      if (! tags_expr.is_literal()) {
+        return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, tags_node.Mark(), COLUMNS_TAG, node.Mark());
       }
       col._tags.set_default(INVALID_TAG);
-      Feature lit = std::get<Expr::LITERAL>(type_expr._expr);
+      Feature lit = std::get<Expr::LITERAL>(tags_expr._expr);
       if (ValueTypeOf(lit) == TUPLE) {
         for ( auto f : std::get<IndexFor(TUPLE)>(lit)) {
           if (ValueTypeOf(f) != STRING) {
@@ -588,6 +588,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   auto && [ space_info, space_errata ] = self->parse_space(cfg, content);
   if (! space_errata.is_ok()) {
     space_errata.info(R"(While parsing IPSpace file "{}" in space "{}".)", self->_path, self->_name);
+    return std::move(space_errata);
   }
   self->_space = space_info;
 
@@ -804,25 +805,24 @@ Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
   auto info = spec._data.rebind<Info>().data();
   auto & col = info->_drtv->_cols[info->_idx];
   auto & ctx_ai = ctx.storage_for(info->_drtv).rebind<CtxActiveInfo>()[0];
-  auto data = col.data_in_row(ctx_ai._row);
-  switch (col._type) {
-    case Do_ip_space_define::Column::STRING:
-      return FeatureView::Literal(data.rebind<TextView>()[0]);
-    case Do_ip_space_define::Column::INTEGER:
-      return { data.rebind<feature_type_for<INTEGER>>()[0] };
-    case Do_ip_space_define::Column::ENUM:
-      return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
-    case Do_ip_space_define::Column::FLAGS: {
-      auto t = ctx.span<feature_type_for<TUPLE>>(1)[0];
-      auto bits = BitSpan(data);
-      auto n_bits = bits.count();
-      t = ctx.span<Feature>(n_bits);
-      for ( unsigned idx = 0, t_idx = 0 ; idx < col._tags.count() ; ++idx ) {
-        if (bits[idx]) {
-          t[t_idx++] = FeatureView::Literal(col._tags[idx]);
+  if (ctx_ai._row) {
+    auto data = col.data_in_row(ctx_ai._row);
+    switch (col._type) {
+      case Do_ip_space_define::Column::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
+      case Do_ip_space_define::Column::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
+      case Do_ip_space_define::Column::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
+      case Do_ip_space_define::Column::FLAGS: {
+        auto t = ctx.span<feature_type_for<TUPLE>>(1)[0];
+        auto bits = BitSpan(data);
+        auto n_bits = bits.count();
+        t = ctx.span<Feature>(n_bits);
+        for (unsigned idx = 0, t_idx = 0; idx < col._tags.count(); ++idx) {
+          if (bits[idx]) {
+            t[t_idx++] = FeatureView::Literal(col._tags[idx]);
+          }
         }
+        return {t};
       }
-      return { t };
     }
   }
   return NIL_FEATURE;
