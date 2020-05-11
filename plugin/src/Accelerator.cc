@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <txn_box/common.h>
 #include <txn_box/Accelerator.h>
 
 using swoc::TextView;
@@ -28,5 +27,5 @@ namespace {
 
 // --- //
 
-}; // namespace
+} // namespace
 

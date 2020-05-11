@@ -910,7 +910,7 @@ protected:
   TextView key() const override { return KEY; }
 };
 
-const std::string Do_proxy_req_field::KEY {"proxy_req-field" };
+const std::string Do_proxy_req_field::KEY {"proxy-req-field" };
 const HookMask Do_proxy_req_field::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
 Errata Do_proxy_req_field::invoke(Context &ctx) {
