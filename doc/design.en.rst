@@ -1,7 +1,6 @@
 .. include:: /common.defs
 
-.. highlight:: cpp
-.. default-domain:: cpp
+.. highlight:: yaml
 
 .. _design:
 
@@ -56,6 +55,43 @@ most of the use cases. In particular these are
 
 Notes
 *****
+
+Overall Design
+===============
+
+Where possible I have designed to provide fewer but more flexible features that can be used in a
+variety of combinations, as opposed to more specialized mechanisms that work for specific cases.
+
+There are several purposes to this project.
+
+*  Providing a more generalized set of operations for working with transactions. This primarily
+   involved separating data access from data use, making them orthogonal. This makes any data that
+   can be extracted usable for any purpose.
+
+*  Consolidating transaction manipulation so that rather than a constellation of distinct plugins
+   with different syntax and restrictions, |TxB| provides a single toolbox sufficient for
+   most needs. A consequence of this is that |TxB| will replace a number of current plugins.
+
+*  Being extensible, so that it is easier to add new mechanisms to |TxB| than to create a
+   new plugin for some task.
+
+*  Configuration based on YAML
+
+   *  Standarization, as YAML is a popular mark up language.
+
+   *  Consistency with the future of |TS| which is converting to YAML for all configuration.
+
+   *  Exteral tool support - there is no shortage of YAML oriented tools available.
+
+|TxB| uses `libswoc <http://github.com/SolidWallOfCode/libswoc.git>`__ and `YAML CPP
+<https://github.com/jbeder/yaml-cpp>`__.
+
+.. note::
+
+   The code and this documentation is under rapid development, sections may already be outdated. In
+   addition, much of this has yet to be implemented and represents future work. Time permitting,
+   this will be made clearer.
+
 
 Extraction and Selection
 ========================
@@ -148,16 +184,16 @@ Directive / Extractor Parameters
 ================================
 
 In practice, many directives and extractors work better if a parameter can be supplied. The classic
-example is :code:`preq-field` which sets a field in the proxy request. This needs two values, the
+example is :code:`proxy-req-field` which sets a field in the proxy request. This needs two values, the
 name of the field and the value to set. Originally this was done by passing in a list as ::
 
-   preq-field: [ "X-txn-box", "active" ]
+   proxy-req-field: [ "X-txn-box", "active" ]
 
 to set the "X-txn-box" to the value "active". Overall when using this I found it a bit clunky and
 decided to support parameters for the directive, so that this becomes ::
 
-   preq-field@X-txn-box: "active"
-o
+   proxy-req-field@X-txn-box: "active"
+
 I haven't managed to get much feedback on this concept, but I think overall the lack of need to do
 list syntax for such a common operation. One advantage is this can be used with extractors, although
 this leaves the question of why not use the format extension? The one point is having the same
@@ -166,7 +202,7 @@ syntax for both is a benefit, which is not possible with the format extension.
 Note this prevents using extraction to get the field name.
 If that turns out to be a problem I would probably make such directives have an alternate form ::
 
-   preq-field:
+   proxy-req-field:
      name: "X-tnx-box"
      value: "active"
 

@@ -6,7 +6,7 @@ txn_box:
 
 - when: preq
   do:
-  - preq-field<TxnBox>: "Delain"
+  - proxy-req-field<TxnBox>: "Delain"
   - debug: var<Delain>
 
 - when: prsp

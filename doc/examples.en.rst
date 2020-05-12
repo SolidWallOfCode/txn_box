@@ -14,12 +14,12 @@ Default Accept-Encoding
 
 .. sidebar:: Production Issue
 
-The goal is to set the "Accept-Encoding" field to the value "indentity" if it is not already set.
+   The goal is to set the "Accept-Encoding" field to the value "indentity" if it is not already set.
 
 .. literalinclude:: "../autest/accept-encoding/config.yaml
 
 This acts on the proxy request hook. The "Accept-Encoding" field is extracted and then modified
-using the :txnbox:mod:`else` which
+using the :txb:mod:`else` which
 
 Traffic Ramping
 ===============

@@ -33,8 +33,11 @@ Glossary
    extractor
       A mechanism which can performat :term:`extraction`.
 
-   feature string
-      A string that is used to extract a feature.
+   feature expression
+      A expression that describes how to extract a fature.
+
+   modifier
+      An object that modifies a feature in a feature expression.
 
    directive
       An action to perform.
@@ -44,3 +47,24 @@ Glossary
 
    comparison
       An operator that compares local data to a feature and indicates if the data matches the feature.
+
+   load time
+      The period of time during which a configuration is being loaded.
+
+   run time
+      When the configuration is being applied to network traffic.
+
+   hook
+      A |TS| hook, a particular point in the processing of network traffic.
+
+   argument
+      A value provided to a :term:`directive`, :term:`extractor`,:term:`modifier`, or :term:`comparison`.
+      An argument affects the behavior in various ways, specified by the particular element. Most
+      commonly it sets either the scope of the element or serves as a list of flags. Arguments are
+      always a string or a list of strings.
+
+   scope
+      A subtree of the YAML configuration where special data is available.
+
+   active
+      A scope that is currently accessible.

@@ -6,7 +6,7 @@
 .. _building:
 
 ***************
-Buiding
+Building
 ***************
 
 |TxB| building is based on `SCons <https://scons.org>`__ and `Parts
@@ -32,5 +32,5 @@ To build the plugin, first build and install Traffic Server. Then use the comman
 
    scons txn_box --with-trafficserver=<ts_path>
 
-where ``<ts_path`` is the path to a Traffic Server install. In general this wil be the same
+where ``<ts_path>`` is the path to a Traffic Server install. In general this wil be the same
 path as used for the ``prefix`` configuration option in Traffic Server.

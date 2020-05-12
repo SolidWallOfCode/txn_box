@@ -95,14 +95,14 @@ For this directive, the directive would look like
 
    do:
    - set-preq-host: example.one
-   - set-preq-field.x-host-valid: true
+   - set-proxy-req-field.x-host-valid: true
 
 The "do" key contains a list of directives, each of which is an object. The first such object is the
 "set-preq-host" object. It will be invoked with :code:`drtv_node` being the object in the list for
 "do", while :code:`name` will be "set-preq-host" and :code:`key_value` the value for the
-"set-preq-host" key, that is "example.one". For illustrative purposes, a "set-preq-field" directive
+"set-preq-host" key, that is "example.one". For illustrative purposes, a "set-proxy-req-field" directive
 follows, which is handled in the same way. For that, :code:`drtv_node` is the second object in the
-list, :code:`name` is "set-preq-field", :code:`arg` is "x-host-valid", and :code:`key_value` is "true".
+list, :code:`name` is "set-proxy-req-field", :code:`arg` is "x-host-valid", and :code:`key_value` is "true".
 
 A more complex example would be
 

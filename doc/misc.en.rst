@@ -29,9 +29,9 @@ Issues
    *  If the comparison is omitted, it always matches.
    *  If the ``do`` is omitted, then nothing is done.
 
-.. codeblock::
+.. code-block:: yaml
 
-   with: creq-host
+   with: ua-req-host
    select:
    -  suffix: ".org"
       do:
@@ -57,8 +57,8 @@ Due to history and bad practices, working with the fields in an HTTP message can
 Unfortunately this makes the configuration for these more intricate.
 
 The general case, where there is a single field with a single value it straight forward. A field
-extractor (such as :txb:exf:`preq-field`) can be used to get the value, and a field directive
-(such as :txb:drtv:`preq-field`) to change it.
+extractor (such as :txb:exf:`proxy-req-field`) can be used to get the value, and a field directive
+(such as :txb:drtv:`proxy-req-field`) to change it.
 
 Some fields are defined to be `multi-valued <https://tools.ietf.org/html/rfc7230#section-3.2.6>`__
 in which case the field value is really a list. On the other hand, there are exceptions to this
@@ -80,7 +80,7 @@ In the case of single valued field such as "Server" fields, the value is extract
 ``ursp-field<Server>` and can be changed with the directive ``ursp-field<Server>``. Here is an
 example that looks at the "Transfer-Encoding" field to check for chunked encoding ::
 
-   with: ursp-field<Transfer-Encoding>
+   with: upstream-field<Transfer-Encoding>
    select:
    -  match<nc>: "chunked"
       do:
@@ -89,7 +89,7 @@ example that looks at the "Transfer-Encoding" field to check for chunked encodin
 Another example is setting the "Server" field to "TxnBox-Enhanced-Server" if it is not already set
 ::
 
-   ursp-field<Server>: [ ursp-field<Server> , { else: "TxnBox-Enhanced-Server" } ]
+   upstream-field<Server>: [ upstream-field<Server> , { else: "TxnBox-Enhanced-Server" } ]
 
 TBD: Tuple / multi-valued fields.
 
@@ -115,48 +115,48 @@ for-none
 For performance reasons the comparison ends as soon as the result is known. For example ``for-all``
 stops as soon as any comparison doesn't match.
 
-The comparison ``tuple`` takes a list of comparisons and applies them in order to the list. Any of
-the list comparisons can be used as the last comparison of a tuple in which case it is applied to
-the remaining elements of the tuple. Note an empty comparison always matches which
-can be used to skip elements in the tuple.
+The comparison :txb:cmp:`as-tuple` takes a list of comparisons and applies them in order to the
+list. Any of the list comparisons can be used as the last comparison of a tuple in which case it is
+applied to the remaining elements of the tuple. Note an empty comparison always matches which can be
+used to skip elements in the tuple.
 
 As an example, to check if any element of the "Via" field has the string "trafficserver" ::
 
-   with: creq-field<via>::by-value
+   with: ua-req-field<via>
    select:
    -  for-any:
       -  contains<nc>: "trafficserver"
       do: # invoked if any Via value matched
 
-Note selecting on just :code:`creq-field<via>` would only check the first "Via" field.
+Note selecting on just :code:`ua-req-field<via>` would only check the first "Via" field.
 
 Finally, for fields like "Set-Cookie", handling must be done by the actual fields in the message
 header. Here is an example that walks the "Set-Cookie" fields and if the domain is set to
 "example.one", that specific field is removed. ::
 
-   with: ursp-field<Set-Cookie>::by-field
+   with: upstream-rsp-field<Set-Cookie>
    for-each:
    -  with: ...
       select:
       -  contains<nc>: "Domain=example.one;"
          do:
-         -  ursp-field<...>: NULL
+         -  upstream-field<...>: NULL
 
 The notation "..." is a reference to the active feature, just as it as an extractor. Not all
 directives support this - if one does, this is noted in the deescription along with the associated
 extractor(s) that extract a corresponding active feature. In particular, a field directive of
 this form can only be used with an active feature by the corresponding extractor. In this case,
-``creq-field<...>`` would be invalid, only ``ursp-field<...>`` will work because the active feature
-was extracted by the ``ursp-field`` extractor.
+``ua-req-field<...>`` would be invalid, only ``upstream-rsp-field<...>`` will work because the active feature
+was extracted by the ``upstream-rsp-field`` extractor.
 
 It's interesting to compare this to an alternative that looks similar but isn't quite the same ::
 
-   with: ursp-field<Set-Cookie>::by-field
+   with: upstream-rsp-field<Set-Cookie>::by-field
    select:
    -  for-all:
       -  contains<nc>: "Domain=example.one;"
          do:
-         -  ursp-field<...>: NULL
+         -  upstream-rsp-field<...>: NULL
 
 The difference is ``for-all`` is a comparison and will stop at the first element that doesn't match.
 ``for-each`` will always do all elements. Similar differences exist if ``for-any`` or ``for-none``
@@ -208,7 +208,7 @@ to the ``GET``, ``POST``, and ``HEAD`` methods, this could be done wth ::
                match: [ "GET", "POST", "HEAD" ]
             do:
                deny:
-      -  preq-field@Access: "Allowed" # mark OK and let the request go through.
+      -  proxy-req-field@Access: "Allowed" # mark OK and let the request go through.
 
 If the method is not one of the allowed ones, the :code:`select` matches resulting in a denial.
 Otherwise, because there is no match, further directives in the outside :code:`select` continue

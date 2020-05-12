@@ -44,4 +44,10 @@ static:
 	if [ ! -d "static" ] ; then mkdir static; fi
 
 docbuild/html/src:
-	@if [ ! -r docbuild/html/src ] ; then mkdir -p docbuild/html; ln -s ../../doxygen/html docbuild/html/src ; fi
+	@if [ ! -d docbuild/html/src ] ; then mkdir -p docbuild/html; ln -s ../../doxygen/html docbuild/html/src ; fi
+
+doxygen:
+	doxygen
+
+publish: clean doxygen html
+	( cd docbuild/html ; tar cfh /tmp/txn_box_doc.tar *)
