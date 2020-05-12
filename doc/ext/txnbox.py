@@ -21,28 +21,43 @@ import sphinx
 import re
 
 def txb_value_type_options(argument):
-    return directives.choice(argument, ('NULL', 'string', 'integer', 'boolean'))
+    return directives.choice(argument, ('NULL', 'string', 'integer', 'boolean', 'ip-address', 'duration'))
+
+def txb_make_field(self, tag, value):
+    field = nodes.field()
+    field.append(nodes.field_name(text=tag))
+    body = nodes.field_body()
+    if isinstance(value, str):
+        body.append(sphinx.addnodes.compact_paragraph(text=value))
+    else:
+        body.append(value)
+    field.append(body)
+    return field
 
 class TxbDirective(std.Target):
     """
-    Directive description.
-
-    Descriptive text should follow, indented.
-
-    Then the bulk description (if any) undented. This should be considered equivalent to the Doxygen
-    short and long description.
+    Transaction Box Directive.
     """
 
-    required_arguments = 1
+    make_field = txb_make_field
+
+    required_arguments = 1 # name of directive
     optional_arguments = 0
-    final_argument_whitespace = True
+    final_argument_whitespace = False
     has_content = True
+
+    option_spec = {
+        'class': rst.directives.class_option,
+        'arg': rst.directives.unchanged,
+        'value': rst.directives.unchanged,
+        'keys': rst.directives.unchanged
+    }
 
     # External entry point
     def run(self):
         env = self.state.document.settings.env
-        txb_name = self.arguments[0];
-        txb_id = nodes.make_id(txb_name);
+        txb_name = self.arguments[0]
+        txb_id = nodes.make_id(txb_name)
 
         # First, make a generic desc() node to be the parent.
         node = sphinx.addnodes.desc()
@@ -51,6 +66,7 @@ class TxbDirective(std.Target):
 
         # Next, make a signature node. This creates a permalink and a highlighted background when the link is selected.
         title = sphinx.addnodes.desc_signature(txb_name, '')
+        title['ids'].append(txb_name)
         title['ids'].append(txb_id)
         title['names'].append(txb_name)
         title['first'] = False
@@ -63,7 +79,6 @@ class TxbDirective(std.Target):
         title += sphinx.addnodes.desc_name(txb_name, txb_name)
 
         node.append(title)
-
         if ('class' in self.options):
             title.set_class(self.options.get('class'))
 
@@ -74,22 +89,23 @@ class TxbDirective(std.Target):
         self.state.document.note_explicit_target(title)
         env.domaindata['txb']['directive'][txb_name] = env.docname
 
+        fl = nodes.field_list()
+        if ('keys' in self.options):
+            fl.append(self.make_field('Secondary Keys', self.options['keys']))
+        if ('arg' in self.options):
+            fl.append(self.make_field('Argument', self.options['arg']))
+        if ('value' in self.options):
+            fl.append(self.make_field('Value', self.options['value']))
+
         # Get any contained content
         nn = nodes.compound()
         self.state.nested_parse(self.content, self.content_offset, nn)
 
         # Create an index node so that Sphinx adds this directive to the index.
         indexnode = sphinx.addnodes.index(entries=[])
-        if sphinx.version_info >= (1, 4):
-            indexnode['entries'].append(
-                ('single', _('%s') % txb_name, txb_id, '', '')
-            )
-        else:
-            indexnode['entries'].append(
-                ('single', _('%s') % txb_name, txb_id, '')
-            )
+        indexnode['entries'].append(('single', _('%s') % txb_name, txb_id, '', ''))
 
-        return [indexnode, node, nodes.field_list(), nn]
+        return [indexnode, node, fl, nn]
 
 
 class TxbExtractor(std.Target):
@@ -107,7 +123,11 @@ class TxbExtractor(std.Target):
     final_argument_whitespace = True
     has_content = True
 
+    make_field = txb_make_field
+
     option_spec = {
+        'class': rst.directives.class_option,
+        'arg': rst.directives.unchanged,
         'result': txb_value_type_options
     }
 
@@ -150,6 +170,8 @@ class TxbExtractor(std.Target):
         fl = nodes.field_list()
         if ('result' in self.options):
             fl.append(self.make_field('Result', sphinx.addnodes.literal_emphasis(self.options['result'])))
+        if ('arg' in self.options):
+            fl.append(self.make_field('Argument', self.options['arg']))
 
         # Get any contained content
         nn = nodes.compound()
@@ -159,7 +181,7 @@ class TxbExtractor(std.Target):
         indexnode = sphinx.addnodes.index(entries=[])
         indexnode['entries'].append(('single', _('%s') % txb_name, txb_id, '', ''))
 
-        return [indexnode, node, nodes.field_list(), nn]
+        return [indexnode, node, fl, nn]
 
 class TxbDirectiveRef(XRefRole):
     def process_link(self, env, ref_node, explicit_title_p, title, target):
@@ -172,23 +194,27 @@ class TxbExtractorRef(XRefRole):
 class TxbComparison(std.Target):
     """
     Comparison description.
-
-    Descriptive text should follow, indented.
-
-    Then the bulk description (if any) undented. This should be considered equivalent to the Doxygen
-    short and long description.
     """
+    make_field = txb_make_field
 
     required_arguments = 1
     optional_arguments = 0
-    final_argument_whitespace = True
+    final_argument_whitespace = False
     has_content = True
+
+    option_spec = {
+        'class': rst.directives.class_option,
+        'arg': rst.directives.unchanged,
+        'type': rst.directives.unchanged,
+        'groups': rst.directives.unchanged,
+        'tuple': rst.directives.flag
+    }
 
     # External entry point
     def run(self):
         env = self.state.document.settings.env
-        txb_name = self.arguments[0];
-        txb_id = nodes.make_id(txb_name);
+        txb_name = self.arguments[0]
+        txb_id = nodes.make_id(txb_name)
 
         # First, make a generic desc() node to be the parent.
         node = sphinx.addnodes.desc()
@@ -209,9 +235,18 @@ class TxbComparison(std.Target):
         title += sphinx.addnodes.desc_name(txb_name, txb_name)
 
         node.append(title)
-
         if ('class' in self.options):
             title.set_class(self.options.get('class'))
+
+        fl = nodes.field_list()
+        if ('arg' in self.options):
+            fl.append(self.make_field('Argument', self.options['arg']))
+        if ('type' in self.options):
+            fl.append(self.make_field('Value Types', self.options['type']))
+        if ('tuple' in self.options):
+            fl.append(self.make_field('List matching', sphinx.addnodes.literal_emphasis(text='enabled')))
+        if ('groups' in self.options):
+            fl.append(self.make_field('Groups', self.options['groups']))
 
         # This has to be a distinct node before the title. if nested then the browser will scroll forward to just past the title.
         anchor = nodes.target('', '', names=[txb_name])
@@ -228,7 +263,7 @@ class TxbComparison(std.Target):
         indexnode = sphinx.addnodes.index(entries=[])
         indexnode['entries'].append(('single', _('%s') % txb_name, txb_id, '', ''))
 
-        return [indexnode, node, nodes.field_list(), nn]
+        return [indexnode, node, fl, nn]
 
 class TxbComparisonRef(XRefRole):
     def process_link(self, env, ref_node, explicit_title_p, title, target):
@@ -245,21 +280,22 @@ class TxnBoxDomain(Domain):
 
     object_types = {
         'directive': ObjType(_('Directive'), 'directive'),
-        'extractor': ObjType(_('Extractor'), 'extractor')
+        'extractor': ObjType(_('Extractor'), 'extractor'),
+        'comparison': ObjType(_('Comparison'), 'comparison'),
+        'modifier': ObjType(_('Modifier'), 'modifier')
     }
 
     directives = {
         'directive': TxbDirective,
         'extractor': TxbExtractor,
-        'comparison': TxbComparison
+        'comparison': TxbComparison,
+#        'modifier': TxbModifier
     }
 
 
     roles = {
-        'directive': TxbDirectiveRef(),
-        'extractor': TxbExtractorRef(),
+        'drtv': TxbDirectiveRef(),
         'ex': TxbExtractorRef(),
-        'comparison': TxbComparisonRef(),
         'cmp': TxbComparisonRef(),
     }
 
@@ -292,12 +328,14 @@ class TxnBoxDomain(Domain):
     def find_doc(self, key, obj_type):
         zret = None
 
-        if obj_type == 'directive':
+        if obj_type == 'drtv':
             obj_list = self.data['directive']
         elif obj_type == 'extractor':
             obj_list = self.data['extractor']
-        elif obj_type == 'comparison':
+        elif obj_type == 'cmp':
             obj_list = self.data['comparison']
+        elif obj_type == 'ex':
+            obj_list = self.data['extractor']
         else:
             obj_list = None
 

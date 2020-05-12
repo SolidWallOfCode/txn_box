@@ -5,7 +5,7 @@ txn_box:
     select:
     - true:
       do:
-      - set-preq-field: [ X-swoc, "internal: {is-internal:s}" ]
+      - set-proxy-req-field: [ X-swoc, "internal: {is-internal:s}" ]
     - false:
       do:
-      - set-preq-field: [ X-swoc, "from user agent: {is-internal:s}" ]
+      - set-proxy-req-field: [ X-swoc, "from user agent: {is-internal:s}" ]

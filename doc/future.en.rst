@@ -1,7 +1,6 @@
 .. include:: common.defs
 
-.. highlight:: cpp
-.. default-domain:: cpp
+.. highlight:: yaml
 
 .. _future:
 
@@ -32,7 +31,7 @@ ts-uuid
 Feature Modifiers
 =================
 
-The extracted feature can be post processed using options in the :code:`with`. This is done by
+The extracted feature can be post processed using options in the :txb:drtv:`with`. This is done by
 having a pair where the first element is the feature extraction, and the second is a map of options.
 Currently the only planned modifier is "hash".
 
@@ -72,10 +71,6 @@ in
 whatever
    Always match. As implied by the name this is useful only after other comparison operators, to
    serve as a "match all" or cleanup for transactions that did not match any of the previous cases.
-
-not
-   This is not a direct comparison, it must have as its value another comparison. The overall result
-   is the opposite of the contained comparison.
 
 Directives
 **********
@@ -354,7 +349,7 @@ strings to determine the appropriate action.
 
 Alternatively, if the goal were simply to mark the connection for upstreams, this could be done as ::
 
-   preq-field@X-Net-Type: [ cssn-remote-addr , { ip-space: [ "label", "net" ] } ]
+   proxy-req-field@X-Net-Type: [ cssn-remote-addr , { ip-space: [ "label", "net" ] } ]
 
 If the address is not in the IPSpace, the value of the field "X-Net-Type" in the upstream request
  will be the nil value and the field cleared. Otherwise it will be the string from the CSV file.

@@ -5,38 +5,73 @@
 
 .. _directive_reference:
 
-*******************
 Directive Reference
 *******************
 
-Directives
-**********
+Fundamental
+===========
+
+.. txb:directive:: when
+   :value: literal string
+
+   Specify the hook for other directives.
+
+.. txb:directive:: with
+
+    Do selection of directives.
 
 Client Request
 ==============
 
-.. txb::directive:: creq-url
+.. txb:directive:: ua-req-url
+   :value: string
 
-   Set the URL of the client request. This needs to be the full, parsable URL. To set more specific
-   elements of the URL use the more specific directives.
+   Set the URL of the client request to ;arg:`value`. This must be the full, parsable URL. To set
+   more specific elements of the URL use the more specific directives.
 
-.. txb:directive:: creq-host
+.. txb:directive:: ua-req-host
+   :value: string
 
-   Set the host for the client request.
+   Set the host for the client request to :arg:`value`.
 
 .. txb:directive:: creq-path
 
    Set the path in the client request URL.
 
-.. txb:directive:: creq-field
+.. txb:directive:: ua-req-field
+   :arg: *name*
+   :value: string, tuple of strings
 
-   Set the value of a field in the client request. This requires an argument which is the field name.
-   For example, to set the "X-Swoc" field to "Potzrebie" ::
+   Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
+   create a field for every element of the tuple and set the value for that field to the tuple
+   element.
 
-      creq-field<X-Swoc>: "Potzrebie"
+   Set the field names "X-Swoc" to "Potzrebie" ::
+
+      ua-req-field<X-Swoc>: "Potzrebie"
+
+Proxy Request
+=============
+
+.. txb:directive:: proxy-req-field
+   :arg: *name*
+   :value: string, tuple of strings.
+
+   Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
+   create a field for every element of the tuple and set the value for that field to the tuple
+   element. ::
+
+      ua-req-field<X-Swoc>: "Potzrebie"
 
 Transaction
 ===========
+
+.. txb:directive:: var
+   :arg: *name*
+   :value: *any*
+
+   Set the  transaction local variable :arg:`name` to :arg:`value`. :arg:`value` is evaluated in
+   the directive context and then stored in the variable.
 
 .. txb:directive:: redirect
 

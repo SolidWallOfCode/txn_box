@@ -5,14 +5,14 @@ txn_box:
     select:
     - suffix: ".org"
       do:
-      - set-preq-field: [ X-swoc, "it's the original!" ]
+      - set-proxy-req-field: [ X-swoc, "it's the original!" ]
       - debug: [ "swoc", "Debugging for {creq-host}" ]
     - suffix: ".com"
       do:
-      - set-preq-field:
+      - set-proxy-req-field:
         - X-swoc
         - Commercialized
       - debug: "Debugging for {creq-host}"
     - match: swoc.io
       do:
-      - set-preq-field: [ X-swoc, hometown ]
+      - set-proxy-req-field: [ X-swoc, hometown ]

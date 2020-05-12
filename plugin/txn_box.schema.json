@@ -39,7 +39,7 @@
         "Description": "An operation to perform.",
         "anyOf": [
           { "$ref": "#/definitions/txn_box/do-set-preq-host" },
-          { "$ref": "#/definitions/txn_box/do-set-preq-field" }
+          { "$ref": "#/definitions/txn_box/do-set-proxy-req-field" }
         ]
       },
       "do-set-preq-host": {
@@ -53,11 +53,11 @@
         },
         "required": [ "set-preq-host" ]
       },
-      "do-set-preq-field": {
+      "do-set-proxy-req-field": {
         "description": "Set a field in the proxy request.",
         "type": "object",
         "properties": {
-          "set-preq-field": {
+          "set-proxy-req-field": {
             "description": "A list of the field name and value.",
             "type": "array",
             "minItems": 2,
@@ -68,7 +68,7 @@
             ]
           }
         },
-        "required": [ "set-preq-field" ]
+        "required": [ "set-proxy-req-field" ]
       },
       "selection": {
         "description": "Select directives using an extracted feature.",

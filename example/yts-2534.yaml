@@ -1,4 +1,4 @@
 txn_box:
   when: preq
   do:
-    preq-field@Accept-Encoding: [ preq-field@Accept-Encoding, { else: "identity" } ]
+    proxy-req-field@Accept-Encoding: [ proxy-req-field@Accept-Encoding, { else: "identity" } ]

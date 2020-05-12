@@ -5,12 +5,12 @@ txn_box:
     select:
     - regex-nocase: "(.*?)[.]ORG"
       do:
-      - set-preq-field: [ X-swoc, "it's the original {1}!" ]
+      - set-proxy-req-field: [ X-swoc, "it's the original {1}!" ]
     - regex: "[.]com$"
       do:
-      - set-preq-field:
+      - set-proxy-req-field:
         - X-swoc
         - Commercialized
     - match: swoc.io
       do:
-      - set-preq-field: [ X-swoc, hometown ]
+      - set-proxy-req-field: [ X-swoc, hometown ]
