@@ -24,6 +24,7 @@ The automated end to end tests are written using the
 [AuTest](https://bitbucket.org/autestsuite/reusable-gold-testing-system/src/master/)
 test framework. To run the tests, build the following required dependencies:
 
+1. The package "python3-devel" - `sudo dnf install python3-devel`
 1. Build the `txn_box` Sconstruct target.
 1. Build [traffic_server](https://github.com/apache/trafficserver)
 1. Build [Proxy Verifier](https://github.com/yahoo/proxy-verifier)

@@ -60,4 +60,5 @@ include/tscpp
 /_vcs
 /_sdk
 /_unit_tests
+/test/autest/_sandbox/
 Pipfile.lock

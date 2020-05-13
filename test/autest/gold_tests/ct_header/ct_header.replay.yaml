@@ -4,50 +4,52 @@ meta:
   txn_box:
 
   # Set the ct-policy variable for later use in the transaction.
-  - when: creq
+  - when: ua-req
     do:
-    - with: cssn-proto<tls>
+    - with: inbound-protocol<tls>
       select:
       - prefix: "tls"
         do:
         - var<ct-policy>:
-          - creq-host
+          - ua-req-host
           - filter:
             - match: "u.protected.com"
               replace: "enforce"
             - replace: "report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\""
 
   # Remove all Cookies going to protected.com
-  - when: creq
+  - when: proxy-req
     do:
-    - with: creq-host
+    - with: proxy-req-host
       select:
       - tld: "protected.com"   # protected.com or any subdomain
         do:
-        - creq-field<Cookie>: NULL
+        - proxy-req-field<Cookie>: NULL
 
   # Filter out set-cookie fields concerning protected.com
-  - when: ursp
+  - when: upstream-rsp
     do:
-    - ursp-field<Set-Cookie>: # filter set-cookie fields
-      - ursp-field<Set-Cookie> # get the current list
+    - upstream-rsp-field<Set-Cookie>: # filter set-cookie fields
+      - upstream-rsp-field<Set-Cookie> # get the current list
       - filter: # keep the ones
         - none-of: # that do *not* match
           - rxp<nc>: "domain=(?:[^=]*[.])?protected[.]com" # this regex
 
-  - when: prsp
+  - when: proxy-rsp
     do:
     # set a referrer policy if not already present.
-    - prsp-field<Referrer-Policy>: [ prsp-field<Referrer-Policy>, { else: "no-referrer-when-downgrade" } ]
+    - proxy-rsp-field<Referrer-Policy>:
+      - proxy-rsp-field<Referrer-Policy>
+      - else: "no-referrer-when-downgrade"
 
     # For proxy response, fix up (add) the cross site fields if it's TLS.
-    - with: cssn-proto<tls>
+    - with: inbound-protocol<tls>
       select:
       - prefix: "tls"
         do:
-        - prsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
-        - prsp-field<X-XSS-Protection>: "1; mode=block"
-        - prsp-field<X-Content-Type-Options>: "nosniff"
+        - proxy-rsp-field<Expect-CT>: "max-age=31536000, {var<ct-policy>}"
+        - proxy-rsp-field<X-XSS-Protection>: "1; mode=block"
+        - proxy-rsp-field<X-Content-Type-Options>: "nosniff"
 
 sessions:
 

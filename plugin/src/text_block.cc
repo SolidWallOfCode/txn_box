@@ -63,7 +63,7 @@ public:
    */
   static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
-  static Errata type_init(Config& cfg);
+  static Errata cfg_init(Config& cfg);
 
 protected:
   using Map = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
@@ -228,7 +228,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   return std::move(handle);
 }
 
-Errata Do_text_block_define::type_init(Config &cfg) {
+Errata Do_text_block_define::cfg_init(Config &cfg) {
   // Note - @a h gets a pointer to the Handle.
   auto h = cfg.allocate_cfg_storage(sizeof(MapHandle)).rebind<MapHandle>().data();
   new (h) MapHandle(std::make_unique<Map>());
