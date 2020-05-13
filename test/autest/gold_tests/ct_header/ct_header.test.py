@@ -18,7 +18,7 @@ ts = Test.MakeATSProcess("ts")
 #
 r = Test.AddTestRun("Verify txn_box can filter fields as expected.")
 client = r.AddVerifierClientProcess(
-    "client1", ts, "replay_files/ct_header",
+    "client1", ts, "ct_header.replay.yaml",
     http_ports=[ts.Variables.port])
-server = r.AddVerifierServerProcess("server1", "replay_files/ct_header")
-r.ConfigureTsForTxnBox(ts, server, "replay_files/ct_header/ct_header.yaml")
+server = r.AddVerifierServerProcess("server1", "ct_header.replay.yaml")
+r.ConfigureTsForTxnBox(ts, server, "ct_header.replay.yaml")

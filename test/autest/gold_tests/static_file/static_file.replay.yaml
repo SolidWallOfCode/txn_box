@@ -1,0 +1,124 @@
+# Text block testing.
+
+meta:
+  version: "1.0"
+
+  txn_box:
+  - when: post-load
+    do:
+    - text-block-define:
+        name: "SWOC"
+        path: "../../static_file.txt"
+        duration: seconds<20>
+
+  - when: upstream-rsp
+    do:
+    - with: [ upstream-rsp-status , proxy-req-path ]
+      select:
+      - as-tuple:
+        - eq: 404
+        - match: "security.txt"
+        do:
+        - upstream-rsp-status: [ 200 , "OK" ]
+        - proxy-rsp-body: "Contents of security.txt"
+
+  txn-box-remap:
+  - when: proxy-rsp
+    do:
+    - proxy-rsp-field<SWOC>: [ proxy-rsp-field<SWOC>, { else: text-block<SWOC> }]
+
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/1"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/1"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 110
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 110 ]
+        - [ SWOC, upstream ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/2"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/2"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 120
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 120 ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ SWOC, Winning ]
+
+  - all: { headers: { fields: [[ uuid, 3 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/security.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/security.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
+      status: 404
+      reason: Not Found
+      content:
+        size: 130
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 130 ]
+    proxy-response:
+      status: 200
+
