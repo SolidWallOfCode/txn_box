@@ -1,6 +1,6 @@
 Import('*')
 PartName("txn_box")
-PartVersion("0.2.3")
+PartVersion("0.2.4")
 env.Part("txn_box.rpm.part")
 
 ts_ver = Version(env.subst(Component("trafficserver").DelaySubst("$PART_VERSION")))
