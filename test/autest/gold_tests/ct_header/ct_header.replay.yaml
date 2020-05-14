@@ -197,13 +197,13 @@ sessions:
       headers:
         fields:
         - [ Host, example.one ]
-        - [ Cookie, "w=some; delicous=cookie" ]
+        - [ Cookie, "w=some; delicious=cookie" ]
 
     proxy-request:
       method: "GET"
       headers:
         fields:
-        - [ Cookie, "w=some; delicous=cookie", equal ]
+        - [ Cookie, "w=some; delicious=cookie", equal ]
 
     server-response:
       status: 200
@@ -229,7 +229,7 @@ sessions:
       headers:
         fields:
         - [ Host, s.protected.com ]
-        - [ Cookie, "w=some; delicous=cookie" ]
+        - [ Cookie, "w=some; delicious=cookie" ]
 
     proxy-request:
       headers:
@@ -338,7 +338,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ set-cookie, [ "A1=d=AQABBO; Max-Age=31557600; Domain=.protected.com; Path=/; SameSite=Lax; Secure; HttpOnly" ], equal ]
+        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", equal ]
 
   #
   # Test 10: Filter out Set-Cookie fields with protected.com content when with two others.

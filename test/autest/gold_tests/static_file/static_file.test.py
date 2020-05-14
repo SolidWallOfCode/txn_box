@@ -24,9 +24,9 @@ client = r.AddVerifierClientProcess(
     http_ports=[ts.Variables.port])
 server = r.AddVerifierServerProcess("server1", "static_file.replay.yaml")
 r.ConfigureTsForTxnBox(ts, server, "static_file.replay.yaml")
-r.Setup.Copy("static_file.txt", Test.RunDirectory)
+ts.Setup.Copy("static_file.txt", ts.Variables.CONFIGDIR)
 ts.Disk.remap_config.AddLine(
-    'map http://example.one http://exmaple.one @plugin=txn_box.so @pparam=static_file.replay.yaml @pparam=meta.txn-box-remap'
+    'map http://example.one http://example.one @plugin=txn_box.so @pparam=../../static_file.replay.yaml @pparam=meta.txn-box-remap'
 )
 ts.Disk.records_config.update({
     'proxy.config.plugin.dynamic_reload_mode': 0,

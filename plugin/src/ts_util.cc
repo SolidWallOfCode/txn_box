@@ -465,12 +465,16 @@ void TaskHandle::cancel() {
   if (_action != nullptr) {
     TSMutex m = TSContMutexGet(_cont);
     auto data = static_cast<Data *>(TSContDataGet(_cont));
-    if (TSMutexLockTry(m)) {
+    // Work around for TS shutdown - if this is cleaned up during shutdown, it's done on TS_MAIN
+    // which is not an EThread, which crashes TSMutextTryLock. If that's the case, though, there's
+    // no point in worrying about locks because the ET_NET threads aren't running.
+    if (TSThreadSelf() == nullptr || TSMutexLockTry(m)) {
       TSActionCancel(_action);
       TSMutexUnlock(m);
       delete data;
       TSContDestroy(_cont);
     } else {
+      // Signal the task lambda (which has the lock) that it should clean up.
       bool canceled = false; // Need reference for first argument.
       data->_active.compare_exchange_strong(canceled, true);
     }
@@ -495,11 +499,17 @@ TaskHandle PerformAsTask(std::function<void ()> &&task) {
 }
 
 TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::milliseconds period) {
+  // The lambda runs under lock for the continuation mutex, therefore it can cancel as needed.
+  // External cancel tries the lock - if that happens it can cancel and prevent the lambda
+  // entirely. Otherwise it atomically sets @a _active to @c false.
   static auto lambda = [](TSCont contp, TSEvent ev_code, void *event) -> int {
     auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));
     if (data->_active) {
       data->_f();
-    } else {
+    }
+
+    // See if there as a request to cancel while busy.
+    if (! data->_active) {
       TSActionCancel(static_cast<TSAction>(event));
       delete data;
       TSContDestroy(contp);

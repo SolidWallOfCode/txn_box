@@ -57,13 +57,13 @@ public:
   /// Context state updates are done through the @c Context argument.
   /// @{
   virtual bool operator()(Context&, std::monostate) const { return false; }
-  virtual bool operator()(Context&, FeatureView const& view) const { return false; }
-  virtual bool operator()(Context&, intmax_t n) const { return false; }
-  virtual bool operator()(Context&, bool f) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<STRING> const& view) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<INTEGER> n) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<BOOLEAN> f) const { return false; }
   virtual bool operator()(Context&, feature_type_for<IP_ADDR> const& addr) const { return false; }
   virtual bool operator()(Context&, feature_type_for<DURATION> feature) const { return false; }
   virtual bool operator()(Context&, Cons const* cons) const { return false; }
-  virtual bool operator()(Context&, FeatureTuple const& tuple) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<TUPLE> const& tuple) const { return false; }
   virtual bool operator()(Context&, Generic const* g) const;
   /// @}
 
