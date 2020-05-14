@@ -306,7 +306,7 @@ Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
     expr_errata.info("While processing the expression at {}.", node.Mark());
     return std::move(expr_errata);
   }
-
+  auto scope { this->feature_scope(expr.result_type()) };
   for ( unsigned idx = 1 ; idx < node.size() ; ++idx ) {
     auto child { node[idx] };
     auto && [ mod, mod_errata ] {Modifier::load(*this, child, expr.result_type()) };
@@ -314,6 +314,7 @@ Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
       mod_errata.info(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
       return std::move(mod_errata);
     }
+    _active_feature._type = mod->result_type(_active_feature._type);
     expr._mods.emplace_back(std::move(mod));
   }
 

@@ -8,7 +8,7 @@ meta:
     do:
     - text-block-define:
         name: "SWOC"
-        path: "../../static_file.txt"
+        path: "static_file.txt"
         duration: seconds<20>
 
   - when: upstream-rsp
@@ -57,9 +57,12 @@ sessions:
         fields:
         - [ Content-Type, text/html ]
         - [ Content-Length, 110 ]
-        - [ SWOC, upstream ]
+        - [ SWOC, "upstream" ]
     proxy-response:
       status: 200
+      headers:
+        fields:
+        - [ SWOC, "upstream", equal ]
 
   - all: { headers: { fields: [[ uuid, 2 ]]}}
     client-request:
@@ -91,7 +94,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ SWOC, Winning ]
+        - [ SWOC, "Delain Concert.", equal ]
 
   - all: { headers: { fields: [[ uuid, 3 ]]}}
     client-request:

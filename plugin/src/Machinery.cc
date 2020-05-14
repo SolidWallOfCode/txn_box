@@ -820,6 +820,10 @@ protected:
         this->assign(text);
         _field = _field.next_dup(); // does nothing if @a _field is invalid.
       }
+      if (_field.is_valid()) {
+        this->clear_dups(); // Any remaining fields need to be cleaned up.
+        _field.destroy();
+      }
     }
 
     // Other types, do nothing.

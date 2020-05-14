@@ -311,6 +311,7 @@ Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView key
 
   if (auto errata = self->_cases.load(cfg, key_value) ; ! errata.is_ok()) {
     errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
+    return std::move(errata);
   }
 
   return std::move(handle);
