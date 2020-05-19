@@ -323,14 +323,7 @@ Feature Ex_ua_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
-    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
-      zret = url.host();
-      if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
-        if ( auto field { hdr.field(ts::HTTP_FIELD_HOST) } ; field.is_valid()) {
-          zret = field.value();
-        }
-      }
-    }
+    zret = hdr.host();
   }
   return zret;
 }
@@ -449,6 +442,20 @@ protected:
 TextView const& Ex_ua_req_field::key() const { return NAME; }
 ts::HttpHeader Ex_ua_req_field::hdr(Context & ctx) const {
   return ctx.creq_hdr();
+}
+// -----
+class Ex_proxy_req_field : public ExHttpField {
+public:
+  static constexpr TextView NAME { "proxy-req-field" };
+
+protected:
+  TextView const& key() const override;
+  ts::HttpHeader hdr(Context & ctx) const override;
+};
+
+TextView const& Ex_proxy_req_field::key() const { return NAME; }
+ts::HttpHeader Ex_proxy_req_field::hdr(Context & ctx) const {
+  return ctx.preq_hdr();
 }
 // -----
 class Ex_proxy_rsp_field : public ExHttpField {
@@ -898,6 +905,7 @@ Ex_proxy_req_host proxy_req_host;
 Ex_proxy_req_path proxy_req_path;
 Ex_proxy_req_url proxy_req_url;
 Ex_proxy_req_scheme proxy_req_scheme;
+Ex_proxy_req_field proxy_req_field;
 
 Ex_proxy_rsp_status proxy_rsp_status;
 Ex_proxy_rsp_field proxy_rsp_field;
@@ -946,6 +954,7 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_proxy_req_url::NAME, &proxy_req_url);
   Extractor::define(Ex_proxy_req_path::NAME, &proxy_req_path);
   Extractor::define(Ex_proxy_req_scheme::NAME, &proxy_req_scheme);
+  Extractor::define(Ex_proxy_req_field::NAME, &proxy_req_field);
 
   Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
   Extractor::define(Ex_proxy_rsp_field::NAME, &proxy_rsp_field);

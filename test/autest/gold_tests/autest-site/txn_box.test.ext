@@ -51,3 +51,63 @@ def ConfigureTsForTxnBox(run, ts, server, txn_box_config=None, txn_box_key='meta
 
 ##########################################################################
 ExtendTestRun(ConfigureTsForTxnBox, name="ConfigureTsForTxnBox")
+
+
+def TxnBoxTestRun(self, text, replay_path, **kw):
+  """
+  Set up a standard test run for TxnBox
+
+  Args:
+    text: Description for test run.
+    replay_path: Path to the replay file.
+  Keywords
+    replay: The replay file.
+  """
+
+  config_key = kw.get("config_key")
+  config_path = kw.get("config_path", replay_path)
+  run = self.AddTestRun(text)
+
+  ts = self.MakeATSProcess("ts")
+  run.Variables.TS = ts;
+  pv_client = run.AddVerifierClientProcess(
+    "pv-client", ts, replay_path,
+    http_ports=[ts.Variables.port])
+
+  pv_server = run.AddVerifierServerProcess("pv-server", replay_path)
+
+  # Put the txn_box.so into the sandbox.
+  plugin_dir = ts.Env['PROXY_CONFIG_PLUGIN_PLUGIN_DIR']
+  from os.path import dirname
+  git_root = dirname(dirname(dirname(ts.TestRoot)))
+  txn_box_lib = os.path.join(git_root, "lib", "txn_box.so")
+  ts.Setup.Copy(txn_box_lib, plugin_dir, CopyLogic.SoftFiles)
+
+  # Configure txn_box in Traffic Server.
+  txn_box_command = 'txn_box.so '
+
+  if config_key:
+    txn_box_command += ' --key {}'.format(config_key)
+
+  if config_path:
+    ts.Setup.Copy(config_path, ts.Variables.CONFIGDIR)
+    txn_box_command += ' --config {}'.format(os.path.basename(config_path))
+
+  ts.Disk.plugin_config.AddLine(txn_box_command)
+
+  # Configure Traffic Server to use the DNS process.
+  dns = self.MakeDNServer("dns", ip='127.0.0.1', default=['127.0.0.1'])
+
+  ts.Disk.records_config.update({
+    'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(dns.Variables.Port),
+    'proxy.config.dns.resolv_conf': 'NULL',
+#    'proxy.config.plugin.dynamic_reload': 0
+  })
+
+  run.Processes.Default.StartBefore(pv_server)
+  run.Processes.Default.StartBefore(ts, ready=When.PortOpen(ts.Variables.port))
+  run.Processes.Default.StartBefore(dns)
+
+  return run
+
+ExtendTest(TxnBoxTestRun, name="TxnBoxTestRun")

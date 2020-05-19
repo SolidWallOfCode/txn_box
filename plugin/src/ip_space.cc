@@ -243,12 +243,15 @@ protected:
 
   int _line_no = 0; ///< For debugging name conflicts.
 
+  /// YAML key names.
+  ///@{
   static const std::string NAME_TAG;
   static const std::string PATH_TAG;
   static const std::string COLUMNS_TAG;
   static const std::string DURATION_TAG;
   static const std::string TYPE_TAG;
   static const std::string VALUES_TAG;
+  ///@}
 
   SpaceHandle acquire_space() {
     std::shared_lock lock(_space_mutex);
