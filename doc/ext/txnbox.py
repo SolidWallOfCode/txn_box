@@ -107,7 +107,7 @@ class TxbDirective(std.Target):
 
         return [indexnode, node, fl, nn]
 
-
+#  Extractor support
 class TxbExtractor(std.Target):
     """
     Extractor description.
@@ -265,9 +265,83 @@ class TxbComparison(std.Target):
 
         return [indexnode, node, fl, nn]
 
-class TxbComparisonRef(XRefRole):
+class TxbRef(XRefRole):
     def process_link(self, env, ref_node, explicit_title_p, title, target):
         return title, target
+
+class TxbModifier(std.Target):
+    """
+    Transaction Box Modifier.
+    """
+
+    make_field = txb_make_field
+
+    required_arguments = 1 # name of modifier
+    optional_arguments = 0
+    final_argument_whitespace = False
+    has_content = True
+    obj_type = 'modifier'
+
+    option_spec = {
+        'class': rst.directives.class_option,
+        'expr': rst.directives.unchanged,
+        'value': rst.directives.unchanged,
+        'result': rst.directives.unchanged
+    }
+
+    # External entry point
+    def run(self):
+        env = self.state.document.settings.env
+        txb_name = self.arguments[0]
+        txb_id = nodes.make_id(txb_name)
+
+        # First, make a generic desc() node to be the parent.
+        node = sphinx.addnodes.desc()
+        node.document = self.state.document
+        node['objtype'] = self.obj_type
+
+        # Next, make a signature node. This creates a permalink and a highlighted background when the link is selected.
+        title = sphinx.addnodes.desc_signature(txb_name, '')
+        title['ids'].append(txb_name)
+        title['ids'].append(txb_id)
+        title['names'].append(txb_name)
+        title['first'] = False
+        title['objtype'] = self.obj_type
+        self.add_name(title)
+        title.set_class('modifier-title')
+
+        # Finally, add a desc_name() node to display the name of the
+        # configuration variable.
+        title += sphinx.addnodes.desc_name(txb_name, txb_name)
+
+        node.append(title)
+        if ('class' in self.options):
+            title.set_class(self.options.get('class'))
+
+        # This has to be a distinct node before the title. if nested then the browser will scroll forward to just past the title.
+        anchor = nodes.target('', '', names=[txb_name])
+        # Second (optional) arg is 'msgNode' - no idea what I should pass for that
+        # or if it even matters, although I now think it should not be used.
+        self.state.document.note_explicit_target(title)
+        env.domaindata['txb'][self.obj_type][txb_name] = env.docname
+
+        fl = nodes.field_list()
+        if ('keys' in self.options):
+            fl.append(self.make_field('Secondary Keys', self.options['keys']))
+        if ('arg' in self.options):
+            fl.append(self.make_field('Argument', self.options['arg']))
+        if ('value' in self.options):
+            fl.append(self.make_field('Value', self.options['value']))
+
+        # Get any contained content
+        nn = nodes.compound()
+        self.state.nested_parse(self.content, self.content_offset, nn)
+
+        # Create an index node so that Sphinx adds this directive to the index.
+        indexnode = sphinx.addnodes.index(entries=[])
+        indexnode['entries'].append(('single', _('%s') % txb_name, txb_id, '', ''))
+
+        return [indexnode, node, fl, nn]
 
 class TxnBoxDomain(Domain):
     """
@@ -289,26 +363,28 @@ class TxnBoxDomain(Domain):
         'directive': TxbDirective,
         'extractor': TxbExtractor,
         'comparison': TxbComparison,
-#        'modifier': TxbModifier
+        'modifier': TxbModifier
     }
-
 
     roles = {
         'drtv': TxbDirectiveRef(),
         'ex': TxbExtractorRef(),
-        'cmp': TxbComparisonRef(),
+        'cmp': TxbRef(),
+        'mod': TxbRef()
     }
 
     initial_data = {
         'directive': {},  # full name -> docname
         'extractor': {},
         'comparison': {},
+        'modifier': {}
     }
 
     dangling_warnings = {
         'directive': "No definition found for directive '%(target)s'",
         'extractor': "No definition found for extractor '%(target)s'",
-        'comparison': "No definition found for comparison '%(target)s'"
+        'comparison': "No definition found for comparison '%(target)s'",
+        'modifier': "No definition found for modifier '%(targets)s'"
     }
 
     def clear_doc(self, docname):
@@ -324,6 +400,10 @@ class TxnBoxDomain(Domain):
         for var, doc in list(tmp_list.items()):
             if doc == docname:
                 del tmp_list[var]
+        tmp_list = self.data['modifier'];
+        for var, doc in list(tmp_list.items()):
+            if doc == docname:
+                del tmp_list[var]
 
     def find_doc(self, key, obj_type):
         zret = None
@@ -336,6 +416,8 @@ class TxnBoxDomain(Domain):
             obj_list = self.data['comparison']
         elif obj_type == 'ex':
             obj_list = self.data['extractor']
+        elif obj_type == 'mod':
+            obj_list = self.data['modifier']
         else:
             obj_list = None
 
@@ -356,6 +438,8 @@ class TxnBoxDomain(Domain):
             yield var, var, 'extractor', doc, var, 1
         for var, doc in self.data['comparison'].items():
             yield var, var, 'comparison', doc, var, 1
+        for var, doc in self.data['modifier'].items():
+            yield var, var, 'modifier', doc, var, 1
 
 
 def setup(app):

@@ -8,6 +8,12 @@
 Design Notes
 ************
 
+.. toctree::
+   :maxdepth: 2
+
+   config.en
+   class-reference.en
+
 Background
 **********
 

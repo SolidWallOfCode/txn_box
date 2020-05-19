@@ -1,18 +1,19 @@
 .. include:: /common.defs
 
 .. highlight:: yaml
-.. default-domain:: cpp
+.. default-domain:: txb
 
 .. _extractor_reference:
 
 Extractor Reference
 *******************
 
-To obtain data for a feature an :term:`extractor` is used.
+A feature is created by applying a feature expression, which consists of a mix of literal strings
+and extractors.
 
 For convenience, because a single extractor is by far the most common case, unquoted strings
-are treated as a single extractor. Consider the extractor :txb:extractor:`ua-req-host`. This can be
-used in the following feature strings, presuming the host is "example.one".
+are treated as a single extractor. Consider the extractor :ex:`ua-req-host`. This can be
+used in the following feature expressions, presuming the host is "example.one".
 
 ============================== ==================================
 Feature String                 Extracted Feature
@@ -41,7 +42,12 @@ Extractors
    :result: string
 
    Host for the request. This is retrieved from the URL if present, otherwise from the ``Host``
-   field.
+   field. This does not include the port.
+
+.. extractor:: ua-req-port
+   :result: integer
+
+   The port for the request.
 
 .. txb:extractor:: ua-req-path
    :result: string
@@ -54,17 +60,27 @@ Extractors
    The scheme of client request.
 
 .. txb:extractor:: ua-req-field
-   :result: string
+   :result: NULL, string, string list
    :arg: name
 
    The value of a field in the client request. This requires a field name as a argument. To
    get the value of the "Host" field the extractor would be "ua-req-field<Host>". The field name is
    case insensitive.
 
+   If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
+   empty string which is returned if the field is present but has no value. If there are duplicate
+   fields then a string list is returned, each element of which corresponds to a field.
+
+.. extractor:: inbound-addr-remote
+   :result: IP address
+
+   The remote address for the inbound connection. This is also known as the "client address", the
+   address from which the connection originates.
+
 .. txb:extractor:: inbound-sni
    :result: string
 
-   The SNI name for the client session.
+   The SNI name sent on the inbound session.
 
 .. txb:extractor:: random
   :result: integer

@@ -1,7 +1,7 @@
 .. include:: /common.defs
 
 .. highlight:: yaml
-.. default-domain:: yaml
+.. default-domain:: txb
 
 .. _directive_reference:
 
@@ -18,25 +18,45 @@ Fundamental
 
 .. txb:directive:: with
 
-    Do selection of directives.
+   Do selection of directives.
 
-Client Request
-==============
+User Agent Request
+==================
 
-.. txb:directive:: ua-req-url
+.. directive:: ua-url
    :value: string
 
    Set the URL of the client request to ;arg:`value`. This must be the full, parsable URL. To set
    more specific elements of the URL use the more specific directives.
 
-.. txb:directive:: ua-req-host
+.. directive:: ua-req-host
    :value: string
 
-   Set the host for the client request to :arg:`value`.
+   Set the host for the client request to :arg:`value`. This updates both the URL and the ``Host``
+   field as needed. This has no effect on the request port.
 
-.. txb:directive:: creq-path
+.. directive:: ua-url-host
+   :value: string
 
-   Set the path in the client request URL.
+   Set the host in the URL for the client request to :arg:`value`. This has no effect on the
+   port.
+
+.. directive:: ua-req-port
+   :value: integer
+
+   Set the port for the request. This updates the URL and ``Host`` field as needed. This has no
+   effect on the host.
+
+.. directive:: ua-url-port
+   :value: integer
+
+   Set the port in the user agent request to :arg:`value`. This has no effect on the host in the
+   URL.
+
+.. directive:: ua-req-path
+   :value: string
+
+   Set the path in the client request to :arg:`value`. A leading slash is ignored.
 
 .. txb:directive:: ua-req-field
    :arg: *name*
@@ -94,16 +114,63 @@ Utility
 
 .. txb:directive:: debug
 
-   :code:`debug: <message>`
+  :code:`debug: <message>`
 
-   :code:`debug: [ <tag>, <message> ]`
+  :code:`debug: [ <tag>, <message> ]`
 
-   Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
-   the plugin tag "txn_box" is used.
+  Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
+  the plugin tag "txn_box" is used.
 
 
 IPSpace
 =======
+
+.. directive:: ip-space-define
+
+   This must be used on the ``post-load`` hook. It defines and loads an IP space. This is a mapping
+   from IP addresses to an array of data items, called a *row*. Each element of the array is a
+   *column* in the space, so that every address in the space maps to a row containing the same
+   columns. The input data is a CSV file where the first element is an IP address range, network,
+   or singleton. The other elements must correspond to the columns defined in this directive.
+
+   It has the following keys.
+
+   name
+      Name of the IP space.
+
+   path
+      Path to the IP space data file.
+
+   columns
+      Defines a data column. This has the keys
+
+      name
+         Name of the column. This is optional.
+
+      type
+         Type of the data in the column. This must be one of the strings
+
+         ``string``
+            A string value.
+
+         ``integer``
+            An integer value.
+
+         ``enum``
+            One of a set of specific string keys.
+
+         ``flags``
+            A subset of a set of specific string keys.
+
+      ``keys``
+         The strings that are the keys for ``enum`` or ``flags``. This is required for a ``flags``
+         column. If present for an ``enum`` column, the input values are checked agains this list.
+         If not, any key is valid. It is ignored for ``string`` or ``integer``.
+
+   Columns can be accessed by name or index. The indices start at 1, column 0 is predefined to be
+   the matched IP address.
+
+   See the modifier :mod:`ip-space` and extractor :ex:`ip-col` for how to access the data once defined.
 
 
 Compatibility
@@ -111,7 +178,7 @@ Compatibility
 
 .. txb:directive:: apply-remap-rule
 
-   Valid only in the `REMAP` hook, this applies the URL rewriting of the remap rule that matched.
+   Valid only in the ``REMAP`` hook, this applies the URL rewriting of the remap rule that matched.
    The use of this is for backwards compatibility between ATS 9 and previous versions. Earlier
    versions would not apply the rule URL rewriting until after the first remap plugin had
    been called, and dependent on the return value from that call. Starting with ATS 9, the URL
