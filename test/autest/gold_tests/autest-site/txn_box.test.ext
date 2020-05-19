@@ -10,62 +10,25 @@ Implement txn_box extensions for Traffic Server.
 import os.path
 
 
-def ConfigureTsForTxnBox(run, ts, server, txn_box_config=None, txn_box_key='meta.txn_box'):
-    """
-    Set the Default process of the test run to a replay-client Process.
-
-    Args:
-        run: (TestRun) The test run to which the client process is added.
-
-        ts: (Process) The Traffic Server process being configured for txn_box.
-
-        server: (Process) The server that Traffic Server proxies to.
-
-        txn_box_config: (str) The txn_box yaml configuration file. This becomes
-            the --config argument to txn_box.
-
-        txn_box_key: (str) The txn_box key value for the yaml file. This becomes
-            the --key argument to txn_box.
-    """
-
-    # Put the txn_box.so into the sandbox.
-    plugin_dir = ts.Env['PROXY_CONFIG_PLUGIN_PLUGIN_DIR']
-    from os.path import dirname
-    git_root = dirname(dirname(dirname(ts.TestRoot)))
-    txn_box_lib = os.path.join(git_root, "lib", "txn_box.so")
-    ts.Setup.Copy(txn_box_lib, plugin_dir, CopyLogic.SoftFiles)
-
-    # Configure txn_box in Traffic Server.
-    txn_box_command = 'txn_box.so '
-    if txn_box_config:
-        test_config = os.path.join(run.TestDirectory, txn_box_config)
-        run_config = os.path.join(ts.RunDirectory, os.path.basename(txn_box_config))
-        ts.Setup.Copy(test_config, ts.RunDirectory, CopyLogic.SoftFiles)
-        txn_box_command += ' --config {}'.format(run_config)
-    if txn_box_key:
-        txn_box_command += ' --key {}'.format(txn_box_key)
-    ts.Disk.plugin_config.AddLine(txn_box_command)
-
-    ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(server.Variables.http_port))
-
-
-##########################################################################
-ExtendTestRun(ConfigureTsForTxnBox, name="ConfigureTsForTxnBox")
-
-
-def TxnBoxTestRun(self, text, replay_path, **kw):
+def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
+                  config_path=None, remap_configs=None):
     """
     Set up a standard test run for TxnBox
 
     Args:
         text: (str) Description for test run.
         replay_path: (str) Path to the replay file.
+        config_key: (str) The --key parameter to pass into txn_box.so in the
+            plugin.config file.
+        config_path: (str) The --config parameter to pass into txn_box.so in the
+            plugin.config file.
+        remap_configs: [(from, to, [pparams])] Allows the specification of a
+            set of remap config lines. If pparams is provided, then
+            @plugin=txn_box.so is set and the set of pparams are placed in.
     Keywords
         replay_path: (str) The replay file.
     """
 
-    config_key = kw.get("config_key")
-    config_path = kw.get("config_path", replay_path)
     run = self.AddTestRun(text)
 
     ts = self.MakeATSProcess("ts")
@@ -73,8 +36,10 @@ def TxnBoxTestRun(self, text, replay_path, **kw):
     pv_client = run.AddVerifierClientProcess(
         "pv-client", ts, replay_path,
         http_ports=[ts.Variables.port])
+    run.Variables.CLIENT = pv_client
 
     pv_server = run.AddVerifierServerProcess("pv-server", replay_path)
+    run.Variables.SERVER = pv_server
 
     # Put the txn_box.so into the sandbox.
     plugin_dir = ts.Env['PROXY_CONFIG_PLUGIN_PLUGIN_DIR']
@@ -89,9 +54,11 @@ def TxnBoxTestRun(self, text, replay_path, **kw):
     if config_key:
         txn_box_command += ' --key {}'.format(config_key)
 
-    if config_path:
-        ts.Setup.Copy(config_path, ts.Variables.CONFIGDIR)
-        txn_box_command += ' --config {}'.format(os.path.basename(config_path))
+    if config_path is None:
+        config_path = replay_path
+
+    ts.Setup.Copy(config_path, ts.Variables.CONFIGDIR)
+    txn_box_command += ' --config {}'.format(os.path.basename(config_path))
 
     ts.Disk.plugin_config.AddLine(txn_box_command)
 
@@ -104,6 +71,25 @@ def TxnBoxTestRun(self, text, replay_path, **kw):
         # The following is needed for ATS 9 and later.
         # 'proxy.config.plugin.dynamic_reload': 0
     })
+    if remap_configs:
+        for remap_config in remap_configs:
+            if len(remap_config) not in [2, 3]:
+                raise ValueError("remap_configs entries must be either "
+                                 "(from, to) or (from, to, [pparams])")
+            map_from, map_to = remap_config[0:2]
+            if len(remap_config) == 3:
+                pparams = remap_config[2]
+            else:
+                pparams = None
+            line = 'map {map_from} {map_to}:{server_port} '.format(
+                map_from=map_from, map_to=map_to, server_port=pv_server.Variables.http_port)
+            if pparams:
+                line += '@plugin=txn_box.so '
+                for pparam in pparams:
+                    line += '@pparam={} '.format(pparam)
+            ts.Disk.remap_config.AddLine(line)
+    else:
+        ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(pv_server.Variables.http_port))
 
     pv_client.StartBefore(pv_server)
     run.Processes.Default.StartBefore(pv_server)
