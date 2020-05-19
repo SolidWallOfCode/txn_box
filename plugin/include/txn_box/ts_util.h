@@ -28,6 +28,22 @@ extern std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
 namespace ts {
 
+template < typename ... Args >
+void DebugMsg(swoc::TextView fmt, Args && ... args) {
+  swoc::LocalBufferWriter<1024> w;
+  auto arg_pack = std::forward_as_tuple(args...);
+  w.print_v(fmt, arg_pack);
+  if (! w.error()) {
+    TSDebug("txn_box", "%.*s", w.size(), w.data());
+  }
+  // Do it the hard way.
+  std::vector<char> buff;
+  buff.resize(w.extent());
+  swoc::FixedBufferWriter fw(buff.data(), buff.size());
+  fw.print_v(fmt, arg_pack);
+  TSDebug("txn_box", "%.*s", fw.size(), fw.data());
+}
+
 /** Hold a string allocated from TS core.
  * This provides both a view of the string and clean up when destructed.
  */
@@ -120,14 +136,9 @@ public:
    */
   self_type & host_set(swoc::TextView const& host);
 
-  in_port_t port_get() {
-    return TSUrlPortGet(_buff, _loc);
-  }
+  in_port_t port_get();
 
-  self_type & port_set(in_port_t port) {
-    TSUrlPortSet(_buff, _loc, port);
-    return *this;
-  }
+  self_type & port_set(in_port_t port);
 
   self_type & path_set(swoc::TextView path) {
     TSUrlPathSet(_buff, _loc, path.data(), path.size());
@@ -265,8 +276,9 @@ public:
    */
   URL url();
 
-  swoc::TextView method() const { int length; auto text = TSHttpHdrMethodGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
+  swoc::TextView method() const;
   swoc::TextView host() const;
+  in_port_t port() const;
 
   /** Set the @a host for the request.
    *
@@ -275,9 +287,18 @@ public:
    *
    * This will update the request as little as possible. If the URL does not contain a host
    * then it is unmodified and the @c Host field is set to @a host. If the URL has a host and
-   * there is no @c Host field, only the URL is updated.
+   * there is no @c Host field, only the URL is updated. The port is not updated.
    */
   bool host_set(swoc::TextView const& host);
+
+  /** Set the port.
+   *
+   * @param port Port in host order.
+   * @return If the port was updated.
+   *
+   * This updates the URL and @c Host field as needed, making as few changes as possible.
+   */
+  bool port_set(in_port_t port);
 
   bool scheme_set(swoc::TextView const& scheme);
 };
@@ -449,6 +470,8 @@ inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nu
 
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
+inline in_port_t URL::port_get() { return TSUrlPortGet(_buff, _loc); }
+
 inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
@@ -459,6 +482,11 @@ inline URL &URL::host_set(swoc::TextView const& host) {
   if (this->is_valid()) {
     TSUrlHostSet(_buff, _loc, host.data(), host.size());
   }
+  return *this;
+}
+
+inline auto URL::port_set(in_port_t port) -> self_type & {
+  TSUrlPortSet(_buff, _loc, port);
   return *this;
 }
 

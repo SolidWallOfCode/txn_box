@@ -8,6 +8,8 @@
 #include <string>
 #include <map>
 #include <numeric>
+
+#include <glob.h>
 #include <getopt.h>
 
 #include <openssl/ssl.h>
@@ -35,12 +37,13 @@ using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 
 Global G;
+extern std::string glob_to_rxp(TextView glob);
 
 const std::string Config::ROOT_KEY { "txn_box" };
 
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   static const std::map<TSEvent, Hook> table{
-        {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
+      {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
       , {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ}
       , {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP}
       , {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP}
@@ -54,8 +57,54 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 }
 
 namespace {
+
  std::shared_ptr<Config> Plugin_Config;
+
 } // namespace
+/* ------------------------------------------------------------------------------------ */
+Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key) {
+  if (auto spot = _cfg_files.find(cfg_path.view()) ; spot != _cfg_files.end() ) {
+    ts::DebugMsg("Skipping {} - already loaded", cfg_path);
+    return {};
+  }
+  auto fi = _arena.make<FileInfo>(this->localize(cfg_path.view()));
+  _cfg_files.insert(fi);
+  // Try loading and parsing the file.
+  auto &&[root, yaml_errata ]{yaml_load(cfg_path)};
+  if (!yaml_errata.is_ok()) {
+    yaml_errata.info(R"(While loading file "{}".)", cfg_path);
+    return std::move(yaml_errata);
+  }
+
+  // Process the YAML data.
+  auto errata = Plugin_Config->parse_yaml(root, cfg_key);
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
+    return std::move(errata);
+  }
+
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
+Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key) {
+  int flags = 0;
+  glob_t files;
+  auto err_f = [](char const* path, int err) -> int { return 0; };
+  swoc::file::path abs_pattern = ts::make_absolute(pattern);
+  int result = glob(abs_pattern.c_str(), flags, err_f, &files);
+  if (result == GLOB_NOMATCH) {
+    return Warning(R"(The pattern "{}" did not match any files.)", abs_pattern);
+  }
+  for ( size_t idx = 0 ; idx < files.gl_pathc ; ++idx) {
+    auto errata = this->load_file(swoc::file::path(files.gl_pathv[idx]), cfg_key);
+    if (! errata.is_ok()) {
+      errata.info(R"(While processing pattern "{}".)", pattern);
+      return std::move(errata);
+    }
+  }
+  globfree(&files);
+  return {};
+}
 /* ------------------------------------------------------------------------------------ */
 void Global::reserve_txn_arg() {
   if (G.TxnArgIdx < 0) {
@@ -92,7 +141,7 @@ TxnBoxInit(int argc, char const *argv[]) {
                                 , "solidwallofcode@verizonmedia.com"};
 
   Plugin_Config.reset(new Config);
-  TextView cfg_path { "txn_box.yaml" };
+//  swoc::file::path cfg_path { "txn_box.yaml" };
   TextView cfg_key { Config::ROOT_KEY };
   int opt;
   int idx;
@@ -101,31 +150,17 @@ TxnBoxInit(int argc, char const *argv[]) {
     switch (opt) {
       case ':':errata.error("'{}' requires a value", argv[optind - 1]);
         break;
-      case 'c': cfg_path.assign(argv[optind-1], strlen(argv[optind-1]));
+      case 'c':
+        errata = Plugin_Config->load_file_glob({argv[optind-1], strlen(argv[optind-1])}, cfg_key);
+        if (!errata.is_ok()) {
+          return std::move(errata);
+        }
         break;
       case 'k': cfg_key.assign(argv[optind-1], strlen(argv[optind-1]));
         break;
       default:errata.warn("Unknown option [{}] '{}' - ignored", char(opt), argv[optind - 1]);
         break;
     }
-  }
-
-  if (!errata.is_ok()) {
-    return std::move(errata);
-  }
-
-  // Try loading and parsing the file.
-  auto &&[root, yaml_errata ]{yaml_load(cfg_path)};
-  if (!yaml_errata.is_ok()) {
-    yaml_errata.info(R"(While loading file "{}".)", cfg_path);
-    return std::move(yaml_errata);
-  }
-
-  // Process the YAML data.
-  errata = Plugin_Config->parse_yaml(root, cfg_key);
-  if (!errata.is_ok()) {
-    errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
-    return std::move(errata);
   }
 
   if (TSPluginRegister(&info) == TS_SUCCESS) {

@@ -21,16 +21,14 @@
 
 class Context;
 
-/** Base class for directives.
- *
- */
+/// Base class for directives.
 class Directive {
   using self_type = Directive; ///< Self reference type.
   friend Config;
   friend Context;
 
 public:
-  /// Import global value for convienence.
+  /// Import global value for convenience.
   static constexpr swoc::TextView DO_KEY = Global::DO_KEY;
 
   /// Generic handle for all directives.
@@ -45,6 +43,15 @@ public:
    */
   using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
 
+  /** Functor to do config level initialization.
+   *
+   * @param cfg Configuration object.
+   *
+   * This is called once per directive class when the @c Config instance is initialized. This should
+   * perform any initialization needed for the directive as a type, rather than as an instance used
+   * in the configuration. The most common use is if the directive needs space in a @c Context -
+   * that space must be reserved during the invocation of this functor.
+   */
   using CfgInitializer = std::function<swoc::Errata (Config& cfg)>;
 
   /** Information about a directive type.
@@ -81,6 +88,13 @@ public:
    */
   virtual swoc::Errata invoke(Context &ctx) = 0;
 
+  /** Configuration initializer.
+   *
+   * @param Config& Configuration object.
+   * @return Errors, if any.
+   *
+   * Default implementation that does nothing. Override as needed.
+   */
   static swoc::Errata cfg_init(Config&) { return {}; }
 
 protected:
