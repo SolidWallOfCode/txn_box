@@ -26,6 +26,7 @@ html: uml ext/local-config.py static docbuild/html/src
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
 uml: $(IMAGEDIR)/txn_box_config_schema.svg
+uml: $(IMAGEDIR)/config-data.svg
 
 clean:
 	-rm -rf html warn.log

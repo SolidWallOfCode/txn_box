@@ -231,7 +231,7 @@ the `k8-routing` field is present, indicating that there is active routing that 
 .. note:: This is a real life example.
 
 The design here is to split the `Via` header and then work with the list. The :code:`ts-uuid`
-extractor gets the UUID for the Traffic Server process which is used in the `Via` header.
+extractor gets the UUID for the Traffic Server process which is used in the `Via` header. ::
 
    with: [ creq-field@Via , { split: "," } ] # split in to list
    select:

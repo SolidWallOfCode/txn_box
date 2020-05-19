@@ -14,32 +14,47 @@ This section focuses on tasks rather than mechanism, to illustrate how to use th
 Working with HTTP fields
 ************************
 
-A main use of |TxB| is to manipulate the fields in the HTTP header. This done using sets of four
-directives and extractors, one for each of the transaction headers - client request, proxy request,
-upstream response, and proxy response. If a particular directive or extractor is not allowed on a
-hook, that indicates it's not useful. For instance, there is no use in changing anything in the
-client request during the "send proxy response" hook, as it would have no observable effect.
-Conversely the proxy response can't be changed during the "read client request" hook because the
-proxy response doesn't exist.
+A main use of |TxB| is to manipulate the fields in the HTTP header. There are a variety of
+directives and extractors, classifie primarily by which HTTP message is to be modifed or examined If
+a particular directive or extractor is not allowed on a hook, that indicates it's not useful. For
+instance, there is no use in changing anything in the client request during the "send proxy
+response" hook, as it would have no observable effect. Conversely the proxy response can't be
+changed during the "read client request" hook because the proxy response doesn't exist.
+
+The four prefixes used are
+
+============= =======================================
+ua-req        User agent request (inbound to proxy)
+proxy-req     Proxy request (outbound from proxy)
+upstream-rsp  Upstream response (inbound to proxy)
+proxy-rsp     Proxy response (outound from proxy)
+============= =======================================
+
+The field related directives and extractors require an argument, which is the name of the HTTP
+field. This name is case insensitive because the HTTP fields names are case insensitive. The value
+is a feature expression which should evaluate to a string or a list of strings. A list of strings
+represents a list of duplicate fields, all with the sane name but distinct values, one for each
+element of the list.
 
 To set the field "Best-Band" to the string "Delain" in the proxy request ::
 
    proxy-req-field<Best-Band>: "Delain"
 
-The value is a feature expression, but most yield a string or a tuple of string. For instance, to
-set the field "TLS-Source" to the SNI name and the client IP address ::
+To set the field "TLS-Source" to the SNI name and the client IP address (see :ex:`inbound-sni` and
+:ex:`inbound-remote-addr`) ::
 
    proxy-req-field<TLS-Source>: "{inbound-sni}@{inbound-addr-remote}"
 
 For a connection that had an SNI of "delain.nl" from the address 10.12.97.156, the proxy request
-would have "TLS-Source: delain.nl@10.12.97.256".
+sent to the upstream would have "TLS-Source: delain.nl@10.12.97.256".
 
 Consider the case where various requests get remapped to the same upstream host name, but the upstream
-needs the value of the "Host" field from the original request. This could be done as ::
+needs the value of the "Host" field from the original request. This could by copyng the ``Host`` field
+to the ``Org-Host`` field - ::
 
    proxy-req-field<Org-Host>: ua-req-field<Host>
 
-If this was intended for debugging and more human readable, it could be done as ::
+If this was intended for debugging and therefore to be more human readable, it could be done as ::
 
    proxy-req-field<Org-Host>: "Original host was {ua-req-field<Host>}"
 
@@ -52,7 +67,7 @@ This assigns to "Accept-Encoding" as before, but the modifier :txb:mod:`else` is
 retrieving the current value of that field. This modifier keeps the original value unless it's
 empty, in which case it uses its own value.
 
-Because the input is YAML, the previous example could also be written as ::
+Because the input is YAML, the previous example could also be written in long hand as ::
 
    proxy-req-field<Accept-Encoding>:
    - proxy-req-field<Accept-Encoding>
@@ -77,20 +92,8 @@ and not the same as assigning the empty string, such that the field is present b
 
    ua-req-field<X-Forwarded-For>: ""
 
-This can be done even more elaborately by trying to use the client request "Host" field value and
-if that's not present, using the host from the client request URL. ::
-
-   proxy-req-field<Org-Host>: [ croxy-req-field<Host> , { else: creq-host } ]
-
-Finally, if for some reason it was needed to set the "Old-Path" field in the proxy request to the
-value for "Forwarded", and if that is not set, to the value for "X-Forwarded-For", and if that's not
-set either, to the value of "Client-IP", and if none of those, to "INVALID", one could do ::
-
-   proxy-req-field<Old-Path>:
-   - ua-req-field<Forwarded>
-   - { else: ua-req-field<X-Forwarded-For> }
-   - { else: ua-req-field<Client-IP> }
-   - { else: "INVALID" }
+For a list based example consider the ``Via`` header. This can extend over multiple fields. For this
+reason the extractor :ex:`proxy-req-field<Via>` can return a list.
 
 Rewriting URLs
 **************
@@ -197,3 +200,27 @@ Suppose the current service was at "v1.app.txbox" and the new version at "v2.app
 
    These are similar to the "@" headers for core |TS|, but don't have any name restriction and are
    not related to any specific header. They are stored entirely inside the |TxB| plugin.
+
+.. _filter-guide:
+
+Filter Techniques
+=================
+
+The :txb:mod:`filter` modifier can be used to perform a variety of tasks. The most common is to
+filter out elements in a list.
+
+:code:`filter` can also be used as a primitive lookup table, akin to a "switch" or "case" statement.
+Consider an example where a proxy request field should be set to "high" for a set of domains,
+"medium" for another, and "low" for any other domain. This could be done as ::
+
+   proxy-req-field<Priority>:
+   -  ua-req-host
+   -  filter:
+      -  tld: "important.tld"
+         replace: "high"
+      -  tld: "interesting.tld"
+         replace: "medium"
+      -  replace: "low"
+
+In essence, each comparison does a ``replace`` to provide the translated value, with a final
+``replace`` with no comparison that matches anything not already matched.

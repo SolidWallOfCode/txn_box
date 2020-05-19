@@ -10,7 +10,12 @@ users and admnistrators for |TS|. The primary points of interest are
 
 *  YAML based configuration.
 *  Interaction between global and remap hooks.
-*  Consistent access
+*  Consistent data handling for all uses.
+*  Conditional actions based on a wide variety of transaction property.
+*  A variety of comparison operations.
+*  Transaction local variables.
+*  Static file support.
+*  IP address database support.
 
 .. toctree::
    :maxdepth: 2
@@ -28,8 +33,8 @@ users and admnistrators for |TS|. The primary points of interest are
    user/ComparisonReference.en
    user/ModifierReference.en
    future.en
-   design.en
    misc.en
+   dev/design.en
 
 Reference
 *********
