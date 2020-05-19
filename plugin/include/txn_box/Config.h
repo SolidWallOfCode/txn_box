@@ -131,6 +131,9 @@ public:
 
   ~Config();
 
+  swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key);
+  swoc::Errata load_file(swoc::file::path const& cfg_path, swoc::TextView cfg_key);
+
   /** Parse YAML from @a node to initialize @a this configuration.
    *
    * @param root Root node.
@@ -421,6 +424,29 @@ protected:
    * @see Extractor::validate
    */
   swoc::Rv<ActiveType> validate(Extractor::Spec &spec);
+
+  // Configuration file tracking.
+  class FileInfo {
+    using self_type = FileInfo;
+  public:
+    using key_type = swoc::TextView;
+
+    FileInfo(key_type key) : _path(key) {}
+
+    // IntrusiveHashMap support.
+    static key_type key_of(self_type *self) { return self->_path; }
+    static bool equal(key_type lhs, key_type rhs) { return lhs == rhs; }
+    static size_t hash_of(key_type key) { return std::hash<std::string_view>()(key); }
+    static self_type *& next_ptr(self_type * self) { return self->_next; }
+    static self_type *& prev_ptr(self_type * self) { return self->_prev; }
+
+  protected:
+    key_type _path; ///< Absolute path to file.
+    self_type * _next = nullptr;
+    self_type * _prev = nullptr;
+  };
+
+  swoc::IntrusiveHashMap<FileInfo> _cfg_files;
 };
 
 inline Hook Config::current_hook() const { return _hook; }

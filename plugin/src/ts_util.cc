@@ -8,7 +8,7 @@
 #include <string>
 #include <map>
 #include <numeric>
-#include <getopt.h>
+#include <alloca.h>
 
 #include <openssl/ssl.h>
 
@@ -16,16 +16,8 @@
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
 #include <swoc/swoc_meta.h>
-#include <yaml-cpp/yaml.h>
-
-#include "txn_box/Directive.h"
-#include "txn_box/Extractor.h"
-#include "txn_box/Modifier.h"
-#include "txn_box/Config.h"
-#include "txn_box/Context.h"
 
 #include "txn_box/ts_util.h"
-#include "txn_box/yaml_util.h"
 
 using swoc::TextView;
 using swoc::Errata;
@@ -224,23 +216,90 @@ ts::URL ts::HttpRequest::url() {
   return {};
 }
 
+TextView ts::HttpRequest::host() const {
+  auto url { const_cast<self_type*>(this)->url() };
+  if (auto host = url.host() ; ! host.empty()) {
+    return host;
+  }
+  if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
+    auto value = field.value();
+    TextView host_token, port_token, rest_token;
+    if (swoc::IPEndpoint::tokenize(value, &host_token, &port_token)) {
+      return host_token;
+    }
+  }
+  return {};
+}
+
+in_port_t ts::HttpRequest::port() const {
+  auto url { const_cast<self_type*>(this)->url() };
+  if (auto port = url.port_get() ; port != 0) {
+    return port;
+  }
+  if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
+    auto value = field.value();
+    TextView host_token, port_token, rest_token;
+    if (swoc::IPEndpoint::tokenize(value, &host_token, &port_token)) {
+      return swoc::svtoi(port_token);
+    }
+  }
+  return 0;
+}
+
 bool ts::HttpRequest::host_set(swoc::TextView const &host) {
   auto url{this->url()};
+  bool force_host_p = true;
   if (!url.host().empty()) {
     url.host_set(host);
-    if (auto field{this->field(HTTP_FIELD_HOST)}; field.is_valid()) {
+    force_host_p = false;
+  }
+  auto field{this->field(HTTP_FIELD_HOST)};
+  if (field.is_valid()) {
+    auto text = field.value();
+    TextView host_token, port_token, rest_token;
+    if (swoc::IPEndpoint::tokenize(text, &host_token, &port_token)) {
+      size_t n = host.size() + 1 + port_token.size();
+      swoc::FixedBufferWriter w{static_cast<char*>(alloca(n)), n};
+      w.print("{}:{}", host, port_token);
+      field.assign(w.view());
+    } else { // It's messed up, do the best we can by setting it to a valid value.
       field.assign(host);
     }
-  } else {
-    this->field_obtain(HTTP_FIELD_HOST).assign(host);
+  } else if (force_host_p) {
+    this->field_create(HTTP_FIELD_HOST).assign(host);
   }
   return true;
-};
+}
+
+bool ts::HttpRequest::port_set(in_port_t port) {
+  auto url{this->url()};
+  if (!url.host().empty()) {
+    url.port_set(port);
+  }
+  auto field{this->field(HTTP_FIELD_HOST)};
+  if (field.is_valid()) {
+    auto text = field.value();
+    TextView host_token, port_token, rest_token;
+    if (swoc::IPEndpoint::tokenize(text, &host_token, &port_token)) {
+      size_t n = host_token.size() + 1 + std::numeric_limits<in_port_t>::max_digits10;
+      swoc::FixedBufferWriter w{static_cast<char*>(alloca(n)), n};
+      w.print("{}:{}", host_token, port);
+      field.assign(w.view());
+    }
+  }
+  return true;
+}
 
 bool ts::HttpRequest::scheme_set(swoc::TextView const &scheme) {
   this->url().scheme_set(scheme);
   return true;
-};
+}
+
+swoc::TextView HttpRequest::method() const { int length;
+  char const *text;
+  text = TSHttpHdrMethodGet(_buff, _loc, &length);
+  return {text, static_cast<size_t>(length) };
+}
 
 ts::HttpRequest ts::HttpTxn::creq_hdr() {
   TSMBuffer buff;

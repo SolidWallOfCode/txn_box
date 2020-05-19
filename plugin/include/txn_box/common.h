@@ -20,6 +20,8 @@
 #include <swoc/Lexicon.h>
 #include <swoc/bwf_fwd.h>
 
+constexpr swoc::TextView DEBUG_TAG = "txn_box";
+
 // Forward declares
 class Config;
 class Context;
@@ -29,6 +31,10 @@ namespace YAML { class Node; }
 /// Generate an @c Errata from a format string and arguments.
 template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, Args && ... args) {
   return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
+}
+
+template < typename ... Args > swoc::Errata Warning(std::string_view const& fmt, Args && ... args) {
+  return std::move(swoc::Errata().note_v(swoc::Severity::WARN, fmt, std::forward_as_tuple(args...)));
 }
 
 /// Separate a name and argument for a directive or extractor.

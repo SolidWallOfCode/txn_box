@@ -22,6 +22,16 @@ meta:
         - upstream-rsp-status: [ 200 , "OK" ]
         - proxy-rsp-body: "Contents of security.txt"
 
+  - when: proxy-req
+    do:
+    - with: proxy-req-path
+      select:
+      - match: "concert.txt"
+        do:
+        - proxy-req-field<Author-i-tay>:
+          - proxy-req-field<Author-i-tay>
+          - else: text-block<SWOC>
+
   txn-box-remap:
   - when: proxy-rsp
     do:
@@ -122,6 +132,63 @@ sessions:
         fields:
         - [ Content-Type, text/html ]
         - [ Content-Length, 130 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 4 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/concert.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/concert.txt"
+      headers:
+        fields:
+        - [ Author-i-tay, "Delain Concert.", equal ]
+    server-response:
+      status: 200
+      content:
+        size: 140
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 140 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 5 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/concert.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ Author-i-tay, "Nightwish Concert." ]
+    proxy-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/concert.txt"
+      headers:
+        fields:
+        - [ Author-i-tay, "Nightwish Concert.", equal ]
+    server-response:
+      status: 200
+      content:
+        size: 50
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 50 ]
     proxy-response:
       status: 200
 

@@ -34,6 +34,57 @@ using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 Feature Generic::extract() const { return NIL_FEATURE; }
 /* ------------------------------------------------------------------------------------ */
+class Do_ua_req_url_host : public Directive {
+  using super_type = Directive;
+  using self_type = Do_ua_req_url_host;
+public:
+  static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_ua_req_url_host(Expr && expr);
+
+  Errata invoke(Context &ctx) override;
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  Expr _expr; ///< Feature expression.
+};
+
+const std::string Do_ua_req_url_host::KEY {"ua-req-url-host" };
+const HookMask Do_ua_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_url_host::Do_ua_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_url_host::invoke(Context &ctx) {
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    if (auto url{hdr.url()}; url.is_valid()) {
+      auto value = ctx.extract(_expr);
+      if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
+        url.host_set(*host);
+      }
+    }
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
+// ---
+
 class Do_proxy_req_url_host : public Directive {
   using super_type = Directive;
   using self_type = Do_proxy_req_url_host;
@@ -41,26 +92,95 @@ public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  explicit Do_proxy_req_url_host(TextView text) : _host(text) {}
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_proxy_req_url_host(Expr && expr);
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
                           , swoc::TextView const& arg, YAML::Node key_value);
-  std::string _host;
+protected:
+  Expr _expr; ///< Host feature expression.
 };
 
 const std::string Do_proxy_req_url_host::KEY {"proxy-req-url-host" };
 const HookMask Do_proxy_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
+Do_proxy_req_url_host::Do_proxy_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
+
 Errata Do_proxy_req_url_host::invoke(Context &ctx) {
-  Errata zret;
-  return zret;
+  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+    if (auto url{hdr.url()}; url.is_valid()) {
+      auto value = ctx.extract(_expr);
+      if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
+        url.host_set(*host);
+      }
+    }
+  }
+  return {};
 }
 
 swoc::Rv<Directive::Handle> Do_proxy_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
-  return { Handle{new self_type{key_value.Scalar()}}, {} };
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type{std::move(expr)});
 }
 
+// ---
+
+class Do_remap_req_url_host : public Directive {
+  using super_type = Directive;
+  using self_type = Do_remap_req_url_host;
+public:
+  static const std::string KEY;
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_remap_req_url_host(Expr && expr);
+
+  Errata invoke(Context &ctx) override;
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  Expr _expr; ///< Host feature expression.
+};
+
+const std::string Do_remap_req_url_host::KEY {"remap-url-host" };
+const HookMask Do_remap_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+
+Do_remap_req_url_host::Do_remap_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
+
+Errata Do_remap_req_url_host::invoke(Context &ctx) {
+  auto value = ctx.extract(_expr);
+  if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
+    ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(*host);
+    ctx._remap_status = TSREMAP_DID_REMAP;
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_remap_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
 /* ------------------------------------------------------------------------------------ */
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
@@ -72,11 +192,11 @@ public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  /** Construct with feature extractor @a fmt.
+  /** Construct with feature expression..
    *
-   * @param fmt Feature for host.
+   * @param expr Feature expression.
    */
-  Do_ua_req_host(Expr && fmt);
+  Do_ua_req_host(Expr && expr);
 
   /** Invoke directive.
    *
@@ -98,18 +218,20 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _fmt; ///< Host feature.
+  Expr _expr; ///< Host feature.
 };
 
 const std::string Do_ua_req_host::KEY {"ua-req-host" };
 const HookMask Do_ua_req_host::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
 
-Do_ua_req_host::Do_ua_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_ua_req_host::Do_ua_req_host(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_host::invoke(Context &ctx) {
-  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
-    hdr.host_set(host);
+    auto value = ctx.extract(_expr);
+    if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
+      hdr.host_set(*host);
+    }
   }
   return {};
 }
