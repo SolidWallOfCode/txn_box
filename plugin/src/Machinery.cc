@@ -1170,7 +1170,7 @@ Rv<Directive::Handle> Do_upstream_rsp_status::load(Config& cfg, YAML::Node drtv_
   Handle handle(self);
 
   auto expr_type = expr.result_type();
-  if (!expr_type.can_satisfy(MaskFor({INTEGER, TUPLE}))) {
+  if (!expr_type.can_satisfy({INTEGER, TUPLE})) {
     return Error(R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
   }
   self->_expr = std::move(expr);
@@ -1946,6 +1946,8 @@ Errata Do_txn_conf::invoke(Context &ctx) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1 : 0);
   } else if (value.index() == IndexFor(STRING)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(STRING)>(value));
+  } else if (value.index() == IndexFor(FLOAT)) {
+    ctx._txn.override_assign(*_var, std::get<IndexFor(FLOAT)>(value));
   }
   return {};
 }
@@ -1955,7 +1957,10 @@ Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node drtv_node, swoc:
   if (! txn_var) {
     return Error(R"("{}" is not recognized as an overridable transaction configuration variable.)", arg);
   }
-  if (txn_var->type() != TS_RECORDDATATYPE_INT && txn_var->type() != TS_RECORDDATATYPE_STRING) {
+  if (txn_var->type() != TS_RECORDDATATYPE_INT &&
+    txn_var->type() != TS_RECORDDATATYPE_STRING &&
+    txn_var->type() != TS_RECORDDATATYPE_FLOAT
+  ) {
     return Error(R"("{}" is of type "{}" which is not currently supported.)", arg, ts::TSRecordDataTypeNames[txn_var->type()]);
   }
   auto &&[fmt, errata]{cfg.parse_expr(key_value)};

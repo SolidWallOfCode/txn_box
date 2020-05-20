@@ -20,6 +20,7 @@ meta:
   # Remove all Cookies going to protected.com
   - when: proxy-req
     do:
+    - debug: "proxy host is {proxy-req-host}"
     - with: proxy-req-host
       select:
       - tld: "protected.com"   # protected.com or any subdomain

@@ -20,7 +20,7 @@ meta:
         - match: "security.txt"
         do:
         - upstream-rsp-status: [ 200 , "OK" ]
-        - proxy-rsp-body: "Contents of security.txt"
+        - proxy-rsp-body: "Generic security.txt content."
 
   - when: proxy-req
     do:
@@ -135,6 +135,8 @@ sessions:
     proxy-response:
       status: 200
 
+- protocol: [ ipv4, tcp ]
+  transactions:
   - all: { headers: { fields: [[ uuid, 4 ]]}}
     client-request:
       version: "1.1"

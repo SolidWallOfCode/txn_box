@@ -8,10 +8,10 @@ Implement txn_box extensions for Traffic Server.
 #
 
 import os.path
-
+import types
 
 def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
-                  config_path=None, remap_configs=None):
+                  config_path=None, remap=None):
     """
     Set up a standard test run for TxnBox
 
@@ -22,9 +22,10 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
             plugin.config file.
         config_path: (str) The --config parameter to pass into txn_box.so in the
             plugin.config file.
-        remap_configs: [(from, to, [pparams])] Allows the specification of a
+        remap: [(from, to, [pparams])] Allows the specification of a
             set of remap config lines. If pparams is provided, then
             @plugin=txn_box.so is set and the set of pparams are placed in.
+            if to is missing, it is set equal to from yielding an identity remap.
     Keywords
         replay_path: (str) The replay file.
     """
@@ -71,16 +72,24 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
         # The following is needed for ATS 9 and later.
         # 'proxy.config.plugin.dynamic_reload': 0
     })
-    if remap_configs:
-        for remap_config in remap_configs:
-            if len(remap_config) not in [2, 3]:
-                raise ValueError("remap_configs entries must be either "
-                                 "(from, to) or (from, to, [pparams])")
-            map_from, map_to = remap_config[0:2]
-            if len(remap_config) == 3:
-                pparams = remap_config[2]
+    if remap:
+        for remap_config in remap:
+            pparams = None
+            map_from = remap_config[0]
+            if len(remap_config) == 1:
+              map_to = map_from
+            elif len(remap_config) == 2:
+              if isinstance(remap_config[1], types.StringTypes):
+                map_to = remap_config[1]
+              else:
+                pparams = remap_config[1]
+            elif len(remap_config) == 3:
+              map_to = remap_config[1]
+              pparams = remap_config[2]
             else:
-                pparams = None
+              raise ValueError("remap entries must be either "
+                               "(from, to) or (from, to, [pparams])")
+
             line = 'map {map_from} {map_to}:{server_port} '.format(
                 map_from=map_from, map_to=map_to, server_port=pv_server.Variables.http_port)
             if pparams:
@@ -88,8 +97,9 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
                 for pparam in pparams:
                     line += '@pparam={} '.format(pparam)
             ts.Disk.remap_config.AddLine(line)
-    else:
-        ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(pv_server.Variables.http_port))
+
+    # Always add this as a catch all at the end
+    ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(pv_server.Variables.http_port))
 
     pv_client.StartBefore(pv_server)
     run.Processes.Default.StartBefore(pv_server)

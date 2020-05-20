@@ -60,8 +60,10 @@ public:
   virtual bool operator()(Context&, feature_type_for<STRING> const& view) const { return false; }
   virtual bool operator()(Context&, feature_type_for<INTEGER> n) const { return false; }
   virtual bool operator()(Context&, feature_type_for<BOOLEAN> f) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<FLOAT> f) const { return false; }
   virtual bool operator()(Context&, feature_type_for<IP_ADDR> const& addr) const { return false; }
   virtual bool operator()(Context&, feature_type_for<DURATION> feature) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<TIMEPOINT> f) const { return false; }
   virtual bool operator()(Context&, Cons const* cons) const { return false; }
   virtual bool operator()(Context&, feature_type_for<TUPLE> const& tuple) const { return false; }
   virtual bool operator()(Context&, Generic const* g) const;

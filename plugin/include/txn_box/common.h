@@ -108,13 +108,17 @@ public:
 /// Enumeration of types of values, e.g. those returned by a feature string or extractor.
 /// This includes all of the types of features, plus some "meta" types to describe situations
 /// in which the type may not be known at configuration load time.
+/// @note Changes here must be synchronized with changes in @c FeatureTypelist
+/// Also @c ValueTypeOf and @c IndexFor
 enum ValueType : int8_t {
   NIL = 0, ///< Explicitly no data.
   STRING, ///< View of a string.
   INTEGER, ///< Integer.
-  IP_ADDR, ///< IP Address
   BOOLEAN, ///< Boolean.
+  FLOAT, ///< Floating point.
+  IP_ADDR, ///< IP Address
   DURATION, ///< Duration (time span).
+  TIMEPOINT, ///< Timestamp, specific moment on a clock.
   CONS, ///< Pointer to cons cell.
   TUPLE, ///< Array of features (@c FeatureTuple)
   GENERIC, ///< Extended type.
@@ -124,10 +128,10 @@ namespace std {
 template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::GENERIC) + 1> {};
 }; // namespace std
 
-// *** @c FeatureTypeList and @c FeatureType must be kept in parallel synchronization! ***
+// *** @c FeatureTypeList and @c ValueType must be kept in parallel synchronization! ***
 /// Type list of feature types.
 /// The values in @c ValueType must match this list exactly.
-using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, swoc::IPAddr, bool, std::chrono::nanoseconds, Cons *, FeatureTuple, Generic*>;
+using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, bool, double, swoc::IPAddr, std::chrono::nanoseconds, std::chrono::system_clock::time_point, Cons *, FeatureTuple, Generic*>;
 
 /** Basic feature data type.
  * This is split out in order to make self-reference work. This is the actual variant, and
@@ -142,12 +146,12 @@ using FeatureVariant = FeatureTypeList::template apply<std::variant>;
 namespace swoc {
 namespace meta {
 template < typename GENERATOR, size_t ... IDX> constexpr
-std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> && idx) { return { g(IDX)... }; }
+std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> &&) { return { g(IDX)... }; }
 template < size_t N, typename GENERATOR> constexpr
 std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g) { return indexed_init_list(std::forward<GENERATOR>(g), std::make_index_sequence<N>());}
 
 template < typename GENERATOR, size_t ... IDX> constexpr
-std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> indexed_array(GENERATOR && g, std::index_sequence<IDX...> && idx) { return std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> { g(IDX)... }; }
+std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> indexed_array(GENERATOR && g, std::index_sequence<IDX...> &&) { return std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> { g(IDX)... }; }
 template < size_t N, typename GENERATOR> constexpr
 std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g) { return indexed_array(std::forward<GENERATOR>(g), std::make_index_sequence<N>()); }
 
@@ -161,7 +165,6 @@ std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g)
  */
 inline constexpr unsigned IndexFor(ValueType type) {
   auto IDX = swoc::meta::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
-//  constexpr std::array<unsigned, std::tuple_size<ValueType>::value> IDX = swoc::meta::indexed_init_list<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
   return IDX[static_cast<unsigned>(type)];
 };
 
@@ -219,7 +222,17 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 /// @endcond
 
 inline ValueType ValueTypeOf(Feature const& f) {
-  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL, STRING, INTEGER, IP_ADDR, BOOLEAN, DURATION,CONS, TUPLE, GENERIC };
+  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL
+                                                             , STRING
+                                                             , INTEGER
+                                                             , BOOLEAN
+                                                             , FLOAT
+                                                             , IP_ADDR
+                                                             ,DURATION
+                                                             ,TIMEPOINT
+                                                             , CONS
+                                                             , TUPLE
+                                                             , GENERIC };
   return T[f.index()];
 }
 /// Nil value feature.
@@ -277,8 +290,9 @@ public:
   }
   bool can_satisfy(self_type const& that) const {
     auto c = _base_type & that._base_type;
-    // TUPLE is a common type iff the tuple element types have a common type.
-    if (c[TUPLE] && (that._tuple_type & _tuple_type).none()) {
+    // TUPLE is a common type if the tuple element types have a common type or no type is specified
+    // for the TUPLE, which means just check for being a TUPLE.
+    if (c[TUPLE] && that._tuple_type.any() && (that._tuple_type & _tuple_type).none()) {
       c[TUPLE] = false;
     }
     return c.any();

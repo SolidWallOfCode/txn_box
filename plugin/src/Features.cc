@@ -29,7 +29,10 @@ swoc::Lexicon<ValueType> const ValueTypeNames {{
   , { ValueType::STRING, "string"}
   , { ValueType::INTEGER, "integer"}
   , { ValueType::BOOLEAN, "boolean"}
+  , { ValueType::FLOAT, "float"}
   , { ValueType::IP_ADDR, "IP address"}
+  , { ValueType::DURATION, "duration"}
+  , { ValueType::TIMEPOINT, "time point"}
   , { ValueType::CONS, "cons" }
   , { ValueType::TUPLE, "tuple" }
   , { ValueType::GENERIC, "generic"}
@@ -520,14 +523,7 @@ Feature Ex_proxy_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
   if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
-    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
-      zret = url.host();
-      if (zret.data() == nullptr) { // not in the URL, look in the HOST field.
-        if ( auto field { hdr.field(ts::HTTP_FIELD_HOST) } ; field.is_valid()) {
-          zret = field.value();
-        }
-      }
-    }
+    zret = hdr.host();
   }
   return zret;
 }
