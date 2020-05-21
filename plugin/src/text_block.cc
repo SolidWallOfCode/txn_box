@@ -136,7 +136,7 @@ Errata Do_text_block_define::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
   self->_line_no = drtv_node.Mark().line;
@@ -225,7 +225,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   }
   (*map)[self->_name] = self;
 
-  return std::move(handle);
+  return handle;
 }
 
 Errata Do_text_block_define::cfg_init(Config &cfg) {

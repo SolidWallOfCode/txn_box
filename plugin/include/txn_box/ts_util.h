@@ -34,14 +34,14 @@ void DebugMsg(swoc::TextView fmt, Args && ... args) {
   auto arg_pack = std::forward_as_tuple(args...);
   w.print_v(fmt, arg_pack);
   if (! w.error()) {
-    TSDebug("txn_box", "%.*s", w.size(), w.data());
+    TSDebug("txn_box", "%.*s", int(w.size()), w.data());
   }
   // Do it the hard way.
   std::vector<char> buff;
   buff.resize(w.extent());
   swoc::FixedBufferWriter fw(buff.data(), buff.size());
   fw.print_v(fmt, arg_pack);
-  TSDebug("txn_box", "%.*s", fw.size(), fw.data());
+  TSDebug("txn_box", "%.*s", int(fw.size()), fw.data());
 }
 
 /** Hold a string allocated from TS core.

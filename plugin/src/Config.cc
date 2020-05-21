@@ -270,7 +270,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     }
   }
 
-  return std::move(expr);
+  return expr;
 }
 
 Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
@@ -289,7 +289,7 @@ Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
     if (expr._max_arg_idx >= 0) {
       if (_active_capture._count == 0) {
         return Error(R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
-      } else if (expr._max_arg_idx >= _active_capture._count) {
+      } else if (expr._max_arg_idx >= int(_active_capture._count)) {
         return Error(R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)"
             , expr._max_arg_idx, node.Mark(), _active_capture._count-1, _active_capture._line);
       }
@@ -299,7 +299,7 @@ Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
       _active_feature._ref_p = true;
     }
   }
-  return std::move(zret);
+  return zret;
 }
 
 Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
@@ -393,7 +393,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
     list._types = l_types;
     list._exprs = std::move(xa);
   }
-  return std::move(expr);
+  return expr;
 }
 
 Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
@@ -457,7 +457,7 @@ Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
         return std::move(errata);
       }
     }
-    return std::move(drtv_list);
+    return drtv_list;
   } else if (drtv_node.IsNull()) {
     return Directive::Handle(new NilDirective);
   }
@@ -539,7 +539,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
     errata = (this->*drtv_loader)(base_node);
   } else {
   }
-  return std::move(errata);
+  return errata;
 };
 
 Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::CfgInitializer && cfg_init_cb) {

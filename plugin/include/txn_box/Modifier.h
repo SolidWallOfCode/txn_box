@@ -55,11 +55,11 @@ public:
    * @param feature The feature to modify.
    * @return The modified feature.
    */
-  virtual swoc::Rv<Feature> operator()(Context& ctx, std::monostate) { return NIL_FEATURE; }
+  virtual swoc::Rv<Feature> operator()(Context& ctx, std::monostate);
 
   // Do-nothing base implementations - subclasses should override methods for supported types.
-  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature) { return NIL_FEATURE; }
-  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<IP_ADDR> feature) { return NIL_FEATURE; }
+  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature);
+  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<IP_ADDR> feature);
 
   /** Check if the comparison is valid for @a type.
    *

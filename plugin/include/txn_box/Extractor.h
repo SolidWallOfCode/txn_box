@@ -58,7 +58,7 @@ public:
    * The base implementation returns successfully as a @c STRING. If the extractor returns some other
    * type or needs to actually validate @a spec, it must override this method.
    */
-  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) { return ActiveType{STRING }; }
+  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg);
 
   /** Whether the extractor uses data from the context.
    *
@@ -93,7 +93,7 @@ public:
    * @see validate
    * @see extract(Context & ctx, Spec const& spec)
    */
-  virtual Feature extract(Config & cfg, Spec const& spec) { return NIL_FEATURE; }
+  virtual Feature extract(Config & cfg, Spec const& spec);
 
   /** Generate string output for the feature.
    *

@@ -541,7 +541,7 @@ void TaskHandle::cancel() {
 }
 
 TaskHandle PerformAsTask(std::function<void ()> &&task) {
-  static auto lambda = [](TSCont contp, TSEvent ev_code, void *) -> int {
+  static auto lambda = [](TSCont contp, TSEvent, void *) -> int {
     auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));
     if (data->_active) {
       data->_f();
@@ -561,7 +561,7 @@ TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::millis
   // The lambda runs under lock for the continuation mutex, therefore it can cancel as needed.
   // External cancel tries the lock - if that happens it can cancel and prevent the lambda
   // entirely. Otherwise it atomically sets @a _active to @c false.
-  static auto lambda = [](TSCont contp, TSEvent ev_code, void *event) -> int {
+  static auto lambda = [](TSCont contp, TSEvent, void *event) -> int {
     auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));
     if (data->_active) {
       data->_f();

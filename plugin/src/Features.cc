@@ -588,7 +588,7 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_upstream_rsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+Rv<ActiveType> Ex_upstream_rsp_status::validate(Config &, Spec &, TextView const&) {
   return { INTEGER };
 }
 
@@ -612,7 +612,7 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_proxy_rsp_status::validate(Config & cfg, Spec & spec, TextView const& arg) {
+Rv<ActiveType> Ex_proxy_rsp_status::validate(Config &, Spec &, TextView const&) {
   return { INTEGER };
 }
 
@@ -652,7 +652,7 @@ public:
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Feature Ex_inbound_sni::extract(Context & ctx, Spec const& spec) {
+Feature Ex_inbound_sni::extract(Context & ctx, Spec const&) {
   return ctx._txn.ssn().inbound_sni();
 }
 
@@ -669,11 +669,11 @@ public:
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Rv<ActiveType> Ex_inbound_remote_remote::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
+Rv<ActiveType> Ex_inbound_remote_remote::validate(Config &, Extractor::Spec &, TextView const &) {
   return { IP_ADDR };
 }
 
-Feature Ex_inbound_remote_remote::extract(Context & ctx, Spec const& spec) {
+Feature Ex_inbound_remote_remote::extract(Context & ctx, Spec const& ) {
   return ctx._txn.ssn().remote_addr();
 }
 
@@ -732,7 +732,7 @@ protected:
 
 thread_local std::mt19937 Ex_random::_engine(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
-Feature Ex_random::extract(Context &ctx, Extractor::Spec const& spec) {
+Feature Ex_random::extract(Context &, Extractor::Spec const& spec) {
   auto values = spec._data.rebind<feature_type_for<INTEGER>>();
   return std::uniform_int_distribution{values[0], values[1]}(_engine);
 };
@@ -833,12 +833,12 @@ class Ex_active_feature : public Extractor {
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME = ACTIVE_FEATURE_KEY;
-  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override { return cfg.active_type(); }
+  Rv<ActiveType> validate(Config & cfg, Spec &, TextView const&) override { return cfg.active_type(); }
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Feature Ex_active_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+Feature Ex_active_feature::extract(class Context & ctx, const struct Extractor::Spec &) {
   return ctx._active;
 }
 
@@ -858,7 +858,7 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Feature Ex_remainder_feature::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+Feature Ex_remainder_feature::extract(class Context & ctx, const struct Extractor::Spec &) {
   return ctx._remainder;
 }
 
@@ -867,7 +867,7 @@ BufferWriter& Ex_remainder_feature::format(BufferWriter &w, Spec const &spec, Co
 }
 
 Rv<ActiveType>
-Ex_remainder_feature::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) { return { STRING }; }
+Ex_remainder_feature::validate(Config&, Extractor::Spec&, TextView const&) { return { STRING }; }
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
@@ -879,7 +879,7 @@ Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spe
   return _fg->extract(ctx, spec._ext);
 }
 
-swoc::Rv<ActiveType> Ex_this::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) { return cfg.active_type(); }
+swoc::Rv<ActiveType> Ex_this::validate(Config& cfg, Extractor::Spec&, TextView const&) { return cfg.active_type(); }
 /* ------------------------------------------------------------------------------------ */
 // Needs to be external visible.
 Ex_this ex_this;

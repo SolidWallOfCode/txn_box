@@ -80,7 +80,7 @@ Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key) {
   auto errata = Plugin_Config->parse_yaml(root, cfg_key);
   if (!errata.is_ok()) {
     errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
-    return std::move(errata);
+    return errata;
   }
 
   return {};
@@ -89,7 +89,7 @@ Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key) {
 Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key) {
   int flags = 0;
   glob_t files;
-  auto err_f = [](char const* path, int err) -> int { return 0; };
+  auto err_f = [](char const*, int) -> int { return 0; };
   swoc::file::path abs_pattern = ts::make_absolute(pattern);
   int result = glob(abs_pattern.c_str(), flags, err_f, &files);
   if (result == GLOB_NOMATCH) {
@@ -99,7 +99,7 @@ Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key) {
     auto errata = this->load_file(swoc::file::path(files.gl_pathv[idx]), cfg_key);
     if (! errata.is_ok()) {
       errata.info(R"(While processing pattern "{}".)", pattern);
-      return std::move(errata);
+      return errata;
     }
   }
   globfree(&files);
@@ -120,7 +120,7 @@ void Global::reserve_txn_arg() {
 // Global callback, thread safe.
 // This sets up local context for a transaction and spins up a per TXN Continuation which is
 // protected by a mutex. This hook isn't set if there are no top level directives.
-int CB_Txn_Start(TSCont cont, TSEvent ev, void * payload) {
+int CB_Txn_Start(TSCont, TSEvent, void * payload) {
   auto txn {reinterpret_cast<TSHttpTxn>(payload) };
   Context* ctx = new Context(Plugin_Config);
   ctx->enable_hooks(txn);
@@ -153,7 +153,7 @@ TxnBoxInit(int argc, char const *argv[]) {
       case 'c':
         errata = Plugin_Config->load_file_glob({argv[optind-1], strlen(argv[optind-1])}, cfg_key);
         if (!errata.is_ok()) {
-          return std::move(errata);
+          return errata;
         }
         break;
       case 'k': cfg_key.assign(argv[optind-1], strlen(argv[optind-1]));
@@ -180,7 +180,7 @@ TxnBoxInit(int argc, char const *argv[]) {
     }
   } else {
     errata.error(R"({}: plugin registration failed.)", Config::PLUGIN_TAG);
-    return std::move(errata);
+    return errata;
   }
   return {};
 }

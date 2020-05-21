@@ -41,7 +41,7 @@ template <> inline YAML::Node get<1>(YAML::iterator::value_type& v) { return v.s
 // Providing formatting for the node mark - this prints out just the line.
 namespace swoc {
 inline BufferWriter &
-bwformat(BufferWriter &w, bwf::Spec const &spec, YAML::Mark const &mark) {
+bwformat(BufferWriter &w, bwf::Spec const &, YAML::Mark const &mark) {
   return w.print("Line {}", mark.line);
 }
 

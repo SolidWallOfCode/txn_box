@@ -214,7 +214,7 @@ protected:
      * @param info Array.
      * @param n # of elements in @a info.
      */
-    Tracking(YAML::Node const& node, Info * info, unsigned n) : _node(node), _info(info, n) {
+    Tracking(YAML::Node const& node, Info * info, unsigned n) : _info(info, n), _node(node)  {
     }
 
     /// Allocate an entry and return a pointer to it.

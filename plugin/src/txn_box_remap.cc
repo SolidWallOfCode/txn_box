@@ -137,13 +137,15 @@ public:
 };
 /* ------------------------------------------------------------------------------------ */
 TSReturnCode
-TSRemapInit(TSRemapInterface* rctx, char* errbuff, int errbuff_size) {
+TSRemapInit(TSRemapInterface*, char* errbuff, int errbuff_size) {
   G.reserve_txn_arg();
   if (! G._preload_errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: startup issues.\n{}", Config::PLUGIN_NAME, G._preload_errata);
     G._preload_errata.clear();
     TSError("%s", err_str.c_str());
+    swoc::FixedBufferWriter w{errbuff, size_t(errbuff_size)};
+    w.print("{}: startup issues, see error log for details.\0", Config::PLUGIN_NAME);
   }
   return TS_SUCCESS;
 };
