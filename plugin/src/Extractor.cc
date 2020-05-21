@@ -31,6 +31,11 @@ Errata Extractor::define(TextView name, self_type * ex) {
 }
 
 bool Extractor::has_ctx_ref() const { return false; }
+
+swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView const&) { return ActiveType{STRING }; }
+
+Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
+
 /* ---------------------------------------------------------------------------------------------- */
 auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
   Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
@@ -76,23 +81,23 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
 
   if (! info._node[name]) {
     errata.error(R"("{}" is referenced but no such key was found.)", name);
-    return std::move(errata);
+    return errata;
   }
 
   auto tinfo = info.obtain(name);
 
   if (tinfo->_mark == DONE) {
-    return std::move(errata);
+    return errata;
   }
 
   if (tinfo->_mark == IN_PLAY) {
     errata.error(R"(Circular dependency for key "{}" at {}.)", name, info._node.Mark());
-    return std::move(errata);
+    return errata;
   }
 
   if (tinfo->_mark == MULTI_VALUED) {
     errata.error(R"(A multi-valued key cannot be referenced - "{}" at {}.)", name, info._node.Mark());
-    return std::move(errata);
+    return errata;
   }
 
   tinfo->_mark = IN_PLAY;
@@ -137,11 +142,10 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
   } else {
     tinfo->_mark = DONE;
   }
-  return std::move(errata);
+  return errata;
 }
 
 Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer_list<FeatureGroup::Descriptor> const &ex_keys) {
-  unsigned idx = 0;
   unsigned n_keys = node.size(); // Number of keys in @a node.
 
   Tracking::Info tracking_info[n_keys];
@@ -168,7 +172,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   for ( auto & d : ex_keys ) {
     auto errata { this->load_key(cfg, tracking, d._name) };
     if (! errata.is_ok()) {
-      return std::move(errata);
+      return errata;
     }
   }
 
@@ -197,7 +201,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
         m._fmt.emplace_back(std::move(fmt));
       }
     } else {
-      dst._ex = ExfInfo::Single{std::move(tracking._fmt_array[src._fmt_idx])};
+      dst._ex = ExfInfo::Single{std::move(tracking._fmt_array[src._fmt_idx]), {}};
     }
     if (src._edge_count) {
       dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
@@ -231,7 +235,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
       return std::move(errata);
     }
     info[idx]._name = key._name;
-    info[idx]._ex = ExfInfo::Single{std::move(fmt)}; // safe because of the @c reserve
+    info[idx]._ex = ExfInfo::Single{std::move(fmt), {}}; // safe because of the @c reserve
     ++idx;
   }
   // Localize feature info, now that the size is determined.

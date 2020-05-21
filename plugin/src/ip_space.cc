@@ -380,6 +380,7 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
       MemSpan<void> data{row.data() + c._row_offset, c._row_size};
       token = line.take_prefix_at(',').ltrim_if(&isspace);
       switch (c._type) {
+        default: break; // Shouldn't ever happen.
         case Column::STRING:
           data.rebind<TextView>()[0] = cfg.localize(token);
           break;
@@ -494,6 +495,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   col._idx = _cols.size();
   col._row_offset = _row_size;
   switch (col._type) {
+    default: break; // shouldn't happen.
     case Column::ENUM:
     case Column::FLAGS:
     case Column::INTEGER: col._row_size = sizeof(feature_type_for<INTEGER>); break;
@@ -505,7 +507,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   return {};
 }
 
-Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
   self->_line_no = drtv_node.Mark().line;
@@ -570,14 +572,14 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
       auto errata = self->define_column(cfg, cols_node);
       if (!errata.is_ok()) {
         errata.info(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
-        return std::move(errata);
+        return errata;
       }
     } else if (cols_node.IsSequence()) {
       for ( auto child : cols_node ) {
         auto errata = self->define_column(cfg, child);
         if (!errata.is_ok()) {
           errata.info(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
-          return std::move(errata);
+          return errata;
         }
       }
     } else {
@@ -603,7 +605,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   }
   (*map)[self->_name] = self;
 
-  return std::move(handle);
+  return handle;
 }
 
 Errata Do_ip_space_define::cfg_init(Config &cfg) {
@@ -706,7 +708,7 @@ ActiveType Mod_ip_space::result_type(const ActiveType &) const {
   return { NIL, STRING, INTEGER, ActiveType::TuplesOf(STRING) };
 }
 
-Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::Node key_value) {
   auto csi = Do_ip_space_define::cfg_store_info(cfg);
   auto & map = csi->_map;
   auto spot = map.find(arg);
@@ -783,7 +785,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   Info & info = span[0];
   info._drtv = csi->_active;
   auto & cols = csi->_active->_cols;
-  if ( auto n = svtoi(arg, &parsed) ; arg.size() == parsed.size()) {
+  if ( auto n = svtou(arg, &parsed) ; arg.size() == parsed.size()) {
     if (n >= cols.size()) {
       return Error(R"(Invalid column index, {} of {} in space {}.)", n, cols.size(), csi->_active->_name);
     }
@@ -793,14 +795,16 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   } else {
     return Error(R"(Invalid column argument, "{}" in space {} is not recognized as an index or name.)", arg, csi->_active->_name);
   }
-  ValueType result_type = NIL;
+  ActiveType result_type = NIL;
   switch (cols[info._idx]._type) {
-    case Do_ip_space_define::Column::STRING: result_type = STRING;
-    case Do_ip_space_define::Column::INTEGER: result_type = INTEGER;
-    case Do_ip_space_define::Column::ENUM: result_type = STRING;
-    case Do_ip_space_define::Column::FLAGS: result_type = TUPLE;
+    default: break; // shouldn't happen.
+    case Do_ip_space_define::Column::RANGE: result_type = { ActiveType::TuplesOf(IP_ADDR) }; break;
+    case Do_ip_space_define::Column::STRING: result_type = STRING; break;
+    case Do_ip_space_define::Column::INTEGER: result_type = INTEGER; break;
+    case Do_ip_space_define::Column::ENUM: result_type = STRING; break;
+    case Do_ip_space_define::Column::FLAGS: result_type = TUPLE; break;
   }
-  return { result_type };
+  return result_type;
 }
 
 Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
@@ -811,6 +815,7 @@ Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
   if (ctx_ai._row) {
     auto data = col.data_in_row(ctx_ai._row);
     switch (col._type) {
+      default: break; // Shouldn't happen.
       case Do_ip_space_define::Column::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
       case Do_ip_space_define::Column::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
       case Do_ip_space_define::Column::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);

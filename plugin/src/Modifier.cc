@@ -55,6 +55,12 @@ Rv<Modifier::Handle> Modifier::load(Config &cfg, YAML::Node const &node, ActiveT
   return Error(R"(No valid modifier key in object at {}.)", node.Mark());
 }
 
+swoc::Rv<Feature> Modifier::operator()(Context&, std::monostate) { return NIL_FEATURE; }
+
+swoc::Rv<Feature> Modifier::operator()(Context&, feature_type_for<IP_ADDR>) { return NIL_FEATURE; }
+
+swoc::Rv<Feature> Modifier::operator()(Context&, feature_type_for<STRING>) { return NIL_FEATURE; }
+
 // ---
 
 class Mod_Hash : public Modifier {
@@ -109,12 +115,12 @@ ActiveType Mod_Hash::result_type(ActiveType const&) const {
   return { NIL, INTEGER };
 }
 
-Rv<Feature> Mod_Hash::operator()(Context &ctx, feature_type_for<STRING> feature) {
+Rv<Feature> Mod_Hash::operator()(Context &, feature_type_for<STRING> feature) {
   feature_type_for<INTEGER> value = std::hash<std::string_view>{}(feature);
   return Feature{feature_type_for<INTEGER>{value % _n}};
 }
 
-Rv<Modifier::Handle> Mod_Hash::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_Hash::load(Config &, YAML::Node node, TextView, TextView, YAML::Node key_value) {
   if (! key_value.IsScalar()) {
     return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_value.Mark(), node.Mark());
   }
@@ -196,7 +202,7 @@ protected:
   Case const* compare(Context& ctx, Feature const& feature) const;
 };
 
-bool Mod_Filter::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_Filter::is_valid_for(ActiveType const&) const {
   return true;
 }
 
@@ -214,7 +220,6 @@ auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case cons
 }
 
 Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
-  Action action;
   Feature zret;
   if (feature.is_list()) {
     auto src = std::get<IndexFor(TUPLE)>(feature);
@@ -305,16 +310,16 @@ bool Mod_Filter::Case::operator()(Context& ctx, Feature const& feature) {
   return ! _cmp || (*_cmp)(ctx, feature);
 }
 
-Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView, TextView, YAML::Node key_value) {
   auto self = new self_type;
   Handle handle(self);
 
   if (auto errata = self->_cases.load(cfg, key_value) ; ! errata.is_ok()) {
     errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
-    return std::move(errata);
+    return errata;
   }
 
-  return std::move(handle);
+  return handle;
 }
 
 // ---
@@ -371,7 +376,7 @@ Rv<Feature> Mod_Else::operator()(Context &ctx, Feature const& feature) {
   return is_empty(feature) ? ctx.extract(_value) : feature;
 }
 
-Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ fmt, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
@@ -422,20 +427,12 @@ protected:
   explicit Mod_As_Integer(Expr && fmt) : _value(std::move(fmt)) {}
 
   /// Identity conversion.
-  Feature convert(Context & ctx, feature_type_for<INTEGER> n) { return n; }
+  Feature convert(Context & ctx, feature_type_for<INTEGER> n);
   /// Convert from string
-  Feature convert(Context & ctx, feature_type_for<STRING> s) {
-    TextView parsed;
-    s.trim_if(&isspace);
-    auto n = swoc::svtoi(s, &parsed);
-    if (parsed.size() == s.size()) {
-      return n;
-    }
-    return ctx.extract(_value);
-  }
+  Feature convert(Context & ctx, feature_type_for<STRING> s);
 
   /// Generic failure case.
-  template < typename T > auto convert(Context & ctx, T & t) -> EnableForFeatureTypes<T, Feature> {
+  template < typename T > auto convert(Context & ctx, T &) -> EnableForFeatureTypes<T, Feature> {
     return ctx.extract(_value);
   }
 };
@@ -446,7 +443,7 @@ bool Mod_As_Integer::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(MaskFor({STRING, INTEGER}));
 }
 
-ActiveType Mod_As_Integer::result_type(ActiveType const& ex_type) const {
+ActiveType Mod_As_Integer::result_type(ActiveType const&) const {
   return {MaskFor({NIL, INTEGER})};
 }
 
@@ -455,13 +452,25 @@ Rv<Feature> Mod_As_Integer::operator()(Context &ctx, Feature const& feature) {
   return std::visit(visitor, feature);
 }
 
-Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ expr, errata ] {cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr)});
+}
+
+Feature Mod_As_Integer::convert(Context&, feature_type_for<INTEGER> n) { return n; }
+
+Feature Mod_As_Integer::convert(Context& ctx, feature_type_for<STRING> s) {
+  TextView parsed;
+  s.trim_if(&isspace);
+  auto n = swoc::svtoi(s, &parsed);
+  if (parsed.size() == s.size()) {
+    return n;
+  }
+  return ctx.extract(_value);
 };
 
 // --- //
@@ -504,15 +513,12 @@ protected:
   explicit Mod_As_IP_Addr() = default;
 
   /// Identity conversion.
-  Feature convert(Context & ctx, feature_type_for<IP_ADDR> n) { return n; }
+  Feature convert(Context & ctx, feature_type_for<IP_ADDR> n);
   /// Convert from string
-  Feature convert(Context & ctx, feature_type_for<STRING> s) {
-    swoc::IPAddr addr{s};
-    return addr.is_valid() ? Feature{addr} : NIL_FEATURE;
-  }
+  Feature convert(Context & ctx, feature_type_for<STRING> s);
 
   /// Generic failure case.
-  template < typename T > auto convert(Context & ctx, T & t) -> EnableForFeatureTypes<T, Feature> {
+  template < typename T > auto convert(Context &, T &) -> EnableForFeatureTypes<T, Feature> {
     return NIL_FEATURE;
   }
 };
@@ -532,8 +538,15 @@ Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature const& feature) {
   return std::visit(visitor, feature);
 }
 
-auto Mod_As_IP_Addr::load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value) -> Rv<Handle>{
+auto Mod_As_IP_Addr::load(Config &, YAML::Node, TextView, TextView, YAML::Node) -> Rv<Handle>{
   return Handle(new self_type);
+}
+
+Feature Mod_As_IP_Addr::convert(Context&, feature_type_for<IP_ADDR> n) { return n; }
+
+Feature Mod_As_IP_Addr::convert(Context&, feature_type_for<STRING> s) {
+  swoc::IPAddr addr{s};
+  return addr.is_valid() ? Feature{addr} : NIL_FEATURE;
 };
 
 // --- //

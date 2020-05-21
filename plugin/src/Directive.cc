@@ -25,11 +25,11 @@ Errata DirectiveList::invoke(Context &ctx) {
   for ( auto const& drtv : _directives ) {
     zret.note(drtv->invoke(ctx));
   }
-  return std::move(zret);
+  return zret;
 }
 
 // Do nothing.
-swoc::Errata NilDirective::invoke(Context &ctx) { return {}; }
+swoc::Errata NilDirective::invoke(Context &) { return {}; }
 /* ------------------------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------------------------ */

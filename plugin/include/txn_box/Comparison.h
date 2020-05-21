@@ -57,16 +57,16 @@ public:
   /// Context state updates are done through the @c Context argument.
   /// @{
   virtual bool operator()(Context&, std::monostate) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<STRING> const& view) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<INTEGER> n) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<BOOLEAN> f) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<FLOAT> f) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<IP_ADDR> const& addr) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<DURATION> feature) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<TIMEPOINT> f) const { return false; }
-  virtual bool operator()(Context&, Cons const* cons) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<TUPLE> const& tuple) const { return false; }
-  virtual bool operator()(Context&, Generic const* g) const;
+  virtual bool operator()(Context&, feature_type_for<STRING> const&) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<INTEGER>) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<BOOLEAN>) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<FLOAT>) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<IP_ADDR> const&) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<DURATION>) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<TIMEPOINT>) const { return false; }
+  virtual bool operator()(Context&, Cons const*) const { return false; }
+  virtual bool operator()(Context&, feature_type_for<TUPLE> const&) const { return false; }
+  virtual bool operator()(Context&, Generic const*) const;
   /// @}
 
   /** External comparison entry.
@@ -99,7 +99,7 @@ public:
    *
    * @see accelerate
    */
-  virtual void can_accelerate(Accelerator::Counters& counters) const {}
+  virtual void can_accelerate(Accelerator::Counters& counters) const;
 
   /** String acceleration.
    *
@@ -113,7 +113,7 @@ public:
    *
    * @see can_accelerate
    */
-  virtual void accelerate(StringAccelerator* str_accel) const {}
+  virtual void accelerate(StringAccelerator* str_accel) const;
 
   /** Define a comparison.
    *
@@ -218,7 +218,7 @@ template < typename W > auto ComparisonGroup<W>::load(Config &cfg, YAML::Node no
 template < typename W > auto ComparisonGroup<W>::load_case(Config &cfg, YAML::Node node) -> Errata {
   W w;
   if (auto errata = w.pre_load(cfg, node); !errata.is_ok()) {
-    return std::move(errata);
+    return errata;
   }
 
   // It is permitted to have an empty comparison, which always matches and is marked by a

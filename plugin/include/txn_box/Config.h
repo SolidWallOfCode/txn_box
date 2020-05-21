@@ -55,8 +55,8 @@ public:
     using self_type = ActiveFeatureScope;
     friend class Config;
 
-    ActiveFeatureState _state;
     Config * _cfg = nullptr;
+    ActiveFeatureState _state;
 
   public:
     ActiveFeatureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
@@ -80,7 +80,7 @@ public:
     ActiveFeatureScope scope(*this);
     _active_feature._ref_p = false;
     _active_feature._type = ex_type;
-    return std::move(scope);
+    return scope;
   }
 
   /// Track the state of the active capture groups.
@@ -94,8 +94,8 @@ public:
     using self_type = ActiveCaptureScope;
     friend class Config;
 
-    ActiveCaptureState _state;
     Config * _cfg = nullptr;
+    ActiveCaptureState _state;
 
   public:
     ActiveCaptureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
@@ -120,7 +120,7 @@ public:
     _active_capture._count = count;
     _active_capture._line = line_no;
     _active_capture._ref_p = false;
-    return std::move(scope);
+    return scope;
   }
 
   /// Global and session variable map.
@@ -209,7 +209,7 @@ public:
 
   self_type& localize(Feature & feature);
 
-  template < typename T > auto localize(T & data) -> EnableForFeatureTypes<T, self_type&> { return *this; }
+  template < typename T > auto localize(T &) -> EnableForFeatureTypes<T, self_type&> { return *this; }
 
   /** Allocate config space for an array of @a T.
    *

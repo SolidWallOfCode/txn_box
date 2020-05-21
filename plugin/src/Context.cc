@@ -255,7 +255,7 @@ Context::self_type &Context::enable_hooks(TSHttpTxn txn) {
   return *this;
 }
 
-int Context::ts_callback(TSCont cont, TSEvent evt, void *payload) {
+int Context::ts_callback(TSCont cont, TSEvent evt, void *) {
   self_type * self = static_cast<self_type*>(TSContDataGet(cont));
   auto txn = self->_txn; // cache in case it's a close.
 
@@ -331,4 +331,4 @@ BufferWriter& Context::ArgPack::print(BufferWriter &w
   return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx+1] - ovector[idx]));
 }
 
-std::any Context::ArgPack::capture(unsigned idx) const { return "Bogus"_sv; }
+std::any Context::ArgPack::capture(unsigned) const { return "Bogus"_sv; }
