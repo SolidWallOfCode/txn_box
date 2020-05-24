@@ -100,9 +100,7 @@ public:
   public:
     ActiveCaptureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
 
-    ActiveCaptureScope(self_type && that) : _cfg(that._cfg), _state(that._state) {
-      that._cfg = nullptr;
-    }
+    ActiveCaptureScope(self_type && that);
 
     // No copying.
     ActiveCaptureScope(self_type const& that) = delete;
@@ -131,7 +129,27 @@ public:
 
   ~Config();
 
+  Errata load_args(std::vector<std::string> const& args);
+
+  /** Load file(s) in to @a this configuation.
+   *
+   * @param pattern File path pattern (standard glob format)
+   * @param cfg_key Root key for configuration data.
+   * @return Errors, if any.
+   *
+   * All files matching the @a pattern are loaded in to this configuration, using @a CfgKey as
+   * the root key.
+   */
   swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key);
+
+  /** Load a file into @a this.
+   *
+   * @param cfg_path Path to configuration file.
+   * @param cfg_key Root key in configuration.
+   * @return Errors, if any.
+   *
+   * The content of @a cfg_path is loaded in to @a this configuration instance.
+   */
   swoc::Errata load_file(swoc::file::path const& cfg_path, swoc::TextView cfg_key);
 
   /** Parse YAML from @a node to initialize @a this configuration.
@@ -429,25 +447,53 @@ protected:
   class FileInfo {
     using self_type = FileInfo;
   public:
-    using key_type = swoc::TextView;
+    using map_key = swoc::TextView;
 
-    FileInfo(key_type key) : _path(key) {}
+    FileInfo(map_key key) : _path(key) {}
+
+    bool has_cfg_key(swoc::TextView key) const;
+    void add_key_cfg(swoc::MemArena & arena, swoc::TextView key);
 
     // IntrusiveHashMap support.
-    static key_type key_of(self_type *self) { return self->_path; }
-    static bool equal(key_type lhs, key_type rhs) { return lhs == rhs; }
-    static size_t hash_of(key_type key) { return std::hash<std::string_view>()(key); }
+    static map_key key_of(self_type *self) { return self->_path; }
+    static bool equal(map_key lhs, map_key rhs) { return lhs == rhs; }
+    static size_t hash_of(map_key key) { return std::hash<std::string_view>()(key); }
     static self_type *& next_ptr(self_type * self) { return self->_next; }
     static self_type *& prev_ptr(self_type * self) { return self->_prev; }
 
   protected:
-    key_type _path; ///< Absolute path to file.
+    map_key _path; ///< Absolute path to file.
     self_type * _next = nullptr;
     self_type * _prev = nullptr;
+
+    struct CfgKey {
+      using self_type = CfgKey;
+      swoc::TextView _cfg_key;
+      self_type * _next = nullptr;
+      self_type * _prev = nullptr;
+
+      CfgKey(swoc::TextView const& key) : _cfg_key(key) {}
+
+      static self_type *& next_ptr(self_type * self) { return self->_next; }
+      static self_type *& prev_ptr(self_type * self) { return self->_prev; }
+    };
+    swoc::IntrusiveDList<CfgKey> _cfg_keys;
   };
 
   swoc::IntrusiveHashMap<FileInfo> _cfg_files;
 };
+
+inline bool Config::FileInfo::has_cfg_key(swoc::TextView key) const {
+  return _cfg_keys.end() != std::find_if(_cfg_keys.begin(), _cfg_keys.end(), [=] (CfgKey const& k) { return 0 == strcasecmp(k._cfg_key, key);});
+}
+
+inline void Config::FileInfo::add_key_cfg(swoc::MemArena &arena, swoc::TextView key) {
+  _cfg_keys.append(arena.make<CfgKey>(key));
+}
+
+inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type&& that) : _cfg(that._cfg), _state(that._state) {
+  that._cfg = nullptr;
+}
 
 inline Hook Config::current_hook() const { return _hook; }
 inline bool Config::has_top_level_directive() const { return _has_top_level_directive_p; }

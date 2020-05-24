@@ -187,6 +187,12 @@ Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
     return Expr{Feature{b == BoolTag::True}};
   }
 
+  // float?
+  double f = swoc::svtod(text, &parsed);
+  if (parsed.size() == text.size()) {
+    return Expr{Feature{f}};
+  }
+
   // IP Address?
   swoc::IPAddr addr;
   if (addr.load(text)) {

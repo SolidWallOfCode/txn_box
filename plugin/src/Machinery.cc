@@ -1904,7 +1904,7 @@ Rv<Directive::Handle> Do_cache_key::load(Config& cfg, YAML::Node, swoc::TextView
     return std::move(errata);
   }
 
-  return std::move(Handle(new self_type(std::move(fmt))));
+  return Handle(new self_type(std::move(fmt)));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1942,7 +1942,7 @@ Errata Do_txn_conf::invoke(Context &ctx) {
   if (value.index() == IndexFor(INTEGER)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(INTEGER)>(value));
   } else if (value.index() == IndexFor(BOOLEAN)) {
-    ctx._txn.override_assign(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1 : 0);
+    ctx._txn.override_assign(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1L : 0L);
   } else if (value.index() == IndexFor(STRING)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(STRING)>(value));
   } else if (value.index() == IndexFor(FLOAT)) {
@@ -1967,7 +1967,7 @@ Rv<Directive::Handle> Do_txn_conf::load(Config& cfg, YAML::Node, swoc::TextView 
     return std::move(errata);
   }
 
-  return std::move(Handle(new self_type(std::move(fmt), txn_var)));
+  return Handle(new self_type(std::move(fmt), txn_var));
 }
 
 /* ------------------------------------------------------------------------------------ */
