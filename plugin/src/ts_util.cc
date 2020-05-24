@@ -496,22 +496,32 @@ TxnConfigVar * HttpTxn::find_override(swoc::TextView const& name) {
   return std::get<0>(result)->second.get();
 }
 
-Errata HttpTxn::override_assign(TxnConfigVar const &var, int n) {
+Errata HttpTxn::override_assign(TxnConfigVar const &var, intmax_t n) {
   if (!var.is_valid(n)) {
-    return Error(R"(Integer value {} is not valid for transaction overridable configuration "{}".)", var.name());
+    return Error(R"(Integer value {} is not valid for transaction overridable configuration variable "{}".)", n, var.name());
   }
   if (TS_ERROR == TSHttpTxnConfigIntSet(_txn, var.key(), n)) {
-    return Error(R"(Integer value {} assignment to transaction overridable configuration "{}" failed.)", var.name());
+    return Error(R"(Integer value {} assignment to transaction overridable configuration variable "{}" failed.)", n, var.name());
   }
   return {};
 }
 
 Errata HttpTxn::override_assign(TxnConfigVar const &var, TextView const& text){
   if (!var.is_valid(text)) {
-    return Error(R"(String value "{}" is not valid for transaction overridable configuration "{}".)", var.name());
+    return Error(R"(String value "{}" is not valid for transaction overridable configuration variable "{}".)", text, var.name());
   }
   if (TS_ERROR == TSHttpTxnConfigStringSet(_txn, var.key(), text.data(), text.size())) {
-    return Error(R"(String value "{}" assignment to transaction overridable configuration "{}" failed.)", var.name());
+    return Error(R"(String value "{}" assignment to transaction overridable configuration variable "{}" failed.)", text, var.name());
+  }
+  return {};
+}
+
+Errata HttpTxn::override_assign(TxnConfigVar const &var, double f) {
+  if (!var.is_valid(f)) {
+    return Error(R"(Floating value {} is not valid for transaction overridable configuration variable "{}".)", var.name());
+  }
+  if (TS_ERROR == TSHttpTxnConfigFloatSet(_txn, var.key(), f)) {
+    return Error(R"(Floating value {} assignment to transaction overridable configuration variable "{}" failed.)", var.name());
   }
   return {};
 }

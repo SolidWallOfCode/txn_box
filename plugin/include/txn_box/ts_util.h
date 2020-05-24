@@ -343,9 +343,11 @@ public:
   TSOverridableConfigKey key() const { return _key; }
   TSRecordDataType type() const { return _ts_type; }
 
+  bool is_valid(intmax_t) const { return _ts_type == TS_RECORDDATATYPE_INT; }
+  bool is_valid(swoc::TextView const&) const { return _ts_type == TS_RECORDDATATYPE_STRING; }
+  bool is_valid(double) const { return _ts_type == TS_RECORDDATATYPE_FLOAT; }
   template < typename T > bool is_valid(typename std::decay<T>::type value) { return false; }
-  bool is_valid(intmax_t) const { return true; }
-  bool is_valid(swoc::TextView const&) const { return true; }
+
 protected:
   swoc::TextView _name; ///< Name.
   TSOverridableConfigKey _key; ///< override index value.
@@ -402,8 +404,9 @@ public:
 
   bool set_upstream_addr(swoc::IPAddr const& addr) const;
 
-  swoc::Errata override_assign(TxnConfigVar const& var, int n);
+  swoc::Errata override_assign(TxnConfigVar const& var, intmax_t n);
   swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
+  swoc::Errata override_assign(TxnConfigVar const& var, double f);
 
   static TxnConfigVar * find_override(swoc::TextView const& name);
 

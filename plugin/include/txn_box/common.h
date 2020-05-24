@@ -25,6 +25,7 @@ constexpr swoc::TextView DEBUG_TAG = "txn_box";
 // Forward declares
 class Config;
 class Context;
+using TSCont =  struct tsapi_cont *;
 
 namespace YAML { class Node; }
 
@@ -549,6 +550,8 @@ extern swoc::Lexicon<BoolTag> const BoolNames;
 struct Global {
   swoc::Errata _preload_errata;
   int TxnArgIdx = -1;
+  std::vector<std::string> _args; ///< Global configuration arguments.
+  TSCont _cont; ///< Global continuation to start transaction handling.
 
   void reserve_txn_arg();
 
