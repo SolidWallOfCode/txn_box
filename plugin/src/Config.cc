@@ -8,9 +8,10 @@
 #include <string>
 #include <map>
 #include <numeric>
-#include <getopt.h>
+#include <glob.h>
 
 #include <swoc/TextView.h>
+#include <swoc/MemSpan.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
 #include <yaml-cpp/yaml.h>
@@ -511,7 +512,7 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
   return {};
 }
 
-Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
+Errata Config::parse_yaml(YAML::Node const& root, TextView path) {
   YAML::Node base_node { root };
   static constexpr TextView ROOT_PATH { "." };
   // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
@@ -529,8 +530,7 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path, Hook hook) {
 
   // Special case remap loading.
   auto drtv_loader = &self_type::load_top_level_directive; // global loader.
-  if (hook == Hook::REMAP) {
-    _hook = Hook::REMAP;
+  if (_hook == Hook::REMAP) { // loading only remap directives.
     drtv_loader = &self_type::load_remap_directive;
   }
 
@@ -560,4 +560,145 @@ Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Ins
 Directive::CfgInfo const* Config::drtv_info(swoc::TextView name) {
   auto spot = _factory.find(name);
   return spot == _factory.end() ? nullptr : &_drtv_info[spot->second._idx];
+}
+
+/* ------------------------------------------------------------------------------------ */
+Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key, YamlCache * cache) {
+  if (auto spot = _cfg_files.find(cfg_path) ; spot != _cfg_files.end()) {
+    if (spot->second.has_cfg_key(cfg_key)) {
+      ts::DebugMsg(R"(Skipping "{}":{} - already loaded)", cfg_path, cfg_key);
+      return {};
+    } else {
+      spot->second.add_cfg_key(cfg_key);
+    }
+  } else { // not found - put it in the table.
+    auto [ iter, flag ] = _cfg_files.emplace(FileInfoMap::value_type{cfg_path, {}});
+    iter->second.add_cfg_key(cfg_key);
+  }
+
+  YAML::Node root;
+  // Try loading and parsing the file.
+  if (cache) {
+    if ( auto cache_spot = cache->find(cfg_path) ; cache_spot != cache->end()) {
+      root = cache_spot->second;
+    }
+  }
+
+  if (root.IsNull()) {
+    auto &&[yaml_node, yaml_errata]{yaml_load(cfg_path)};
+    if (!yaml_errata.is_ok()) {
+      yaml_errata.info(R"(While loading file "{}".)", cfg_path);
+      return std::move(yaml_errata);
+    }
+    root = yaml_node;
+    if (cache) {
+      cache->emplace(cfg_path, root);
+    }
+  }
+
+  // Process the YAML data.
+  auto errata = this->parse_yaml(root, cfg_key);
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
+    return errata;
+  }
+
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
+Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCache * cache) {
+  int flags = 0;
+  glob_t files;
+  auto err_f = [](char const*, int) -> int { return 0; };
+  swoc::file::path abs_pattern = ts::make_absolute(pattern);
+  int result = glob(abs_pattern.c_str(), flags, err_f, &files);
+  if (result == GLOB_NOMATCH) {
+    return Warning(R"(The pattern "{}" did not match any files.)", abs_pattern);
+  }
+  for ( size_t idx = 0 ; idx < files.gl_pathc ; ++idx) {
+    auto errata = this->load_file(swoc::file::path(files.gl_pathv[idx]), cfg_key, cache);
+    if (! errata.is_ok()) {
+      errata.info(R"(While processing pattern "{}".)", pattern);
+      return errata;
+    }
+  }
+  globfree(&files);
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
+Errata Config::load_args(const std::vector<std::string> &args, int arg_offset, YamlCache * cache) {
+  using argv_type = char const *; // Overall clearer in context of pointers to pointers.
+  size_t buff_size = args.size() * sizeof(argv_type);
+  std::unique_ptr<argv_type> buff { static_cast<argv_type*>(malloc(buff_size)) };
+  swoc::MemSpan<argv_type> argv{ buff.get(), args.size() };
+  int idx = 0;
+  for ( auto const& arg : args ) {
+    argv[idx++] = arg.c_str();
+  }
+  return this->load_args(argv, arg_offset, cache);
+}
+
+Errata Config::load_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCache * cache) {
+  static constexpr TextView KEY_OPT = "key";
+  static constexpr TextView CONFIG_OPT = "config"; // An archaism for BC - take out someday.
+
+  TextView cfg_key { Config::ROOT_KEY };
+  for ( unsigned idx = arg_offset ; idx < argv.count() ; ++idx ) {
+    TextView arg{std::string_view(argv[idx])};
+    if (arg.empty()) {
+      continue;
+    }
+    if (arg.front() == '-') {
+      arg.ltrim('-');
+      if (arg.empty()) {
+        return Error("Arg {} has an option prefix but no name.", idx);
+      }
+
+      TextView value;
+      if (auto prefix = arg.prefix_at('=') ; ! prefix.empty() ) {
+        value = arg.substr(prefix.size() + 1);
+        arg = prefix;
+      } else if (++idx >= argv.count()) {
+        return Error("Arg {} is an option '{}' that requires a value but none was found.", idx, arg);
+      } else {
+        value = std::string_view{argv[idx]};
+      }
+
+      if (arg.starts_with_nocase(KEY_OPT)) {
+        cfg_key = value;
+      } else if (arg.starts_with_nocase(CONFIG_OPT)) {
+        auto errata = this->load_file_glob(value, cfg_key, cache);
+        if (!errata.is_ok()) {
+          return errata;
+        }
+      } else {
+        return Error("Arg {} is an unrecognized option '{}'.", idx, arg);
+      }
+      continue;
+    }
+    auto errata = this->load_file_glob(arg, cfg_key, cache);
+    if (!errata.is_ok()) {
+      return errata;
+    }
+  }
+
+  // Config loaded, run the post load directives and enable them to break the load by reporting
+  // errors.
+  auto& post_load_directives = this->hook_directives(Hook::POST_LOAD);
+  if (post_load_directives.size() > 0) {
+    // It's not possible to release an object from a shared ptr, so instead the shared_ptr is
+    // constructed with a deleter that does nothing. I think this is cleaner than re-arranging the
+    // code to pass in the shared_ptr from the enclosing scope.
+    std::shared_ptr<self_type> tmp(this, [](self_type*)->void{});
+    std::unique_ptr<Context> ctx{new Context(tmp)};
+    for (auto&& drtv : post_load_directives) {
+      auto errata = drtv->invoke(*ctx);
+      if (! errata.is_ok()) {
+        errata.info("While processing post-load directives.");
+        return errata;
+      }
+    }
+  }
+  _cfg_files.clear();
+  return {};
 }
