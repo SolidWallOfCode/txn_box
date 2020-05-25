@@ -363,6 +363,8 @@ public:
    */
   Directive::CfgInfo const* drtv_info(swoc::TextView name);
 
+  size_t file_count() const { return _cfg_file_count; }
+
 protected:
   friend class When;
   friend class Context;
@@ -460,19 +462,34 @@ protected:
    */
   swoc::Rv<ActiveType> validate(Extractor::Spec &spec);
 
-  // Configuration file tracking.
+  /// Tracking for configuration files loaded in to @a this.
   class FileInfo {
-    using self_type = FileInfo;
+    using self_type = FileInfo; ///< Self reference type.
   public:
+    /** Check if a specific @a key has be used as a root for this file.
+     *
+     * @param key Root key name to check.
+     * @return @c true if already used, @c false if not.
+     */
     bool has_cfg_key(swoc::TextView key) const;
+
+    /** Mark a root @a key as used.
+     *
+     * @param key Name of the key.
+     */
     void add_cfg_key(swoc::TextView key);
 
   protected:
     std::list<std::string> _keys; ///< Root keys loaded from this file.
   };
 
+  /// Mapping of absolute paths to @c FileInfo to track used configuration files / keys.
   using FileInfoMap = std::unordered_map<swoc::file::path, FileInfo>;
+  /// Configuration file tracking map.
   FileInfoMap _cfg_files;
+  /// # of configuration files tracked.
+  /// Used for diagnostics.
+  size_t _cfg_file_count = 0;
 };
 
 inline bool Config::FileInfo::has_cfg_key(swoc::TextView key) const {

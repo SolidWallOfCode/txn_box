@@ -687,8 +687,8 @@ Errata Config::load_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCa
   auto& post_load_directives = this->hook_directives(Hook::POST_LOAD);
   if (post_load_directives.size() > 0) {
     // It's not possible to release an object from a shared ptr, so instead the shared_ptr is
-    // constructed with a deleter that does nothing. I think this is cleaner than re-arranging the
-    // code to pass in the shared_ptr from the enclosing scope.
+    // constructed with a no-op deleter. I think this is cleaner than re-arranging the code to pass
+    // in the shared_ptr from the enclosing scope.
     std::shared_ptr<self_type> tmp(this, [](self_type*)->void{});
     std::unique_ptr<Context> ctx{new Context(tmp)};
     for (auto&& drtv : post_load_directives) {
@@ -699,6 +699,7 @@ Errata Config::load_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCa
       }
     }
   }
+  _cfg_file_count = _cfg_files.size();
   _cfg_files.clear();
   return {};
 }
