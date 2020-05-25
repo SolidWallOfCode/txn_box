@@ -31,6 +31,21 @@ enum class FeatureNodeStyle {
   TUPLE, ///< Structure is suitable for a list of features.
 };
 
+// Temporary - this will be available in libswoc 1.2.6+. Until then, patch locally.
+namespace std {
+
+template <> struct hash<swoc::file::path> {
+  size_t operator()(swoc::file::path const& arg) const { return hash<string_view>()(arg.view()); }
+};
+
+} // namespace std
+
+namespace swoc { inline namespace SWOC_VERSION_NS { namespace file {
+  inline bool operator == (path const& lhs, path const& rhs) {
+    return lhs.view() == rhs.view();
+  }
+}}}
+
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
 class Config {
@@ -124,12 +139,17 @@ public:
   /// Global and session variable map.
   using Variables = std::map<swoc::TextView, unsigned>;
 
+  /// Cache of parsed YAML for files.
+  /// @note Used only for remap.
+  using YamlCache = std::unordered_map<swoc::file::path, YAML::Node>;
+
   /// Default constructor, makes an empty instance.
   Config();
 
   ~Config();
 
-  Errata load_args(std::vector<std::string> const& args);
+  Errata load_args(std::vector<std::string> const& args, int arg_offset = 0, YamlCache * cache = nullptr);
+  Errata load_args(swoc::MemSpan<char const*> argv, int arg_offset = 0, YamlCache * cache = nullptr);
 
   /** Load file(s) in to @a this configuation.
    *
@@ -140,7 +160,7 @@ public:
    * All files matching the @a pattern are loaded in to this configuration, using @a CfgKey as
    * the root key.
    */
-  swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key);
+  swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key, YamlCache* cache = nullptr);
 
   /** Load a file into @a this.
    *
@@ -150,27 +170,24 @@ public:
    *
    * The content of @a cfg_path is loaded in to @a this configuration instance.
    */
-  swoc::Errata load_file(swoc::file::path const& cfg_path, swoc::TextView cfg_key);
+  swoc::Errata load_file(swoc::file::path const& cfg_path, swoc::TextView cfg_key, YamlCache * cache = nullptr);
 
   /** Parse YAML from @a node to initialize @a this configuration.
    *
    * @param root Root node.
    * @param path Path from root node to the configuration based node.
-   * @param hook Default hook for directives.
    * @return Errors, if any.
    *
    * The @a path is an @c ARG_SEP separate list of keys. The value of the last key is the
    * node that is parsed. If the path is a single @c ARG_SEP the root node is parsed.
    *
-   * If @a hook is @c Hook::INVALID then the directives must all be @c WHEN directives.
-   * Otherwise the directives are put in the @a hook bucket if not @c WHEN. If @c WHEN the
-   * directive is unpacked and put in the bucket specified by the @c WHEN.
-   *
    * @note Currently only @c Hook::REMAP is used for @a hook to handle the special needs of
    * a remap based configuration.
    *
    */
-  Errata parse_yaml(YAML::Node const& root, swoc::TextView path, Hook hook = Hook::INVALID);
+  Errata parse_yaml(YAML::Node const& root, swoc::TextView path);
+
+  void mark_as_remap() { _hook = Hook::REMAP; }
 
   /** Load directives at the top level.
    *
@@ -447,48 +464,23 @@ protected:
   class FileInfo {
     using self_type = FileInfo;
   public:
-    using map_key = swoc::TextView;
-
-    FileInfo(map_key key) : _path(key) {}
-
     bool has_cfg_key(swoc::TextView key) const;
-    void add_key_cfg(swoc::MemArena & arena, swoc::TextView key);
-
-    // IntrusiveHashMap support.
-    static map_key key_of(self_type *self) { return self->_path; }
-    static bool equal(map_key lhs, map_key rhs) { return lhs == rhs; }
-    static size_t hash_of(map_key key) { return std::hash<std::string_view>()(key); }
-    static self_type *& next_ptr(self_type * self) { return self->_next; }
-    static self_type *& prev_ptr(self_type * self) { return self->_prev; }
+    void add_cfg_key(swoc::TextView key);
 
   protected:
-    map_key _path; ///< Absolute path to file.
-    self_type * _next = nullptr;
-    self_type * _prev = nullptr;
-
-    struct CfgKey {
-      using self_type = CfgKey;
-      swoc::TextView _cfg_key;
-      self_type * _next = nullptr;
-      self_type * _prev = nullptr;
-
-      CfgKey(swoc::TextView const& key) : _cfg_key(key) {}
-
-      static self_type *& next_ptr(self_type * self) { return self->_next; }
-      static self_type *& prev_ptr(self_type * self) { return self->_prev; }
-    };
-    swoc::IntrusiveDList<CfgKey> _cfg_keys;
+    std::list<std::string> _keys; ///< Root keys loaded from this file.
   };
 
-  swoc::IntrusiveHashMap<FileInfo> _cfg_files;
+  using FileInfoMap = std::unordered_map<swoc::file::path, FileInfo>;
+  FileInfoMap _cfg_files;
 };
 
 inline bool Config::FileInfo::has_cfg_key(swoc::TextView key) const {
-  return _cfg_keys.end() != std::find_if(_cfg_keys.begin(), _cfg_keys.end(), [=] (CfgKey const& k) { return 0 == strcasecmp(k._cfg_key, key);});
+  return _keys.end() != std::find_if(_keys.begin(), _keys.end(), [=] (std::string const& k) { return 0 == strcasecmp(k, key);});
 }
 
-inline void Config::FileInfo::add_key_cfg(swoc::MemArena &arena, swoc::TextView key) {
-  _cfg_keys.append(arena.make<CfgKey>(key));
+inline void Config::FileInfo::add_cfg_key(swoc::TextView key) {
+  _keys.emplace_back(key);
 }
 
 inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type&& that) : _cfg(that._cfg), _state(that._state) {
