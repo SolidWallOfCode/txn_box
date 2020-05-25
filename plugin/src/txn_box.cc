@@ -87,6 +87,7 @@ int CB_Txn_Start(TSCont, TSEvent, void * payload) {
 
 void Task_ConfigReload() {
   std::shared_ptr cfg = std::make_shared<Config>();
+  auto t0 = std::chrono::system_clock::now();
   auto errata = cfg->load_args(G._args, 1);
   if (!errata.is_ok()) {
     std::string err_str;
@@ -97,6 +98,9 @@ void Task_ConfigReload() {
     Plugin_Config = cfg;
   }
   Plugin_Reloading = false;
+  auto delta = std::chrono::system_clock::now() - t0;
+  std::string text;
+  TSDebug(Config::PLUGIN_TAG.data(), "%s", swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(), std::chrono::duration_cast<std::chrono::milliseconds>(delta).count()).c_str());
 }
 
 int CB_TxnBoxMsg(TSCont, TSEvent, void * data) {
@@ -125,10 +129,14 @@ TxnBoxInit() {
                                 , "solidwallofcode@verizonmedia.com"};
 
   Plugin_Config = std::make_shared<Config>();
+  auto t0 = std::chrono::system_clock::now();
   auto errata = Plugin_Config->load_args(G._args, 1);
   if (!errata.is_ok()) {
     return errata;
   }
+  auto delta = std::chrono::system_clock::now() - t0;
+  std::string text;
+  TSDebug(Config::PLUGIN_TAG.data(), "%s", swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(), std::chrono::duration_cast<std::chrono::milliseconds>(delta).count()).c_str());
 
   if (TSPluginRegister(&info) == TS_SUCCESS) {
     TSCont cont{TSContCreate(CB_Txn_Start, nullptr)};
