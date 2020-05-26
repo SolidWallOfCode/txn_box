@@ -4,24 +4,23 @@
 Transaction Box
 ***************
 
-Transaction Box, or "txn_box", is an Apache Traffic Server plugin to manipulate
+Transaction Box, or |TxB|, is an Apache Traffic Server plugin to manipulate
 :term:`transaction`\s. The functionality is based on requests I have received over the years from
 users and admnistrators for |TS|. The primary points of interest are
 
 *  YAML based configuration.
-*  Interaction between global and remap hooks.
-*  Consistent data handling for all uses.
-*  Conditional actions based on a wide variety of transaction property.
-*  A variety of comparison operations.
-*  Transaction local variables.
-*  Static file support.
-*  IP address database support.
+*  Smooth interaction between global and remap hooks.
+*  Consistent access to data, a single way to access data usable in all circumstances.
+
+|TxB| is designed as a very general plugin which can replace a number of other plugins. It is also
+intended, in the long run, to replace "remap.config".
 
 .. toctree::
    :maxdepth: 2
 
    txn_box.en
    building.en
+   install.en
    expr.en.rst
    directive.en
    selection.en
