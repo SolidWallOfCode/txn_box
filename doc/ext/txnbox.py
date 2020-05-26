@@ -50,7 +50,8 @@ class TxbDirective(std.Target):
         'class': rst.directives.class_option,
         'arg': rst.directives.unchanged,
         'value': rst.directives.unchanged,
-        'keys': rst.directives.unchanged
+        'keys': rst.directives.unchanged,
+        'hooks': rst.directives.unchanged
     }
 
     # External entry point
@@ -128,7 +129,8 @@ class TxbExtractor(std.Target):
     option_spec = {
         'class': rst.directives.class_option,
         'arg': rst.directives.unchanged,
-        'result': txb_value_type_options
+#        'result': txb_value_type_options
+        'result': rst.directives.unchanged
     }
 
     # External entry point
@@ -284,6 +286,7 @@ class TxbModifier(std.Target):
 
     option_spec = {
         'class': rst.directives.class_option,
+        'arg': rst.directives.unchanged,
         'expr': rst.directives.unchanged,
         'value': rst.directives.unchanged,
         'result': rst.directives.unchanged

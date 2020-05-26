@@ -1,3 +1,6 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: /common.defs
 
 .. highlight:: yaml
@@ -71,6 +74,24 @@ Extractors
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
 
+.. extractor:: proxy-req-url
+   :result: string
+
+   The URL in the proxy request. Note this may or may not include the scheme and host, depending
+   on the original user agent request.
+
+.. extractor:: proxy-req-field
+   :result: NULL, string, string list
+   :arg: name
+
+   The value of a field in the proxy request. This requires a field name as a argument. To get the
+   value of the "Host" field the extractor would be "proxy-req-field<Host>". The field name is case
+   insensitive.
+
+   If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
+   empty string which is returned if the field is present but has no value. If there are duplicate
+   fields then a string list is returned, each element of which corresponds to a field.
+
 .. extractor:: inbound-addr-remote
    :result: IP address
 
@@ -101,3 +122,16 @@ Extractors
         do: # ...
       - lt: 25: # match 20% of the time - 25% less the previous 5%
         do: # ...
+
+.. extractor:: is-internal
+   :result: boolean
+
+   This returns a boolean value, ``true`` if the request is an internal request, and ``false`` if not.
+
+.. extractor:: ip-col
+   :arg: Column name or index
+
+   This must be used in the context of the modifier :mod:`ip-space` which creates the row context
+   needed to extract the column value for that row. The argument can be the name of the column, if
+   it has a name, or the index. Note index 0 is the IP address range, and data columns start at
+   index 1.

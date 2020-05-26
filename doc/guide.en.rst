@@ -1,7 +1,7 @@
 .. include:: /common.defs
 
 .. highlight:: yaml
-.. default-domain:: cpp
+.. default-domain:: txb
 
 .. _guide:
 
@@ -41,7 +41,7 @@ To set the field "Best-Band" to the string "Delain" in the proxy request ::
    proxy-req-field<Best-Band>: "Delain"
 
 To set the field "TLS-Source" to the SNI name and the client IP address (see :ex:`inbound-sni` and
-:ex:`inbound-remote-addr`) ::
+:ex:`inbound-addr-remote`) ::
 
    proxy-req-field<TLS-Source>: "{inbound-sni}@{inbound-addr-remote}"
 
@@ -93,7 +93,7 @@ and not the same as assigning the empty string, such that the field is present b
    ua-req-field<X-Forwarded-For>: ""
 
 For a list based example consider the ``Via`` header. This can extend over multiple fields. For this
-reason the extractor :ex:`proxy-req-field<Via>` can return a list.
+reason the extractor :code:`proxy-req-field` can return a list.
 
 Rewriting URLs
 **************
@@ -124,7 +124,7 @@ Using Variables
 ***************
 
 For each transaction, |TxB| supports a set of named variables. The names can be arbitrary strings
-and the value any feature. A variable is set using the :txb:directive:`var` directive with an
+and the value any feature. A variable is set using the :txb:drtv:`var` directive with an
 argument of the variable name and the value a feature. To set the variable "Best-Band" to "Delain" ::
 
    var<Best-Band>: "Delain"
@@ -178,11 +178,11 @@ Diverting Traffic
 Requests can be routed to one of a set of upstreams in a deterministic or random fashion. This can
 be used for A/B testing or for gradually ramping traffic from one set of upstreams to another.
 
-The random mechanism uses the :txb:extractor:`random` extractor. This generates a random integer
-in a range which is used to select the specific upstream. This enables sending a specific fraction
-of traffic to each upstream. A common case is ramping up to transition from one service to another.
-Suppose the current service was at "v1.app.txbox" and the new version at "v2.app.txnbox". To divert
-5% of the traffic to the new upstream ::
+The random mechanism uses the :ex:`random` extractor. This generates a random integer in a range
+which is used to select the specific upstream. This enables sending a specific fraction of traffic
+to each upstream. A common case is ramping up to transition from one service to another. Suppose the
+current service was at "v1.app.txbox" and the new version at "v2.app.txnbox". To divert 5% of the
+traffic to the new upstream ::
 
    with: random # default is 0..99
    select:

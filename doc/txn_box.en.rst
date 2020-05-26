@@ -1,10 +1,10 @@
-' Copyright 2020, Verizon Media
-' SPDX-License-Identifier: Apache-2.0
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
 
 .. include:: common.defs
 
 .. highlight:: yaml
-.. default-domain:: yaml
+.. default-domain:: txb
 
 .. _txn-box:
 
@@ -37,7 +37,7 @@ provides additional control of the directive's action.
 
 A :term:`comparison` is an operation that compares two features.
 
-:term:`Selection`is using comparisons can to select specific directives to perform. This is the way
+:term:`Selection` is using comparisons can to select specific directives to perform. This is the way
 in which conditional actions are done in |TxB|.
 
 A |TxB| configuration is organized at the top level by hooks, to which are attached the directives

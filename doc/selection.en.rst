@@ -1,10 +1,10 @@
-' Copyright 2020, Verizon Media
-' SPDX-License-Identifier: Apache-2.0
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
 
 .. include:: common.defs
 
 .. highlight:: yaml
-.. default-domain:: yaml
+.. default-domain:: txb
 
 .. _selection:
 
@@ -25,13 +25,13 @@ selection. The key :code:`select` is used to anchor the list of comparisons.  ::
       do:
       -  proxy-req-url: "https://engine.example.one"
 
-Here :txb:xf:`ua-req-host` is an extractor that extracts the host of the URL in the client request.
+Here :ex:`ua-req-host` is an extractor that extracts the host of the URL in the client request.
 The value of the :code:`select` key is a list of objects which consist of a comparison and a list of
 directives as the value of the :code:`do` key.
 
 The comparison :txb:cmp:`match` is a comparison operator that does string comparisons between its
-value and the active feature. The directive :txb:drtv:`upstream` sets upstream destination in the
-proxy request. What this configuration snippet does is change requests for "mail.example.one" to
+value and the active feature. The directive :txb:drtv:`proxy-req-url` sets upstream destination in
+the proxy request. What this configuration snippet does is change requests for "mail.example.one" to
 requests to "example com/mail" and requests for "search.example.on" to "engine.example.one".
 
 The :code:`with` / :code:`select` mechanism is a directive and so selection can be nested to an

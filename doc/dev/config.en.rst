@@ -3,15 +3,15 @@
 .. highlight:: yaml
 .. default-domain:: txb
 
-.. _design:
+.. _imp_config:
 
 Configuration
 *************
 
-Configuration state is managed by the :cpp:class:`Config` class. An instance of this represents a
+Configuration state is managed by the :txb:`Config` class. An instance of this represents a
 configuration of |TxB|. The instance is similar to the global data for a process - data that is
 tied to a configuration in general and not to any particular configuration element is stored here.
-An instance of :cpp:class:`Config` acts as the "context" for parsing configuration.
+An instance of :txb:`Config` acts as the "context" for parsing configuration.
 
 Directive Handling
 ==================

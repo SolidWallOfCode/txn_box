@@ -1,7 +1,10 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: common.defs
 
 .. highlight:: yaml
-.. default-domain:: yaml
+.. default-domain:: txb
 
 ***************
 Miscellaneous
@@ -57,7 +60,7 @@ Due to history and bad practices, working with the fields in an HTTP message can
 Unfortunately this makes the configuration for these more intricate.
 
 The general case, where there is a single field with a single value it straight forward. A field
-extractor (such as :txb:exf:`proxy-req-field`) can be used to get the value, and a field directive
+extractor (such as :txb:ex:`proxy-req-field`) can be used to get the value, and a field directive
 (such as :txb:drtv:`proxy-req-field`) to change it.
 
 Some fields are defined to be `multi-valued <https://tools.ietf.org/html/rfc7230#section-3.2.6>`__

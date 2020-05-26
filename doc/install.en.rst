@@ -1,9 +1,9 @@
 .. include:: common.defs
 
 .. highlight:: text
-.. default-domain:: cpp
+.. default-domain:: txb
 
-.. _building:
+.. _installing:
 
 ***************
 Installing

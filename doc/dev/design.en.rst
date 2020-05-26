@@ -1,3 +1,6 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: /common.defs
 
 .. highlight:: yaml
@@ -42,7 +45,7 @@ general such that it could perform the functions of these other configurations, 
 *  cache.config
 *  parent.config
 *  The `header_rewrite` plugin.
-*  The `regexr_remap` plugin.
+*  The `regex_remap` plugin.
 *  The `cookie_remap` plugin.
 *  The `conf_remap` plugin.
 *  The `cache_key` plugin.
