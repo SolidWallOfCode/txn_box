@@ -1,3 +1,6 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: common.defs
 
 .. highlight:: text
@@ -30,9 +33,20 @@ and if the same file is specified again it is not loaded. If the path is relativ
 relative to the |TS| configuratoin directory. The key used for each file is the most recent key
 argument.
 
-Some examples
+Although basic usage is simple - simply list the set of configurations to load, use of the arguments
+can be a bit subtle. Here are some examples to clarify that usage.
 
-Load the file "txn_box/global.yaml" from the |TS| configuration directory, using the top level key
+Load the file "txn_box/global.yaml" from the |TS| configuration directory using the default root
+key "txn_box" ::
+
+   txn_box.so txn_box/global.yaml
+
+Load the files "global.yaml", "security.yaml", and "ycpi.yaml" from the |TS| configuration directory
+using the default root key "txn_box" ::
+
+   txn_box.so txn_box/global.yaml txn_box/security.yaml txn_box/ycpi.yaml
+
+Load the file "txn_box/global.yaml" from the |TS| configuration directory, using the root key
 "global" as the root of the configuration. ::
 
    txn_box.so --key global txn_box/global.yaml

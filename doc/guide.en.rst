@@ -1,3 +1,6 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: /common.defs
 
 .. highlight:: yaml
@@ -172,35 +175,6 @@ multiple places, the results can be placed in a variable and then that variable'
 avoiding much of the complexity. For instance, remap rules could set a variable as a flag to
 indicate which remap rule triggered.
 
-Diverting Traffic
-*****************
-
-Requests can be routed to one of a set of upstreams in a deterministic or random fashion. This can
-be used for A/B testing or for gradually ramping traffic from one set of upstreams to another.
-
-The random mechanism uses the :ex:`random` extractor. This generates a random integer in a range
-which is used to select the specific upstream. This enables sending a specific fraction of traffic
-to each upstream. A common case is ramping up to transition from one service to another. Suppose the
-current service was at "v1.app.txbox" and the new version at "v2.app.txnbox". To divert 5% of the
-traffic to the new upstream ::
-
-   with: random # default is 0..99
-   select:
-   -  lt 5: # selected 5% of the time.
-      do:
-         proxy-req-host: "v2.app.txnbox"
-   -  whatever:
-      do:
-         proxy-req-host: "v1.app.txnbox"
-
-
-.. rubric:: Footnotes
-
-.. [#]
-
-   These are similar to the "@" headers for core |TS|, but don't have any name restriction and are
-   not related to any specific header. They are stored entirely inside the |TxB| plugin.
-
 .. _filter-guide:
 
 Filter Techniques
@@ -224,3 +198,10 @@ Consider an example where a proxy request field should be set to "high" for a se
 
 In essence, each comparison does a ``replace`` to provide the translated value, with a final
 ``replace`` with no comparison that matches anything not already matched.
+
+.. rubric:: Footnotes
+
+.. [#]
+
+   These are similar to the "@" headers for core |TS|, but don't have any name restriction and are
+   not related to any specific header. They are stored entirely inside the |TxB| plugin.
