@@ -50,7 +50,7 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
     ts.Setup.Copy(txn_box_lib, plugin_dir, CopyLogic.SoftFiles)
 
     # Configure txn_box in Traffic Server.
-    txn_box_command = 'txn_box.so '
+    txn_box_command = 'txn_box.so'
 
     if config_key:
         txn_box_command += ' --key {}'.format(config_key)
@@ -59,7 +59,7 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
         config_path = replay_path
 
     ts.Setup.Copy(config_path, ts.Variables.CONFIGDIR)
-    txn_box_command += ' --config {}'.format(os.path.basename(config_path))
+    txn_box_command += ' {}'.format(os.path.basename(config_path))
 
     ts.Disk.plugin_config.AddLine(txn_box_command)
 
@@ -79,7 +79,7 @@ def TxnBoxTestRun(self, text, replay_path, config_key="meta.txn_box",
             if len(remap_config) == 1:
               map_to = map_from
             elif len(remap_config) == 2:
-              if isinstance(remap_config[1], types.StringTypes):
+              if isinstance(remap_config[1], str):
                 map_to = remap_config[1]
               else:
                 pparams = remap_config[1]

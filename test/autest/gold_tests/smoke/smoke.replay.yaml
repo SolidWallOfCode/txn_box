@@ -1,38 +1,40 @@
 meta:
   version: "1.0"
 
-config:
   txn_box:
   - when: ua-req
     do:
-    - txn-conf<proxy.config.http.cache.http>: disable
+    - var<Best-Band>: "Delain"
+
+  - when: proxy-rsp
+    do:
+      with: ua-req-path
+      select:
+      - match: "2"
+        do:
+        - proxy-rsp-field<Best-Band>: var<Best-Band>
 
   blocks:
   - base_request: &base_request
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://example.one"
-  - base_fields:
-    - [ Host, example.one ]
 
 sessions:
 - protocol: [ ipv4, tcp ]
   transactions:
-  - client-request:
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
       <<: *base_request
+      url: "/1"
       headers:
         fields:
         - [ Host, example.one ]
-        - [ uuid, 1 ]
     proxy-request:
-      <<: *base_request
       headers:
         fields:
         - [ Host, example.one ]
-        - [ uuid, 1 ]
-        - [ TxnBox, Delain ]
-    server-response: &std-response
+    server-response:
       status: 200
       reason: OK
       content:
@@ -41,8 +43,23 @@ sessions:
         fields:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 234 ]
-        - [ uuid, 1 ]
-    proxy-response: &std-response
+    proxy-response:
+      headers:
+        fields:
+        - [ Best-Band, Delain, absent ]
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+    client-request:
+      <<: *base_request
+      url: "/2"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Host, example.one ]
+    server-response:
       status: 200
       reason: OK
       content:
@@ -51,4 +68,7 @@ sessions:
         fields:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 234 ]
-        - [ uuid, 1 ]
+    proxy-response:
+      headers:
+        fields:
+        - [ Best-Band, Delain, equal ]
