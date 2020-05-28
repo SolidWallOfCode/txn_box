@@ -1,3 +1,6 @@
+.. Copyright 2020, Verizon Media
+   SPDX-License-Identifier: Apache-2.0
+
 .. include:: common.defs
 
 .. highlight:: yaml
