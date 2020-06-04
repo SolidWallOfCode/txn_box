@@ -31,21 +31,6 @@ enum class FeatureNodeStyle {
   TUPLE, ///< Structure is suitable for a list of features.
 };
 
-// Temporary - this will be available in libswoc 1.2.6+. Until then, patch locally.
-namespace std {
-
-template <> struct hash<swoc::file::path> {
-  size_t operator()(swoc::file::path const& arg) const { return hash<string_view>()(arg.view()); }
-};
-
-} // namespace std
-
-namespace swoc { inline namespace SWOC_VERSION_NS { namespace file {
-  inline bool operator == (path const& lhs, path const& rhs) {
-    return lhs.view() == rhs.view();
-  }
-}}}
-
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
 class Config {
