@@ -1,0 +1,51 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    # This requires pristine_host_header to be set to 1.
+    remap-pristine:
+      with: random<0,999>
+      select:
+      - lt: 300
+        do:
+          ua-req-field<Host>: "example.two"
+
+    # This works for any value of pristine_host_header
+    remap-generic:
+      with: random<0,999>
+      select:
+      - lt: 300
+        do:
+        - when: post-remap # wait till after remap is done
+          do:
+          - ua-req-field<Host>: "example.two"
+
+  blocks:
+  - base_request: &base_request
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/1"
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      <<: *base_request
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+    proxy-response:
+      status: 200
