@@ -55,7 +55,7 @@ protected:
 };
 
 const std::string Do_ua_req_url_host::KEY {"ua-req-url-host" };
-const HookMask Do_ua_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_ua_req_url_host::HOOKS {MaskFor({ Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
 Do_ua_req_url_host::Do_ua_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
@@ -106,7 +106,7 @@ protected:
 };
 
 const std::string Do_proxy_req_url_host::KEY {"proxy-req-url-host" };
-const HookMask Do_proxy_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_req_url_host::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Do_proxy_req_url_host::Do_proxy_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
@@ -136,6 +136,7 @@ swoc::Rv<Directive::Handle> Do_proxy_req_url_host::load(Config& cfg, YAML::Node 
 
 // ---
 
+#if 0
 class Do_remap_req_url_host : public Directive {
   using super_type = Directive;
   using self_type = Do_remap_req_url_host;
@@ -181,6 +182,7 @@ swoc::Rv<Directive::Handle> Do_remap_req_url_host::load(Config& cfg, YAML::Node 
   }
   return Handle(new self_type{std::move(expr)});
 }
+#endif
 /* ------------------------------------------------------------------------------------ */
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
@@ -222,7 +224,7 @@ protected:
 };
 
 const std::string Do_ua_req_host::KEY {"ua-req-host" };
-const HookMask Do_ua_req_host::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_ua_req_host::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
 Do_ua_req_host::Do_ua_req_host(Expr &&expr) : _expr(std::move(expr)) {}
 
@@ -288,7 +290,7 @@ protected:
 };
 
 const std::string Do_proxy_req_host::KEY {"proxy-req-host" };
-const HookMask Do_proxy_req_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_req_host::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Do_proxy_req_host::Do_proxy_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -312,6 +314,7 @@ swoc::Rv<Directive::Handle> Do_proxy_req_host::load(Config& cfg, YAML::Node drtv
   return  Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+#if 0
 /** Set the host for remap.
  * This updates both the URL and the "Host" field, if appropriate.
  */
@@ -379,6 +382,7 @@ swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node drtv_nod
   }
   return Handle(new self_type(std::move(expr)));
 }
+#endif
 /* ------------------------------------------------------------------------------------ */
 /** Set the scheme for the inbound request.
  */
@@ -419,7 +423,7 @@ protected:
 };
 
 const std::string Do_ua_req_scheme::KEY {"ua-req-scheme" };
-const HookMask Do_ua_req_scheme::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_ua_req_scheme::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
 Do_ua_req_scheme::Do_ua_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -482,7 +486,7 @@ protected:
 };
 
 const std::string Do_proxy_req_scheme::KEY {"proxy-req-scheme" };
-const HookMask Do_proxy_req_scheme::HOOKS {MaskFor({Hook::PRE_REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+const HookMask Do_proxy_req_scheme::HOOKS {MaskFor({ Hook::PREQ}) };
 
 Do_proxy_req_scheme::Do_proxy_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -506,6 +510,7 @@ swoc::Rv<Directive::Handle> Do_proxy_req_scheme::load(Config& cfg, YAML::Node dr
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+#if 0
 /** Set the scheme for the outbound request.
  */
 class Do_remap_scheme : public Directive {
@@ -570,6 +575,7 @@ swoc::Rv<Directive::Handle> Do_remap_scheme::load(Config& cfg, YAML::Node drtv_n
   }
   return Handle(new self_type(std::move(expr)));
 }
+#endif
 /* ------------------------------------------------------------------------------------ */
 /** Do the remap.
  */
@@ -642,7 +648,6 @@ Errata Do_apply_remap_rule::invoke(Context &ctx) {
     request_url.path_set(TextView{url_w.view()}.ltrim('/'));
   };
 
-//  TSUrlCopy(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl, ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl);
   return {};
 }
 
@@ -689,7 +694,7 @@ protected:
 };
 
 const std::string Do_ua_req_path::KEY {"ua-req-path" };
-const HookMask Do_ua_req_path::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_ua_req_path::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
 Do_ua_req_path::Do_ua_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -752,7 +757,7 @@ protected:
 };
 
 const std::string Do_proxy_req_path::KEY {"proxy-req-path" };
-const HookMask Do_proxy_req_path::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_req_path::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Do_proxy_req_path::Do_proxy_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -776,6 +781,7 @@ swoc::Rv<Directive::Handle> Do_proxy_req_path::load(Config& cfg, YAML::Node drtv
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+#if 0
 /** Set the path for remap.
  */
 class Do_remap_path : public Directive {
@@ -837,6 +843,7 @@ swoc::Rv<Directive::Handle> Do_remap_path::load(Config& cfg, YAML::Node drtv_nod
   }
   return Handle(new self_type(std::move(expr)));
 }
+#endif
 /* ------------------------------------------------------------------------------------ */
 class FieldDirective : public Directive {
   using self_type = FieldDirective; ///< Self reference type.
@@ -1009,9 +1016,10 @@ protected:
 };
 
 const std::string Do_ua_req_field::KEY {"ua-req-field" };
-const HookMask Do_ua_req_field::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP }) };
+const HookMask Do_ua_req_field::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP }) };
 
 Errata Do_ua_req_field::invoke(Context &ctx) {
+  ctx._remap_status = TSREMAP_DID_REMAP;
   return this->super_type::invoke(ctx, ctx.creq_hdr());
 }
 
@@ -1036,7 +1044,7 @@ protected:
 };
 
 const std::string Do_proxy_req_field::KEY {"proxy-req-field" };
-const HookMask Do_proxy_req_field::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_req_field::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Errata Do_proxy_req_field::invoke(Context &ctx) {
   return this->super_type::invoke(ctx, ctx.preq_hdr());
@@ -1824,6 +1832,7 @@ Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node drtv_node
   return Handle(new self_type(cfg.localize(arg), std::move(expr)));
 }
 
+#if 0
 class Do_remap_query : public Directive, QueryDirective {
   using self_type = Do_remap_query;
   using super_type = Directive;
@@ -1861,8 +1870,7 @@ Errata Do_remap_query::invoke(Context &ctx) {
 //  ctx._remap_status = TSREMAP_DID_REMAP;
   return this->QueryDirective::invoke(ctx, _expr, ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl), _arg);
 }
-/* ------------------------------------------------------------------------------------ */
-
+#endif
 /* ------------------------------------------------------------------------------------ */
 /// Set the cache key.
 class Do_cache_key : public Directive {
@@ -2299,10 +2307,10 @@ namespace {
   Config::define<Do_proxy_req_path>();
   Config::define<Do_proxy_req_scheme>();
 
-  Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
-  Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
-  Config::define<Do_remap_scheme>();
-  Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
+//  Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
+//  Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
+//  Config::define<Do_remap_scheme>();
+//  Config::define(Do_remap_query::KEY, Do_remap_query::HOOKS, Do_remap_query::load);
   Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
 
   Config::define(Do_upstream_rsp_field::KEY, Do_upstream_rsp_field::HOOKS, Do_upstream_rsp_field::load);
