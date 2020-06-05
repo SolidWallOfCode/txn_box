@@ -642,7 +642,7 @@ Errata Config::load_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCa
   static constexpr TextView KEY_OPT = "key";
   static constexpr TextView CONFIG_OPT = "config"; // An archaism for BC - take out someday.
 
-  TextView cfg_key { Config::ROOT_KEY };
+  TextView cfg_key { _hook == Hook::REMAP ? REMAP_ROOT_KEY : GLOBAL_ROOT_KEY };
   for ( unsigned idx = arg_offset ; idx < argv.count() ; ++idx ) {
     TextView arg{std::string_view(argv[idx])};
     if (arg.empty()) {

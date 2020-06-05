@@ -619,3 +619,8 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &
 }
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);
+
+namespace std { namespace chrono {
+using days = duration<hours::rep, ratio<86400>>;
+using weeks = duration<hours::rep, ratio<86400*7>>;
+}} // namespace std::chrono

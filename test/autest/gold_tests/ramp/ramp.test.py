@@ -10,6 +10,10 @@ Test.Summary = '''
 Test basic functions and directives.
 '''
 
-Test.TxnBoxTestAndRun("Ramping", "ramp.replay.yaml",
-                ,remap=[('http://example.one', 'http://example.one', ( '--key=meta.txn_box.remap-pristine', 'ramp.replay.yaml'))]
+r = Test.TxnBoxTestAndRun("Ramping", "ramp.replay.yaml"
+                ,remap=[
+                        ('http://example.one', 'http://example.one',( '--key=meta.txn_box.remap-pristine', 'ramp.replay.yaml') )
+                       ]
                 )
+ts = r.Variables.TS
+ts.Setup.Copy("ramp.replay.yaml", ts.Variables.CONFIGDIR)

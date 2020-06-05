@@ -13,8 +13,6 @@
 #include <swoc/TextView.h>
 #include <swoc/bwf_std.h>
 
-#include "txn_box/Directive.h"
-#include "txn_box/Extractor.h"
 #include "txn_box/Modifier.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
@@ -32,7 +30,8 @@ using namespace swoc::literals;
 Global G;
 extern std::string glob_to_rxp(TextView glob);
 
-const std::string Config::ROOT_KEY { "txn_box" };
+const std::string Config::GLOBAL_ROOT_KEY {"txn_box" };
+const std::string Config::REMAP_ROOT_KEY { "." };
 
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   static const std::map<TSEvent, Hook> table{
@@ -65,7 +64,7 @@ namespace {
 /* ------------------------------------------------------------------------------------ */
 void Global::reserve_txn_arg() {
   if (G.TxnArgIdx < 0) {
-    auto && [ idx, errata ] { ts::HttpTxn::reserve_arg(Config::ROOT_KEY, "Transaction Box") };
+    auto && [ idx, errata ] { ts::HttpTxn::reserve_arg(Config::GLOBAL_ROOT_KEY, "Transaction Box") };
     if (! errata.is_ok()) {
       _preload_errata.note(errata);
     } else {

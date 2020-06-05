@@ -555,6 +555,7 @@ BufferWriter& Ex_proxy_req_scheme::format(BufferWriter &w, Spec const &spec, Con
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+#if 0
 class Ex_remap_path : public Extractor {
 public:
   static constexpr TextView NAME { "remap-path" };
@@ -575,6 +576,7 @@ Feature Ex_remap_path::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
+#endif
 /* ------------------------------------------------------------------------------------ */
 class Ex_upstream_rsp_status : public IntegerExtractor {
 public:
@@ -908,7 +910,7 @@ Ex_proxy_rsp_field proxy_rsp_field;
 
 Ex_upstream_rsp_field upstream_rsp_field;
 
-Ex_remap_path remap_path;
+// Ex_remap_path remap_path;
 
 Ex_upstream_rsp_status upstream_rsp_status;
 Ex_is_internal is_internal;
@@ -929,6 +931,10 @@ static constexpr TextView MINUTES = "minutes";
 Ex_duration<std::chrono::minutes, &MINUTES> minutes;
 static constexpr TextView HOURS = "hours";
 Ex_duration<std::chrono::hours, &HOURS> hours;
+static constexpr TextView DAYS = "days";
+Ex_duration<std::chrono::days, &DAYS> days;
+static constexpr TextView WEEKS = "weeks";
+Ex_duration<std::chrono::weeks, &WEEKS> weeks;
 
 Ex_active_feature ex_with_feature;
 Ex_remainder_feature ex_remainder_feature;
@@ -959,7 +965,7 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
 
-  Extractor::define(Ex_remap_path::NAME, &remap_path);
+//  Extractor::define(Ex_remap_path::NAME, &remap_path);
 
   Extractor::define(Ex_is_internal::NAME, &is_internal);
   Extractor::define(Ex_random::NAME, &random);
@@ -974,6 +980,8 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(SECONDS, &seconds);
   Extractor::define(MINUTES, &minutes);
   Extractor::define(HOURS, &hours);
+  Extractor::define(DAYS, &days);
+  Extractor::define(WEEKS, &weeks);
 
   return true;
 } ();

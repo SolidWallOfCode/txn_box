@@ -43,7 +43,8 @@ public:
   /// Tag name of the plugin.
   static constexpr swoc::TextView PLUGIN_TAG { "txn_box" };
 
-  static const std::string ROOT_KEY; ///< Root key for plugin configuration.
+  static const std::string GLOBAL_ROOT_KEY; ///< Root key for global configuration.
+  static const std::string REMAP_ROOT_KEY; ///< Root key for remap configuration.
 
   /// Track the state of provided features.
   struct ActiveFeatureState {
