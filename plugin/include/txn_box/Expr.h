@@ -103,10 +103,10 @@ public:
   ActiveType result_type() const {
     struct Visitor {
       ActiveType operator () (std::monostate const&) { return {}; }
-      ActiveType operator () (Feature const& f) { return ValueTypeOf(f); }
+      ActiveType operator () (Feature const& f) { return f.active_type(); }
       ActiveType operator () (Direct const& d) { return d._result_type; }
       ActiveType operator () (Composite const&) { return STRING; }
-      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TuplesOf(l._types.base_types())}; }
+      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TupleOf(l._types.base_types())}; }
     };
     ActiveType zret = std::visit(Visitor{}, _expr);
     for ( auto const& mod : _mods) {

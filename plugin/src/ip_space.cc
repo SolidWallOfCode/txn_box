@@ -705,7 +705,7 @@ bool Mod_ip_space::is_valid_for(ActiveType const& ex_type) const {
 }
 
 ActiveType Mod_ip_space::result_type(const ActiveType &) const {
-  return { NIL, STRING, INTEGER, ActiveType::TuplesOf(STRING) };
+  return { NIL, STRING, INTEGER, ActiveType::TupleOf(STRING) };
 }
 
 Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::Node key_value) {
@@ -798,7 +798,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   ActiveType result_type = NIL;
   switch (cols[info._idx]._type) {
     default: break; // shouldn't happen.
-    case Do_ip_space_define::Column::RANGE: result_type = { ActiveType::TuplesOf(IP_ADDR) }; break;
+    case Do_ip_space_define::Column::RANGE: result_type = { ActiveType::TupleOf(IP_ADDR) }; break;
     case Do_ip_space_define::Column::STRING: result_type = STRING; break;
     case Do_ip_space_define::Column::INTEGER: result_type = INTEGER; break;
     case Do_ip_space_define::Column::ENUM: result_type = STRING; break;

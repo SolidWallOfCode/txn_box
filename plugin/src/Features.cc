@@ -44,6 +44,20 @@ bool Feature::is_list() const {
   return IndexFor(TUPLE) == idx || IndexFor(CONS) == idx;
 }
 
+ActiveType Feature::active_type() const {
+  auto vt = this->value_type();
+  ActiveType at = vt;
+  if (TUPLE == vt) {
+    auto & tp = std::get<IndexFor(TUPLE)>(*this);
+    if (tp.size() == 0) { // empty tuple can be a tuple of any type.
+      at = ActiveType::TupleOf(ActiveType::any_type().base_types());
+    } else if (auto tt = tp[0].value_type() ; std::all_of(tp.begin()+1, tp.end(), [=](Feature const& f){return f.value_type() == tt;})) {
+      at = ActiveType::TupleOf(tt);
+    } // else leave it as just a tuple with no specific type.
+  }
+  return at;
+}
+
 namespace {
 struct join_visitor {
   swoc::BufferWriter & _w;
@@ -371,7 +385,7 @@ public:
     } else if (0 == strcasecmp(spec._ext, "by-value"_tv)) {
       data.opt.f.by_value = true;
     }
-    return ActiveType{ NIL, STRING, ActiveType::TuplesOf(STRING) };
+    return ActiveType{ NIL, STRING, ActiveType::TupleOf(STRING) };
   }
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
