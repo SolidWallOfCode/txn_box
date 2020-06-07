@@ -990,7 +990,7 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
   if (! expr_type.has_value()) {
     return Error(R"(Directive "{}" must have a value.)", key);
   }
-  if (!expr_type.can_satisfy({ NIL, STRING, ActiveType::TuplesOf(STRING)})) {
+  if (!expr_type.can_satisfy({ NIL, STRING, ActiveType::TupleOf(STRING)})) {
     return Error(R"(Value for "{}" directive at {} must be a NULL, a string or a list of strings.)", key, key_value.Mark());
   }
 

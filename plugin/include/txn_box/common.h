@@ -109,8 +109,9 @@ public:
 /// Enumeration of types of values, e.g. those returned by a feature string or extractor.
 /// This includes all of the types of features, plus some "meta" types to describe situations
 /// in which the type may not be known at configuration load time.
-/// @note Changes here must be synchronized with changes in @c FeatureTypelist
-/// Also @c ValueTypeOf and @c IndexFor
+/// @note Changes here must be synchronized with changes in
+/// - @c FeatureTypelist
+/// - @c Feature::value_type
 enum ValueType : int8_t {
   NIL = 0, ///< Explicitly no data.
   STRING, ///< View of a string.
@@ -125,14 +126,41 @@ enum ValueType : int8_t {
   GENERIC, ///< Extended type.
 };
 
+class ActiveType; // Forward declare
+
 namespace std {
 template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::GENERIC) + 1> {};
 }; // namespace std
 
-// *** @c FeatureTypeList and @c ValueType must be kept in parallel synchronization! ***
+// *** @c FeatureTypeList, @c FeatureType, and @c FeatureindexList must be kept in parallel synchronization! ***
 /// Type list of feature types.
-/// The values in @c ValueType must match this list exactly.
-using FeatureTypeList = swoc::meta::type_list<std::monostate, FeatureView, intmax_t, bool, double, swoc::IPAddr, std::chrono::nanoseconds, std::chrono::system_clock::time_point, Cons *, FeatureTuple, Generic*>;
+using FeatureTypeList = swoc::meta::type_list<
+      std::monostate
+    , FeatureView
+    , intmax_t
+    , bool
+    , double
+    , swoc::IPAddr
+    , std::chrono::nanoseconds
+    , std::chrono::system_clock::time_point
+    , Cons *
+    , FeatureTuple
+    , Generic*
+    >;
+
+/// Variant index to feature type.
+constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue {
+    NIL
+   , STRING
+   , INTEGER
+   , BOOLEAN
+   , FLOAT
+   , IP_ADDR
+   , DURATION
+   , TIMEPOINT
+   , CONS
+   , TUPLE
+   , GENERIC };
 
 /** Basic feature data type.
  * This is split out in order to make self-reference work. This is the actual variant, and
@@ -193,6 +221,12 @@ struct Feature : public FeatureVariant {
    */
   variant_type & variant() { return *this; }
 
+  ValueType value_type() const {
+    return FeatureIndexToValue[this->index()];
+  }
+
+  ActiveType active_type() const;
+
   bool is_list() const;
 
   /** Create a string feature by combining this feature.
@@ -222,20 +256,9 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 } // namespace std
 /// @endcond
 
-inline ValueType ValueTypeOf(Feature const& f) {
-  constexpr std::array<ValueType, FeatureTypeList::size> T { NIL
-                                                             , STRING
-                                                             , INTEGER
-                                                             , BOOLEAN
-                                                             , FLOAT
-                                                             , IP_ADDR
-                                                             ,DURATION
-                                                             ,TIMEPOINT
-                                                             , CONS
-                                                             , TUPLE
-                                                             , GENERIC };
-  return T[f.index()];
-}
+/// @deprecated - use @c f.value_type()
+inline ValueType ValueTypeOf(Feature const& f) { return f.value_type(); }
+
 /// Nil value feature.
 static constexpr Feature NIL_FEATURE;
 
@@ -259,11 +282,11 @@ using ValueMask = std::bitset<std::tuple_size<ValueType>::value>;
 class ActiveType {
   using self_type = ActiveType;
 public:
-  struct TuplesOf {
+  struct TupleOf {
     ValueMask _mask;
-    TuplesOf() = default;
-    explicit TuplesOf(ValueMask mask) : _mask(mask) {}
-    template < typename ... Rest > TuplesOf(ValueType vt, Rest && ... rest ) : TuplesOf(rest...) {
+    TupleOf() = default;
+    explicit TupleOf(ValueMask mask) : _mask(mask) {}
+    template < typename ... Rest > TupleOf(ValueType vt, Rest && ... rest ) : TupleOf(rest...) {
       _mask[vt] = true;
     }
   };
@@ -271,11 +294,13 @@ public:
   ActiveType(self_type const& that) = default;
   ActiveType(ValueMask vtypes) : _base_type(vtypes) {};
   template < typename ... Rest > ActiveType(ValueType vt, Rest && ... rest );
-  template < typename ... Rest > ActiveType(TuplesOf const& tt, Rest && ... rest );
+  template < typename ... Rest > ActiveType(TupleOf const& tt, Rest && ... rest );
 
   self_type & operator=(ValueType vt);
+  self_type & operator=(TupleOf const& tt);
   self_type & operator|=(ValueType vt);
   self_type & operator|=(ValueMask vtypes) { _base_type |= vtypes; return *this; }
+  self_type & operator|=(TupleOf const& tt);
 
   bool operator==(self_type const& that) { return _base_type == that._base_type && _tuple_type == that._tuple_type; }
   bool operator!=(self_type const& that) { return ! (*this == that); }
@@ -325,9 +350,9 @@ ActiveType::ActiveType(ValueType vt, Rest&& ... rest) : ActiveType(rest...) {
 }
 
 template < typename ... Rest >
-ActiveType::ActiveType(TuplesOf const& tt, Rest && ... rest ) : ActiveType(rest...) {
-_tuple_type |= tt._mask;
-_base_type[TUPLE] = true;
+ActiveType::ActiveType(TupleOf const& tt, Rest && ... rest ) : ActiveType(rest...) {
+  _tuple_type |= tt._mask;
+  _base_type[TUPLE] = true;
 }
 
 inline auto ActiveType::operator=(ValueType vt) -> self_type & {
@@ -336,8 +361,21 @@ inline auto ActiveType::operator=(ValueType vt) -> self_type & {
   return *this;
 }
 
+inline auto ActiveType::operator=(TupleOf const& tt) -> self_type & {
+  _base_type.reset();
+  _base_type[TUPLE] = true;
+  _tuple_type = tt._mask;
+  return *this;
+}
+
 inline auto ActiveType::operator|=(ValueType vt) -> self_type & {
   _base_type[vt] = true;
+  return *this;
+}
+
+inline auto ActiveType::operator|=(TupleOf const& tt) -> self_type & {
+  _base_type[TUPLE] = true;
+  _tuple_type |= tt._mask;
   return *this;
 }
 

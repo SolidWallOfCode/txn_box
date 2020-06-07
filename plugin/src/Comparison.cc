@@ -59,7 +59,6 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
       }
 
       auto &&[handle, errata]{loader(cfg, node, key, arg, value_node)};
-
       if (!errata.is_ok()) {
         return std::move(errata);
       }
@@ -171,7 +170,7 @@ protected:
   };
 };
 
-const ActiveType Cmp_LiteralString::TYPES{STRING, ActiveType::TuplesOf(STRING)};
+const ActiveType Cmp_LiteralString::TYPES{STRING, ActiveType::TupleOf(STRING)};
 
 Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
 
@@ -497,7 +496,7 @@ protected:
   Rxp::Options _opt;
 };
 
-const ActiveType Cmp_Rxp::TYPES {STRING, ActiveType::TuplesOf(STRING)};
+const ActiveType Cmp_Rxp::TYPES {STRING, ActiveType::TupleOf(STRING)};
 
 bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
   auto result = rxp(_src, _ctx.rxp_working_match_data());
