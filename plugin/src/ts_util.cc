@@ -260,7 +260,11 @@ bool ts::HttpRequest::host_set(swoc::TextView const &host) {
     if (swoc::IPEndpoint::tokenize(text, &host_token, &port_token)) {
       size_t n = host.size() + 1 + port_token.size();
       swoc::FixedBufferWriter w{static_cast<char*>(alloca(n)), n};
-      w.print("{}:{}", host, port_token);
+      if (port_token.size()) {
+        w.print("{}:{}", host, port_token);
+      } else {
+        w.print("{}", host);
+      }
       field.assign(w.view());
     } else { // It's messed up, do the best we can by setting it to a valid value.
       field.assign(host);
