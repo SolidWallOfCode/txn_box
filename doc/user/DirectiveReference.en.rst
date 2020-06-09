@@ -93,8 +93,28 @@ Transaction
    :arg: *name*
    :value: *any*
 
-   Set the  transaction local variable :arg:`name` to :arg:`value`. :arg:`value` is evaluated in
-   the directive context and then stored in the variable.
+   Set the transaction local variable :arg:`name` to :arg:`value`. :arg:`value` is evaluated in
+   the directive context then stored in the variable for the current transaction. This has no effect
+   on the value in any other transaction. The value persists until changed or the transaction ends.
+
+   Example - set the variable "Best-Band" to the value "Delain" ::
+
+      var<Best-Band>: "Delain"
+
+   Example - stash the user agent request host and path before remap in the variable "save". ::
+
+      var<save>: "{ua-req-host}/{ua-req-path}"
+
+.. directive:: txn-conf
+   :arg: *configuration variable name*
+   :value: *any*
+
+   This sets a transaction overridable configuration variable. The argument is the full name of the
+   configuration variable. The value should be the type appropriate for that configuration variable.
+
+   Example - disable caching for this transaction ::
+
+      txn-conf<proxy.config.http.cache.http>: disable
 
 .. txb:directive:: redirect
 

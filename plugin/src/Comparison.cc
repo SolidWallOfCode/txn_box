@@ -219,6 +219,7 @@ bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active
   return false;
 }
 
+/// Compare the active feature to a string suffix.
 class Cmp_Suffix : public Cmp_LiteralString {
 protected:
   using Cmp_LiteralString::Cmp_LiteralString;
@@ -234,6 +235,7 @@ bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active)
   return false;
 }
 
+/// Compare without case the active feature to a string suffix.
 class Cmp_SuffixNC : public Cmp_LiteralString {
 protected:
   using Cmp_LiteralString::Cmp_LiteralString;
