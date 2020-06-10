@@ -53,4 +53,4 @@ doxygen:
 publish: clean doxygen html
 	( cd docbuild/html ; tar cfh /tmp/txn_box_doc.tar *)
 	scp /tmp/txn_box_doc.tar aws-swoc-1:/tmp
-	ssh aws-swoc-1 sh bin/txn-box-doc-install.s
+	ssh aws-swoc-1 sh bin/txn-box-doc-install.sh
