@@ -76,7 +76,7 @@ def _configure_client(obj, process, name, ts, replay_dir,
     process.ReturnCode = 0
 
     process.Streams.stdout = Testers.ExcludesExpression(
-            "Violation",
+            "Violation|Invalid status",
             "There should be no Proxy Verifier violation errors.")
 
 
