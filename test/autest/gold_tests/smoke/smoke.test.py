@@ -16,5 +16,7 @@ Test basic functions and directives.
 #Test.TxnBoxRun("Smoke test")
 
 Test.TxnBoxTestAndRun("Smoke Test", "smoke.replay.yaml", config_path='Auto', config_key="meta.txn_box.global"
-                ,remap=[('http://example.one', 'http://example.one')]
+                ,remap=[('http://example.one/3', 'http://example.one/3', ('--key=meta.txn_box.remap-1', 'smoke.replay.yaml'))
+                       ,('http://example.one', 'http://example.one')
+                       ]
                 )
