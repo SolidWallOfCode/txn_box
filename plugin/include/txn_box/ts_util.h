@@ -35,13 +35,14 @@ void DebugMsg(swoc::TextView fmt, Args && ... args) {
   w.print_v(fmt, arg_pack);
   if (! w.error()) {
     TSDebug("txn_box", "%.*s", int(w.size()), w.data());
+  } else {
+    // Do it the hard way.
+    std::vector<char> buff;
+    buff.resize(w.extent());
+    swoc::FixedBufferWriter fw(buff.data(), buff.size());
+    fw.print_v(fmt, arg_pack);
+    TSDebug("txn_box", "%.*s", int(fw.size()), fw.data());
   }
-  // Do it the hard way.
-  std::vector<char> buff;
-  buff.resize(w.extent());
-  swoc::FixedBufferWriter fw(buff.data(), buff.size());
-  fw.print_v(fmt, arg_pack);
-  TSDebug("txn_box", "%.*s", int(fw.size()), fw.data());
 }
 
 /** Hold a string allocated from TS core.
@@ -349,7 +350,7 @@ public:
   template < typename T > bool is_valid(typename std::decay<T>::type value) { return false; }
 
 protected:
-  swoc::TextView _name; ///< Name.
+  std::string _name; ///< Name.
   TSOverridableConfigKey _key; ///< override index value.
   TSRecordDataType _ts_type { TS_RECORDDATATYPE_NULL };
 };

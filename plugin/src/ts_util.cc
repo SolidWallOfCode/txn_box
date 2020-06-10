@@ -496,7 +496,8 @@ TxnConfigVar * HttpTxn::find_override(swoc::TextView const& name) {
   }
 
   // It exists, put it in the table and return it.
-  auto result = _var_table.emplace(name, new TxnConfigVar{name, key, type});
+  auto var = new TxnConfigVar{name, key, type};
+  auto result = _var_table.emplace(var->name(), var);
   return std::get<0>(result)->second.get();
 }
 
