@@ -97,13 +97,15 @@ using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBuffer
  * All of these are represented by a buffer and a location.
  */
 class HeapObject {
-  template < size_t IDX > friend typename std::tuple_element<IDX, ts::HeapObject>::type std::get(ts::HeapObject);
 public:
   HeapObject() = default;
   HeapObject(TSMBuffer buff, TSMLoc loc);
 
   /// Check if there is a valid object.
   bool is_valid() const;
+
+  TSMBuffer mbuff() const;
+  TSMLoc mloc() const;
 
 protected:
   TSMBuffer _buff = nullptr;
@@ -472,6 +474,10 @@ inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(lo
 
 inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nullptr; }
 
+inline TSMBuffer HeapObject::mbuff() const { return _buff; }
+
+inline TSMLoc HeapObject::mloc() const { return _loc; }
+
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
 inline in_port_t URL::port_get() { return TSUrlPortGet(_buff, _loc); }
@@ -543,7 +549,7 @@ namespace std {
 template<> class tuple_size<ts::HeapObject> : public std::integral_constant<size_t, 2> {};
 template<> class tuple_element<0, ts::HeapObject> { public: using type = TSMBuffer; };
 template<> class tuple_element<1, ts::HeapObject> { public: using type = TSMLoc; };
-template < size_t IDX > typename tuple_element<IDX, ts::HeapObject>::type get(ts::HeapObject);
-template <> inline TSMBuffer get<0>(ts::HeapObject obj) { return obj._buff; }
-template <> inline TSMLoc get<1>(ts::HeapObject obj) { return obj._loc; }
+template < size_t IDX > typename tuple_element<IDX, ts::HeapObject>::type get(ts::HeapObject const&);
+template <> inline TSMBuffer get<0>(ts::HeapObject const& obj) { return obj.mbuff(); }
+template <> inline TSMLoc get<1>(ts::HeapObject const& obj) { return obj.mloc(); }
 } // namespace std
