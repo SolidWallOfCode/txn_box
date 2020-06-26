@@ -130,7 +130,7 @@ public:
    *
    * External API - required as a @c Comparison.
    */
-  bool operator() (Context& ctx, FeatureView const& text) const override;
+  bool operator() (Context& ctx, feature_type_for<STRING> const& text) const override;
 
   /** Instantiate an instance from YAML configuration.
    *
@@ -174,7 +174,7 @@ const ActiveType Cmp_LiteralString::TYPES{STRING, ActiveType::TupleOf(STRING)};
 
 Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
 
-bool Cmp_LiteralString::operator()(Context &ctx, FeatureView const& feature) const {
+bool Cmp_LiteralString::operator()(Context &ctx, feature_type_for<STRING> const& feature) const {
   Feature f { ctx.extract(_expr)};
   if (auto view = std::get_if<IndexFor(STRING)>(&f) ; nullptr != view) {
     return (*this)(ctx, *view, feature);
@@ -190,14 +190,18 @@ bool Cmp_LiteralString::operator()(Context &ctx, FeatureView const& feature) con
 /// Match entire string.
 class Cmp_MatchStd : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_MatchStd;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (text == active) {
     ctx.set_literal_capture(active);
-    ctx._active = TextView{}; // matched everything, clear active feature.
+    ctx._active = FeatureView{}; // matched everything, clear active feature.
     return true;
   }
   return false;
@@ -206,8 +210,12 @@ bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, TextView activ
 /// Match entire string, ignoring case
 class Cmp_MatchNC : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_MatchNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -222,8 +230,12 @@ bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active
 /// Compare the active feature to a string suffix.
 class Cmp_Suffix : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_Suffix;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -238,8 +250,12 @@ bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active)
 /// Compare without case the active feature to a string suffix.
 class Cmp_SuffixNC : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_SuffixNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -253,8 +269,12 @@ bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, TextView activ
 
 class Cmp_Prefix : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_Prefix;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -268,8 +288,12 @@ bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active)
 
 class Cmp_PrefixNC : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_PrefixNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -283,8 +307,12 @@ bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView activ
 
 class Cmp_Contain : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_Contain;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_Contain::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -303,8 +331,12 @@ bool Cmp_Contain::operator()(Context& ctx, TextView const& text, TextView active
 
 class Cmp_ContainNC : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_ContainNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_ContainNC::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -328,8 +360,12 @@ bool Cmp_ContainNC::operator()(Context& ctx, TextView const& text, TextView acti
 
 class Cmp_TLD : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_TLD;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -344,8 +380,12 @@ bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) co
 
 class Cmp_TLDNC : public Cmp_LiteralString {
 protected:
-  using Cmp_LiteralString::Cmp_LiteralString;
+  using self_type = Cmp_TLDNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
 };
 
 bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, TextView active) const {
@@ -404,26 +444,28 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
 }
 /* ------------------------------------------------------------------------------------ */
 class Cmp_Rxp : public Cmp_String {
-  using self_type = Cmp_Rxp;
-  using super_type = Cmp_String;
+  using self_type = Cmp_Rxp; ///< Self reference type.
+  using super_type = Cmp_String; ///< Super type.
 
 public:
-  static constexpr TextView KEY { "rxp" };
-  static const ActiveType TYPES;
+  static constexpr TextView KEY { "rxp" }; ///< YAML key.
+  static const ActiveType TYPES; ///< Valid comparison types.
 
   static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
+  /// Static value - a literal or a dynamic regular expression.
   using Item = std::variant<Rxp, Expr>;
 
+  /// Process the comparison based on the expression type.
   struct expr_visitor {
     expr_visitor(Config & cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
 
+    Rv<Handle> operator() (std::monostate);
     Rv<Handle> operator() (Feature & f);
     Rv<Handle> operator() (Expr::List & l);
     Rv<Handle> operator() (Expr::Direct & d);
     Rv<Handle> operator() (Expr::Composite & comp);
-    template < typename T > Rv<Handle> operator() (T &) { return Error("Invalid feature type"); }
 
     Config & _cfg;
     Rxp::Options _rxp_opt;
@@ -433,9 +475,9 @@ protected:
     bool operator() (Rxp const& rxp);
     bool operator() (Expr const& expr);
 
-    Context & _ctx;
-    Rxp::Options _rxp_opt;
-    TextView _src;
+    Context & _ctx; ///< Configuration context.
+    Rxp::Options _rxp_opt; ///< Options for the regex.
+    TextView _src; ///< regex text.
   };
 };
 
@@ -591,7 +633,7 @@ bool Cmp_RxpList::operator()(Context &ctx, FeatureView const&) const {
 /* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
                                         , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
-                                       , BoolTag::INVALID
+                                       , { BoolTag::INVALID }
 };
 
 /** Compare a boolean value.
