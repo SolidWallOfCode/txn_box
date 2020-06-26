@@ -172,8 +172,7 @@ constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue {
  */
 using FeatureVariant = FeatureTypeList::template apply<std::variant>;
 
-namespace swoc {
-namespace meta {
+namespace detail {
 template < typename GENERATOR, size_t ... IDX> constexpr
 std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> &&) { return { g(IDX)... }; }
 template < size_t N, typename GENERATOR> constexpr
@@ -184,8 +183,7 @@ std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> indexed_array(GE
 template < size_t N, typename GENERATOR> constexpr
 std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g) { return indexed_array(std::forward<GENERATOR>(g), std::make_index_sequence<N>()); }
 
-} // namespace meta
-} // namespace swoc
+} // namespace detail
 
 /** Convert a feature @a type to a variant index.
  *
@@ -193,7 +191,7 @@ std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g)
  * @return Index in @c FeatureData for that feature type.
  */
 inline constexpr unsigned IndexFor(ValueType type) {
-  auto IDX = swoc::meta::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
+    auto IDX = detail::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
   return IDX[static_cast<unsigned>(type)];
 };
 

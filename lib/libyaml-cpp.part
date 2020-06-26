@@ -15,4 +15,4 @@ env.InstallLib(
     )
 
 # include headers
-env.SdkInclude(env.Pattern(src_dir="${CHECK_OUT_DIR}/include",includes=['*.h']))
+env.InstallInclude(env.Pattern(src_dir="${CHECK_OUT_DIR}/include",includes=['*.h']))

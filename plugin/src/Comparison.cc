@@ -929,7 +929,7 @@ class Cmp_any_of : public ComboComparison {
 public:
   static constexpr TextView KEY = "any-of"; ///< Comparison name.
 
-  TextView const& key() const { return KEY; }
+  TextView const& key() const override { return KEY; }
 
   bool operator()(Context& ctx, Feature const& feature) const override;
 
@@ -960,7 +960,7 @@ class Cmp_all_of : public ComboComparison {
 public:
   static constexpr TextView KEY = "all-of"; ///< Comparison name.
 
-  TextView const& key() const { return KEY; }
+  TextView const& key() const override { return KEY; }
 
   bool operator()(Context& ctx, Feature const& feature) const override;
 
@@ -991,7 +991,7 @@ class Cmp_none_of : public ComboComparison {
 public:
   static constexpr TextView KEY = "none-of"; ///< Comparison name.
 
-  TextView const& key() const { return KEY; }
+  TextView const& key() const override { return KEY; }
 
   bool operator()(Context& ctx, Feature const& feature) const override;
 
@@ -1023,7 +1023,7 @@ class Cmp_as_tuple : public ComboComparison {
 public:
   static constexpr TextView KEY = "as-tuple"; ///< Comparison name.
 
-  TextView const& key() const { return KEY; }
+  TextView const& key() const override { return KEY; }
 
   bool operator()(Context& ctx, Feature const& feature) const override;
 
