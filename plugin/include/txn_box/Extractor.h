@@ -152,9 +152,9 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
 
-  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg);
+  swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) override;
 
-  Feature extract(Context& ctx, Spec const& spec);
+  Feature extract(Context& ctx, Spec const& spec) override;
 
   /// Required text formatting access.
   swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
