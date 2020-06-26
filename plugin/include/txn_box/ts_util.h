@@ -349,7 +349,7 @@ public:
   bool is_valid(intmax_t) const { return _ts_type == TS_RECORDDATATYPE_INT; }
   bool is_valid(swoc::TextView const&) const { return _ts_type == TS_RECORDDATATYPE_STRING; }
   bool is_valid(double) const { return _ts_type == TS_RECORDDATATYPE_FLOAT; }
-  template < typename T > bool is_valid(typename std::decay<T>::type value) { return false; }
+  template < typename T > bool is_valid(typename std::decay<T>::type) { return false; }
 
 protected:
   std::string _name; ///< Name.

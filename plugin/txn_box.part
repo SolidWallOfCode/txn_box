@@ -9,6 +9,7 @@ DependsOn([
     Component("openssl"),
     Component("trafficserver", version_range='7.*-*'),
     Component("libswoc.static", version_range='1.2.3-*'),
+    Component("libyaml-cpp"),
 ])
 
 if ts_ver < Version("9"):

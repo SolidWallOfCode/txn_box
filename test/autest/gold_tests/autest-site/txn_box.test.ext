@@ -10,7 +10,7 @@ Implement txn_box extensions for Traffic Server.
 import os.path
 import types
 
-def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None):
+def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None):
     """
     Create a base test object specialized for TxnBox testing.
 
@@ -82,6 +82,30 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
                                  "(from, to) or (from, to, [pparams])")
 
             line = 'map {map_from} {map_to}:{server_port} '.format(
+                map_from=map_from, map_to=map_to, server_port=self.Variables.TXNBOX_SERVER.Variables.http_port)
+            if pparams:
+                line += '@plugin=txn_box.so '
+                for pparam in pparams:
+                    line += '@pparam={} '.format(pparam)
+            ts.Disk.remap_config.AddLine(line)
+
+    if regex_map:
+        for rule in regex_map:
+            pparams = None
+            map_from = rule[0]
+            if len(rule) == 2:
+                if isinstance(rule[1], str):
+                    map_to = rule[1]
+                else:
+                    pparams = rule[1]
+            elif len(rule) == 3:
+                map_to = rule[1]
+                pparams = rule[2]
+            else:
+                raise ValueError("remap entries must be either "
+                                 "(from, to) or (from, to, [pparams])")
+
+            line = 'regex_map {map_from} {map_to}:{server_port} '.format(
                 map_from=map_from, map_to=map_to, server_port=self.Variables.TXNBOX_SERVER.Variables.http_port)
             if pparams:
                 line += '@plugin=txn_box.so '
