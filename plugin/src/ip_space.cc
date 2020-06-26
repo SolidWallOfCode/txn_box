@@ -39,6 +39,16 @@ using namespace swoc::literals;
 namespace bwf = swoc::bwf;
 
 /* ------------------------------------------------------------------------------------ */
+/// Column data type.
+enum class ColumnData {
+  INVALID, ///< Invalid marker.
+  RANGE, ///< Special marker for range column (column 0)
+  STRING, ///< text.
+  INTEGER, ///< integral value.
+  ENUM, ///< enumeration.
+  FLAGS ///< Set of flags.
+};
+
 /** Simple class to emulate @c std::bitset over a variable amount of memory.
  * @c std::bitset doesn't work because the bit set size is a compile time constant.
  * @c std::vector<bool> doesn't work either because it does separate memory allocation.
@@ -155,7 +165,7 @@ public:
     void operator()(); ///< Do the update check.
   };
 
-  ~Do_ip_space_define(); ///< Destructor.
+  ~Do_ip_space_define() noexcept; ///< Destructor.
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
@@ -198,18 +208,9 @@ protected:
   using SpaceHandle = std::shared_ptr<SpaceInfo>;
 
   struct Column {
-    /// Column data type.
-    enum DataType {
-      INVALID, ///< Invalid marker.
-      RANGE, ///< Special marker for range column (column 0)
-      STRING, ///< text.
-      INTEGER, ///< integral value.
-      ENUM, ///< enumeration.
-      FLAGS ///< Set of flags.
-    };
     TextView _name; ///< Name.
     unsigned _idx; ///< Index.
-    DataType _type; ///< Column data type.
+    ColumnData _type; ///< Column data type.
     swoc::Lexicon<int> _tags; ///< Tags for enumerations or flags.
     size_t _row_offset; ///< Offset in to @c Row for column data.
     size_t _row_size; ///< # of bytes of row storage.
@@ -221,8 +222,8 @@ protected:
       return { row->data() + _row_offset, _row_size};
     }
 
-    /// Mapping between strings and @c DataType enumeration values.
-    static const swoc::Lexicon<DataType> TypeNames;
+    /// Mapping between strings and @c ColumnData enumeration values.
+    static const swoc::Lexicon<ColumnData> TypeNames;
   };
 
   TextView _name; ///< Block name.
@@ -304,13 +305,13 @@ const std::string Do_ip_space_define::VALUES_TAG{"values"};
 
 const HookMask Do_ip_space_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
-const swoc::Lexicon<Do_ip_space_define::Column::DataType> Do_ip_space_define::Column::TypeNames {
-  {{ STRING, "string" }
-        ,{ ENUM , "enum" }
-        ,{ INTEGER, "integer"}
-        ,{ FLAGS, "flags" }
+const swoc::Lexicon<ColumnData> Do_ip_space_define::Column::TypeNames {
+  {{ColumnData::STRING, "string" }
+        ,{ColumnData::ENUM, "enum" }
+        ,{ColumnData::INTEGER, "integer"}
+        ,{ColumnData::FLAGS, "flags" }
         }
-        , INVALID };
+        , ColumnData::INVALID };
 
 Do_ip_space_define::~Do_ip_space_define() noexcept {
   _task.cancel();
@@ -381,10 +382,10 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
       token = line.take_prefix_at(',').ltrim_if(&isspace);
       switch (c._type) {
         default: break; // Shouldn't ever happen.
-        case Column::STRING:
+        case ColumnData::STRING:
           data.rebind<TextView>()[0] = cfg.localize(token);
           break;
-        case Column::INTEGER: {
+        case ColumnData::INTEGER: {
           if (token) {
             auto n = swoc::svtoi(token, &parsed);
             if (parsed.size() == token.size()) {
@@ -395,7 +396,7 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
           }
         }
           break;
-        case Column::ENUM:
+        case ColumnData::ENUM:
           if (auto idx = c._tags[token] ; INVALID_TAG == idx) {
             return Error(R"("{}" is not a valid tag for column {}{} at line {}.)", token, c._idx, bwf::Optional(R"( "{}")", c._name), line_no);
           } else {
@@ -406,7 +407,7 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
             data.rebind<feature_type_for<INTEGER>>()[0] = idx;
           }
           break;
-        case Column::FLAGS: {
+        case ColumnData::FLAGS: {
           TextView key;
           BitSpan bits { data };
           bits.reset(); // start with no bits set.
@@ -454,16 +455,16 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   }
   auto text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(type_expr._expr));
   col._type= Column::TypeNames[text];
-  if (col._type == Column::INVALID) {
+  if (col._type == ColumnData::INVALID) {
     return Error(R"(Type "{}" at {] is not valid - must be one of {:s}.)", text, type_node.Mark(), Column::TypeNames);
   }
 
   // Need names if it's FLAGS. Names for ENUM are optional.
-  if (Column::ENUM == col._type || Column::FLAGS == col._type) {
+  if (ColumnData::ENUM == col._type || ColumnData::FLAGS == col._type) {
     auto tags_node = node[VALUES_TAG];
     if (! tags_node){
-      if (Column::FLAGS == col._type) {
-        return Error("{} at {} must have a {} key because it is of type {}.", COLUMNS_TAG, node.Mark(), VALUES_TAG, Column::TypeNames[Column::FLAGS]);
+      if (ColumnData::FLAGS == col._type) {
+        return Error("{} at {} must have a {} key because it is of type {}.", COLUMNS_TAG, node.Mark(), VALUES_TAG, Column::TypeNames[ColumnData::FLAGS]);
       }
       col._tags.set_default(AUTO_TAG);
     } else {
@@ -496,10 +497,10 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   col._row_offset = _row_size;
   switch (col._type) {
     default: break; // shouldn't happen.
-    case Column::ENUM:
-    case Column::FLAGS:
-    case Column::INTEGER: col._row_size = sizeof(feature_type_for<INTEGER>); break;
-    case Column::STRING: col._row_size = sizeof(TextView); break;
+    case ColumnData::ENUM:
+    case ColumnData::FLAGS:
+    case ColumnData::INTEGER: col._row_size = sizeof(feature_type_for<INTEGER>); break;
+    case ColumnData::STRING: col._row_size = sizeof(TextView); break;
   }
   _row_size += col._row_size;
   _cols.emplace_back(std::move(col));
@@ -564,7 +565,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   self->_cols.emplace_back(Column{});
   self->_cols[0]._name = "range";
   self->_cols[0]._idx = 0;
-  self->_cols[0]._type = Column::RANGE;
+  self->_cols[0]._type = ColumnData::RANGE;
   self->_col_names.define(self->_cols[0]._idx, self->_cols[0]._name);
 
   if (cols_node) {
@@ -798,11 +799,11 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   ActiveType result_type = NIL;
   switch (cols[info._idx]._type) {
     default: break; // shouldn't happen.
-    case Do_ip_space_define::Column::RANGE: result_type = { ActiveType::TupleOf(IP_ADDR) }; break;
-    case Do_ip_space_define::Column::STRING: result_type = STRING; break;
-    case Do_ip_space_define::Column::INTEGER: result_type = INTEGER; break;
-    case Do_ip_space_define::Column::ENUM: result_type = STRING; break;
-    case Do_ip_space_define::Column::FLAGS: result_type = TUPLE; break;
+    case ColumnData::RANGE: result_type = {ActiveType::TupleOf(IP_ADDR) }; break;
+    case ColumnData::STRING: result_type = STRING; break;
+    case ColumnData::INTEGER: result_type = INTEGER; break;
+    case ColumnData::ENUM: result_type = STRING; break;
+    case ColumnData::FLAGS: result_type = TUPLE; break;
   }
   return result_type;
 }
@@ -816,10 +817,10 @@ Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
     auto data = col.data_in_row(ctx_ai._row);
     switch (col._type) {
       default: break; // Shouldn't happen.
-      case Do_ip_space_define::Column::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
-      case Do_ip_space_define::Column::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
-      case Do_ip_space_define::Column::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
-      case Do_ip_space_define::Column::FLAGS: {
+      case ColumnData::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
+      case ColumnData::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
+      case ColumnData::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
+      case ColumnData::FLAGS: {
         auto t = ctx.span<feature_type_for<TUPLE>>(1)[0];
         auto bits = BitSpan(data);
         auto n_bits = bits.count();
