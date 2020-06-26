@@ -185,6 +185,22 @@ inline constexpr unsigned IndexFor(ValueType type) {
   return IDX[static_cast<unsigned>(type)];
 };
 
+/** Helper template for handling @c Feature variants.
+ * @tparam T The type to check against the variant type list.
+ * @tparam R The return type of the function / method.
+ *
+ * This can be used to enable a template method for only the types in the variant.
+ * @code
+ *   template < typename T > auto operator() (T & t) -> EnableForFeatureTypes<T, void> { ... }
+ * @endcode
+ * The return type @a R can be fixed (as in this case, it is always @c void ) or it can be dependent
+ * on @a T (e.g., @c T& ). This will set a class such that the function operator works for any
+ * type in the Feature variant, but not other types. Note that overloads for specific Feature
+ * types can be defined before such a template. This is generally done when those types are
+ * usable types, with the template for a generic failure response for non-usable types.
+ */
+template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
+
 /** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
  * All of these are small and fixed size, any external storage (e.g. the text for a view)
@@ -199,8 +215,8 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   using super_type = FeatureTypeList::template apply<std::variant>; ///< Parent type.
   using variant_type = super_type; ///< The base variant type.
 
-//  using super_type::super_type; ///< Inherit all constructors.
-  using super_type::variant(std::monostate);
+  // Inherit variant constructors.
+  using super_type::super_type;
 
   /** The value type of @a this.
    *
@@ -420,22 +436,6 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
   }
   return mask;
 }
-
-/** Helper template for handling @c Feature variants.
- * @tparam T The type to check against the variant type list.
- * @tparam R The return type of the function / method.
- *
- * This can be used to enable a template method for only the types in the variant.
- * @code
- *   template < typename T > auto operator() (T & t) -> EnableForFeatureTypes<T, void> { ... }
- * @endcode
- * The return type @a R can be fixed (as in this case, it is always @c void ) or it can be dependent
- * on @a T (e.g., @c T& ). This will set a class such that the function operator works for any
- * type in the Feature variant, but not other types. Note that overloads for specific Feature
- * types can be defined before such a template. This is generally done when those types are
- * usable types, with the template for a generic failure response for non-usable types.
- */
-template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
 /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
 /// @tparam F ValueType enumeration value.
