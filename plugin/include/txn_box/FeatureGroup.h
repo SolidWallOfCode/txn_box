@@ -64,7 +64,7 @@ public:
 
     /// Variant indices for the format data.
     enum {
-      NIL, SINGLE, MULTI
+      IDX_NIL, IDX_SINGLE, IDX_MULTI
     };
     /// Allow uninitialized, single, or multiple values.
     using Ex = std::variant<std::monostate, Single, Multi>;
@@ -172,7 +172,7 @@ protected:
       index_type _fmt_count = 0; ///< # of formats.
       index_type _edge_idx; ///< Index in reference dependency vector, start.
       index_type _edge_count = 0; ///< # of immediate dependent references.
-      uint8_t _mark = NONE; ///< Ordering search march.
+      int8_t _mark = NONE; ///< Ordering search march.
       uint8_t _required_p : 1; ///< Key must exist and have a valid format.
       uint8_t _multi_p : 1; ///< Expr can be a list of formats.
 

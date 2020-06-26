@@ -61,6 +61,9 @@ public:
   virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature);
   virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<IP_ADDR> feature);
 
+  // Temporary until actually used.
+  template < typename T > auto operator()(Context&, T const&) -> EnableForFeatureTypes<T, swoc::Rv<Feature>> { return {}; }
+
   /** Check if the comparison is valid for @a type.
    *
    * @param type Type of feature to compare.
