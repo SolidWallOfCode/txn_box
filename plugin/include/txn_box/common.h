@@ -162,16 +162,6 @@ constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue {
    , TUPLE
    , GENERIC };
 
-/** Basic feature data type.
- * This is split out in order to make self-reference work. This is the actual variant, and
- * then @c FeatureData is layered on top. The self referential types (Cons, Tuple) must
- * have a defined type to use in their declaration, which cannot be the same type as the
- * variant. Unfortunately it's not possible to forward declare the variant type itself,
- * therefore the wrapper type is forward declared, the self reference uses that, and then
- * the variant type is pasted in to the forwarded declared type.
- */
-using FeatureVariant = FeatureTypeList::template apply<std::variant>;
-
 namespace detail {
 template < typename GENERATOR, size_t ... IDX> constexpr
 std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> &&) { return { g(IDX)... }; }
@@ -204,20 +194,12 @@ inline constexpr unsigned IndexFor(ValueType type) {
  * types need to refer to @c Feature but the variant itself can't be forward declared. Instead
  * this struct is and is then used as an empty wrapper on the actual variant.
  */
-struct Feature : public FeatureVariant {
-  using variant_type = FeatureVariant; ///< The base variant type.
-  using variant_type::variant_type; ///< Inherit all constructors.
+struct Feature : public FeatureTypeList::template apply<std::variant> {
   using self_type = Feature;
-  using super_type = FeatureVariant;
+  using super_type = FeatureTypeList::template apply<std::variant>;
+  using variant_type = super_type; ///< The base variant type.
 
-  /** @a this as the super type (underlying variant class).
-   *
-   * @return @a this as a variant.
-   *
-   * This is used for a few specialized purposes where the standard variant machinery doesn't handle
-   * a subclass and the exact variant class must be used.
-   */
-  variant_type & variant() { return *this; }
+  using super_type::super_type; ///< Inherit all constructors.
 
   ValueType value_type() const {
     return FeatureIndexToValue[this->index()];
@@ -258,7 +240,8 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 inline ValueType ValueTypeOf(Feature const& f) { return f.value_type(); }
 
 /// Nil value feature.
-static constexpr Feature NIL_FEATURE;
+/// @internal Default constructor doesn't work in the Intel compiler, must be explicit.
+static constexpr Feature NIL_FEATURE{std::monostate{}};
 
 /** Standard cons cell.
  *
