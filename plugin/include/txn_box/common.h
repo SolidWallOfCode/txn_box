@@ -215,8 +215,15 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   using super_type = FeatureTypeList::template apply<std::variant>; ///< Parent type.
   using variant_type = super_type; ///< The base variant type.
 
+  #if defined(__INTEL_COMPILER)
+  // Intel compiler is very confused by std::variant and doesn't inherit the constructors correctly.
+  // Therefore we must re-implement them explicitly.
+  Feature() = default;
+  template < typename T > Feature(T const& t) : super_type(t) {}
+  #else
   // Inherit variant constructors.
   using super_type::super_type;
+  #endif
 
   /** The value type of @a this.
    *
