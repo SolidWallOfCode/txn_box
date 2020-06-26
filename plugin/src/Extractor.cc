@@ -195,7 +195,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     dst._name = src._name;
     if (src._fmt_count > 1) {
       dst._ex = ExfInfo::Multi{};
-      ExfInfo::Multi & m = std::get<ExfInfo::MULTI>(dst._ex);
+      ExfInfo::Multi & m = std::get<ExfInfo::IDX_MULTI>(dst._ex);
       m._fmt.reserve(src._fmt_count);
       for ( auto & fmt : MemSpan<Expr>{&tracking._fmt_array[src._fmt_idx], src._fmt_count } ) {
         m._fmt.emplace_back(std::move(fmt));
@@ -260,14 +260,14 @@ Feature FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
 
 Feature FeatureGroup::extract(Context &ctx, index_type idx) {
   auto& info = _exf_info[idx];
-  if (info._ex.index() == ExfInfo::SINGLE) {
-    ExfInfo::Single &data = std::get<ExfInfo::SINGLE>(info._ex);
+  if (info._ex.index() == ExfInfo::IDX_SINGLE) {
+    ExfInfo::Single &data = std::get<ExfInfo::IDX_SINGLE>(info._ex);
     if (data._feature.index() != IndexFor(NIL)) {
       return data._feature;
     }
 
     for (index_type edge_idx : info._edge) {
-      ExfInfo::Single& precursor = std::get<ExfInfo::SINGLE>(_exf_info[edge_idx]._ex);
+      ExfInfo::Single& precursor = std::get<ExfInfo::IDX_SINGLE>(_exf_info[edge_idx]._ex);
       if (precursor._feature.index() == NIL) {
         precursor._feature = this->extract(ctx, edge_idx);
       }
