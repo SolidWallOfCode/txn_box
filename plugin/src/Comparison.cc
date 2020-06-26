@@ -444,26 +444,28 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
 }
 /* ------------------------------------------------------------------------------------ */
 class Cmp_Rxp : public Cmp_String {
-  using self_type = Cmp_Rxp;
-  using super_type = Cmp_String;
+  using self_type = Cmp_Rxp; ///< Self reference type.
+  using super_type = Cmp_String; ///< Super type.
 
 public:
-  static constexpr TextView KEY { "rxp" };
-  static const ActiveType TYPES;
+  static constexpr TextView KEY { "rxp" }; ///< YAML key.
+  static const ActiveType TYPES; ///< Valid comparison types.
 
   static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
+  /// Static value - a literal or a dynamic regular expression.
   using Item = std::variant<Rxp, Expr>;
 
+  /// Process the comparison based on the expression type.
   struct expr_visitor {
     expr_visitor(Config & cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
 
+    Rv<Handle> operator() (std::monostate);
     Rv<Handle> operator() (Feature & f);
     Rv<Handle> operator() (Expr::List & l);
     Rv<Handle> operator() (Expr::Direct & d);
     Rv<Handle> operator() (Expr::Composite & comp);
-    template < typename T > Rv<Handle> operator() (T &) { return Error("Invalid feature type"); }
 
     Config & _cfg;
     Rxp::Options _rxp_opt;
@@ -473,9 +475,9 @@ protected:
     bool operator() (Rxp const& rxp);
     bool operator() (Expr const& expr);
 
-    Context & _ctx;
-    Rxp::Options _rxp_opt;
-    TextView _src;
+    Context & _ctx; ///< Configuration context.
+    Rxp::Options _rxp_opt; ///< Options for the regex.
+    TextView _src; ///< regex text.
   };
 };
 
@@ -631,7 +633,7 @@ bool Cmp_RxpList::operator()(Context &ctx, FeatureView const&) const {
 /* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
                                         , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
-                                       , BoolTag::INVALID
+                                       , { BoolTag::INVALID }
 };
 
 /** Compare a boolean value.

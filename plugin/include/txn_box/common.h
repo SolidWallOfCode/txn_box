@@ -272,7 +272,7 @@ inline ValueType ValueTypeOf(Feature const& f) { return f.value_type(); }
 
 /// Nil value feature.
 /// @internal Default constructor doesn't work in the Intel compiler, must be explicit.
-static constexpr Feature NIL_FEATURE{std::monostate{}};
+static constexpr Feature NIL_FEATURE{};
 
 /** Standard cons cell.
  *
