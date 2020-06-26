@@ -50,7 +50,7 @@ public:
     void operator()(); ///< Do the update check.
   };
 
-  ~Do_text_block_define();
+  ~Do_text_block_define() noexcept;
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 

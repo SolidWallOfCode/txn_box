@@ -195,18 +195,33 @@ inline constexpr unsigned IndexFor(ValueType type) {
  * this struct is and is then used as an empty wrapper on the actual variant.
  */
 struct Feature : public FeatureTypeList::template apply<std::variant> {
-  using self_type = Feature;
-  using super_type = FeatureTypeList::template apply<std::variant>;
+  using self_type = Feature; ///< Self reference type.
+  using super_type = FeatureTypeList::template apply<std::variant>; ///< Parent type.
   using variant_type = super_type; ///< The base variant type.
 
-  using super_type::super_type; ///< Inherit all constructors.
+//  using super_type::super_type; ///< Inherit all constructors.
+  using super_type::variant(std::monostate);
 
+  /** The value type of @a this.
+   *
+   * @return The type of @a this feature as a value type.
+   *
+   * This is the direct type of the feature, without regard to containment.
+   */
   ValueType value_type() const {
     return FeatureIndexToValue[this->index()];
   }
 
+  /** The active type of @a this.
+   *
+   * @return The feature type as an active type.
+   */
   ActiveType active_type() const;
 
+  /** Check if @a this feature contains other features.
+   *
+   * @return @c true if @a this feature contains other features, @c false if not.
+   */
   bool is_list() const;
 
   /** Create a string feature by combining this feature.
