@@ -843,6 +843,69 @@ template < typename T, const TextView* KEY> Rv<ActiveType> Ex_duration<T,KEY>::v
   return zret;
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_txn_conf : public Extractor {
+  using self_type = Ex_txn_conf; ///< Self reference type.
+  using super_type = Extractor; ///< Parent type.
+  using store_type = ts::TxnConfigVar*; ///< Storage type for config var record.
+public:
+  static constexpr TextView NAME { "txn-conf" };
+
+  /** Validate the use of the extractor in a feature string.
+   *
+   * @param cfg Configuration.
+   * @param spec Specifier used in the feature string for the extractor.
+   * @param arg Argument for the extractor.
+   * @return The value type for @a spec and @a arg.
+   *
+   */
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Extractor::Spec const& spec) override;
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Rv<ActiveType> Ex_txn_conf::validate(Config &cfg, Spec &spec, const TextView &arg) {
+  auto var = ts::HttpTxn::find_override(arg);
+  if (nullptr == var) {
+    return Error(R"("{}" is not a recognized transaction overridable configuration variable name.)", arg);
+  }
+  auto ptr = cfg.span<store_type>(1);
+  ptr[0] = var;
+  spec._data = ptr.rebind<void>(); // remember where the pointer is.
+  ValueType vt = NIL;
+  switch(var->type()) {
+    case TS_RECORDDATATYPE_INT : vt = INTEGER;
+      break;
+    case TS_RECORDDATATYPE_FLOAT : vt = FLOAT;
+      break;
+    case TS_RECORDDATATYPE_STRING : vt = STRING;
+      break;
+    default: break;
+  }
+  return ActiveType{vt};
+}
+
+Feature Ex_txn_conf::extract(Context &ctx, const Extractor::Spec &spec) {
+  Feature zret;
+  auto var = spec._data.rebind<store_type>()[0];
+  auto && [ value , errata ] = ctx._txn.override_fetch(*var);
+  if (errata.is_ok()) {
+    switch (value.index()) {
+      case 0: break;
+      case 1: zret = std::get<1>(value); break;
+      case 2: zret = std::get<2>(value); break;
+      case 3:
+        FeatureView v = std::get<3>(value);
+        v._direct_p = true;
+        zret = v;
+        break;
+    }
+  }
+  return zret;
+}
+/* ------------------------------------------------------------------------------------ */
 /// The active feature.
 class Ex_active_feature : public Extractor {
   using self_type = Ex_active_feature; ///< Self reference type.
@@ -924,10 +987,10 @@ Ex_proxy_rsp_field proxy_rsp_field;
 
 Ex_upstream_rsp_field upstream_rsp_field;
 
-// Ex_remap_path remap_path;
-
 Ex_upstream_rsp_status upstream_rsp_status;
 Ex_is_internal is_internal;
+
+Ex_txn_conf txn_conf;
 
 Ex_inbound_sni inbound_sni;
 Ex_inbound_protocol inbound_protocol;
@@ -979,7 +1042,7 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
 
-//  Extractor::define(Ex_remap_path::NAME, &remap_path);
+  Extractor::define(Ex_txn_conf::NAME, &txn_conf);
 
   Extractor::define(Ex_is_internal::NAME, &is_internal);
   Extractor::define(Ex_random::NAME, &random);
