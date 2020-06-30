@@ -47,6 +47,9 @@ void DebugMsg(swoc::TextView fmt, Args && ... args) {
 
 /** Hold a string allocated from TS core.
  * This provides both a view of the string and clean up when destructed.
+ *
+ * @internal - why isn't this a @c std::unique_ptr with a specialized destructor? Because we
+ * need the length?
  */
 class String {
 public:
@@ -65,6 +68,8 @@ public:
 protected:
   swoc::TextView _view;
 };
+
+using ConfVarData = std::variant<std::monostate, intmax_t, double, swoc::TextView>;
 
 inline ts::String::String(char *s, int64_t size) : _view{ s, static_cast<size_t>(size) } {}
 
@@ -410,6 +415,8 @@ public:
   swoc::Errata override_assign(TxnConfigVar const& var, intmax_t n);
   swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
   swoc::Errata override_assign(TxnConfigVar const& var, double f);
+
+  swoc::Rv<ConfVarData> override_fetch(TxnConfigVar const& var);
 
   static TxnConfigVar * find_override(swoc::TextView const& name);
 
