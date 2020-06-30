@@ -1166,5 +1166,4 @@ namespace {
   return true;
 } ();
 
-}; // namespace
-
+} // namespace

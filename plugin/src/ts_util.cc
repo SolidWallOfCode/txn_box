@@ -531,6 +531,37 @@ Errata HttpTxn::override_assign(TxnConfigVar const &var, double f) {
   return {};
 }
 
+Rv<ConfVarData> HttpTxn::override_fetch(const TxnConfigVar &var) {
+  switch (var.type()) {
+    case TS_RECORDDATATYPE_FLOAT: {
+      TSMgmtFloat v;
+      if (TS_SUCCESS == TSHttpTxnConfigFloatGet(_txn, var.key(), &v)) {
+        return ConfVarData{v};
+      }
+      break;
+    }
+    case TS_RECORDDATATYPE_STRING: {
+      char const* text;
+      int len;
+      if (TS_SUCCESS == TSHttpTxnConfigStringGet(_txn, var.key(), &text, &len)) {
+        return ConfVarData{TextView{text, size_t(len)}};
+      }
+      break;
+    }
+    case TS_RECORDDATATYPE_INT: {
+      TSMgmtInt v;
+      if (TS_SUCCESS == TSHttpTxnConfigIntGet(_txn, var.key(), &v)) {
+        return ConfVarData{v};
+      }
+      break;
+    }
+    default:
+      return Error("Var '{}' does not have a valid data type [{}]", var.name(), var.type());
+      break;
+  }
+  return Error(R"(Failed to retrieve config variable "{})", var.name());
+}
+
 Errata &HttpTxn::init(swoc::Errata &errata) {
   return errata;
 }
