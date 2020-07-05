@@ -100,7 +100,7 @@ def _configure_server(obj, process, name, replay_dir, http_ports=None, https_por
         command += "{} ".format(other_args)
     process.Command = command
 
-    process.Ready = When.PortOpen(http_ports[0])
+    process.Ready = When.FileContains(os.path.join(process.RunDirectory, "server-status.log"), "ready")
     # The server is designed to be long-lived and thus will be interrupted by
     # the test. Because of this, its return code will be non-zero.
     process.ReturnCode = -2
