@@ -637,6 +637,16 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, TSHttpStatus stat
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, TSRecordDataType type) {
   return bwformat(w, spec, ts::TSRecordDataTypeNames[type]);
 }
+
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, ts::ConfVarData const& data) {
+  switch (data.index()) {
+    default: w.write("NIL"); break;
+    case 1: bwformat(w, spec, std::get<1>(data)); break;
+    case 2: bwformat(w, spec, std::get<2>(data)); break;
+    case 3: bwformat(w, spec, std::get<2>(data)); break;
+  }
+  return w;
+}
 } // namespace swoc
 
 
