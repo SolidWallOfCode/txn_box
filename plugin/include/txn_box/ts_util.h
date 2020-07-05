@@ -548,6 +548,7 @@ extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
 namespace swoc {
   BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status);
   BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSRecordDataType);
+  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, ts::ConfVarData const&);
 } // namespace swoc
 
 namespace std {
