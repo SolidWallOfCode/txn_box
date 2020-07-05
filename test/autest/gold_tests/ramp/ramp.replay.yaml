@@ -8,7 +8,7 @@ meta:
       select:
       - lt: 300
         do:
-          ua-req-field<Host>: "example.two"
+          ua-req-field<Host>: "ex.two"
 
     # This works for any value of pristine_host_header
     remap-generic:
@@ -18,7 +18,7 @@ meta:
         do:
         - when: post-remap # wait till after remap is done
           do:
-          - ua-req-field<Host>: "example.two"
+          - ua-req-field<Host>: "ex.two"
 
   blocks:
   - base_request: &base_request
@@ -35,7 +35,7 @@ sessions:
       <<: *base_request
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, ex.one ]
     proxy-request:
       <<: *base_request
     server-response:

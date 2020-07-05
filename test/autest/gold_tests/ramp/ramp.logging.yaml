@@ -1,0 +1,9 @@
+logging:
+  formats:
+  - name: ramp
+    format: '%<{Host}cqh>'
+
+  logs:
+  - filename: ramp
+    format: ramp
+    mode: ascii

@@ -118,8 +118,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
 
     return self
 
-
-def TxnBoxRun(self, text, replay_path=None):
+def TxnBoxRun(self, text, replay_path=None, verifier_client_args="--verbose diag"):
     """
     Set up a standard test run for TxnBox
 
@@ -138,7 +137,8 @@ def TxnBoxRun(self, text, replay_path=None):
 
     pv_client = run.AddVerifierClientProcess(
         "pv-client", ts, replay_path,
-        http_ports=[ts.Variables.port])
+        http_ports=[ts.Variables.port],
+        other_args=verifier_client_args)
     run.Variables.CLIENT = pv_client
 
     pv_server = self.Variables.TXNBOX_SERVER
@@ -147,14 +147,15 @@ def TxnBoxRun(self, text, replay_path=None):
     pv_client.StartBefore(pv_server)
     run.Processes.Default.StartBefore(pv_server)
     run.Processes.Default.StartBefore(self.Variables.TXNBOX_DNS)
-    run.Processes.Default.StartBefore(ts, ready=When.PortOpen(ts.Variables.port))
+    run.Processes.Default.StartBefore(ts)
     run.Processes.Default.StartBefore(self.Variables.TXNBOX_DNS)
 
     return run
 
-def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta.txn_box", remap=None):
+def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta.txn_box", remap=None
+                     , verifier_client_args="--verbose diag"):
     self.TxnBoxTest(replay_path, config_path, config_key, remap)
-    return self.TxnBoxRun(name)
+    return self.TxnBoxRun(name, verifier_client_args=verifier_client_args)
 
 ExtendTest(TxnBoxTest, name="TxnBoxTest")
 ExtendTest(TxnBoxRun, name="TxnBoxRun")
