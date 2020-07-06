@@ -23,6 +23,22 @@ meta:
           - txn-conf<proxy.config.http.per_server.connection.max>: 400
           - ua-req-field<upstream>: "Max {txn-conf<proxy.config.http.per_server.connection.max>}"
           - ua-req-field<basic>: "Fill {txn-conf<proxy.config.http.background_fill_completed_threshold>}"
+        - match: "stuff"
+          do:
+          - ua-req-field<test-query>: "query '{ua-req-query}'"
+          - ua-req-query: [ ua-req-query, { else: "parmA=dave;parmB=bob" }]
+        - match: "path"
+          do:
+          - ua-req-url: "{ua-req-url}/more"
+
+    - when: proxy-req
+      do:
+        - with: proxy-req-path
+          select:
+          - match: "path/req"
+            do:
+              - proxy-req-url: "http://{proxy-req-host}/req/path"
+              - proxy-req-field<test>: "http://{proxy-req-host}/req/path"
 
     - when: proxy-rsp
       do:
@@ -210,6 +226,72 @@ sessions:
         fields:
         - [ upstream, "Max 400", equal]
         - [ basic, "Fill 0.40", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 9 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/stuff?parmA=bob;parmB=dave"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      url: "/stuff?parmA=bob;parmB=dave"
+      headers:
+        fields:
+        - [ test-query, "query 'parmA=bob;parmB=dave'", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 10]]}}
+    client-request:
+      <<: *base-req
+      url: "/stuff"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      url: "/stuff?parmA=dave;parmB=bob"
+      headers:
+        fields:
+        - [ test-query, "query ''", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 11]]}}
+    client-request:
+      <<: *base-req
+      url: "/path"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      url: "/path/more"
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 12]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/req"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      url: "/req/path"
     server-response:
       <<: *base-rsp
     proxy-response:

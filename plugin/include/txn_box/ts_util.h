@@ -135,6 +135,11 @@ public:
   swoc::TextView path() const; ///< View of the URL path.
   swoc::TextView query() const; ///< View of the query.
 
+  /** Set the scheme for the URL.
+   *
+   * @param scheme Scheme as text.
+   * @return @a this
+   */
   self_type & scheme_set(swoc::TextView const& scheme);
 
   /** Set the host in the URL.
@@ -144,8 +149,21 @@ public:
    */
   self_type & host_set(swoc::TextView const& host);
 
+  /** Get the port in the URL.
+   *
+   * @return The port.
+   *
+   * @note If the port is not explicitly set, it is computed based on the scheme.
+   */
   in_port_t port_get();
 
+  /** Set the @a port in the URL.
+   *
+   * @param port Port value.
+   * @return @a this
+   *
+   * @note If the port matches the computed port of the scheme, it is not explicitly set.
+   */
   self_type & port_set(in_port_t port);
 
   self_type & path_set(swoc::TextView path) {
@@ -288,6 +306,15 @@ public:
   swoc::TextView host() const;
   in_port_t port() const;
 
+  /** Assign @a text as the URL.
+   *
+   * @param text Fully formed URL.
+   * @return @c true if the URL was set, @c false if not.
+   *
+   * @a text must be a valid URL and all elements of this object are replaced by that URL.
+   */
+  bool url_set(swoc::TextView text);
+
   /** Set the @a host for the request.
    *
    * @param host Host for request.
@@ -307,8 +334,6 @@ public:
    * This updates the URL and @c Host field as needed, making as few changes as possible.
    */
   bool port_set(in_port_t port);
-
-  bool scheme_set(swoc::TextView const& scheme);
 };
 
 class HttpResponse : public HttpHeader {
