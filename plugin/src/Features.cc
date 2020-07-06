@@ -135,6 +135,10 @@ Feature & cdr(Feature & feature) {
 }
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, std::monostate) {
+  return w.write("NULL");
+}
+
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
   if (spec.has_numeric_type()) {
     return bwformat(w, spec, static_cast<unsigned>(type));
@@ -904,6 +908,10 @@ Feature Ex_txn_conf::extract(Context &ctx, const Extractor::Spec &spec) {
     }
   }
   return zret;
+}
+
+BufferWriter & Ex_txn_conf::format(BufferWriter &w, const Spec &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// The active feature.
