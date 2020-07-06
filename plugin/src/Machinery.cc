@@ -314,76 +314,6 @@ swoc::Rv<Directive::Handle> Do_proxy_req_host::load(Config& cfg, YAML::Node drtv
   return  Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
-#if 0
-/** Set the host for remap.
- * This updates both the URL and the "Host" field, if appropriate.
- */
-class Do_remap_host : public Directive {
-  using super_type = Directive; ///< Parent type.
-  using self_type = Do_remap_host; ///< Self reference type.
-public:
-  static const std::string KEY; ///< Directive name.
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  /** Construct with feature extractor @a fmt.
-   *
-   * @param fmt Feature for host.
-   */
-  Do_remap_host(Expr && fmt);
-
-  /** Invoke directive.
-   *
-   * @param ctx Transaction context.
-   * @return Errors, if any.
-   */
-  Errata invoke(Context &ctx) override;
-
-  /** Load from YAML node.
-   *
-   * @param cfg Configuration data.
-   * @param drtv_node Node containing the directive.
-   * @param name Name from key node tag.
-   * @param arg Arg from key node tag.
-   * @param key_value Value for directive @a KEY
-   * @return A directive, or errors on failure.
-   */
-  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
-
-  static Errata type_init(Config& cfg) {
-    cfg.reserve_ctx_storage(sizeof(TextView));
-    return {};
-  }
-
-protected:
-  Expr _expr; ///< Host feature.
-};
-
-const std::string Do_remap_host::KEY { "remap-host" };
-const HookMask Do_remap_host::HOOKS { MaskFor(Hook::REMAP) };
-
-Do_remap_host::Do_remap_host(Expr &&fmt) : _expr(std::move(fmt)) {}
-
-Errata Do_remap_host::invoke(Context &ctx) {
-  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
-  ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(host);
-  ctx._remap_status = TSREMAP_DID_REMAP;
-  return {};
-}
-
-swoc::Rv<Directive::Handle> Do_remap_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
-  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
-    return std::move(errata);
-  }
-  if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
-  }
-  return Handle(new self_type(std::move(expr)));
-}
-#endif
-/* ------------------------------------------------------------------------------------ */
 /** Set the scheme for the inbound request.
  */
 class Do_ua_req_scheme : public Directive {
@@ -419,23 +349,86 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _fmt; ///< Host feature.
+  Expr _expr; ///< Scheme expression.
 };
 
 const std::string Do_ua_req_scheme::KEY {"ua-req-scheme" };
 const HookMask Do_ua_req_scheme::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
-Do_ua_req_scheme::Do_ua_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_ua_req_scheme::Do_ua_req_scheme(Expr &&fmt) : _expr(std::move(fmt)) {}
 
 Errata Do_ua_req_scheme::invoke(Context &ctx) {
-  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
   if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
-    hdr.scheme_set(host);
+    hdr.url().scheme_set(text);
   }
   return {};
 }
 
 swoc::Rv<Directive::Handle> Do_ua_req_scheme::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the URL for the inbound request.
+ */
+class Do_ua_req_url : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_url; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_ua_req_url(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< URL expression.
+};
+
+const std::string Do_ua_req_url::KEY {"ua-req-url" };
+const HookMask Do_ua_req_url::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_url::Do_ua_req_url(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_url::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.url_set(text);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_url::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -493,7 +486,7 @@ Do_proxy_req_scheme::Do_proxy_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
 Errata Do_proxy_req_scheme::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
-    hdr.scheme_set(host);
+    hdr.url().scheme_set(host);
   }
   return {};
 }
@@ -510,12 +503,11 @@ swoc::Rv<Directive::Handle> Do_proxy_req_scheme::load(Config& cfg, YAML::Node dr
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
-#if 0
-/** Set the scheme for the outbound request.
+/** Set the URL for the outbound request.
  */
-class Do_remap_scheme : public Directive {
+class Do_proxy_req_url : public Directive {
   using super_type = Directive; ///< Parent type.
-  using self_type = Do_remap_scheme; ///< Self reference type.
+  using self_type = Do_proxy_req_url; ///< Self reference type.
 public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -524,7 +516,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_remap_scheme(Expr && fmt);
+  Do_proxy_req_url(Expr && expr);
 
   /** Invoke directive.
    *
@@ -546,25 +538,23 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _expr; ///< Host feature.
+  Expr _expr; ///< URL expression.
 };
 
-const std::string Do_remap_scheme::KEY {"remap-scheme" };
-const HookMask Do_remap_scheme::HOOKS {MaskFor(Hook::REMAP) };
+const std::string Do_proxy_req_url::KEY {"proxy-req-url" };
+const HookMask Do_proxy_req_url::HOOKS {MaskFor({ Hook::PREQ }) };
 
-Do_remap_scheme::Do_remap_scheme(Expr &&fmt) : _expr(std::move(fmt)) {}
+Do_proxy_req_url::Do_proxy_req_url(Expr &&expr) : _expr(std::move(expr)) {}
 
-Errata Do_remap_scheme::invoke(Context &ctx) {
-  auto value = ctx.extract(_expr);
-  if (STRING == ValueTypeOf(value)) {
-    TextView scheme{std::get<IndexFor(STRING)>(value)};
-    ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).scheme_set(scheme);
-    ctx._remap_status = TSREMAP_DID_REMAP;
+Errata Do_proxy_req_url::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
+  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+    hdr.url_set(text);
   }
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_remap_scheme::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+swoc::Rv<Directive::Handle> Do_proxy_req_url::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -575,7 +565,6 @@ swoc::Rv<Directive::Handle> Do_remap_scheme::load(Config& cfg, YAML::Node drtv_n
   }
   return Handle(new self_type(std::move(expr)));
 }
-#endif
 /* ------------------------------------------------------------------------------------ */
 /** Do the remap.
  */
@@ -699,14 +688,77 @@ const HookMask Do_ua_req_path::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hoo
 Do_ua_req_path::Do_ua_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_ua_req_path::invoke(Context &ctx) {
-  TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
   if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
-    hdr.url().path_set(host);
+    hdr.url().path_set(text);
   }
   return {};
 }
 
 swoc::Rv<Directive::Handle> Do_ua_req_path::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (!expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the query for the request.
+ */
+class Do_ua_req_query : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_query; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_ua_req_query(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_ua_req_query::KEY {"ua-req-query" };
+const HookMask Do_ua_req_query::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_query::Do_ua_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_ua_req_query::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.url().query_set(text);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_query::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -770,6 +822,69 @@ Errata Do_proxy_req_path::invoke(Context &ctx) {
 }
 
 swoc::Rv<Directive::Handle> Do_proxy_req_path::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (!expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the query for the request.
+ */
+class Do_proxy_req_query : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_query; ///< Self reference type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_proxy_req_query(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const std::string Do_proxy_req_query::KEY {"proxy-req-query" };
+const HookMask Do_proxy_req_query::HOOKS {MaskFor({ Hook::PREQ}) };
+
+Do_proxy_req_query::Do_proxy_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_proxy_req_query::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+    hdr.url().query_set(text);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_query::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -2298,6 +2413,8 @@ namespace {
   Config::define<Do_ua_req_host>();
   Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
   Config::define<Do_ua_req_scheme>();
+  Config::define<Do_ua_req_query>();
+  Config::define<Do_ua_req_url>();
 
   Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
   Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
@@ -2306,6 +2423,8 @@ namespace {
   Config::define(Do_proxy_req_host::KEY, Do_proxy_req_host::HOOKS, Do_proxy_req_host::load);
   Config::define<Do_proxy_req_path>();
   Config::define<Do_proxy_req_scheme>();
+  Config::define<Do_proxy_req_query>();
+  Config::define<Do_proxy_req_url>();
 
 //  Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
 //  Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);

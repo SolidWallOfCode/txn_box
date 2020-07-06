@@ -64,22 +64,22 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     })
 
     if remap:
-        for remap_config in remap:
+        for remap_line in remap:
             pparams = None
-            map_from = remap_config[0]
-            if len(remap_config) == 1:
+            map_from = remap_line[0]
+            if len(remap_line) == 1:
                 map_to = map_from
-            elif len(remap_config) == 2:
-                if isinstance(remap_config[1], str):
-                    map_to = remap_config[1]
+            elif len(remap_line) == 2:
+                if isinstance(remap_line[1], str):
+                    map_to = remap_line[1]
                 else:
-                    pparams = remap_config[1]
-            elif len(remap_config) == 3:
-                map_to = remap_config[1]
-                pparams = remap_config[2]
+                    map_to = map_from
+                    pparams = remap_line[1]
+            elif len(remap_line) == 3:
+                map_to = remap_line[1]
+                pparams = remap_line[2]
             else:
-                raise ValueError("remap entries must be either "
-                                 "(from, to) or (from, to, [pparams])")
+                raise ValueError("remap entries must be either (from, to) or (from, to, [pparams])")
 
             line = 'map {map_from} {map_to}:{server_port} '.format(
                 map_from=map_from, map_to=map_to, server_port=self.Variables.TXNBOX_SERVER.Variables.http_port)

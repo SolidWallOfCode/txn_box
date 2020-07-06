@@ -11,7 +11,8 @@ Test basic functions and directives.
 '''
 
 tr = Test.TxnBoxTestAndRun("Test basics", "basic.replay.yaml", config_path='Auto', config_key="meta.txn_box.global"
-                ,remap=[('http://remap.ex', 'http://remap.ex', ('--key=meta.txn_box.remap-1', 'basic.replay.yaml'))
+                ,remap=[ ['http://remap.ex', ['--key=meta.txn_box.remap-1', 'basic.replay.yaml']]
+                       , ['http://one.ex']
                        ]
                 )
 ts = tr.Variables.TS

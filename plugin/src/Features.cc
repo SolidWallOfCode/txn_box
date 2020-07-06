@@ -332,6 +332,29 @@ BufferWriter& Ex_ua_req_path::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_ua_req_query : public Extractor {
+public:
+  static constexpr TextView NAME { "ua-req-query" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_ua_req_query::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.query();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_ua_req_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 class Ex_ua_req_host : public Extractor {
 public:
   static constexpr TextView NAME { "ua-req-host" };
@@ -373,6 +396,29 @@ Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
 }
 
 BufferWriter& Ex_proxy_req_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_proxy_req_query : public Extractor {
+public:
+  static constexpr TextView NAME { "proxy-req-query" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_proxy_req_query::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.query();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_proxy_req_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -981,11 +1027,13 @@ Ex_ua_req_host ureq_host;
 Ex_ua_req_scheme ua_req_scheme;
 Ex_ua_req_method ua_req_method;
 Ex_ua_req_path ua_req_path;
+Ex_ua_req_query ua_req_query;
 Ex_ua_req_url_host ua_req_url_host;
 Ex_ua_req_field ua_req_field;
 
 Ex_proxy_req_host proxy_req_host;
 Ex_proxy_req_path proxy_req_path;
+Ex_proxy_req_query proxy_req_query;
 Ex_proxy_req_url proxy_req_url;
 Ex_proxy_req_scheme proxy_req_scheme;
 Ex_proxy_req_field proxy_req_field;
@@ -1034,6 +1082,7 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_method);
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_scheme);
   Extractor::define(Ex_ua_req_path::NAME, &ua_req_path);
+  Extractor::define(Ex_ua_req_query::NAME, &ua_req_query);
   Extractor::define(Ex_ua_req_url_host::NAME, &ua_req_url_host);
   Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
 
@@ -1041,6 +1090,7 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_proxy_req_url::NAME, &proxy_req_url);
   Extractor::define(Ex_proxy_req_path::NAME, &proxy_req_path);
   Extractor::define(Ex_proxy_req_scheme::NAME, &proxy_req_scheme);
+  Extractor::define(Ex_proxy_req_query::NAME, &proxy_req_query);
   Extractor::define(Ex_proxy_req_field::NAME, &proxy_req_field);
 
   Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);

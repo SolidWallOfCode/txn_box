@@ -163,6 +163,25 @@ TextView ts::URL::view() const {
   return _view;
 }
 
+bool ts::HttpRequest::url_set(TextView text) {
+  TSMLoc url_loc;
+  if (TS_SUCCESS != TSUrlCreate(_buff, &url_loc)) {
+    return false;
+  }
+  auto src = text.data();
+  auto limit = text.data_end();
+  if (TS_PARSE_DONE != TSUrlParse(_buff, url_loc, &src, limit)) {
+    TSHandleMLocRelease(_buff, TS_NULL_MLOC, url_loc);
+    return false;
+  }
+  bool zret = TS_SUCCESS == TSHttpHdrUrlSet(_buff, _loc, url_loc);
+  if (!zret) {
+    TSHandleMLocRelease(_buff, TS_NULL_MLOC, url_loc);
+  }
+  return zret;
+}
+
+/* ------------------------------------------------------------------------------------ */
 ts::HttpField::~HttpField() {
   TSHandleMLocRelease(_buff, _hdr, _loc);
 }
@@ -291,11 +310,6 @@ bool ts::HttpRequest::port_set(in_port_t port) {
       field.assign(w.view());
     }
   }
-  return true;
-}
-
-bool ts::HttpRequest::scheme_set(swoc::TextView const &scheme) {
-  this->url().scheme_set(scheme);
   return true;
 }
 
