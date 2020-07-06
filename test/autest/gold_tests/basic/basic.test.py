@@ -10,7 +10,13 @@ Test.Summary = '''
 Test basic functions and directives.
 '''
 
-Test.TxnBoxTestAndRun("Test basics", "basic.replay.yaml", config_path='Auto', config_key="meta.txn_box.global"
+tr = Test.TxnBoxTestAndRun("Test basics", "basic.replay.yaml", config_path='Auto', config_key="meta.txn_box.global"
                 ,remap=[('http://remap.ex', 'http://remap.ex', ('--key=meta.txn_box.remap-1', 'basic.replay.yaml'))
                        ]
                 )
+ts = tr.Variables.TS
+ts.Disk.records_config.update({
+      'proxy.config.log.max_secs_per_buffer': 1
+    , 'proxy.config.http.per_server.connection.max' : 500
+    , 'proxy.config.http.background_fill_completed_threshold' : 0.4
+})

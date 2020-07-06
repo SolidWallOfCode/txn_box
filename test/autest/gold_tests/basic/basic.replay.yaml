@@ -14,6 +14,15 @@ meta:
         - match: "4"
           do:
           - ua-req-field<Delain>: "four"
+        - match: "txn-conf-1"
+          do:
+          - ua-req-field<upstream>: "Max {txn-conf<proxy.config.http.per_server.connection.max>}"
+          - ua-req-field<basic>: "Fill {txn-conf<proxy.config.http.background_fill_completed_threshold>}"
+        - match: "txn-conf-2"
+          do:
+          - txn-conf<proxy.config.http.per_server.connection.max>: 400
+          - ua-req-field<upstream>: "Max {txn-conf<proxy.config.http.per_server.connection.max>}"
+          - ua-req-field<basic>: "Fill {txn-conf<proxy.config.http.background_fill_completed_threshold>}"
 
     - when: proxy-rsp
       do:
@@ -165,6 +174,42 @@ sessions:
       headers:
         fields:
         - [ rxp-tag, "Tag is 'a' with trailer ''", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 7 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/txn-conf-1"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ upstream, "Max 500", equal]
+        - [ basic, "Fill 0.40", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 8 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/txn-conf-2"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ upstream, "Max 400", equal]
+        - [ basic, "Fill 0.40", equal]
     server-response:
       <<: *base-rsp
     proxy-response:
