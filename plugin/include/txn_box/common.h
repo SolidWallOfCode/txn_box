@@ -653,6 +653,7 @@ template < typename T > let<T>::~let() { _var = _value; }
 
 // BufferWriter support.
 namespace swoc {
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, std::monostate);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
