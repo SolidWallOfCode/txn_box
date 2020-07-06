@@ -50,12 +50,14 @@ public:
    */
   int operator()(swoc::TextView text, pcre2_match_data* match) const;
 
+  /// @return The number of capture groups in the expression.
   size_t capture_count() const;
 
+  /// Regular expression options.
   union Options {
-    unsigned int all;
+    unsigned int all; ///< All of the flags.
     struct {
-      unsigned int nc : 1;
+      unsigned int nc : 1; ///< Case insensitive
     } f;
   };
 
