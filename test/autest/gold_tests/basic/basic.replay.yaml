@@ -29,7 +29,7 @@ meta:
       - match: "3"
         do:
         - ua-req-field<Host-Check>: ua-req-host
-      - rxp: "rxp/([^-]+)-key/(.*)"
+      - rxp: "^rxp/([^-]+)-key(?:/(.*))?"
         do:
         - ua-req-field<rxp-tag>: "Tag is '{1}' with trailer '{2}'"
 
@@ -164,7 +164,7 @@ sessions:
       <<: *base-req
       headers:
         fields:
-        - [ rxp-tag, "Tag is a with trailer ", equal]
+        - [ rxp-tag, "Tag is 'a' with trailer ''", equal]
     server-response:
       <<: *base-rsp
     proxy-response:
