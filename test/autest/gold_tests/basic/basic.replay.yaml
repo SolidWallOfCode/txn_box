@@ -1,0 +1,171 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    global:
+    - when: ua-req
+      do:
+      - with: ua-req-path
+        select:
+        - match: [ "1", "2" ]
+          do:
+          - var<Best-Band>: "Delain"
+          - ua-req-field<potzrebie>: "true"
+        - match: "4"
+          do:
+          - ua-req-field<Delain>: "four"
+
+    - when: proxy-rsp
+      do:
+        with: ua-req-path
+        select:
+        - match: "2"
+          do:
+          - proxy-rsp-field<Best-Band>: var<Best-Band>
+
+    remap-1:
+    - with: ua-req-path
+      select:
+      - match: "3"
+        do:
+        - ua-req-field<Host-Check>: ua-req-host
+      - rxp: "rxp/([^-]+)-key/(.*)"
+        do:
+        - ua-req-field<rxp-tag>: "Tag is '{1}' with trailer '{2}'"
+
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+
+  - base-rsp: &base-rsp
+      status: 200
+      reason: "OK"
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ ipv4, tcp ]
+  transactions:
+  #
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/1"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      headers:
+        fields:
+        - [ potzrebie, "true", equal ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      headers:
+        fields:
+        - [ Best-Band, Delain, absent ]
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/2"
+      headers:
+        fields:
+        - [ Host,one.ex ]
+    proxy-request:
+      headers:
+        fields:
+        - [ potzrebie, "true", equal ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 234
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 234 ]
+    proxy-response:
+      headers:
+        fields:
+        - [ Best-Band, "Delain", equal ]
+
+  - all: { headers: { fields: [[ uuid, 3 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/3"
+      headers:
+        fields:
+        - [ Host, remap.ex ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Host-Check, "remap.ex", "equal" ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 4 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/4"
+      headers:
+        fields:
+        - [ Host, remap.ex ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Delain, "four", equal ]
+    server-response:
+      status: 200
+      reason: OK
+      content:
+        size: 130
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 130 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 5 ]]}}
+    client-request:
+      <<: *base-req
+      url: /rxp/a
+      headers:
+        fields:
+        - [ Host, remap.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ rxp-tag, "", absent ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 6 ]]}}
+    client-request:
+      <<: *base-req
+      url: /rxp/a-key
+      headers:
+        fields:
+        - [ Host, remap.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ rxp-tag, "Tag is a with trailer ", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
