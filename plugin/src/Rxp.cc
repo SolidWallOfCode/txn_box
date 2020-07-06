@@ -28,7 +28,7 @@ Rv<Rxp> Rxp::parse(TextView const& str, Options const& options) {
     auto err_size = pcre2_get_error_message(errc, err_buff, sizeof(err_buff));
     return Error(R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)", TextView(reinterpret_cast<char const*>(err_buff), err_size), errc, err_off, str);
   }
-  return { result, {} };
+  return { result };
 };
 
 int Rxp::operator()(swoc::TextView text, pcre2_match_data* match) const {

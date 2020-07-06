@@ -502,19 +502,7 @@ public:
   Cmp_RxpList(Rxp::Options opt) : _opt(opt) {}
 protected:
   struct expr_visitor {
-    Errata operator() (Feature & f) {
-      if (IndexFor(STRING) != f.index()) {
-        return Error(R"("{}" literal must be a string.)", KEY);
-      }
-
-      auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
-      if (! rxp_errata.is_ok()) {
-        rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
-        return std::move(rxp_errata);
-      }
-      _rxp.emplace_back(std::move(rxp));
-      return {};
-    }
+    Errata operator() (Feature & f);
     Errata operator() (Expr::List &) {
       return Error("Invalid type");
     }
@@ -540,6 +528,20 @@ protected:
   Rxp::Options _opt;
 };
 
+Errata Cmp_RxpList::expr_visitor::operator()(Feature& f) {
+  if (IndexFor(STRING) != f.index()) {
+    return Error(R"("{}" literal must be a string.)", KEY);
+  }
+
+  auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
+  if (! rxp_errata.is_ok()) {
+    rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
+    return std::move(rxp_errata);
+  }
+  _rxp.emplace_back(std::move(rxp));
+  return {};
+}
+
 const ActiveType Cmp_Rxp::TYPES {STRING, ActiveType::TupleOf(STRING)};
 
 bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
@@ -556,6 +558,7 @@ bool Cmp_Rxp::rxp_visitor::operator() (Expr const& expr) {
   if (auto text = std::get_if<IndexFor(STRING)>(&f) ; text != nullptr ) {
     auto &&[rxp, rxp_errata]{Rxp::parse(*text, _rxp_opt)};
     if (rxp_errata.is_ok()) {
+      _ctx.rxp_match_require(rxp.capture_count());
       return (*this)(rxp);
     }
   }
@@ -572,7 +575,12 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Feature & f) {
     rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
+  _cfg.require_rxp_group_count(rxp.capture_count());
   return Handle(new Cmp_RxpSingle(std::move(rxp)));
+}
+
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (std::monostate) {
+  return Error(R"(Literal must be a string)");
 }
 
 Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Direct & d) {
