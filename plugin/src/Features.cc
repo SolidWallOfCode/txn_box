@@ -232,7 +232,7 @@ public:
 
 BufferWriter& Ex_ua_req_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       bwformat(w, spec, url.view());
     }
@@ -252,7 +252,7 @@ public:
 Feature Ex_ua_req_url_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.host();
     }
@@ -276,7 +276,7 @@ public:
 Feature Ex_ua_req_method::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     zret = hdr.method();
   }
   return zret;
@@ -297,7 +297,7 @@ public:
 Feature Ex_ua_req_scheme::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.scheme();
     }
@@ -320,7 +320,7 @@ public:
 Feature Ex_ua_req_path::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.path();
     }
@@ -343,7 +343,7 @@ public:
 Feature Ex_ua_req_query::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.query();
     }
@@ -366,7 +366,7 @@ public:
 Feature Ex_ua_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     zret = hdr.host();
   }
   return zret;
@@ -387,7 +387,7 @@ public:
 Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.path();
     }
@@ -410,7 +410,7 @@ public:
 Feature Ex_proxy_req_query::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.query();
     }
@@ -508,7 +508,7 @@ protected:
 
 TextView const& Ex_ua_req_field::key() const { return NAME; }
 ts::HttpHeader Ex_ua_req_field::hdr(Context & ctx) const {
-  return ctx.creq_hdr();
+  return ctx.ua_req_hdr();
 }
 // -----
 class Ex_proxy_req_field : public ExHttpField {
@@ -522,7 +522,7 @@ protected:
 
 TextView const& Ex_proxy_req_field::key() const { return NAME; }
 ts::HttpHeader Ex_proxy_req_field::hdr(Context & ctx) const {
-  return ctx.preq_hdr();
+  return ctx.proxy_req_hdr();
 }
 // -----
 class Ex_proxy_rsp_field : public ExHttpField {
@@ -536,7 +536,7 @@ protected:
 
 TextView const& Ex_proxy_rsp_field::key() const { return NAME; }
 ts::HttpHeader Ex_proxy_rsp_field::hdr(Context & ctx) const {
-  return ctx.prsp_hdr();
+  return ctx.proxy_rsp_hdr();
 }
 // -----
 class Ex_upstream_rsp_field : public ExHttpField {
@@ -550,7 +550,7 @@ protected:
 
 TextView const& Ex_upstream_rsp_field::key() const { return NAME; }
 ts::HttpHeader Ex_upstream_rsp_field::hdr(Context & ctx) const {
-  return ctx.ursp_hdr();
+  return ctx.upstream_rsp_hdr();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -567,7 +567,7 @@ public:
 
 BufferWriter& Ex_proxy_req_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   FeatureView zret;
-  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       bwformat(w, spec, url.view());
     }
@@ -586,7 +586,7 @@ public:
 Feature Ex_proxy_req_host::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.preq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
     zret = hdr.host();
   }
   return zret;
@@ -607,7 +607,7 @@ public:
 Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr { ctx.creq_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       zret = url.scheme();
     }
