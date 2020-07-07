@@ -80,10 +80,10 @@ Errata Context::on_hook_do(Hook hook_idx, Directive *drtv) {
 }
 
 Errata Context::invoke_callbacks() {
-  // Bit of subtlety here - directives / callbacks can be added to the list due to the action
-  // of the invoked directive. However, because this is an intrusive list and items are only
-  // added to the end, the @c next pointer for the current item will be updated before the
-  // loop iteration occurs.
+  // Bit of subtlety here - directives / callbacks can be added to the list due to the action of the
+  // invoked directive from this list. However, because this is an intrusive list and items are only
+  // added to the end, the @c next pointer for the current item will be updated before the loop
+  // iteration occurs and therefore new directives will be invoked.
   auto & info { _hooks[IndexFor(_cur_hook)] };
   for ( auto & cb : info.cb_list ) {
     cb.invoke(*this);
@@ -204,32 +204,32 @@ swoc::MemSpan<void> Context::storage_for(Directive::CfgInfo const * rtti) {
   return zret;
 }
 
-ts::HttpRequest Context::creq_hdr() {
-  if (!_creq.is_valid()) {
-    _creq = _txn.creq_hdr();
+ts::HttpRequest Context::ua_req_hdr() {
+  if (!_ua_req.is_valid()) {
+    _ua_req = _txn.creq_hdr();
   }
-  return _creq;
+  return _ua_req;
 }
 
-ts::HttpRequest Context::preq_hdr() {
-  if (!_preq.is_valid()) {
-    _preq = _txn.preq_hdr();
+ts::HttpRequest Context::proxy_req_hdr() {
+  if (!_proxy_req.is_valid()) {
+    _proxy_req = _txn.preq_hdr();
   }
-  return _preq;
+  return _proxy_req;
 }
 
-ts::HttpHeader Context::ursp_hdr() {
-  if (!_ursp.is_valid()) {
-    _ursp = _txn.ursp_hdr();
+ts::HttpHeader Context::upstream_rsp_hdr() {
+  if (!_upstream_rsp.is_valid()) {
+    _upstream_rsp = _txn.ursp_hdr();
   }
-  return _ursp;
+  return _upstream_rsp;
 }
 
-ts::HttpHeader Context::prsp_hdr() {
-  if (!_prsp.is_valid()) {
-    _prsp = _txn.prsp_hdr();
+ts::HttpHeader Context::proxy_rsp_hdr() {
+  if (!_proxy_rsp.is_valid()) {
+    _proxy_rsp = _txn.prsp_hdr();
   }
-  return _prsp;
+  return _proxy_rsp;
 }
 
 Context::self_type &Context::enable_hooks(TSHttpTxn txn) {

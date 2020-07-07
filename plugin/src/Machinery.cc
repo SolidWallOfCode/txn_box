@@ -60,7 +60,7 @@ const HookMask Do_ua_req_url_host::HOOKS {MaskFor({ Hook::PREQ, Hook::PRE_REMAP,
 Do_ua_req_url_host::Do_ua_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_url_host::invoke(Context &ctx) {
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
       auto value = ctx.extract(_expr);
       if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
@@ -111,7 +111,7 @@ const HookMask Do_proxy_req_url_host::HOOKS {MaskFor({ Hook::PREQ }) };
 Do_proxy_req_url_host::Do_proxy_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
 Errata Do_proxy_req_url_host::invoke(Context &ctx) {
-  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
       auto value = ctx.extract(_expr);
       if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
@@ -229,7 +229,7 @@ const HookMask Do_ua_req_host::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook
 Do_ua_req_host::Do_ua_req_host(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_host::invoke(Context &ctx) {
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     auto value = ctx.extract(_expr);
     if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
       hdr.host_set(*host);
@@ -296,7 +296,7 @@ Do_proxy_req_host::Do_proxy_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_host::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.host_set(host);
   }
   return {};
@@ -359,7 +359,7 @@ Do_ua_req_scheme::Do_ua_req_scheme(Expr &&fmt) : _expr(std::move(fmt)) {}
 
 Errata Do_ua_req_scheme::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().scheme_set(text);
   }
   return {};
@@ -422,7 +422,7 @@ Do_ua_req_url::Do_ua_req_url(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_url::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url_set(text);
   }
   return {};
@@ -485,7 +485,7 @@ Do_proxy_req_scheme::Do_proxy_req_scheme(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_scheme::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.url().scheme_set(host);
   }
   return {};
@@ -548,7 +548,7 @@ Do_proxy_req_url::Do_proxy_req_url(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_proxy_req_url::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
-  if (auto hdr{ctx.preq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.url_set(text);
   }
   return {};
@@ -689,7 +689,7 @@ Do_ua_req_path::Do_ua_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_ua_req_path::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().path_set(text);
   }
   return {};
@@ -752,7 +752,7 @@ Do_ua_req_query::Do_ua_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_ua_req_query::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().query_set(text);
   }
   return {};
@@ -815,7 +815,7 @@ Do_proxy_req_path::Do_proxy_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_path::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().path_set(host);
   }
   return {};
@@ -878,7 +878,7 @@ Do_proxy_req_query::Do_proxy_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_query::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.creq_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().query_set(text);
   }
   return {};
@@ -1135,7 +1135,7 @@ const HookMask Do_ua_req_field::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Ho
 
 Errata Do_ua_req_field::invoke(Context &ctx) {
   ctx._remap_status = TSREMAP_DID_REMAP;
-  return this->super_type::invoke(ctx, ctx.creq_hdr());
+  return this->super_type::invoke(ctx, ctx.ua_req_hdr());
 }
 
 Rv<Directive::Handle> Do_ua_req_field::load(Config& cfg, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1162,7 +1162,7 @@ const std::string Do_proxy_req_field::KEY {"proxy-req-field" };
 const HookMask Do_proxy_req_field::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Errata Do_proxy_req_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.preq_hdr());
+  return this->super_type::invoke(ctx, ctx.proxy_req_hdr());
 }
 
 Rv<Directive::Handle> Do_proxy_req_field::load(Config& cfg, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1189,7 +1189,7 @@ const std::string Do_proxy_rsp_field::KEY {"proxy-rsp-field" };
 const HookMask Do_proxy_rsp_field::HOOKS {MaskFor(Hook::PRSP) };
 
 Errata Do_proxy_rsp_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.prsp_hdr());
+  return this->super_type::invoke(ctx, ctx.proxy_rsp_hdr());
 }
 
 Rv<Directive::Handle> Do_proxy_rsp_field::load(Config& cfg, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1216,7 +1216,7 @@ const std::string Do_upstream_rsp_field::KEY {"upstream-rsp-field" };
 const HookMask Do_upstream_rsp_field::HOOKS {MaskFor(Hook::URSP) };
 
 Errata Do_upstream_rsp_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.ursp_hdr());
+  return this->super_type::invoke(ctx, ctx.upstream_rsp_hdr());
 }
 
 Rv<Directive::Handle> Do_upstream_rsp_field::load(Config& cfg, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1708,7 +1708,7 @@ Errata Do_redirect::invoke(Context& ctx) {
 }
 
 Errata Do_redirect::fixup(Context &ctx) {
-  auto hdr { ctx.prsp_hdr() };
+  auto hdr {ctx.proxy_rsp_hdr() };
   // Set the Location
   auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
   auto view = static_cast<TextView*>(ctx.storage_for(this).data());
@@ -1736,7 +1736,7 @@ Errata Do_redirect::load_status() {
   }
 
 //  FeatureGroup::ExfInfo & info = _fg[_status_idx];
-//  FeatureGroup::ExfInfo::Single & ex = std::get<FeatureGroup::ExfInfo::SINGLE>(info._ex);
+//  FeatureGroup::ExfInfo::Single & ex = std::get<FeatureGroup::ExfInfo::SINGLE>(info._expr);
 
   #if 0
   if (ex._expr.is_literal()) {
@@ -1931,7 +1931,7 @@ const std::string Do_set_creq_query::KEY { "set-creq-query" };
 const HookMask Do_set_creq_query::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP}) };
 
 Errata Do_set_creq_query::invoke(Context &ctx) {
-  return this->QueryDirective::invoke(ctx, _expr, ctx.creq_hdr().url(), _arg);
+  return this->QueryDirective::invoke(ctx, _expr, ctx.ua_req_hdr().url(), _arg);
 }
 
 Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, YAML::Node drtv_node
@@ -2201,19 +2201,21 @@ public:
   static const std::string KEY;
   static const std::string SELECT_KEY;
   static const std::string FOR_EACH_KEY;
+  static const std::string CONTINUE_KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context &ctx) override;
   static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _ex; ///< Extractor format.
+  Expr _expr; ///< Feature expression
   Directive::Handle _do; ///< Explicit actions.
 
   union {
     uint32_t all = 0;
     struct {
       unsigned for_each_p : 1; ///< Direct action is per tuple element.
+      unsigned continue_p : 1; ///< Continue with directives after this.
     } f;
   } opt;
 
@@ -2233,10 +2235,12 @@ protected:
 const std::string With::KEY { "with" };
 const std::string With::SELECT_KEY { "select" };
 const std::string With::FOR_EACH_KEY { "for-each" };
+const std::string With::CONTINUE_KEY { "continue" };
+
 const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 Errata With::invoke(Context &ctx) {
-  Feature feature { ctx.extract(_ex) };
+  Feature feature { ctx.extract(_expr) };
   Feature save { ctx._active };
   ctx._active = feature;
 
@@ -2253,7 +2257,7 @@ Errata With::invoke(Context &ctx) {
       // Iteration can potentially modify the extracted feature value, so if there are comparisons
       // reset the feature.
       if (! _cases.empty()) {
-        ctx._active = feature = ctx.extract(_ex);
+        ctx._active = feature = ctx.extract(_expr);
       }
     } else {
       _do->invoke(ctx);
@@ -2281,8 +2285,8 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::
 
   self_type * self = new self_type;
   Handle handle(self); // for return, and cleanup in case of error.
-  self->_ex = std::move(expr);
-  auto f_scope = cfg.feature_scope(self->_ex.result_type());
+  self->_expr = std::move(expr);
+  auto f_scope = cfg.feature_scope(self->_expr.result_type());
 
   YAML::Node select_node { drtv_node[SELECT_KEY] };
   if (select_node) {
@@ -2303,6 +2307,11 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::
     } else {
       return Error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")", SELECT_KEY, select_node.Mark(), KEY, drtv_node.Mark());
     }
+  }
+
+  YAML::Node continue_node { drtv_node[CONTINUE_KEY]};
+  if (continue_node) {
+    self->opt.f.continue_p = true;
   }
 
   YAML::Node do_node { drtv_node[DO_KEY] };
@@ -2337,7 +2346,7 @@ Errata With::load_case(Config & cfg, YAML::Node node) {
     // It's allowed to have no comparison, which is either an empty map or only a DO key.
     // In that case the comparison always matches.
     if (node.size() > 1 || (node.size() == 1 && !do_node)) {
-      auto f_scope = cfg.feature_scope(_ex.result_type());
+      auto f_scope = cfg.feature_scope(_expr.result_type());
       auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg,  node)};
       if (cmp_errata.is_ok()) {
         c._cmp = std::move(cmp_handle);

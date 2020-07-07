@@ -36,7 +36,7 @@ class Context {
   /// @internal Because the arena is inverted, calling the destructor will clean up everything.
   /// For this reason @c delete must @b not be called (that will double free).
   struct ArenaDestructor {
-    void operator()(swoc::MemArena* arena) { arena->swoc::MemArena::~MemArena(); }
+    void operator()(swoc::MemArena* arena);
   };
 public:
   /// Transaction local storage.
@@ -117,9 +117,7 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template < typename T > swoc::MemSpan<T> span(unsigned count) {
-    return _arena->alloc(sizeof(T) * count).rebind<T>();
-  }
+  template < typename T > swoc::MemSpan<T> span(unsigned count);
 
   /** Access per context storage for directive @a drtv.
    *
@@ -215,8 +213,13 @@ public:
   public:
     /// Intrusive list descriptor.
     using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
+    /// Constructor.
+    /// @param drtv Directive for the callback.
     Callback(Directive* drtv) : _drtv(drtv) {}
-    swoc::Errata invoke(Context& ctx) { return _drtv->invoke(ctx); }
+    /// Call the directive in @a this.
+    /// @param ctx Transaction context for the callback.
+    /// @return Errors, if any.
+    swoc::Errata invoke(Context& ctx);
   };
 
   /// Directives for a particular hook.
@@ -230,10 +233,10 @@ public:
   /// State of each global config hook for this transaction / context.
   std::array<HookInfo, std::tuple_size<Hook>::value> _hooks;
 
-  ts::HttpRequest creq_hdr();
-  ts::HttpRequest preq_hdr();
-  ts::HttpHeader ursp_hdr();
-  ts::HttpHeader prsp_hdr();
+  ts::HttpRequest ua_req_hdr(); ///< @return user agent (client) request.
+  ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
+  ts::HttpHeader upstream_rsp_hdr(); ///< @return upstream request.
+  ts::HttpHeader proxy_rsp_hdr(); ///< @return proxy response.
 
   /** Store a transaction variable.
    *
@@ -292,15 +295,8 @@ public:
    */
   swoc::TextView localize_as_c_str(swoc::TextView text);
 
-  /** Clear cached data.
-   *
-   */
-  void clear_cache() {
-    _creq = {};
-    _preq = {};
-    _ursp = {};
-    _prsp = {};
-  }
+  /// Clear transaction headers - not reliable across hooks.
+  void clear_cache();
 
   /** Mark @a ptr for cleanup when @a this is destroyed.
    *
@@ -312,16 +308,28 @@ public:
    */
   template <typename T> self_type & mark_for_cleanup(T* ptr);
 
-  Config& cfg() { return *_cfg; }
+  /** Get a reference to the configuration for @a this.
+   *
+   * @return The configuration.
+   *
+   * Use when local access to the configuration is needed.
+   */
+  Config& cfg();
 
-  std::shared_ptr<Config> acquire_cfg() { return _cfg; }
+  /** Get a reference to the configuration.
+   *
+   * @return A shared reference to the configuration to @a this.
+   *
+   * Use when the configuration needs to persist.
+   */
+  std::shared_ptr<Config> acquire_cfg();
 
 protected:
   // HTTP header objects for the transaction.
-  ts::HttpRequest _creq; ///< Client request header.
-  ts::HttpRequest _preq; ///< Proxy request header.
-  ts::HttpHeader _ursp; ///< Upstream response header.
-  ts::HttpHeader _prsp; ///< Proxy response header.
+  ts::HttpRequest _ua_req; ///< Client request header.
+  ts::HttpRequest _proxy_req; ///< Proxy request header.
+  ts::HttpHeader _upstream_rsp; ///< Upstream response header.
+  ts::HttpHeader _proxy_rsp; ///< Proxy response header.
 
   /// Base / Global configuration object.
   std::shared_ptr<Config> _cfg;
@@ -329,6 +337,7 @@ protected:
   /// Directive shared storage.
   swoc::MemSpan<void> _ctx_store;
 
+  /// Invoke the callbacks for the current hook.
   swoc::Errata invoke_callbacks();
 
   /// Active regex capture data.
@@ -387,4 +396,24 @@ template < typename T > Context& Context::mark_for_cleanup(T *ptr) {
   auto f = _arena->make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
   _finalizers.append(f);
   return *this;
+}
+
+template<typename T>
+swoc::MemSpan<T> Context::span(unsigned int count) {
+  return _arena->alloc(sizeof(T) * count).rebind<T>();
+}
+
+inline Config& Context::cfg() { return *_cfg; }
+
+inline std::shared_ptr<Config> Context::acquire_cfg() { return _cfg; }
+
+inline swoc::Errata Context::Callback::invoke(Context& ctx) { return _drtv->invoke(ctx); }
+
+inline void Context::ArenaDestructor::operator()(swoc::MemArena *arena) { arena->swoc::MemArena::~MemArena(); }
+
+inline void Context::clear_cache() {
+  _ua_req = {};
+  _proxy_req = {};
+  _upstream_rsp = {};
+  _proxy_rsp = {};
 }
