@@ -320,6 +320,17 @@ Context::self_type&Context::store_txn_var(swoc::TextView const&name, Feature&val
   return *this;
 }
 
+TextView Context::localize_as_c_str(swoc::TextView text) {
+  // If it's empty or isn't already a C string, make a copy that is.
+  if (text.empty() || '\0' != text.back()) {
+    auto span = _arena->alloc_span<char>(text.size() + 1);
+    memcpy(span, text);
+    span[text.size()] = '\0';
+    text = span.view();
+  }
+  return text;
+}
+
 unsigned Context::ArgPack::count() const {
   return pcre2_get_ovector_count(_ctx._rxp_active._match);
 }
