@@ -200,8 +200,6 @@ Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
     return Expr{Feature{addr}};
   }
 
-  // Float?
-
   // Presume an extractor.
   Extractor::Spec spec;
   bool valid_p = spec.parse(text);

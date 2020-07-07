@@ -283,6 +283,15 @@ public:
   /// Commit the working match data as the active match data.
   RxpCapture * rxp_commit_match(swoc::TextView const& src);
 
+  /** Make a transaction local copy of @a text that is a C string if needed.
+   *
+   * @param text Current string.
+   * @return @a test if it is a C-string, a null terminated copy if not.
+   *
+   * The copy is stored in transaction scoped memory.
+   */
+  swoc::TextView localize_as_c_str(swoc::TextView text);
+
   /** Clear cached data.
    *
    */

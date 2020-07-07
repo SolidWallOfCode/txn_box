@@ -2067,7 +2067,10 @@ Errata Do_txn_conf::invoke(Context &ctx) {
   } else if (value.index() == IndexFor(BOOLEAN)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(BOOLEAN)>(value) ? 1L : 0L);
   } else if (value.index() == IndexFor(STRING)) {
-    ctx._txn.override_assign(*_var, std::get<IndexFor(STRING)>(value));
+    // Unfortunately although the interface doesn't appear to require C strings, in practice some of
+    // the string overridables do (such as client cert file path).
+    auto str = ctx.localize_as_c_str(std::get<IndexFor(STRING)>(value));
+    ctx._txn.override_assign(*_var, str);
   } else if (value.index() == IndexFor(FLOAT)) {
     ctx._txn.override_assign(*_var, std::get<IndexFor(FLOAT)>(value));
   }
