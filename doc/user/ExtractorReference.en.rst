@@ -180,6 +180,11 @@ Utility
 
 This is an ecletic collection of extractors that do not depend on transaction or session data.
 
+.. extractor:: ...
+   :result: any
+
+   The feature for the most recent :drtv:`with`.
+
 .. txb:extractor:: random
   :result: integer
 

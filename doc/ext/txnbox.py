@@ -92,7 +92,22 @@ class TxbDirective(std.Target):
 
         fl = nodes.field_list()
         if ('keys' in self.options):
-            fl.append(self.make_field('Secondary Keys', self.options['keys']))
+            key_field = nodes.field()
+            key_field.append(nodes.field_name(text='Secondary Keys'))
+            key_value = nodes.field_list()
+            key_body = nodes.field_body()
+            key_body.append(key_value)
+            key_field.append(key_body)
+            key_list = self.options['keys'].split('|')
+            for key in key_list:
+                tag = key
+                descr = ''
+                if ':' in key :
+                    ( tag, descr ) = key.split(':')
+                tag = tag.strip()
+                descr = descr.strip()
+                key_value.append(self.make_field(tag, descr))
+            fl.append(key_field)
         if ('arg' in self.options):
             fl.append(self.make_field('Argument', self.options['arg']))
         if ('value' in self.options):
@@ -171,7 +186,8 @@ class TxbExtractor(std.Target):
 
         fl = nodes.field_list()
         if ('result' in self.options):
-            fl.append(self.make_field('Result', sphinx.addnodes.literal_emphasis(self.options['result'])))
+            fl.append(self.make_field('Result', sphinx.addnodes.literal_emphasis(text=self.options['result'])))
+#            fl.append(self.make_field('Result', self.options['result']))
         if ('arg' in self.options):
             fl.append(self.make_field('Argument', self.options['arg']))
 

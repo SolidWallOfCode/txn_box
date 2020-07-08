@@ -14,14 +14,36 @@ Directive Reference
 Fundamental
 ===========
 
-.. txb:directive:: when
-   :value: literal string
+.. directive:: when
+   :value: hook
+   :keys: do:Directive List
 
-   Specify the hook for other directives.
+   Specify the hook for other directives. The ``do`` key has the list of directives to invoke for the specified :arg:`hook`. To set the field "Best-Band" to the correct value "Delain" on the proxy response (using :drtv:`proxy-rsp-field`) ::
 
-.. txb:directive:: with
+      when: proxy-rsp
+      do:
+      - proxy-rsp-field<Best-Band>: "Delain"
 
-   Do selection of directives.
+   The top level directive(s) in a global configuration file must be this directive, which forces every directive to be associated with a specific hook. It can also be used as a normal directive to cause the invocation of directives on another hook (which must not be a prior hook). The action of the directive is to "schedule" its nested directives for later invocation on the specified hook. Therefore if the directive is not invoked its nested directives will not be either. This enables conditional invocation of those directives using data that may not be available in the later hook (e.g. the pre-remap request URL). Although any feature expressions in nested directives will be evaluated in the later hook, not at the time this directive is invoked, the decision on whether to invoke those directives can use current hook information.
+
+.. directive:: with
+   :value: expression
+   :keys: select:Comparison list | do:Directive list | continue
+
+   Conditional invoke a list of directives. The :arg:`expression` evaluates to a feature. This feature is then compared against the comparisons in ``select`` list of comparisons. Each element of that list is an object. Each object can have a :ref:`comparison<comparison_reference>` and a list of directives under the ``do`` key. The feature for :arg:`expression` is compared in order by the comparisons and the first successful comparison is selected and the directives for the comparison invoked.
+
+   As a fundamental principle, once a comparison is selected and the directives invoked, this
+   terminates the invocation of directives for the most recent :drtv:`when` or :drtv:`with`. That
+   is, normally there is no return from inside a :drtv:`with` because an outer :drtv:`with` will
+   normally also return immediately up to the top level :drtv:`when`. This can be overridden for a
+   specific instance by adding the key `continue`. If present then subsequent directives will be
+   invoked. This should be used sparingly as the point of this rule is to make it unambiguous which directives were invoked for a transaction. Note that if no comparison is successful subsequent directives are invoked and the :drtv:`with` has no effect.
+
+   A comparison is not required to have ``do`` in which case if it is matched, nothing is done but it counts as a match for the purposes of no return.
+   
+   A comparison does not require an actual comparison but can consist only of ``do``. In this case it always matches and this form serves as a convenient "match anything" comparison. Obviously it should always be the last comparison if used.
+
+   The ``do`` key can be used to invoke directives before any of the comparisons. This is useful primarily for access to the feature for :arg:`expression` via the :ex:`...` extractor which extracts that feature. If there is a nested :drtv:`with` that will terminate the list of ``do`` directives but will not prevent the comparisons and their associated directives.
 
 User Agent Request
 ==================
@@ -29,20 +51,20 @@ User Agent Request
 .. directive:: ua-url
    :value: string
 
-   Set the URL of the client request to ;arg:`value`. This must be the full, parsable URL. To set
-   more specific elements of the URL use the more specific directives.
+   Set the URL of the user agent request to :arg:`string`. This must be the full, parsable URL. To
+   set more specific elements of the URL use the more specific directives.
 
 .. directive:: ua-req-host
    :value: string
 
-   Set the host for the client request to :arg:`value`. This updates both the URL and the ``Host``
-   field as needed. This has no effect on the request port.
+   Set the host for the user agent request to :arg:`value`. This updates both the URL and the
+   ``Host`` field as needed. This has no effect on the request port.
 
 .. directive:: ua-url-host
    :value: string
 
-   Set the host in the URL for the client request to :arg:`value`. This has no effect on the
-   port.
+   Set the host in the URL for the user agent request to :arg:`value`. This has no effect on the
+   port nor on the ``Host`` field.
 
 .. directive:: ua-req-port
    :value: integer
@@ -54,15 +76,20 @@ User Agent Request
    :value: integer
 
    Set the port in the user agent request to :arg:`value`. This has no effect on the host in the
-   URL.
+   URL nor the ``Host`` field.
 
 .. directive:: ua-req-path
    :value: string
 
-   Set the path in the client request to :arg:`value`. A leading slash is ignored.
+   Set the path in the user agent request to :arg:`value`. A leading slash is ignored.
 
-.. txb:directive:: ua-req-field
-   :arg: *name*
+.. directive:: ua-req-query
+   :value: string
+
+   Sets the query string for the user agent request.
+
+.. directive:: ua-req-field
+   :arg: name
    :value: string, tuple of strings
 
    Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
@@ -76,15 +103,57 @@ User Agent Request
 Proxy Request
 =============
 
-.. txb:directive:: proxy-req-field
-   :arg: *name*
+.. directive:: proxy-url
+   :value: string
+
+   Set the URL of the proxy request to :arg:`string`. This must be the full, parsable URL. To set
+   more specific elements of the URL use the more specific directives.
+
+.. directive:: proxy-req-host
+   :value: string
+
+   Set the host for the proxy request to :arg:`value`. This updates both the URL and the ``Host``
+   field as needed. This has no effect on the request port.
+
+.. directive:: proxy-url-host
+   :value: string
+
+   Set the host in the URL for the proxy request to :arg:`value`. This has no effect on the
+   port nor on the ``Host`` field.
+
+.. directive:: proxy-req-query
+   :value: string
+
+   Sets the query string for the proxy request.
+
+.. directive:: proxy-req-field
+   :arg: name
    :value: string, tuple of strings.
 
    Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
    create a field for every element of the tuple and set the value for that field to the tuple
-   element. ::
+   element.
+   
+   To set the field named "Best-Band" to the correct value "Delain" - ::
 
-      ua-req-field<X-Swoc>: "Potzrebie"
+      proxy-req-field<Best-Band>: "Delain"
+
+Proxy response
+==============
+
+.. directive:: proxy-rsp-field
+   :arg: name
+   :value: string, tuple of strings.
+
+   Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
+   create a field for every element of the tuple and set the value for that field to the tuple
+   element.
+   
+   To set the field named "Best-Band" to the correct value "Delain" - ::
+
+      proxy-rsp-field<Best-Band>: "Delain"
+
+
 
 Transaction
 ===========
@@ -203,17 +272,19 @@ Compatibility
 
    Valid only in the ``REMAP`` hook, this applies the URL rewriting of the remap rule that matched.
    The use of this is for backwards compatibility between ATS 9 and previous versions. Earlier
-   versions would not apply the rule URL rewriting until after the first remap plugin had
-   been called, and dependent on the return value from that call. Starting with ATS 9, the URL
-   rewrite is always applied before any remap plugin is called. This directive enables simulating
-   the ATS 9 behavior in earlier versions by making this the first directive when |TxB| is the
-   first remap plugin. Unfortunately correct use requires knowing this, but it's the best that
-   can be done.
+   versions would not apply the rule URL rewriting until after the first remap plugin had been
+   called and this would also be dependent on the return value from that call. Starting with ATS 9,
+   the URL rewrite is always applied before any remap plugin is called. This directive enables
+   simulating the ATS 9 behavior in earlier versions by making this the first directive when |TxB|
+   is the first remap plugin. Unfortunately correct use requires knowing this, but it's the best
+   that can be done.
 
-   There are two key points -
+   Things to note -
 
-   *  If only a portion of the URL should be changed, then this needs to be used to prevent ATS from
+   *  If only a portion of the URL is to be changed,  this needs to be used to prevent ATS from
       wiping out that change, while still getting the effect of updating the post-rewrite URL.
 
-   *  When matching on the client request, note this (and the pre-ATS 9 URL rewriting) changes the
-      client request URL and therefore changes what should be matched.
+   *  When matching on the client request, this (and the pre-ATS 9 URL rewriting) changes the
+      client request URL and therefore changes what will be matched.
+
+   *  It is possible to execute other directives first but this requires much care and isn't   portable across ATS versions because it is impossible to replicate as of ATS 9.
