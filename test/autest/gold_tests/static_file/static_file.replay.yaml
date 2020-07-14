@@ -11,6 +11,17 @@ meta:
         path: "static_file.txt"
         duration: seconds<20>
 
+    - text-block-define:
+        name: "alternate"
+        path: "static_file.txt"
+        duration: seconds<20>
+
+    - text-block-define:
+        name: "missing"
+        path: "missing.txt"
+        text: "Concert missing."
+        duration: seconds<20>
+
   - when: upstream-rsp
     do:
     - with: [ upstream-rsp-status , proxy-req-path ]
@@ -31,6 +42,14 @@ meta:
         - proxy-req-field<Author-i-tay>:
           - proxy-req-field<Author-i-tay>
           - else: text-block<SWOC>
+
+      - match: "alternate.txt"
+        do:
+        - proxy-req-field<Author-i-tay>: text-block<alternate>
+
+      - match: "missing.txt"
+        do:
+        - proxy-req-field<Author-i-tay>: text-block<missing>
 
   txn-box-remap:
   - when: proxy-rsp
@@ -176,10 +195,6 @@ sessions:
         - [ Host, example.one ]
         - [ Author-i-tay, "Nightwish Concert." ]
     proxy-request:
-      version: "1.1"
-      scheme: "http"
-      method: "GET"
-      url: "/concert.txt"
       headers:
         fields:
         - [ Author-i-tay, "Nightwish Concert.", equal ]
@@ -194,3 +209,76 @@ sessions:
     proxy-response:
       status: 200
 
+  - all: { headers: { fields: [[ uuid, 6 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/alternate.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+        - [ Author-i-tay, "Nightwish Concert." ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Author-i-tay, "Delain Concert.", equal ]
+    server-response:
+      status: 200
+      content:
+        size: 50
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 50 ]
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 7 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/alternate.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Author-i-tay, "Delain Concert.", equal ]
+    server-response:
+      status: 200
+      content:
+        size: 50
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 50 ]
+    proxy-response:
+      status: 200
+
+
+  - all: { headers: { fields: [[ uuid, 8 ]]}}
+    client-request:
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+      url: "/missing.txt"
+      headers:
+        fields:
+        - [ Host, example.one ]
+    proxy-request:
+      headers:
+        fields:
+        - [ Author-i-tay, "Concert missing.", equal ]
+    server-response:
+      status: 200
+      content:
+        size: 50
+      headers:
+        fields:
+        - [ Content-Type, text/html ]
+        - [ Content-Length, 50 ]
+    proxy-response:
+      status: 200

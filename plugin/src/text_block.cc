@@ -209,11 +209,14 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   if (! self->_path.empty()) {
     std::error_code ec;
     auto content = swoc::file::load(self->_path, ec);
-    if (ec && !self->_text.has_value()) {
+    if (!ec) {
+      self->_content = std::make_shared<std::string>(std::move(content));
+    } else if (self->_text.has_value()) {
+      self->_content = nullptr;
+    } else {
       return Error(R"("{}" directive at {} - value "{}" for key "{}" is not readable [{}] and no alternate "{}" key was present.)"
                    , KEY, drtv_node.Mark(), self->_path, PATH_TAG, ec, TEXT_TAG);
     }
-    self->_content = std::make_shared<std::string>(std::move(content));
     self->_last_modified = swoc::file::modify_time(swoc::file::status(self->_path, ec));
   }
 
