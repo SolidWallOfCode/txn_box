@@ -189,7 +189,7 @@ Context& Context::commit(Feature &feature) {
       fv->_direct_p = false;
       fv->_literal_p = true;
       *fv = span.view(); // update view to be the localized copy.
-    } else if (fv == _arena->remnant().data()) { // it's in transient memory, finalize it.
+    } else if (fv->data() == _arena->remnant().data()) { // it's in transient memory, finalize it.
       _arena->alloc(fv->size());
       fv->_literal_p = true;
     }
