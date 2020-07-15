@@ -30,6 +30,25 @@ meta:
         - match: "path"
           do:
           - ua-req-url: "{ua-req-url}/more"
+        - prefix: "14/"
+          do:
+          - with: "{ua-req-path}?{ua-req-query}"
+            do:
+            - debug: "Checking {...}" # force use of remnant to verify active feature isn't corrupted.
+            select:
+            - rxp: "apis.one.ex/ws/v3/mailboxes/@[.]id==(.+)/messages/@[.]id==(.+)/content/parts/@[.]id==(.+)/thumbnail(\\d+)"
+              do:
+              - debug: "Found {0}"
+              - ua-req-field<match>: "Found {2}, {4}, {1}, {3}"
+
+        - prefix: "15/"
+          do:
+          - with: ...
+            select:
+            - rxp: "^apis.one.ex/ws/v3/mailboxes/@[.]id==(.+)/messages/@[.]id==(.+)/content/parts/@[.]id==(.+)/thumbnail(\\d+)$"
+              do:
+              - ua-req-field<match>: "Found {2}, {4}, {1}, {3}"
+
 
     - when: proxy-req
       do:
@@ -39,6 +58,39 @@ meta:
             do:
               - proxy-req-url: "http://{proxy-req-host}/req/path"
               - proxy-req-field<test>: "http://{proxy-req-host}/req/path"
+
+    # Regular expression testing - verify anchors behave as expected.
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - rxp: "^delain/?"
+          do:
+          - proxy-req-field<Start-Anchored>: "found"
+
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - rxp: "(ain)/(mus)"
+          do:
+          - proxy-req-field<Un-Anchored>: "found"
+
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - rxp: "^delain(/)music$"
+          do:
+          - proxy-req-field<Both-Anchored>: "found"
+
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - rxp: "/music$"
+          do:
+          - proxy-req-field<End-Anchored>: "found"
 
     - when: proxy-rsp
       do:
@@ -292,6 +344,60 @@ sessions:
     proxy-request:
       <<: *base-req
       url: "/req/path"
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 13]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/music"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ Start-Anchored, "found", "equal" ]
+        - [ Un-Anchored, "found", "equal" ]
+        - [ End-Anchored, "found", "equal" ]
+        - [ Both-Anchored, "found", "equal" ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 14]]}}
+    client-request:
+      <<: *base-req
+      url: "/14/apis.one.ex/ws/v3/mailboxes/@.id==9560/messages/@.id==9560/content/parts/@.id==9560/thumbnail9560"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ "match", "Found 9560, 9560, 9560, 9560", "equal" ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, 15]]}}
+    client-request:
+      <<: *base-req
+      url: "/15/apis.one.ex/ws/v3/mailboxes/@.id==9560/messages/@.id==9560/content/parts/@.id==9560/thumbnail9560"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ "match", "Found 9560, 9560, 9560, 9560", "equal" ]
     server-response:
       <<: *base-rsp
     proxy-response:

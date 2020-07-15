@@ -2241,6 +2241,7 @@ const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook:
 
 Errata With::invoke(Context &ctx) {
   Feature feature { ctx.extract(_expr) };
+  ctx.commit(feature);
   Feature save { ctx._active };
   ctx._active = feature;
 
