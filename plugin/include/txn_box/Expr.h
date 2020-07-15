@@ -71,7 +71,7 @@ public:
     LIST = 4
   };
 
-  /// Contains an extractor the references context data.
+  /// Contains an extractor that references context data.
   bool _ctx_ref_p = false;
   ///< Largest argument index. -1 => no numbered arguments.
   int _max_arg_idx = -1;

@@ -86,6 +86,7 @@ Errata Context::invoke_callbacks() {
   // iteration occurs and therefore new directives will be invoked.
   auto & info { _hooks[IndexFor(_cur_hook)] };
   for ( auto & cb : info.cb_list ) {
+    _terminal_p = false; // reset before each scheduled callback.
     cb.invoke(*this);
   }
   return {};
@@ -98,6 +99,7 @@ Errata Context::invoke_for_hook(Hook hook) {
   // Run the top level directives in the config first.
   if (_cfg) {
     for (auto const &handle : _cfg->hook_directives(hook)) {
+      _terminal_p = false; // reset before each top level invocation.
       handle->invoke(*this); // need to log errors here.
     }
   }
@@ -122,11 +124,13 @@ Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
 
   // Remap rule directives.
   for (auto const &handle : rule_cfg.hook_directives(_cur_hook)) {
+    _terminal_p = false; // reset before each top level invocation.
     handle->invoke(*this); // need to log errors here.
   }
   // Now the global config directives for REMAP
   if (_cfg) {
     for (auto const &handle : _cfg->hook_directives(_cur_hook)) {
+      _terminal_p = false; // reset before each top level invocation.
       handle->invoke(*this); // need to log errors here.
     }
   }

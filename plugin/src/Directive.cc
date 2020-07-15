@@ -9,6 +9,7 @@
 
 #include "txn_box/Directive.h"
 #include "txn_box/Config.h"
+#include "txn_box/Context.h"
 
 using swoc::Errata;
 using swoc::Rv;
@@ -24,6 +25,9 @@ Errata DirectiveList::invoke(Context &ctx) {
   Errata zret;
   for ( auto const& drtv : _directives ) {
     zret.note(drtv->invoke(ctx));
+    if (ctx.is_terminal()) {
+      break;
+    }
   }
   return zret;
 }

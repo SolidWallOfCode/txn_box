@@ -2215,9 +2215,9 @@ protected:
     uint32_t all = 0;
     struct {
       unsigned for_each_p : 1; ///< Direct action is per tuple element.
-      unsigned continue_p : 1; ///< Continue with directives after this.
+      unsigned continue_p : 1; ///< Continue with directives after this - want default to be 0.
     } f;
-  } opt;
+  } _opt;
 
   /// A single case in the select.
   struct Case {
@@ -2245,10 +2245,11 @@ Errata With::invoke(Context &ctx) {
   ctx._active = feature;
 
   if (_do) {
-    if (opt.f.for_each_p) {
+    if (_opt.f.for_each_p) {
       ctx._active_ext = feature;
       while (! is_nil(feature)) {
         ctx._active = car(feature);
+        ctx.mark_terminal(false);
         _do->invoke(ctx);
         cdr(feature);
       }
@@ -2260,13 +2261,19 @@ Errata With::invoke(Context &ctx) {
         ctx._active = feature = ctx.extract(_expr);
       }
     } else {
+      ctx.mark_terminal(false);
       _do->invoke(ctx);
     }
   }
 
+  ctx.mark_terminal(false); // default is continue on.
   for ( auto const& c : _cases ) {
     if (! c._cmp || (*c._cmp)(ctx, feature)) {
-      return c._do ? c._do->invoke(ctx) : Errata{};
+      if (c._do) {
+        c._do->invoke(ctx);
+      }
+      ctx.mark_terminal(!_opt.f.continue_p); // successful compare, mark terminal.
+      break;
     }
   }
   // Need to restore to previous state if nothing matched.
@@ -2311,7 +2318,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::
 
   YAML::Node continue_node { drtv_node[CONTINUE_KEY]};
   if (continue_node) {
-    self->opt.f.continue_p = true;
+    self->_opt.f.continue_p = true;
   }
 
   YAML::Node do_node { drtv_node[DO_KEY] };
@@ -2330,7 +2337,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::
     auto &&[fe_handle, errata]{cfg.parse_directive(for_each_node)};
     if (errata.is_ok()) {
       self->_do = std::move(fe_handle);
-      self->opt.f.for_each_p = true;
+      self->_opt.f.for_each_p = true;
     } else {
       errata.info(R"(While parsing "{}" key at {} in selection case at {}.)", FOR_EACH_KEY, for_each_node.Mark(), drtv_node.Mark());
       return std::move(errata);

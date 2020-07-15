@@ -1095,7 +1095,6 @@ Ex_remainder_feature ex_remainder_feature;
 
   Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
   Extractor::define(Ex_proxy_rsp_field::NAME, &proxy_rsp_field);
-  Extractor::define("prsp-field", &proxy_rsp_field);
   Extractor::define(Ex_upstream_rsp_field::NAME, &upstream_rsp_field);
 
   Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
