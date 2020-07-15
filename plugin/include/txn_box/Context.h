@@ -324,6 +324,9 @@ public:
    */
   std::shared_ptr<Config> acquire_cfg();
 
+  bool is_terminal() const { return _terminal_p; }
+  self_type & mark_terminal(bool flag) { _terminal_p= flag; return *this; }
+
 protected:
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
@@ -362,6 +365,7 @@ protected:
     self_type * _next = nullptr; ///< Intrusive link.
     self_type * _prev = nullptr; ///< Intrusive link.
 
+    /// Linkage for @c IntrusiveHashMap.
     struct Linkage : public swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev> {
       static swoc::TextView key_of(self_type* self) { return self->_name; }
       static auto hash_of(swoc::TextView const& text) -> decltype(Hash_Func(text)) { return Hash_Func(text); }
@@ -373,6 +377,9 @@ protected:
 
   using TxnVariables = swoc::IntrusiveHashMap<TxnVar::Linkage>;
   TxnVariables _txn_vars; ///< Variables for the transaction.
+
+  /// Flag for continuing invoking directives.
+  bool _terminal_p = false;
 
   /** Entry point from TS via plugin API.
    *
