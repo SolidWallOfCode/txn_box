@@ -30,6 +30,9 @@ meta:
         - match: "path"
           do:
           - ua-req-url: "{ua-req-url}/more"
+          - when: proxy-rsp
+            do:
+            - proxy-rsp-field<pre-remap>: "{ua-pre-remap-scheme}://{ua-pre-remap-host}/{ua-pre-remap-path}"
         - prefix: "14/"
           do:
           - with: "{ua-req-path}?{ua-req-query}"
@@ -58,6 +61,10 @@ meta:
             do:
               - proxy-req-url: "http://{proxy-req-host}/req/path"
               - proxy-req-field<test>: "http://{proxy-req-host}/req/path"
+              - when: proxy-rsp
+                do:
+                - proxy-rsp-field<pre-remap>: "{ua-pre-remap-scheme}://{ua-pre-remap-host}/{ua-pre-remap-path}"
+                - proxy-rsp-field<pristine>: "{ua-pristine-scheme}://{ua-pristine-host}/{ua-pristine-path}"
 
     # Regular expression testing - verify anchors behave as expected.
     - when: proxy-req
@@ -333,6 +340,9 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 200
+      headers:
+        fields:
+        - [ "pre-remap", "http://one.ex/path/more", "equal" ]
 
   - all: { headers: { fields: [[ uuid, 12]]}}
     client-request:
@@ -348,6 +358,10 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 200
+      headers:
+        fields:
+        - [ "pre-remap", "http://one.ex/path/req", "equal" ]
+        - [ "pristine", "http://one.ex/path/req", "equal" ]
 
   - all: { headers: { fields: [[ uuid, 13]]}}
     client-request:
