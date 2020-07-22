@@ -319,7 +319,16 @@ swoc::TextView HttpRequest::method() const { int length;
   return {text, static_cast<size_t>(length) };
 }
 
-ts::HttpRequest ts::HttpTxn::creq_hdr() {
+ts::URL ts::HttpTxn::pristine_url_get() const {
+  TSMBuffer buff;
+  TSMLoc loc;
+  if (_txn != nullptr && TS_SUCCESS == TSHttpTxnPristineUrlGet(_txn, &buff, &loc)) {
+    return { buff, loc };
+  }
+  return {};
+}
+
+ts::HttpRequest ts::HttpTxn::ua_req_hdr() {
   TSMBuffer buff;
   TSMLoc loc;
   if (_txn != nullptr && TS_SUCCESS == TSHttpTxnClientReqGet(_txn, &buff, &loc)) {
