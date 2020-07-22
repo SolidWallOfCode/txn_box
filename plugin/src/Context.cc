@@ -210,7 +210,7 @@ swoc::MemSpan<void> Context::storage_for(Directive::CfgInfo const * rtti) {
 
 ts::HttpRequest Context::ua_req_hdr() {
   if (!_ua_req.is_valid()) {
-    _ua_req = _txn.creq_hdr();
+    _ua_req = _txn.ua_req_hdr();
   }
   return _ua_req;
 }

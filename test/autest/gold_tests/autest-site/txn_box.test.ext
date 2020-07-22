@@ -9,6 +9,7 @@ Implement txn_box extensions for Traffic Server.
 
 import os.path
 import types
+from urllib.parse import urlparse
 
 def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None):
     """
@@ -81,8 +82,10 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             else:
                 raise ValueError("remap entries must be either (from, to) or (from, to, [pparams])")
 
-            line = 'map {map_from} {map_to}:{server_port} '.format(
-                map_from=map_from, map_to=map_to, server_port=self.Variables.TXNBOX_SERVER.Variables.http_port)
+            # Parse the replacement URL and change just the port.
+            url = urlparse(map_to)
+            url = url._replace(netloc='{}:{}'.format(url.hostname, self.Variables.TXNBOX_SERVER.Variables.http_port))
+            line = 'regex_map {} {} '.format(map_from, url.geturl())
             if pparams:
                 line += '@plugin=txn_box.so '
                 for pparam in pparams:
@@ -105,8 +108,9 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
                 raise ValueError("remap entries must be either "
                                  "(from, to) or (from, to, [pparams])")
 
-            line = 'regex_map {map_from} {map_to}:{server_port} '.format(
-                map_from=map_from, map_to=map_to, server_port=self.Variables.TXNBOX_SERVER.Variables.http_port)
+            url = urlparse(map_to)
+            url = url._replace(netloc='{}:{}'.format(url.hostname, self.Variables.TXNBOX_SERVER.Variables.http_port))
+            line = 'regex_map {} {} '.format(map_from, url.geturl())
             if pparams:
                 line += '@plugin=txn_box.so '
                 for pparam in pparams:

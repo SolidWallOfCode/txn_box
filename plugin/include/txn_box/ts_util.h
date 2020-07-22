@@ -398,7 +398,7 @@ public:
   HttpTxn(TSHttpTxn txn);
   operator TSHttpTxn() const;
 
-  HttpRequest creq_hdr();
+  HttpRequest ua_req_hdr();
   HttpRequest preq_hdr();
   HttpResponse ursp_hdr();
   HttpResponse prsp_hdr();
@@ -409,7 +409,19 @@ public:
    */
   bool is_internal() const;
 
+  /** The effective URL for the transaction.
+   *
+   * @return The effective URL of the user agent request.
+   */
   String effective_url_get() const;
+
+  /** The pristine user agent request URL.
+   *
+   * @return The pristine user agent request URL.
+   *
+   * @note Do not modify this URL. It will not end well.
+   */
+   URL pristine_url_get() const;
 
   /** Set the transaction status.
    *
