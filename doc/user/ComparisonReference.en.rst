@@ -1,6 +1,7 @@
 .. include:: /common.defs
 
 .. highlight:: yaml
+.. default-domain:: txb
 
 .. _comparison_reference:
 
@@ -20,11 +21,44 @@ of those types is never matched. In some cases the value can be a list, in which
 compared against the active feature and the comparison matches if any element of the list matches.
 These are marked as such, for example :txb:cmp:`match`.
 
+Special Comparisons
+==================
+
+.. comparison:: null
+   :type: NIL
+
+   Succeed if the active feature is ``NULL``. The most common use for this is with HTTP fields to
+   detect if the field is not present. ::
+
+      with: proxy-req-field<Best-Band>:
+      select:
+      -  null: # Field is not present.
+         do:
+         -  # stuff
+      -  match: "" # Field is present but empty.
+         do:
+         -  # stuff
+      -  match: "Delain" # Field is correct set.
+      -  do: # Present but invalid value.
+         -  # stuff
+
 String Comparisons
 ==================
 
 String comparisons can set the active index group extractors. The string comparisons are marked with
-which groups, if any, are set by the comparison if it matches.
+which groups, if any, are set by the comparison if it matches. All string comparisons are by default
+case sensitive.
+
+The argument ``nc`` (no case) can be passed to make the comparison case insensitive. For  instance
+to make sure the field "BestBand" is capitalized correctly ::
+
+   with: ua-req-field<BestBand>
+   select:
+   -  match: "Delain" # Exactly "Delain"
+      # Do nothing, it's correct.
+   -  match<nc>: "Delain" # wrong capitalization like "delain" or "delaiN"
+      do:
+      -  ua-req-field<BestBand>: "Delain" # fix it.
 
 ======= ==========================================================
 Index   Content
@@ -57,18 +91,23 @@ Index   Content
 
 .. txb:comparison:: tld
 
-    Top level domain matching. This is similar to :txb:cmp:`suffix` but has a special case for
-    the "." separator for domains. It will match the exact feature, or as a suffix if there is
-    an intervening ".". It is equivalent to ::
+   Top level domain matching. This is similar to :txb:cmp:`suffix` but has a special case for
+   the "." separator for domains. It will match the exact feature, or as a suffix if there is
+   an intervening ".". ::
+
+      tld: "yahoo.com"
+
+   is equivalent to ::
 
       any-of:
       - suffix: ".yahoo.com"
       - match: "yahoo.com"
 
 .. txb:comparison:: contains
+   :type: string
+   :groups: 0
 
-   Substring checking. This matches if the feature has the value as a substring. In the regular
-   expression case this is simply an unanchored regular expression.
+   Substring checking. This matches if the active feature has the value as a substring.
 
    If the feature is "potzrebie" then ::
 
@@ -77,9 +116,11 @@ Index   Content
       -  contains: "zreb" # match
 
 .. txb:comparison:: rxp
+   :type: string
+   :groups: 0,1..N
 
-    Regular expression comparison. If this matches the the index scoped extractors are set. Index 0
-    is the entire match, index 1 is the first capture group, etc.
+   Regular expression comparison. If this matches the the index scoped extractors are set. Index 0
+   is the entire match, index 1 is the first capture group, etc.
 
 Numeric Comparisons
 ===================
@@ -184,14 +225,17 @@ These comparisons do not directly compare values. They combine or change other c
 
    This has a list of comparisons and matches if *none* of the comparisons in the list match.
 
-   This serves as a "not" if the list is of length 1. For instance, if the goal was to find features
-   that do not have one of a set of strings, this could be done as ::
+   This serves as the "not" comparison if the list is of length 1. For instance, if the goal was to
+   find features that do **not** contain a regular expression ::
 
       none-of:
       -  rxp: "(?:one)|(?:two)|(?:three)"
+      do:
+      - # yadda yadda
 
    This could be done as a "negative regular expression" but those can create stack explosions. This
-   approach is much more robust and generally much faster.
+   approach is much more robust and faster. Note the ``do`` is attached to the ``none-of``. If
+   attached to ``rxp`` those directives would trigger on the ``rxp`` succeeding, not on it failing.
 
 .. txb:comparison:: as-tuple
 

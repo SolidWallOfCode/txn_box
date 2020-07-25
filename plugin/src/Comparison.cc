@@ -114,7 +114,7 @@ Rv<Cmp_String::Options> Cmp_String::parse_options(TextView options) {
 class Cmp_LiteralString : public Cmp_String {
 public:
   static constexpr TextView MATCH_KEY { "match" };
-  static constexpr TextView CONTAIN_KEY { "contain" };
+  static constexpr TextView CONTAIN_KEY { "contains" };
   static constexpr TextView PREFIX_KEY { "prefix" };
   static constexpr TextView SUFFIX_KEY { "suffix" };
   static constexpr TextView TLD_KEY { "tld" };
@@ -305,9 +305,9 @@ bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView activ
   return false;
 }
 
-class Cmp_Contain : public Cmp_LiteralString {
+class Cmp_Contains : public Cmp_LiteralString {
 protected:
-  using self_type = Cmp_Contain;
+  using self_type = Cmp_Contains;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
@@ -315,7 +315,7 @@ protected:
   friend super_type;
 };
 
-bool Cmp_Contain::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (auto idx = active.find(text) ; idx != TextView::npos) {
     if (ctx._update_remainder_p) {
       auto n = active.size() - text.size();
@@ -329,9 +329,9 @@ bool Cmp_Contain::operator()(Context& ctx, TextView const& text, TextView active
   return false;
 }
 
-class Cmp_ContainNC : public Cmp_LiteralString {
+class Cmp_ContainsNC : public Cmp_LiteralString {
 protected:
-  using self_type = Cmp_ContainNC;
+  using self_type = Cmp_ContainsNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
   bool operator() (Context & ctx, TextView const& text, TextView active) const override;
@@ -339,7 +339,7 @@ protected:
   friend super_type;
 };
 
-bool Cmp_ContainNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (text.size() <= active.size()) {
     auto spot = std::search(active.begin(), active.end(), text.begin(), text.end()
                             , [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
@@ -432,8 +432,8 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
       : Handle{new Cmp_Suffix(std::move(expr))};
   } else if (CONTAIN_KEY == key) {
     return options.f.nc
-    ? Handle(new Cmp_Contain(std::move(expr)))
-    : Handle(new Cmp_ContainNC(std::move(expr)));
+    ? Handle(new Cmp_Contains(std::move(expr)))
+    : Handle(new Cmp_ContainsNC(std::move(expr)));
   } else if (TLD_KEY == key) {
     return options.f.nc
            ? Handle(new Cmp_TLDNC(std::move(expr)))
@@ -659,7 +659,7 @@ public:
   bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
 
 protected:
   Cmp_true() = default;
@@ -680,7 +680,7 @@ bool Cmp_true::operator()(Context &, feature_type_for<INTEGER> n) const {
   return n != 0;
 }
 
-Rv<Comparison::Handle> Cmp_true::load(Config &, YAML::Node, YAML::Node) {
+Rv<Comparison::Handle> Cmp_true::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 
@@ -699,7 +699,7 @@ public:
   bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config& cfg, YAML::Node cmp_node, YAML::Node key_node);
+  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
 
 protected:
   Cmp_false() = default;
@@ -720,7 +720,37 @@ bool Cmp_false::operator()(Context &, feature_type_for<INTEGER> n) const {
   return n == 0;
 }
 
-Rv<Comparison::Handle> Cmp_false::load(Config &, YAML::Node, YAML::Node) {
+Rv<Comparison::Handle> Cmp_false::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+  return { Handle{new self_type}, {} };
+}
+
+/* ------------------------------------------------------------------------------------ */
+/** Check for NULL value.
+ */
+class Cmp_null: public Comparison {
+  using self_type = Cmp_null; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const ValueMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, feature_type_for<NIL>) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+
+protected:
+  Cmp_null() = default;
+};
+
+const std::string Cmp_null::KEY {"null" };
+const ValueMask Cmp_null::TYPES {MaskFor(NIL) };
+
+bool Cmp_null::operator()(Context &, feature_type_for<NIL>) const {
+  return true;
+}
+
+Rv<Comparison::Handle> Cmp_null::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 /* ------------------------------------------------------------------------------------ */
@@ -1149,6 +1179,10 @@ Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node nod
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
+  Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+  Comparison::define(Cmp_null::KEY, Cmp_null::TYPES, Cmp_null::load);
+
   Comparison::define(Cmp_LiteralString::MATCH_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
   Comparison::define(Cmp_LiteralString::PREFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
   Comparison::define(Cmp_LiteralString::SUFFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
