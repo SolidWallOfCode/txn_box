@@ -264,6 +264,29 @@ BufferWriter& Ex_ua_req_url_host::format(BufferWriter &w, Spec const &spec, Cont
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_ua_req_url_port : public Extractor {
+public:
+  static constexpr TextView NAME { "ua-req-url-port" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_ua_req_url_port::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = url.host();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_ua_req_url_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 class Ex_ua_req_method : public Extractor {
 public:
   static constexpr TextView NAME { "ua-req-method" };
@@ -375,6 +398,26 @@ BufferWriter& Ex_ua_req_host::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_ua_req_port : public Extractor {
+public:
+  static constexpr TextView NAME { "ua-req-port" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_ua_req_port::extract(Context &ctx, Spec const&) {
+  Feature zret;
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    zret = static_cast<feature_type_for<INTEGER>>(hdr.port());
+  }
+  return zret;
+}
+
+BufferWriter& Ex_ua_req_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
 /** The entire pristine URL.
  * The C API doesn't provide direct access to a string for the URL, therefore the string
  * obtained here is transient. To avoid problems, the base class copies it into context
@@ -413,6 +456,26 @@ Feature Ex_ua_pre_remap_host::extract(Context &ctx, Spec const&) {
 }
 
 BufferWriter& Ex_ua_pre_remap_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_ua_pre_remap_port : public Extractor {
+public:
+  static constexpr TextView NAME { "ua-pre-remap-port" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_ua_pre_remap_port::extract(Context &ctx, Spec const&) {
+  Feature zret;
+  if ( auto url {ctx._txn.pristine_url_get() } ; url.is_valid()) {
+    zret = static_cast<feature_type_for<INTEGER>>(url.port());
+  }
+  return zret;
+}
+
+BufferWriter& Ex_ua_pre_remap_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -1126,17 +1189,20 @@ namespace {
 Ex_var var;
 
 Ex_ua_req_url ua_req_url;
-Ex_ua_req_host ureq_host;
+Ex_ua_req_host ua_req_host;
+Ex_ua_req_port ua_req_port;
 Ex_ua_req_scheme ua_req_scheme;
 Ex_ua_req_method ua_req_method;
 Ex_ua_req_path ua_req_path;
 Ex_ua_req_query ua_req_query;
 Ex_ua_req_url_host ua_req_url_host;
+Ex_ua_req_url_port ua_req_url_port;
 Ex_ua_req_field ua_req_field;
 
 Ex_ua_pre_remap_url ua_pre_remap_url;
 Ex_ua_pre_remap_scheme ua_pre_remap_scheme;
 Ex_ua_pre_remap_host ua_pre_remap_host;
+Ex_ua_pre_remap_port ua_pre_remap_port;
 Ex_ua_pre_remap_path ua_pre_remap_path;
 Ex_ua_pre_remap_query ua_pre_remap_query;
 
@@ -1187,17 +1253,20 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_remainder_feature::NAME, &ex_remainder_feature);
 
   Extractor::define(Ex_ua_req_url::NAME, &ua_req_url);
-  Extractor::define(Ex_ua_req_host::NAME, &ureq_host);
+  Extractor::define(Ex_ua_req_host::NAME, &ua_req_host);
+  Extractor::define(Ex_ua_req_port::NAME, &ua_req_port);
   Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_method);
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_scheme);
   Extractor::define(Ex_ua_req_path::NAME, &ua_req_path);
   Extractor::define(Ex_ua_req_query::NAME, &ua_req_query);
   Extractor::define(Ex_ua_req_url_host::NAME, &ua_req_url_host);
+  Extractor::define(Ex_ua_req_url_port::NAME, &ua_req_url_port);
   Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
 
   Extractor::define(Ex_ua_pre_remap_url::NAME, &ua_pre_remap_url);
   Extractor::define(Ex_ua_pre_remap_scheme::NAME, &ua_pre_remap_scheme);
   Extractor::define(Ex_ua_pre_remap_host::NAME, &ua_pre_remap_host);
+  Extractor::define(Ex_ua_pre_remap_port::NAME, &ua_pre_remap_port);
   Extractor::define(Ex_ua_pre_remap_path::NAME, &ua_pre_remap_path);
   Extractor::define(Ex_ua_pre_remap_query::NAME, &ua_pre_remap_query);
 
