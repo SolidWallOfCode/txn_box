@@ -131,6 +131,7 @@ public:
 
   swoc::TextView view() const; ///< View of entire URL.
   swoc::TextView host() const; ///< View of the URL host.
+  in_port_t port() const; ///< Port.
   swoc::TextView scheme() const; ///< View of the URL scheme.
   swoc::TextView path() const; ///< View of the URL path.
   swoc::TextView query() const; ///< View of the query.
