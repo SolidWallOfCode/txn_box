@@ -135,7 +135,7 @@ User Agent Request
 
    Alias: ``ua-pristine-scheme``.
 
-.. extractor:: ua-req-query
+.. extractor:: ua-pre-remap-query
    :result: string
 
    The query string for the pre-remap user agent request URL.
