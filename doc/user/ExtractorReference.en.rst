@@ -70,12 +70,17 @@ User Agent Request
    :result: integer
 
    The port for the request. This is pulled from the URL if present, otherwise from the ``Host``
-   field.
+   field. If not specified, the canonical default based on the scheme is used.
 
 .. txb:extractor:: ua-req-scheme
    :result: string
 
-   The scheme of client request.
+   The URL scheme in the user agent request URL.
+
+.. extractor:: ua-req-query
+   :result: string
+
+   The query string for the user agent request.
 
 .. txb:extractor:: ua-req-field
    :result: NULL, string, string list
@@ -88,6 +93,54 @@ User Agent Request
    If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
+
+   The following extractors also extract data from the user agent request URL, but from the URL as
+   it was before URL rewriting ("remapping"). Only the URL is preserved, not any of the fields or
+   the method. These are referred to elsewhere as "pristine" but that is a misnomer. If the user
+   agent request is altered before URL rewriting, that will be reflected in the data from these
+   extractors. These do not necessarily return the URL as it was received by ATS from the user
+   agent.
+
+.. extractor:: ua-pre-remap-url
+   :result: string
+
+   The full URL of the pre-remap user agent request.
+
+   Alias: ``ua-pristine-url``.
+
+.. txb:extractor:: ua-pre-remap-path
+   :result: string
+
+   The URL path in the pre-remap user agent request URL. This does not include a leading slash.
+
+   Alias: ``ua-pristine-path``
+
+.. txb:extractor:: ua-pre-remap-host
+   :result: string
+
+   The host in the pre-remap user agent request URL. This does not include the port.
+
+   Alias: ``ua-pristine-host``
+
+.. extractor:: ua-pre-remap-port
+   :result: integer
+
+   The port in the pre-remap user agent request URL. If not specified, the canonical default based
+   on the scheme is used.
+
+.. txb:extractor:: ua-pre-remap-scheme
+   :result: string
+
+   The URL scheme in the pre-remap user agent request URL.
+
+   Alias: ``ua-pristine-scheme``.
+
+.. extractor:: ua-pre-remap-query
+   :result: string
+
+   The query string for the pre-remap user agent request URL.
+
+   Alias: ``ua-pristine-query``.
 
 Proxy Request
 -------------
@@ -113,6 +166,11 @@ Proxy Request
 
    The port for the request. This is pulled from the URL if present, otherwise from the ``Host``
    field.
+
+.. extractor:: proxy-req-query
+   :result: string
+
+   The query string in the proxy request URL.
 
 .. extractor:: proxy-req-field
    :result: NULL, string, string list

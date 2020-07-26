@@ -22,7 +22,7 @@ compared against the active feature and the comparison matches if any element of
 These are marked as such, for example :txb:cmp:`match`.
 
 Special Comparisons
-==================
+===================
 
 .. comparison:: null
    :type: NIL

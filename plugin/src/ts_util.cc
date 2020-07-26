@@ -148,6 +148,10 @@ TextView ts::URL::host() const {
   return {};
 }
 
+in_port_t  ts::URL::port() const {
+  return this->is_valid() ? TSUrlPortGet(_buff, _loc) : 0;
+}
+
 TextView ts::URL::view() const {
   // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
   // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
