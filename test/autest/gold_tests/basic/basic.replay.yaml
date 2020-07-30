@@ -99,6 +99,20 @@ meta:
           do:
           - proxy-req-field<End-Anchored>: "found"
 
+    - when: upstream-rsp
+      do:
+      -  with: [ upstream-rsp-field<UUID> ,  { as-integer: } ]
+         select:
+         - eq: 16
+           do:
+           - with: upstream-rsp-field<Very>
+             select:
+             - contains: "Accept"
+             - none-of:
+               - match: ""
+               do:
+               - upstream-rsp-field<Very>: "{...},Accept"
+
     - when: proxy-rsp
       do:
         with: ua-req-path
@@ -416,3 +430,23 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 200
+
+  - all: { headers: { fields: [[ uuid, 16]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/Path/patH"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+      headers:
+        fields:
+        - [ "very", "Stuff" ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "very", "Stuff,Accept", equal ]

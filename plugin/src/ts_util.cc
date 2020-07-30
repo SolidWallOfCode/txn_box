@@ -152,6 +152,17 @@ in_port_t  ts::URL::port() const {
   return this->is_valid() ? TSUrlPortGet(_buff, _loc) : 0;
 }
 
+bool ts::URL::is_port_canonical() const {
+  auto p = this->port();
+  auto scheme = this->scheme();
+  if (scheme.starts_with_nocase("http")) {
+    return (80 == p  && scheme.size() == 4) ||
+        (443 == p && scheme.size() == 5 && 's' == tolower(scheme[4]))
+        ;
+  }
+  return false;
+}
+
 TextView ts::URL::view() const {
   // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
   // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.

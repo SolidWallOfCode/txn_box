@@ -985,6 +985,7 @@ protected:
    */
   static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node key_value);
 
+  using super_type::invoke;
   /** Invoke the directive.
    *
    * @param ctx Runtime context.

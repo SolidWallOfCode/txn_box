@@ -222,7 +222,7 @@ protected:
 
     /// Find the array element with @a name.
     /// @return A pointer to the element, or @c nullptr if not found.
-    Info * find(swoc::TextView const& name);
+    Info * find(swoc::TextView const& name) const;
 
     /// Obtain an array element for @a name.
     /// @return A pointer to the element.
