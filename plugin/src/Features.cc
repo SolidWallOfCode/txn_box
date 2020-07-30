@@ -9,6 +9,7 @@
 #include <chrono>
 
 #include <swoc/TextView.h>
+#include <swoc/ArenaWriter.h>
 
 #include "txn_box/common.h"
 #include "txn_box/yaml_util.h"
@@ -409,13 +410,61 @@ public:
 Feature Ex_ua_req_port::extract(Context &ctx, Spec const&) {
   Feature zret;
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    zret = static_cast<feature_type_for<INTEGER>>(hdr.port());
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      zret = static_cast<feature_type_for<INTEGER>>(url.port());
+    }
   }
   return zret;
 }
 
 BufferWriter& Ex_ua_req_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_ua_req_loc : public StringExtractor {
+  using self_type = Ex_ua_req_loc;
+  using super_type = StringExtractor;
+public:
+  static constexpr TextView NAME { "ua-req-url-loc" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const&) override;
+
+protected:
+  ts::URL url(Context & ctx);
+};
+
+ts::URL Ex_ua_req_loc::url(Context & ctx) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    if (ts::URL url{hdr.url()}; url.is_valid()) {
+      return url;
+    }
+  }
+  return {};
+}
+
+Feature Ex_ua_req_loc::extract(Context &ctx, Spec const&) {
+  if (auto url{this->url(ctx)}; url.is_valid()) {
+    if (url.is_port_canonical()) {
+      FeatureView zret(url.host());
+      zret._direct_p = true;
+      return zret;
+    }
+    swoc::ArenaWriter w{*(ctx._arena)};
+    w.print("{}:{}", url.host(), url.port());
+    return w.view();
+  }
+  return NIL_FEATURE;
+}
+
+BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  if (auto url{this->url(ctx)}; url.is_valid()) {
+    if (url.is_port_canonical()) {
+      return bwformat(w, spec, url.host());
+    }
+    return w.print("{}:{}", url.host(), url.port());
+  }
+  return w;
 }
 /* ------------------------------------------------------------------------------------ */
 /** The entire pristine URL.
@@ -431,7 +480,6 @@ public:
 };
 
 BufferWriter& Ex_ua_pre_remap_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  FeatureView zret;
   if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
     bwformat(w, spec, url.view());
   }
@@ -541,6 +589,228 @@ Feature Ex_ua_pre_remap_query::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_ua_pre_remap_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
+/* ------------------------------------------------------------------------------------ */
+/** The remap target URL.
+ */
+class Ex_remap_target_url : public StringExtractor {
+public:
+  static constexpr TextView NAME { "remap-target-url" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+BufferWriter& Ex_remap_target_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  FeatureView zret;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      bwformat(w, spec, url.view());
+    }
+  }
+  return w;
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_target_scheme : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-target-scheme" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_target_scheme::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      zret = url.scheme();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_target_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_target_host : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-target-host" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_target_host::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      zret = url.host();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_target_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_target_port : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-target-port" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_target_port::extract(Context &ctx, Spec const&) {
+  Feature zret;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      zret = static_cast<feature_type_for<INTEGER>>(url.port());
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_target_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_target_path : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-target-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_target_path::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      zret = url.path();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_target_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+// -----
+/* ------------------------------------------------------------------------------------ */
+/** The remap replacement URL.
+ */
+class Ex_remap_replacement_url : public StringExtractor {
+public:
+  static constexpr TextView NAME { "remap-replacement-url" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+BufferWriter& Ex_remap_replacement_url::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  FeatureView zret;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
+      bwformat(w, spec, url.view());
+    }
+  }
+  return w;
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_replacement_scheme : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-replacement-scheme" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_replacement_scheme::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
+      zret = url.scheme();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_replacement_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_replacement_host : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-replacement-host" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_replacement_host::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
+      zret = url.host();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_replacement_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_replacement_port : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-replacement-port" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_replacement_port::extract(Context &ctx, Spec const&) {
+  Feature zret;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
+      zret = static_cast<feature_type_for<INTEGER>>(url.port());
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_replacement_port::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_remap_replacement_path : public Extractor {
+public:
+  static constexpr TextView NAME { "remap-replacement-path" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_remap_replacement_path::extract(Context &ctx, Spec const&) {
+  FeatureView zret;
+  zret._direct_p = true;
+  if ( ctx._remap_info ) {
+    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
+      zret = url.path();
+    }
+  }
+  return zret;
+}
+
+BufferWriter& Ex_remap_replacement_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+// -----
 /* ------------------------------------------------------------------------------------ */
 class Ex_proxy_req_path : public Extractor {
 public:
@@ -1191,6 +1461,7 @@ Ex_var var;
 Ex_ua_req_url ua_req_url;
 Ex_ua_req_host ua_req_host;
 Ex_ua_req_port ua_req_port;
+Ex_ua_req_loc ua_req_loc;
 Ex_ua_req_scheme ua_req_scheme;
 Ex_ua_req_method ua_req_method;
 Ex_ua_req_path ua_req_path;
@@ -1205,6 +1476,18 @@ Ex_ua_pre_remap_host ua_pre_remap_host;
 Ex_ua_pre_remap_port ua_pre_remap_port;
 Ex_ua_pre_remap_path ua_pre_remap_path;
 Ex_ua_pre_remap_query ua_pre_remap_query;
+
+Ex_remap_replacement_url remap_replacement_url;
+Ex_remap_replacement_scheme remap_replacement_scheme;
+Ex_remap_replacement_host remap_replacement_host;
+Ex_remap_replacement_port remap_replacement_port;
+Ex_remap_replacement_path remap_replacement_path;
+
+Ex_remap_target_url remap_target_url;
+Ex_remap_target_scheme remap_target_scheme;
+Ex_remap_target_host remap_target_host;
+Ex_remap_target_port remap_target_port;
+Ex_remap_target_path remap_target_path;
 
 Ex_proxy_req_host proxy_req_host;
 Ex_proxy_req_path proxy_req_path;
@@ -1255,6 +1538,7 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ua_req_url::NAME, &ua_req_url);
   Extractor::define(Ex_ua_req_host::NAME, &ua_req_host);
   Extractor::define(Ex_ua_req_port::NAME, &ua_req_port);
+  Extractor::define(Ex_ua_req_loc::NAME, &ua_req_loc);
   Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_method);
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_scheme);
   Extractor::define(Ex_ua_req_path::NAME, &ua_req_path);
@@ -1269,6 +1553,18 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ua_pre_remap_port::NAME, &ua_pre_remap_port);
   Extractor::define(Ex_ua_pre_remap_path::NAME, &ua_pre_remap_path);
   Extractor::define(Ex_ua_pre_remap_query::NAME, &ua_pre_remap_query);
+
+  Extractor::define(Ex_remap_replacement_url::NAME, &remap_replacement_url);
+  Extractor::define(Ex_remap_replacement_scheme::NAME, &remap_replacement_scheme);
+  Extractor::define(Ex_remap_replacement_host::NAME, &remap_replacement_host);
+  Extractor::define(Ex_remap_replacement_port::NAME, &remap_replacement_port);
+  Extractor::define(Ex_remap_replacement_path::NAME, &remap_replacement_path);
+
+  Extractor::define(Ex_remap_target_url::NAME, &remap_target_url);
+  Extractor::define(Ex_remap_target_scheme::NAME, &remap_target_scheme);
+  Extractor::define(Ex_remap_target_host::NAME, &remap_target_host);
+  Extractor::define(Ex_remap_target_port::NAME, &remap_target_port);
+  Extractor::define(Ex_remap_target_path::NAME, &remap_target_path);
 
   Extractor::define("ua-pristine-url", &ua_pre_remap_url);
   Extractor::define("ua-pristine-scheme", &ua_pre_remap_scheme);
