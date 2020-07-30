@@ -158,6 +158,8 @@ public:
    */
   in_port_t port_get();
 
+  bool is_port_canonical() const;
+
   /** Set the @a port in the URL.
    *
    * @param port Port value.
