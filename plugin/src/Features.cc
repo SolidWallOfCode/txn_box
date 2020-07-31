@@ -421,29 +421,19 @@ BufferWriter& Ex_ua_req_port::format(BufferWriter &w, Spec const &spec, Context 
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_ua_req_loc : public StringExtractor {
-  using self_type = Ex_ua_req_loc;
-  using super_type = StringExtractor;
+class Url_Location {
+  using self_type = Url_Location;
 public:
-  static constexpr TextView NAME { "ua-req-url-loc" };
+  virtual ~Url_Location() = default;
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  Feature extract(Context & ctx, Spec const&) override;
+  BufferWriter& print(BufferWriter& w, swoc::bwf::Spec const& spec, Context& ctx);
+  Feature extract_location(Context & ctx, swoc::bwf::Spec const&);
 
 protected:
-  ts::URL url(Context & ctx);
+  virtual ts::URL url(Context& ctx) = 0;
 };
 
-ts::URL Ex_ua_req_loc::url(Context & ctx) {
-  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    if (ts::URL url{hdr.url()}; url.is_valid()) {
-      return url;
-    }
-  }
-  return {};
-}
-
-Feature Ex_ua_req_loc::extract(Context &ctx, Spec const&) {
+Feature Url_Location::extract_location(Context &ctx, swoc::bwf::Spec const&) {
   if (auto url{this->url(ctx)}; url.is_valid()) {
     if (url.is_port_canonical()) {
       FeatureView zret(url.host());
@@ -457,7 +447,7 @@ Feature Ex_ua_req_loc::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Url_Location::print(BufferWriter &w, swoc::bwf::Spec const &spec, Context &ctx) {
   if (auto url{this->url(ctx)}; url.is_valid()) {
     if (url.is_port_canonical()) {
       return bwformat(w, spec, url.host());
@@ -466,6 +456,33 @@ BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, Spec const &spec, Context &
   }
   return w;
 }
+
+class Ex_ua_req_loc : public Extractor, Url_Location {
+  using self_type = Ex_ua_req_loc;
+  using super_type = Extractor;
+public:
+  static constexpr TextView NAME { "ua-req-loc" };
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const&) override;
+protected:
+  ts::URL url(Context& ctx) override;
+};
+
+ts::URL Ex_ua_req_loc::url(Context & ctx) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    return hdr.url();
+  }
+  return {};
+}
+
+Feature Ex_ua_req_loc::extract(Context& ctx, const Spec& spec) {
+  return this->extract_location(ctx, spec);
+}
+
+BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, const Spec &spec, Context &ctx) {
+  return this->print(w, spec, ctx);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /** The entire pristine URL.
  * The C API doesn't provide direct access to a string for the URL, therefore the string
@@ -810,7 +827,6 @@ Feature Ex_remap_replacement_path::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_remap_replacement_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-// -----
 /* ------------------------------------------------------------------------------------ */
 class Ex_proxy_req_path : public Extractor {
 public:
@@ -1032,6 +1048,32 @@ BufferWriter& Ex_proxy_req_host::format(BufferWriter &w, Spec const &spec, Conte
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_proxy_req_loc : public Extractor, Url_Location {
+  using self_type = Ex_proxy_req_loc;
+  using super_type = Extractor;
+public:
+  static constexpr TextView NAME { "proxy-req-loc" };
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const&) override;
+protected:
+  ts::URL url(Context& ctx) override;
+};
+
+ts::URL Ex_proxy_req_loc::url(Context & ctx) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    return hdr.url();
+  }
+  return {};
+}
+
+Feature Ex_proxy_req_loc::extract(Context& ctx, const Spec& spec) {
+  return this->extract_location(ctx, spec);
+}
+
+BufferWriter& Ex_proxy_req_loc::format(BufferWriter &w, const Spec &spec, Context &ctx) {
+  return this->print(w, spec, ctx);
+}
+/* ------------------------------------------------------------------------------------ */
 class Ex_proxy_req_scheme : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-scheme" };
@@ -1054,29 +1096,6 @@ Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_proxy_req_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-/* ------------------------------------------------------------------------------------ */
-#if 0
-class Ex_remap_path : public Extractor {
-public:
-  static constexpr TextView NAME { "remap-path" };
-
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
-  Feature extract(Context & ctx, Spec const& spec) override;
-};
-
-Feature Ex_remap_path::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
-  if (nullptr != ctx._remap_info) {
-    zret = ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).path();
-  }
-  return zret;
-}
-
-BufferWriter& Ex_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-#endif
 /* ------------------------------------------------------------------------------------ */
 class Ex_upstream_rsp_status : public IntegerExtractor {
 public:

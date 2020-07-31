@@ -5,8 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ts/ts.h>
-
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
@@ -37,7 +35,7 @@ swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView con
 Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
 
 /* ---------------------------------------------------------------------------------------------- */
-auto FeatureGroup::Tracking::find(swoc::TextView const &name) -> Tracking::Info * {
+auto FeatureGroup::Tracking::find(swoc::TextView const &name) const -> Tracking::Info * {
   Info * spot  = std::find_if(_info.begin(), _info.end(), [&](auto & t) { return 0 == strcasecmp(t._name, name); });
   return spot == _info.end() ? nullptr : spot;
 }
@@ -112,13 +110,13 @@ Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::T
           errata.error(R"(Required key "{}" at {} has an empty list with no extraction formats.)", name, info._node.Mark());
         }
       } else if (n.size() == 1) {
-        errata = this->load_fmt(cfg, info, n);
+        errata = this->load_fmt(cfg, info, n[0]);
       } else { // > 1
         if (n[1].IsMap()) {
-          errata = this->load_fmt(cfg, info, n);
+          errata = this->load_fmt(cfg, info, n[1]);
         } else { // list of formats.
           for (auto const &child : n) {
-            errata = this->load_fmt(cfg, info, n);
+            errata = this->load_fmt(cfg, info, child);
             if (!errata.is_ok()) {
               break;
             }
@@ -206,7 +204,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     if (src._edge_count) {
       dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
     }
-  };
+  }
 
   return {};
 }
