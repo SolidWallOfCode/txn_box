@@ -103,15 +103,29 @@ meta:
       do:
       -  with: [ upstream-rsp-field<UUID> ,  { as-integer: } ]
          select:
-         - eq: 16
+         - in: [ 16, 18 ]
            do:
            - with: upstream-rsp-field<Very>
              select:
              - contains: "Accept"
-             - none-of:
+             - is-empty:
+               do:
+               - upstream-rsp-field<Very>: "Accept"
+             - do:
+               - upstream-rsp-field<Very>: "{...},Accept"
+         - in: [ 19 , 20 ]
+           do:
+           - with: upstream-rsp-field<Very>
+             select:
+             - contains: "Accept"
+             - any-of:
+               - is-null:
                - match: ""
                do:
-               - upstream-rsp-field<Very>: "{...},Accept"
+               - upstream-rsp-field<Very>: "accepT"
+             - otherwise:
+               do:
+               - upstream-rsp-field<Very>: "{...},accept"
 
     - when: proxy-rsp
       do:
@@ -450,3 +464,78 @@ sessions:
       headers:
         fields:
         - [ "very", "Stuff,Accept", equal ]
+
+  - all: { headers: { fields: [[ uuid, 17]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/Path/patH"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "very", "Accept", equal ]
+
+  - all: { headers: { fields: [[ uuid, 18]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/Path/patH"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+      headers:
+        fields:
+        - [ "very", "" ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "very", "Accept", equal ]
+
+  - all: { headers: { fields: [[ uuid, 19]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/Path/patH"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "very", "accepT", equal ]
+
+  - all: { headers: { fields: [[ uuid, 20]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/Path/patH"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+      headers:
+        fields:
+        - [ "very", "" ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "very", "accepT", equal ]
+
