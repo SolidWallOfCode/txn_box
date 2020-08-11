@@ -73,6 +73,32 @@ void Comparison::can_accelerate(Accelerator::Counters&) const {}
 
 void Comparison::accelerate(StringAccelerator *) const {}
 /* ------------------------------------------------------------------------------------ */
+class Cmp_otherwise: public Comparison {
+  using self_type = Cmp_otherwise; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const ValueMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, Feature const& feature) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+
+protected:
+  Cmp_otherwise() = default;
+};
+
+const std::string Cmp_otherwise::KEY {"otherwise" };
+const ValueMask Cmp_otherwise::TYPES {ValueMask{}.set()};
+
+bool Cmp_otherwise::operator() (Context&, Feature const&) const {
+  return true;
+}
+Rv<Comparison::Handle> Cmp_otherwise::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+  return { Handle{new self_type}, {} };
+}
+/* ------------------------------------------------------------------------------------ */
 /** Utility base class for comparisons that are based on literal string matching.
  * This is @b not intended to be used as a comparison itself.
  */
@@ -665,7 +691,7 @@ protected:
   Cmp_true() = default;
 };
 
-const std::string Cmp_true::KEY { "true" };
+const std::string Cmp_true::KEY { "is-true" };
 const ValueMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_true::operator()(Context &, feature_type_for<STRING> const& text) const {
@@ -705,7 +731,7 @@ protected:
   Cmp_false() = default;
 };
 
-const std::string Cmp_false::KEY { "false" };
+const std::string Cmp_false::KEY { "is-false" };
 const ValueMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_false::operator()(Context &, feature_type_for<STRING> const& text) const {
@@ -727,8 +753,8 @@ Rv<Comparison::Handle> Cmp_false::load(Config &, YAML::Node const&, TextView con
 /* ------------------------------------------------------------------------------------ */
 /** Check for NULL value.
  */
-class Cmp_null: public Comparison {
-  using self_type = Cmp_null; ///< Self reference type.
+class Cmp_is_null: public Comparison {
+  using self_type = Cmp_is_null; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
@@ -740,17 +766,51 @@ public:
   static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
 
 protected:
-  Cmp_null() = default;
+  Cmp_is_null() = default;
 };
 
-const std::string Cmp_null::KEY {"null" };
-const ValueMask Cmp_null::TYPES {MaskFor(NIL) };
+const std::string Cmp_is_null::KEY {"is-null" };
+const ValueMask Cmp_is_null::TYPES {MaskFor(NIL) };
 
-bool Cmp_null::operator()(Context &, feature_type_for<NIL>) const {
+bool Cmp_is_null::operator()(Context &, feature_type_for<NIL>) const {
   return true;
 }
 
-Rv<Comparison::Handle> Cmp_null::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+Rv<Comparison::Handle> Cmp_is_null::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+  return { Handle{new self_type}, {} };
+}
+/* ------------------------------------------------------------------------------------ */
+/** Check for empty (NULL or empty string)
+ */
+class Cmp_is_empty: public Comparison {
+  using self_type = Cmp_is_empty; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static const std::string KEY; ///< Comparison name.
+  static const ValueMask TYPES; ///< Supported types.
+
+  bool operator() (Context& ctx, feature_type_for<NIL>) const override;
+  bool operator() (Context& ctx, feature_type_for<STRING> const& s) const override;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+
+protected:
+  Cmp_is_empty() = default;
+};
+
+const std::string Cmp_is_empty::KEY {"is-empty" };
+const ValueMask Cmp_is_empty::TYPES {MaskFor({ NIL , STRING }) };
+
+bool Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const {
+  return true;
+}
+
+bool Cmp_is_empty::operator()(Context &, feature_type_for<STRING> const& s) const {
+  return s.empty();
+}
+
+Rv<Comparison::Handle> Cmp_is_empty::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 /* ------------------------------------------------------------------------------------ */
@@ -935,7 +995,7 @@ auto self = new self_type;
                      , KEY, cmp_node.Mark(), INTEGER, IP_ADDR, lhs_type);
       }
 
-      if (cfg.active_type() != lhs_type) {
+      if (! cfg.active_type().can_satisfy(lhs_type)) {
         return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
                      , KEY, cmp_node.Mark(), lhs_type, cfg.active_type());
       }
@@ -1179,9 +1239,11 @@ Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node nod
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
+  Comparison::define(Cmp_otherwise::KEY, Cmp_otherwise::TYPES, Cmp_otherwise::load);
   Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
   Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
-  Comparison::define(Cmp_null::KEY, Cmp_null::TYPES, Cmp_null::load);
+  Comparison::define(Cmp_is_null::KEY, Cmp_is_null::TYPES, Cmp_is_null::load);
+  Comparison::define(Cmp_is_empty::KEY, Cmp_is_empty::TYPES, Cmp_is_empty::load);
 
   Comparison::define(Cmp_LiteralString::MATCH_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
   Comparison::define(Cmp_LiteralString::PREFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);

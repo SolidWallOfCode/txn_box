@@ -2145,7 +2145,7 @@ Rv<Directive::Handle> Do_upstream_addr::load(Config& cfg, YAML::Node, swoc::Text
     return Error(R"(Value for "{}" must be an IP address.)");
   }
 
-  return std::move(Handle(new self_type(std::move(expr))));
+  return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Set a transaction local variable.
@@ -2175,7 +2175,7 @@ protected:
 };
 
 const std::string Do_var::KEY { "var" };
-const HookMask Do_var::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+const HookMask Do_var::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ, Hook::URSP, Hook::PRSP}) };
 
 Errata Do_var::invoke(Context &ctx) {
   ctx.store_txn_var(_name, ctx.extract(_value));
@@ -2188,7 +2188,7 @@ Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node, swoc::TextView const
     return std::move(errata);
   }
 
-  return std::move(Handle(new self_type(cfg.localize(arg), std::move(fmt))));
+  return Handle(new self_type(cfg.localize(arg), std::move(fmt)));
 }
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
