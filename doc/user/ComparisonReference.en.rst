@@ -14,7 +14,7 @@ Comparisons
 
 Comparison match again the active feature. For most comparisons the value to compare is the value of
 the comparison key. In a few cases the comparison value is implicit in the comparison (e.g.
-:txb:cmp:`true`).
+:txb:cmp:`is-true`). These are indicated by the leading "is-".
 
 Each comparison can compares its value against features of specific types. A feature that is not one
 of those types is never matched. In some cases the value can be a list, in which each value is
@@ -24,7 +24,7 @@ These are marked as such, for example :txb:cmp:`match`.
 Special Comparisons
 ===================
 
-.. comparison:: null
+.. comparison:: is-null
    :type: NIL
 
    Succeed if the active feature is ``NULL``. The most common use for this is with HTTP fields to
@@ -32,15 +32,17 @@ Special Comparisons
 
       with: proxy-req-field<Best-Band>:
       select:
-      -  null: # Field is not present.
+      -  is-null: # Field is not present.
          do:
          -  # stuff
       -  match: "" # Field is present but empty.
          do:
          -  # stuff
-      -  match: "Delain" # Field is correct set.
+      -  match: "Delain" # Field is correctly set, including capitalization.
       -  do: # Present but invalid value.
          -  # stuff
+
+   See :cmp:`is-empty` to check for ``NULL`` or the empty string.
 
 String Comparisons
 ==================
@@ -50,15 +52,15 @@ which groups, if any, are set by the comparison if it matches. All string compar
 case sensitive.
 
 The argument ``nc`` (no case) can be passed to make the comparison case insensitive. For  instance
-to make sure the field "BestBand" is capitalized correctly ::
+to make sure the field "Best-Band" is capitalized correctly ::
 
-   with: ua-req-field<BestBand>
+   with: ua-req-field<Best-Band>
    select:
    -  match: "Delain" # Exactly "Delain"
       # Do nothing, it's correct.
    -  match<nc>: "Delain" # wrong capitalization like "delain" or "delaiN"
       do:
-      -  ua-req-field<BestBand>: "Delain" # fix it.
+      -  ua-req-field<Best-Band>: "Delain" # fix it.
 
 ======= ==========================================================
 Index   Content
@@ -67,6 +69,10 @@ Index   Content
 1..N    Regular expression capture groups.
 *       The unmatched string.
 ======= ==========================================================
+
+See :cmp:`none-of` for handling negative string matches. This makes it easy to match features that
+do **not** contain a string.
+
 
 .. txb:comparison:: match
    :type: string
@@ -111,9 +117,9 @@ Index   Content
 
    If the feature is "potzrebie" then ::
 
-      -  contains: "pot" # match
-      -  contains: "zri" # no match
-      -  contains: "zreb" # match
+      -  contains: "pot" # success
+      -  contains: "zri" # failure
+      -  contains: "zreb" # success
 
 .. txb:comparison:: rxp
    :type: string
@@ -121,6 +127,30 @@ Index   Content
 
    Regular expression comparison. If this matches the the index scoped extractors are set. Index 0
    is the entire match, index 1 is the first capture group, etc.
+
+.. comparison:: is-empty
+   :type: NIL, string
+
+   Successful if the active feature is ``NULL`` or the empty string. This is identical to ::
+
+      any-of:
+      -  is-null:
+      -  match: ""
+
+   This is sufficiently common to justify having a specific comparison. If the actions for having no
+   value, either because it's missing or has no value are the same, then the example from
+   :cmp:`is-null` can be done more cleanly as ::
+
+      with: proxy-req-field<Best-Band>:
+      select:
+      -  is-empty: # Field has no value - missing or empty.
+         do:
+         -  # stuff
+      -  match: "Delain" # Field is correctly set, including capitalization.
+      -  do: # Present but invalid value.
+         -  # stuff
+
+
 
 Numeric Comparisons
 ===================
@@ -198,11 +228,11 @@ Numeric Comparisons
 Boolean Comparisons
 ===================
 
-.. txb:comparison:: true
+.. txb:comparison:: is-true
 
     Matches if the active feature is a boolen that has the value ``true``. The value, if any, is ignored.
 
-.. txb:comparison:: false
+.. txb:comparison:: is-false
 
     Matches if the active feature is a boolen that has the value ``false``. The value, if any, is ignored.
 
@@ -213,17 +243,18 @@ These comparisons do not directly compare values. They combine or change other c
 
 .. txb:comparison:: any-of
 
-   This has a list of comparisons and matches if *any* of the comparisons in the list match. This
-   is another term for "or". This stops doing comparisons in the list as soon as one matches.
+   This has a list of comparisons and succeeds if *any* of the comparisons in the list succeed. This
+   is another term for "or". This stops doing comparisons in the list as soon as one succeeds.
 
 .. txb:comparison:: all-of
 
-   This has a list of comparisons and matches if *all* of the comparisons in the list match. This
-   is another term for "and". This stops doing comparisons in the list as soon as one does not match.
+   This has a list of comparisons and succeeds if *all* of the comparisons in the list succeed. This
+   is another term for "and". This stops doing comparisons in the list as soon as one does not succeed.
 
 .. txb:comparison:: none-of
 
-   This has a list of comparisons and matches if *none* of the comparisons in the list match.
+   This has a list of comparisons and succeeds if *none* of the comparisons in the list succeed. This
+   stops as doing comparisons as soon as one succeeds.
 
    This serves as the "not" comparison if the list is of length 1. For instance, if the goal was to
    find features that do **not** contain a regular expression ::
@@ -233,9 +264,10 @@ These comparisons do not directly compare values. They combine or change other c
       do:
       - # yadda yadda
 
-   This could be done as a "negative regular expression" but those can create stack explosions. This
-   approach is much more robust and faster. Note the ``do`` is attached to the ``none-of``. If
-   attached to ``rxp`` those directives would trigger on the ``rxp`` succeeding, not on it failing.
+   This could be done as a "negative regular expression" but those are tricky to write, slow, and
+   can create stack explosions. This approach is more robust and faster. Note the ``do`` is
+   attached to the ``none-of``. If attached to ``rxp`` those directives would trigger on the ``rxp``
+   succeeding, not on it failing.
 
 .. txb:comparison:: as-tuple
 
