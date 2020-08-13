@@ -1812,7 +1812,7 @@ protected:
 };
 
 const std::string Do_debug_msg::KEY { "debug" };
-const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::POST_LOAD, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 Do_debug_msg::Do_debug_msg(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 

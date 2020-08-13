@@ -6,6 +6,7 @@ meta:
   txn_box:
   - when: post-load
     do:
+    - debug: "Creating text blocks"
     - text-block-define:
         name: "SWOC"
         path: "static_file.txt"
