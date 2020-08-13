@@ -621,6 +621,7 @@ void TaskHandle::cancel() {
       bool canceled = false; // Need reference for first argument.
       data->_active.compare_exchange_strong(canceled, true);
     }
+    _action = nullptr; // Don't cancel again.
   }
 }
 
