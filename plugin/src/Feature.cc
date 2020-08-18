@@ -1,5 +1,5 @@
 /** @file
-   Non-core feature extractor implementations.
+   Feature implementation.
 
  * Copyright 2019, Oath Inc.
  * SPDX-License-Identifier: Apache-2.0
@@ -24,20 +24,6 @@ using swoc::Errata;
 using swoc::Rv;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
-
-swoc::Lexicon<ValueType> const ValueTypeNames {{
-    { ValueType::NIL, "nil" }
-  , { ValueType::STRING, "string"}
-  , { ValueType::INTEGER, "integer"}
-  , { ValueType::BOOLEAN, "boolean"}
-  , { ValueType::FLOAT, "float"}
-  , { ValueType::IP_ADDR, "IP address"}
-  , { ValueType::DURATION, "duration"}
-  , { ValueType::TIMEPOINT, "time point"}
-  , { ValueType::CONS, "cons" }
-  , { ValueType::TUPLE, "tuple" }
-  , { ValueType::GENERIC, "generic"}
-}};
 
 /* ------------------------------------------------------------------------------------ */
 bool Feature::is_list() const {
@@ -93,7 +79,6 @@ struct join_visitor {
 
   template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, void> {}
 };
-
 
 }
 
@@ -1487,6 +1472,7 @@ Ex_ua_req_path ua_req_path;
 Ex_ua_req_query ua_req_query;
 Ex_ua_req_url_host ua_req_url_host;
 Ex_ua_req_url_port ua_req_url_port;
+Ex_ua_req_url_loc ua_req_url_loc;
 Ex_ua_req_field ua_req_field;
 
 Ex_ua_pre_remap_url ua_pre_remap_url;
@@ -1564,6 +1550,7 @@ Ex_remainder_feature ex_remainder_feature;
   Extractor::define(Ex_ua_req_query::NAME, &ua_req_query);
   Extractor::define(Ex_ua_req_url_host::NAME, &ua_req_url_host);
   Extractor::define(Ex_ua_req_url_port::NAME, &ua_req_url_port);
+  Extractor::define(Ex_ua_req_url_loc::NAME, &ua_req_url_loc);
   Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
 
   Extractor::define(Ex_ua_pre_remap_url::NAME, &ua_pre_remap_url);

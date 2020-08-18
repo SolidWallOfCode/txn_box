@@ -47,77 +47,137 @@ These are divided in to families, each one based around one of the basic message
 *  Upstream Response - the response sent by the upstream to |TS| in response to the Proxy Request.
 *  Proxy Response - the response sent by |TS| to the user agent.
 
+There is also the "pre-remap" or "pristine" user agent URL. This is a URL only, not a request, and
+is a copy of the user agent URL just before URL rewriting.
+
+In addition, for the remap hook, there are two other URLs (not requests) that are available. These
+are the "target" and "replacement" URLs which are the values literally specified in the URL rewrite
+rule. Note these can be problematic for regular expression remap rules as they are frequently not
+valid URLs.
+
+Host and Port Handling
+----------------------
+
+The host and port for a request or URL require special handling due to vagaries in the HTTP
+specification. The most important distinction is these can appear in two different places, the URL
+itself or in the ``Host`` field of the request, or both. This can make modifying them in a specific
+way challenging. The complexity described here is to make it possible to do exactly what is needed.
+In particular, although the HTTP specification says if the host and port are in the URL and in the
+``Host`` header, these must be the same, in _practice_ many proxies are configured to make them
+different before sending the request upstream from the proxy, generally so that the ``Host`` field
+is based on what the user agent sent and the URL is changed to be where the proxy routes the
+request. Therefore there are extactors which work on the request as a whole, considering both the
+URL and the ``Host`` field, and others that always use the URL.
+
+Beyond this, the port is optional and this presents some problems. One is a result of the ATS plugin
+API which makes it impossible to distinguish between "delain.nl" and "delain.nl:80". Both port 80
+and port 443 are treated specially, the former for scheme "HTTP" and the latter for "HTTPS". I
+intend to add that at some point but currently it cannot be done. The result is it is difficult to
+impossible to properly set these values in a configuration language such as |TxB| has and even if
+possible would be rather painful to do repeatedly. Therefore |TxB| has the concept of "location"
+which corresponds to the host and port (the HTTP specification calls this the `authority
+<https://tools.ietf.org/html/rfc3986#section-3.2>`__ but everyone thought using the term was a
+terrible idea). This makes it easy to access the host, the port, or both. This is more important
+when interacting with directives to set those values. Here is a chart to illustrate the three terms
+
+============================== ==================== ==== =====================
+url                             host                port loc
+============================== ==================== ==== =====================
+http://evil-kow.ex/path        evil-kow.ex          80    evil-kow.ex
+http://evil-kow.ex/path:80     evil-kow.ex          80    evil-kow.ex
+https://evil-kow.ex/path       evil-kow.ex          443   evil-kow.ex
+http://evil-kow.ex:4443/path   evil-kow.ex          4443  evil-kow.ex:4443
+https://evil-kow.ex:4443/path  evil-kow.ex          4443  evil-kow.ex:4443
+============================== ==================== ==== =====================
+
 User Agent Request
 ------------------
 
-.. txb:extractor:: ua-req-url
+.. extractor:: ua-req-method
    :result: string
 
-      The URL in the user agent request.
+   The user agent request method.
 
-.. txb:extractor:: ua-req-scheme
+.. extractor:: ua-req-url
    :result: string
 
-      The URL scheme in the user agent request URL.
+   The URL in the user agent request.
 
-.. txb:extractor:: ua-req-host
+.. extractor:: ua-req-scheme
    :result: string
 
-      Host for the user agent request. This is retrieved from the URL if present, otherwise from the
-      ``Host`` field. This does not include the port.
+   The URL scheme in the user agent request.
+
+.. extractor:: ua-req-loc
+   :result: string
+
+   The location for the request, consisting of the host and the optional port. This is retrieved
+   from the URL if present, otherwise from the ``Host`` field.
+
+.. extractor:: ua-req-host
+   :result: string
+
+   Host for the user agent request. This is retrieved from the URL if present, otherwise from the
+   ``Host`` field. This does not include the port.
 
 .. extractor:: ua-req-port
    :result: integer
 
-      The port for the user agent request. This is pulled from the URL if present, otherwise from
-      the ``Host`` field. If not specified, the canonical default based on the scheme is used.
-
-.. extractor:: ua-req-url-loc
-   :result: string
-
-      The network location for the URL in the user agent request. This is also called the
-      `authority <https://tools.ietf.org/html/rfc3986#section-3.2>`__. This is the host and, if
-      the port is set, the port.
-
-      ============================== ==================== ==== =====================
-      url                             host                port loc
-      ============================== ==================== ==== =====================
-      http://evil-kow.ex/path        evil-kow.ex          80    evil-kow.ex
-      http://evil-kow.ex:4443/path   evil-kow.ex          4443  evil-kow.ex:4443
-      ============================== ==================== ==== =====================
+   The port for the user agent request. This is pulled from the URL if present, otherwise from
+   the ``Host`` field. If not specified, the canonical default based on the scheme is used.
 
 .. txb:extractor:: ua-req-path
    :result: string
 
-      The path of the URL in the request. This does not include a leading slash.
+   The path of the URL in the request. This does not include a leading slash.
 
 .. extractor:: ua-req-query
    :result: string
 
-      The query string for the user agent request.
+   The query string for the user agent request.
+
+.. extractor:: ua-req-url-loc
+   :result: string
+
+   The location for the request URL, consisting of the host and the optional port.
+
+.. extractor:: ua-req-url-host
+   :result: string
+
+   Host for the user agent request URL.
+
+.. extractor:: ua-req-port
+   :result: integer
+
+   The port for the user agent request URL.
 
 .. extractor:: ua-req-field
    :result: NULL, string, string list
    :arg: name
 
-      The value of a field in the client request. This requires a field name as a argument. To
-      get the value of the "Host" field the extractor would be "ua-req-field<Host>". The field name is
-      case insensitive.
+   The value of a field in the client request. This requires a field name as a argument. To
+   get the value of the "Host" field the extractor would be "ua-req-field<Host>". The field name is
+   case insensitive.
 
-      If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
-      empty string which is returned if the field is present but has no value. If there are duplicate
-      fields then a string list is returned, each element of which corresponds to a field.
+   If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
+   empty string which is returned if the field is present but has no value. If there are duplicate
+   fields then a string list is returned, each element of which corresponds to a field.
 
 Pre-Remap
 ~~~~~~~~~
 
-   The following extractors also extract data from the user agent request URL, but from the URL as
-   it was before URL rewriting ("remapping"). Only the URL is preserved, not any of the fields or
-   the method. These are referred to elsewhere as "pristine" but that is a misnomer. If the user
-   agent request is altered before URL rewriting, that will be reflected in the data from these
+   The following extractors extract data from the user agent request URL, but from the URL as it was
+   before URL rewriting ("remapping"). Only the URL is preserved, not any of the fields or the
+   method. These are referred to elsewhere as "pristine" but that is a misnomer. If the user agent
+   request is altered before URL rewriting, that will be reflected in the data from these
    extractors. These do not necessarily return the URL as it was received by ATS from the user
    agent. All of these have an alias with "pristine" instead of "pre-remap" for old school
    operations staff. There are no directives to modify these values, they are read only.
+
+.. extractor:: ua-pre-remap-scheme
+   :result: string
+
+      The URL scheme in the pre-remap user agent request URL.
 
 .. extractor:: ua-pre-remap-url
    :result: string
@@ -140,26 +200,26 @@ Pre-Remap
       The port in the pre-remap user agent request URL. If not specified, the canonical default based
       on the scheme is used.
 
-.. txb:extractor:: ua-pre-remap-scheme
-   :result: string
-
-      The URL scheme in the pre-remap user agent request URL.
-
 .. extractor:: ua-pre-remap-query
    :result: string
 
       The query string for the pre-remap user agent request URL.
 
-Remap
------
+Rewrite Rule URLs
+-----------------
 
-   During URL rewriting there are two extra URLs available, `the "target" and the "replacement"
+   During URL rewriting there are two additional URLs available, `the "target" and the "replacement"
    URL
    <https://docs.trafficserver.apache.org/en/latest/admin-guide/files/remap.config.en.html#format>`__.
    These are fixed values from the rule itself, not the user agent. For this reason there are
-   extractors for them but no directives to modify these URLs. These values are available only for
-   the "remap" hook, that is directives invoked from a rule in "remap.config". Query values are
-   not permitted in these URLs and so no extractor for that is provided.
+   extractors to get data from these URLs but no directives to modify them. These values are
+   available only for the "remap" hook, that is directives invoked from a rule in "remap.config".
+   Query values are not permitted in these URLs and so no extractor for that is provided.
+
+.. extractor:: remap-target-scheme
+   :result: string
+
+      The URL scheme in the target URL of the remap rule..
 
 .. extractor:: remap-target-url
    :result: string
@@ -182,10 +242,10 @@ Remap
       The port in the target URL of the remap rule.. If not specified, the canonical default based
       on the scheme is used.
 
-.. txb:extractor:: remap-target-scheme
+.. extractor:: remap-replacement-scheme
    :result: string
 
-      The URL scheme in the target URL of the remap rule..
+      The URL scheme in the replacement URL of the remap rule..
 
 .. extractor:: remap-replacement-url
    :result: string
@@ -208,29 +268,34 @@ Remap
       The port in the replacement URL of the remap rule.. If not specified, the canonical default based
       on the scheme is used.
 
-.. txb:extractor:: remap-replacement-scheme
-   :result: string
-
-      The URL scheme in the replacement URL of the remap rule..
-
 Proxy Request
 -------------
+
+.. extractor:: proxy-req-method
+   :result: string
+
+   The proxy request method.
+
+.. extractor:: proxy-req-scheme
+   :result: string
+
+   The URL scheme in the proxy request.
 
 .. extractor:: proxy-req-url
    :result: string
 
    The URL in the request.
 
-.. txb:extractor:: proxy-req-path
-   :result: string
-
-   The path of the URL in the request. This does not include a leading slash.
-
 .. extractor:: proxy-req-host
    :result: string
 
    Host for the request. This is retrieved from the URL if present, otherwise from the ``Host``
    field. This does not include the port.
+
+.. txb:extractor:: proxy-req-path
+   :result: string
+
+   The path of the URL in the request. This does not include a leading slash.
 
 .. extractor:: proxy-req-port
    :result: integer
