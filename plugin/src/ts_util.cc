@@ -15,11 +15,13 @@
 #include <swoc/TextView.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
+#include <swoc/ArenaWriter.h>
 #include <swoc/swoc_meta.h>
 
 #include "txn_box/ts_util.h"
 
 using swoc::TextView;
+using swoc::MemArena;
 using swoc::Errata;
 using swoc::Rv;
 using swoc::BufferWriter;
@@ -139,6 +141,45 @@ auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **descr
 
 /* ------------------------------------------------------------------------------------ */
 
+TextView ts::URL::view(MemArena& arena) const {
+  // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
+  // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
+  IOBuffer iob{TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K)};
+  auto reader = TSIOBufferReaderAlloc(iob.get());
+  int64_t avail = 0;
+
+  TSUrlPrint(_buff, _loc, iob.get());
+  auto block = TSIOBufferReaderStart(reader);
+  auto ptr = TSIOBufferBlockReadStart(block, reader, &avail);
+  arena.require(avail);
+  auto dst = arena.remnant().rebind<char>();
+  memcpy(dst, ptr);
+  return { dst.data() , size_t(avail) };
+}
+
+TextView ts::URL::scheme() const {
+  if (this->is_valid()) {
+    int length;
+    auto text = TSUrlSchemeGet(_buff, _loc, &length);
+    return {text, static_cast<size_t>(length)};
+  }
+  return {};
+}
+
+TextView ts::URL::loc(MemArena& arena) const {
+  auto host_name = this->host();
+  if (! host_name.empty()) {
+    swoc::ArenaWriter w{arena};
+    if (this->is_port_canonical()) {
+      w.write(host_name);
+    } else {
+      w.print("{}:{}", host_name, this->port());
+    }
+    return w.view();
+  }
+  return {};
+}
+
 TextView ts::URL::host() const {
   char const *text;
   int size;
@@ -152,30 +193,11 @@ in_port_t  ts::URL::port() const {
   return this->is_valid() ? TSUrlPortGet(_buff, _loc) : 0;
 }
 
-bool ts::URL::is_port_canonical() const {
-  auto p = this->port();
-  auto scheme = this->scheme();
-  if (scheme.starts_with_nocase("http")) {
-    return (80 == p  && scheme.size() == 4) ||
-        (443 == p && scheme.size() == 5 && 's' == tolower(scheme[4]))
-        ;
-  }
-  return false;
-}
-
-TextView ts::URL::view() const {
-  // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
-  // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
-  if (!_iobuff) {
-    _iobuff.reset(TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K));
-    auto reader = TSIOBufferReaderAlloc(_iobuff.get());
-    TSUrlPrint(_buff, _loc, _iobuff.get());
-    int64_t avail = 0;
-    auto block = TSIOBufferReaderStart(reader);
-    auto ptr = TSIOBufferBlockReadStart(block, reader, &avail);
-    _view.assign(ptr, avail);
-  }
-  return _view;
+bool ts::URL::is_port_canonical(TextView const& scheme, in_port_t port) {
+  return scheme.starts_with_nocase("http"_tv) &&
+      ((80 == port  && scheme.size() == 4) ||
+       (443 == port && scheme.size() == 5 && 's' == tolower(scheme[4]))
+      );
 }
 
 bool ts::HttpRequest::url_set(TextView text) {
@@ -242,7 +264,7 @@ unsigned ts::HttpField::dup_count() const {
   return zret;
 }
 
-ts::URL ts::HttpRequest::url() {
+ts::URL ts::HttpRequest::url() const {
   TSMLoc url_loc;
   if (this->is_valid() && TS_SUCCESS == TSHttpHdrUrlGet(_buff, _loc, &url_loc)) {
     return {_buff, url_loc};
@@ -250,8 +272,17 @@ ts::URL ts::HttpRequest::url() {
   return {};
 }
 
+TextView ts::HttpRequest::loc(MemArena& arena) const {
+  // Try the URL first.
+  if (auto url{this->url()}; url.is_valid() && ! url.host().empty()) {
+    return url.loc(arena);
+  } else if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
+    return field.value();
+  }
+}
+
 TextView ts::HttpRequest::host() const {
-  auto url { const_cast<self_type*>(this)->url() };
+  auto url { this->url() };
   if (auto host = url.host() ; ! host.empty()) {
     return host;
   }

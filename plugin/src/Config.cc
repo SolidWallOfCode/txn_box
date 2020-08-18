@@ -77,6 +77,21 @@ namespace {
 } ();
 }; // namespace
 
+swoc::Lexicon<ValueType> const ValueTypeNames {{
+                                                   { ValueType::NIL, "nil" }
+                                                   , { ValueType::STRING, "string"}
+                                                   , { ValueType::INTEGER, "integer"}
+                                                   , { ValueType::BOOLEAN, "boolean"}
+                                                   , { ValueType::FLOAT, "float"}
+                                                   , { ValueType::IP_ADDR, "IP address"}
+                                                   , { ValueType::DURATION, "duration"}
+                                                   , { ValueType::TIMEPOINT, "time point"}
+                                                   , { ValueType::CONS, "cons" }
+                                                   , { ValueType::TUPLE, "tuple" }
+                                                   , { ValueType::GENERIC, "generic"}
+                                               }};
+
+// --------------------------------------------------------------------------
 Config::~Config() {
   // Invoke all the finalizers to do additional cleanup.
   for ( auto && f : _finalizers ) {

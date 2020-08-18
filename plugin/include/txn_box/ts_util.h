@@ -12,6 +12,7 @@
 
 #include "txn_box/common.h"
 #include <swoc/swoc_file.h>
+#include <swoc/MemArena.h>
 
 #include <ts/ts.h>
 
@@ -93,7 +94,7 @@ inline swoc::file::path & make_absolute(swoc::file::path & path) {
 
 /// Clean up an TS @c TSIOBuffer
 struct IOBufferDeleter {
-  void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); } }
+  void operator()(TSIOBuffer &buff) { if (buff) { TSIOBufferDestroy(buff); buff = nullptr; } }
 };
 
 using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBufferDeleter>;
@@ -129,7 +130,8 @@ public:
   /// Construct from TS data.
   URL(TSMBuffer buff, TSMLoc loc);
 
-  swoc::TextView view() const; ///< View of entire URL.
+  swoc::TextView loc(swoc::MemArena& arena) const;
+  swoc::TextView view(swoc::MemArena& arena) const; ///< View of entire URL.
   swoc::TextView host() const; ///< View of the URL host.
   in_port_t port() const; ///< Port.
   swoc::TextView scheme() const; ///< View of the URL scheme.
@@ -142,6 +144,13 @@ public:
    * @return @a this
    */
   self_type & scheme_set(swoc::TextView const& scheme);
+
+  /** Set the location for the URL.
+   *
+   * @param loc Network location (host[:port])
+   * @return @a this
+   */
+  self_type & loc_set(swoc::TextView const& loc);
 
   /** Set the host in the URL.
    *
@@ -158,7 +167,8 @@ public:
    */
   in_port_t port_get();
 
-  bool is_port_canonical() const;
+  static bool is_port_canonical(swoc::TextView const& scheme, in_port_t port);
+  bool is_port_canonical() const { return this->is_port_canonical(this->scheme(), this->port()); }
 
   /** Set the @a port in the URL.
    *
@@ -175,9 +185,6 @@ public:
   }
 
   self_type & query_set(swoc::TextView text);
-protected:
-  mutable IOBuffer _iobuff; ///< IO buffer with the URL text.
-  mutable swoc::TextView _view; ///< View of the URL in @a _iobuff.
 };
 
 class HttpField : public HeapObject {
@@ -303,9 +310,10 @@ public:
    *
    * @return A URL object wrapper.
    */
-  URL url();
+  URL url() const;
 
   swoc::TextView method() const;
+  swoc::TextView loc(swoc::MemArena& arena) const;
   swoc::TextView host() const;
   in_port_t port() const;
 
@@ -528,8 +536,6 @@ inline TSMLoc HeapObject::mloc() const { return _loc; }
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
 inline in_port_t URL::port_get() { return TSUrlPortGet(_buff, _loc); }
-
-inline swoc::TextView URL::scheme() const { int length; auto text = TSUrlSchemeGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
 inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 

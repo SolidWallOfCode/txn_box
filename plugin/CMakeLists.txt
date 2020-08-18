@@ -12,8 +12,10 @@ add_library(plugin SHARED
 	src/Context.cc
 	src/Directive.cc
 	src/Extractor.cc
+	src/Ex_Base.cc
+	src/Ex_HTTP.cc
 	src/Modifier.cc
-	src/Features.cc
+	src/Feature.cc
 	src/Machinery.cc
         src/Rxp.cc
 	src/ts_util.cc
