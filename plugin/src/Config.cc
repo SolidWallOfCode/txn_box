@@ -626,8 +626,7 @@ Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCach
 /* ------------------------------------------------------------------------------------ */
 Errata Config::load_args(const std::vector<std::string> &args, int arg_offset, YamlCache * cache) {
   using argv_type = char const *; // Overall clearer in context of pointers to pointers.
-  size_t buff_size = args.size() * sizeof(argv_type);
-  std::unique_ptr<argv_type> buff { static_cast<argv_type*>(malloc(buff_size)) };
+  std::unique_ptr<argv_type[]> buff { new argv_type[args.size()] };
   swoc::MemSpan<argv_type> argv{ buff.get(), args.size() };
   int idx = 0;
   for ( auto const& arg : args ) {
