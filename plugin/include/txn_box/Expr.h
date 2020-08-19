@@ -35,11 +35,11 @@ public:
     std::vector<Spec>::const_iterator _iter; ///< Current specifier.
   };
 
-  /// Single extractor that generates a direct view.
+  /// Single extractor that generates a direct full.
   struct Direct {
     Direct(Spec const& spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
     Spec _spec; ///< Specifier with extractor.
-    ActiveType _result_type = STRING; ///< Type of view, default is a string.
+    ActiveType _result_type = STRING; ///< Type of full, default is a string.
   };
 
   /// A composite of extractors and literals.

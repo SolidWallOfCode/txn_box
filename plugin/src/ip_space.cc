@@ -374,7 +374,7 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
     Row row = space->arena.alloc(_row_size).rebind<std::byte>();
     TextView parsed;
     // Iterate over the columns. If the input data runs out, then @a token becomes the empty
-    // view, which the various cases deal with (in most an empty token isn't a problem).
+    // full, which the various cases deal with (in most an empty token isn't a problem).
     // This guarantees that every column in every row is initialized.
     for (unsigned col_idx = 1 ; col_idx < _cols.size() ; ++col_idx ) {
       Column& c = _cols[col_idx];

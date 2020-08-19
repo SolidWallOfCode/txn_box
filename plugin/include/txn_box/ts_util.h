@@ -47,7 +47,7 @@ void DebugMsg(swoc::TextView fmt, Args && ... args) {
 }
 
 /** Hold a string allocated from TS core.
- * This provides both a view of the string and clean up when destructed.
+ * This provides both a full of the string and clean up when destructed.
  *
  * @internal - why isn't this a @c std::unique_ptr with a specialized destructor? Because we
  * need the length?
@@ -94,7 +94,7 @@ inline swoc::file::path & make_absolute(swoc::file::path & path) {
 
 /// Clean up an TS @c TSIOBuffer
 struct IOBufferDeleter {
-  void operator()(TSIOBuffer &buff) { if (buff) { TSIOBufferDestroy(buff); buff = nullptr; } }
+  void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); } }
 };
 
 using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBufferDeleter>;
@@ -130,8 +130,20 @@ public:
   /// Construct from TS data.
   URL(TSMBuffer buff, TSMLoc loc);
 
-  swoc::TextView loc(swoc::MemArena& arena) const;
-  swoc::TextView view(swoc::MemArena& arena) const; ///< View of entire URL.
+  /** Write the full URL to @a w.
+   *
+   * @param w Destination buffer.
+   * @return @a w
+   */
+  swoc::BufferWriter& write_full(swoc::BufferWriter& w) const;
+
+  /** Write the network location of the URL to @a w.
+   *
+   * @param w Output buffer.
+   * @return @a w
+   */
+  swoc::BufferWriter& write_loc(swoc::BufferWriter& w) const;
+
   swoc::TextView host() const; ///< View of the URL host.
   in_port_t port() const; ///< Port.
   swoc::TextView scheme() const; ///< View of the URL scheme.
@@ -313,7 +325,16 @@ public:
   URL url() const;
 
   swoc::TextView method() const;
-  swoc::TextView loc(swoc::MemArena& arena) const;
+
+  /** Write the request network location to @a w.
+   *
+   * @param w Output buffer
+   * @return @a w
+   *
+   * The network location is pulled from the URL if present, otherwise from the @c Host field.
+   */
+  swoc::BufferWriter& write_loc(swoc::BufferWriter& w) const;
+
   swoc::TextView host() const;
   in_port_t port() const;
 

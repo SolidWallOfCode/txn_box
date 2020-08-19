@@ -1540,7 +1540,7 @@ Errata Do_proxy_rsp_body::invoke(Context &ctx) {
                                                       : TS_EVENT_VCONN_WRITE_READY
                        , in_vio);
           }
-          // If the view is there, create the output buffer and write it, then clear it.
+          // If the full is there, create the output buffer and write it, then clear it.
           auto view = static_cast<TextView *>(TSContDataGet(contp));
           if (view) {
             auto out_vconn = TSTransformOutputVConnGet(contp);
@@ -1576,7 +1576,7 @@ Errata Do_proxy_rsp_body::invoke(Context &ctx) {
   }
 
   if (content) {
-    // The view contents are in the transaction data, but the view in the feature is not.
+    // The view contents are in the transaction data, but the full in the feature is not.
     // Make a copy there and pass its address to the continuation.
     auto ctx_view = ctx.span<TextView>(1);
     auto cont = TSTransformCreate(transform, ctx._txn);

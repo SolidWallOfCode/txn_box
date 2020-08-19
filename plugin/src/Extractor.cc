@@ -18,6 +18,8 @@ using swoc::TextView;
 using swoc::MemSpan;
 using swoc::Errata;
 using swoc::Rv;
+using swoc::BufferWriter;
+namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
 Extractor::Table Extractor::_ex_table;
@@ -292,5 +294,157 @@ Feature StringExtractor::extract(Context& ctx, Spec const& spec) {
   w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
   this->format(w, spec, ctx);
   return w.view();
+}
+/* ------------------------------------------------------------------------------------ */
+// Utilities.
+bool Feature::is_list() const {
+  auto idx = this->index();
+  return IndexFor(TUPLE) == idx || IndexFor(CONS) == idx;
+}
+// ----
+ActiveType Feature::active_type() const {
+  auto vt = this->value_type();
+  ActiveType at = vt;
+  if (TUPLE == vt) {
+    auto & tp = std::get<IndexFor(TUPLE)>(*this);
+    if (tp.size() == 0) { // empty tuple can be a tuple of any type.
+      at = ActiveType::TupleOf(ActiveType::any_type().base_types());
+    } else if (auto tt = tp[0].value_type() ; std::all_of(tp.begin()+1, tp.end(), [=](Feature const& f){return f.value_type() == tt;})) {
+      at = ActiveType::TupleOf(tt);
+    } // else leave it as just a tuple with no specific type.
+  }
+  return at;
+}
+// ----
+namespace {
+struct join_visitor {
+  swoc::BufferWriter & _w;
+  TextView _glue;
+  unsigned _recurse = 0;
+
+  swoc::BufferWriter&  glue() {
+    if (_w.size()) {
+      _w.write(_glue);
+    }
+    return _w;
+  }
+
+  void operator()(feature_type_for<NIL>) {}
+  void operator()(feature_type_for<STRING> const& s) { this->glue().write(s); }
+  void operator()(feature_type_for<INTEGER> n) { this->glue().print("{}", n); }
+  void operator()(feature_type_for<BOOLEAN> flag) { this->glue().print("{}", flag);}
+  void operator()(feature_type_for<TUPLE> t) {
+    this->glue();
+    if (_recurse) {
+      _w.write("( "_tv);
+    }
+    auto lw = swoc::FixedBufferWriter{_w.aux_span()};
+    for ( auto const& item : t) {
+      std::visit(join_visitor{lw, _glue, _recurse + 1}, item);
+    }
+    _w.commit(lw.size());
+    if (_recurse) {
+      _w.write(" )"_tv);
+    }
+  }
+
+  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, void> {}
+};
+
+}
+
+Feature Feature::join(Context &ctx, const swoc::TextView &glue) const {
+  swoc::FixedBufferWriter w{ ctx._arena->remnant()};
+  std::visit(join_visitor{w, glue}, *this);
+  return w.view();
+}
+// ----
+Feature car(Feature const& feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      return std::get<IndexFor(CONS)>(feature)->_car;
+    case IndexFor(TUPLE):
+      return std::get<IndexFor(TUPLE)>(feature)[0];
+    case IndexFor(GENERIC):{
+      auto gf = std::get<IndexFor(GENERIC)>(feature);
+      if (gf) {
+        return gf->extract();
+      }
+    }
+  }
+  return feature;
+}
+// ----
+Feature & cdr(Feature & feature) {
+  switch (feature.index()) {
+    case IndexFor(CONS):
+      feature = std::get<feature_type_for<CONS>>(feature)->_cdr;
+      break;
+    case IndexFor(TUPLE): {
+      Feature cdr { feature };
+      auto &span = std::get<feature_type_for<TUPLE>>(cdr);
+      span.remove_prefix(1);
+      feature = span.empty() ? NIL_FEATURE : cdr;
+    }
+      break;
+  }
+  return feature;
+}
+/* ------------------------------------------------------------------------------------ */
+namespace swoc {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, std::monostate) {
+  return w.write("NULL");
+}
+
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
+  if (spec.has_numeric_type()) {
+    return bwformat(w, spec, static_cast<unsigned>(type));
+  }
+  return bwformat(w, spec, ValueTypeNames[type]);
+}
+
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
+  auto span{w.aux_span()};
+  if (span.size() > spec._max) {
+    span = span.prefix(spec._max);
+  }
+  swoc::FixedBufferWriter lw{span};
+  if (mask.any()) {
+    for (auto const&[e, v] : ValueTypeNames) {
+      if (!mask[e]) {
+        continue;
+      }
+      if (lw.extent()) {
+        lw.write(", ");
+      }
+      bwformat(lw, spec, v);
+    }
+  } else {
+    bwformat(lw, spec, "*no value"_tv);
+  }
+  w.commit(lw.extent());
+  return w;
+}
+
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature) {
+  if (is_nil(feature)) {
+    return bwformat(w, spec, "NULL"_tv);
+  } else {
+    auto visitor = [&](auto &&arg) -> BufferWriter & { return bwformat(w, spec, arg); };
+    return std::visit(visitor, feature);
+  }
+}
+} // namespace swoc
+
+BufferWriter &
+bwformat(BufferWriter& w, bwf::Spec const& spec, ActiveType const& type) {
+  bwformat(w, spec, type._base_type);
+  if (type._tuple_type.any()) {
+    w.write(", Tuples of [");
+    bwformat(w, spec, type._tuple_type);
+    w.write(']');
+  }
+  return w;
 }
 /* ---------------------------------------------------------------------------------------------- */

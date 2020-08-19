@@ -141,9 +141,10 @@ auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **descr
 
 /* ------------------------------------------------------------------------------------ */
 
-TextView ts::URL::view(MemArena& arena) const {
+BufferWriter& ts::URL::write_full(BufferWriter& w) const {
   // Gonna live dangerously - since a reader is only allocated when a new IOBuffer is created
   // it doesn't need to be tracked - it will get cleaned up when the IOBuffer is destroyed.
+  // 32K should be large enough to hold the longest valid URL for ATS.
   IOBuffer iob{TSIOBufferSizedCreate(TS_IOBUFFER_SIZE_INDEX_32K)};
   auto reader = TSIOBufferReaderAlloc(iob.get());
   int64_t avail = 0;
@@ -151,10 +152,8 @@ TextView ts::URL::view(MemArena& arena) const {
   TSUrlPrint(_buff, _loc, iob.get());
   auto block = TSIOBufferReaderStart(reader);
   auto ptr = TSIOBufferBlockReadStart(block, reader, &avail);
-  arena.require(avail);
-  auto dst = arena.remnant().rebind<char>();
-  memcpy(dst, ptr);
-  return { dst.data() , size_t(avail) };
+  w.write(ptr, avail);
+  return w;
 }
 
 TextView ts::URL::scheme() const {
@@ -166,18 +165,16 @@ TextView ts::URL::scheme() const {
   return {};
 }
 
-TextView ts::URL::loc(MemArena& arena) const {
+BufferWriter& ts::URL::write_loc(BufferWriter& w) const {
   auto host_name = this->host();
   if (! host_name.empty()) {
-    swoc::ArenaWriter w{arena};
     if (this->is_port_canonical()) {
       w.write(host_name);
     } else {
       w.print("{}:{}", host_name, this->port());
     }
-    return w.view();
   }
-  return {};
+  return w;
 }
 
 TextView ts::URL::host() const {
@@ -272,13 +269,18 @@ ts::URL ts::HttpRequest::url() const {
   return {};
 }
 
-TextView ts::HttpRequest::loc(MemArena& arena) const {
+BufferWriter& ts::HttpRequest::write_loc(BufferWriter& w) const {
   // Try the URL first.
-  if (auto url{this->url()}; url.is_valid() && ! url.host().empty()) {
-    return url.loc(arena);
-  } else if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
-    return field.value();
+  auto n = w.extent();
+  if (auto url{this->url()}; url.is_valid()) {
+    url.write_loc(w);
   }
+  if (n == w.extent()) { // URL wrote nothing
+    if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
+      w.write(field.value());
+    }
+  }
+  return w;
 }
 
 TextView ts::HttpRequest::host() const {

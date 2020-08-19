@@ -299,7 +299,7 @@ Rv<ActiveType> Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &
 Feature Ex_text_block::extract(Context &ctx, const Spec &spec) {
   auto arg = spec._data.rebind<TextView>()[0];
   if ( auto rtti = ctx.cfg().drtv_info(Do_text_block_define::KEY) ; nullptr != rtti ) {
-    // If there's file content, get a shared pointer to it to preserve the view until
+    // If there's file content, get a shared pointer to it to preserve the full until
     // the end of the transaction.
     auto map = Do_text_block_define::map(rtti);
     if (auto spot = map->find(arg) ; spot != map->end()) {
