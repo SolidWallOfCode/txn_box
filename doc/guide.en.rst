@@ -76,7 +76,7 @@ Because the input is YAML, the previous example could also be written in long ha
    - proxy-req-field<Accept-Encoding>
    - else: "identity"
 
-From the |TxB| point of view, these are indistinguishable. In both cases the feature expresion is
+From the |TxB| point of full, these are indistinguishable. In both cases the feature expresion is
 a list of an unquoted string and an object, the first treated as an extactor and the second as
 modifier. Further note the extractor being the same field as the directive is happenstance - it
 could be any field, or any extractor or feature expression. This is how values can be easily copied

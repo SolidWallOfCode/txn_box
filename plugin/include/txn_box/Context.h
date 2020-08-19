@@ -349,7 +349,7 @@ protected:
   /// Temporary / working capture group data.
   RxpCapture _rxp_working;
 
-  /// Active view to which the capture groups refer.
+  /// Active full to which the capture groups refer.
   FeatureView _rxp_src;
 
   /// Additional clean up needed when @a this is destroyed.

@@ -41,7 +41,7 @@ template < typename ... Args > swoc::Errata Warning(std::string_view const& fmt,
 /// Separate a name and argument for a directive or extractor.
 extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView & key);
 
-/** Data for a feature that is a view / string.
+/** Data for a feature that is a full / string.
  *
  * This is a @c TextView with a couple of extra flags to indicate the semantic location of the
  * string memory. If neither flag is set, the string data should be presumed to exist in transient
@@ -61,7 +61,7 @@ public:
   using super_type::super_type; ///< Import constructors.
   using super_type::operator=; ///< Import assignment.
 
-  /** Return a literal view.
+  /** Return a literal full.
    *
    * @param view Text of the literal.
    * @return A @c FeatureView marked as a literal.
@@ -203,7 +203,7 @@ template < typename T, typename R > using EnableForFeatureTypes = std::enable_if
 
 /** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
- * All of these are small and fixed size, any external storage (e.g. the text for a view)
+ * All of these are small and fixed size, any external storage (e.g. the text for a full)
  * is stored separately.
  *
  * @internal This is needed to deal with self-reference in the underlying variant. Some nested
@@ -570,10 +570,10 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
 
-/** Create a feature that is a literal string of @a view.
+/** Create a feature that is a literal string of @a full.
  *
  * @param view Soure string.
- * @return A literal feature that is the same as @a view.
+ * @return A literal feature that is the same as @a full.
  */
 inline FeatureView FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
 

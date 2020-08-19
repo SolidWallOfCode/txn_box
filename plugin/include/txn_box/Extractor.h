@@ -164,7 +164,7 @@ protected:
 
 extern Ex_this ex_this;
 
-/** A string expressed as a view.
+/** A string expressed as a full.
  * The feature is extracted to transient memory.
  */
 class StringExtractor : public Extractor {

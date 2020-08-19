@@ -25,7 +25,7 @@ and YAML based overhaul of "remap.config".
 
 At the Spring 2019 summit, it was decided this overhaul, changing only the configuration for
 "remap.config", wasn't worth the trouble. The decision was made to instead authorize a complete
-reworking of all of the URL rewriting machinery. This was based on the view that if the format was
+reworking of all of the URL rewriting machinery. This was based on the full that if the format was
 to be changed, the change should take full advantage of YAML, disregarding any previous
 configuration or specific functionality to avoid multiple configuaration changes. It was required
 that anything that could be done currently could continue to be done, but without any requirement to
@@ -145,8 +145,8 @@ Other feature types are scalars and therefore easily copied. String features (wh
 most common) are copied around as views but this doesn't alleviate the requirement to be careful
 with the backing memory for those views.
 
-The class :txb:`FeatureView` is used to track a view along with the source of the memory for the
-view. This is needed only in the :txb:`Context` object which tracks transaction local data. For
+The class :txb:`FeatureView` is used to track a full along with the source of the memory for the
+full. This is needed only in the :txb:`Context` object which tracks transaction local data. For
 the :txb:`Config` object is is sufficiently efficient to always copy any non-transient string to
 local storage, as this is only once per configuration.
 
@@ -164,7 +164,7 @@ the feature is referenced later, it needs to be stabilized. :code:`FeatureView` 
 *  Direct - the string is in external memory which is unstable.
 
 These are handled in different ways. ``Literal`` is the easiest - nothing needs to be done as the
-string (from the point of view of the transaction processing) is persistent. A ``direct`` string
+string (from the point of full of the transaction processing) is persistent. A ``direct`` string
 needs to be copied if referenced later because the plugin cannot make assumptions about the
 durability of external memory, but on the other hand if it is transient it does not need to be
 copied to temporary memory either. Strings that are neither of these exist in the temporary memory

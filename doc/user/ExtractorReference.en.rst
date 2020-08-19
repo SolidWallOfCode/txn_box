@@ -174,33 +174,33 @@ Pre-Remap
    agent. All of these have an alias with "pristine" instead of "pre-remap" for old school
    operations staff. There are no directives to modify these values, they are read only.
 
-.. extractor:: ua-pre-remap-scheme
+.. extractor:: pre-remap-scheme
    :result: string
 
       The URL scheme in the pre-remap user agent request URL.
 
-.. extractor:: ua-pre-remap-url
+.. extractor:: pre-remap-url
    :result: string
 
       The full URL of the pre-remap user agent request.
 
-.. txb:extractor:: ua-pre-remap-path
+.. txb:extractor:: pre-remap-path
    :result: string
 
       The URL path in the pre-remap user agent request URL. This does not include a leading slash.
 
-.. txb:extractor:: ua-pre-remap-host
+.. txb:extractor:: pre-remap-host
    :result: string
 
       The host in the pre-remap user agent request URL. This does not include the port.
 
-.. extractor:: ua-pre-remap-port
+.. extractor:: pre-remap-port
    :result: integer
 
       The port in the pre-remap user agent request URL. If not specified, the canonical default based
       on the scheme is used.
 
-.. extractor:: ua-pre-remap-query
+.. extractor:: pre-remap-query
    :result: string
 
       The query string for the pre-remap user agent request URL.
@@ -216,57 +216,65 @@ Rewrite Rule URLs
    available only for the "remap" hook, that is directives invoked from a rule in "remap.config".
    Query values are not permitted in these URLs and so no extractor for that is provided.
 
-.. extractor:: remap-target-scheme
-   :result: string
-
-      The URL scheme in the target URL of the remap rule..
-
 .. extractor:: remap-target-url
    :result: string
 
-      The full target URL of the remap rule.
+   The full target URL.
 
-.. txb:extractor:: remap-target-path
+.. extractor:: remap-target-scheme
    :result: string
 
-      The URL path in the target URL of the remap rule.
+   The scheme in the target URL.
+
+.. extractor:: remap-target-loc
+   :result: string
+
+   The network location of the target URL.
 
 .. txb:extractor:: remap-target-host
    :result: string
 
-      The host in the target URL of the remap rule.
+   The host in the target URL. This does not include the port, if any.
 
 .. extractor:: remap-target-port
    :result: integer
 
-      The port in the target URL of the remap rule.. If not specified, the canonical default based
-      on the scheme is used.
+   The port in the target URL. If not specified, the default based on the scheme is extracted.
 
-.. extractor:: remap-replacement-scheme
+.. extractor:: remap-target-path
    :result: string
 
-      The URL scheme in the replacement URL of the remap rule..
+   The path in the target URL.
 
 .. extractor:: remap-replacement-url
    :result: string
 
-      The full replacement URL of the remap rule.
+   The full replacement URL.
 
-.. txb:extractor:: remap-replacement-path
+.. extractor:: remap-replacement-scheme
    :result: string
 
-      The URL path in the replacement URL of the remap rule.
+   The scheme in the replacement URL.
+
+.. extractor:: remap-replacement-loc
+   :result: string
+
+   The network location in the replacement URL.
 
 .. txb:extractor:: remap-replacement-host
    :result: string
 
-      The host in the replacement URL of the remap rule.
+   The host in the replacement URL. This does not include the port, if any.
 
 .. extractor:: remap-replacement-port
    :result: integer
 
-      The port in the replacement URL of the remap rule.. If not specified, the canonical default based
-      on the scheme is used.
+   The port in the replacement URL. If not specified, the default based on the scheme is extracted.
+
+.. extractor:: remap-replacement-path
+   :result: string
+
+   The path in the replacement URL.
 
 Proxy Request
 -------------
