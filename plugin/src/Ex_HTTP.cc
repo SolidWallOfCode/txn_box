@@ -1030,8 +1030,6 @@ class Ex_upstream_rsp_status_reason : public StringExtractor {
 public:
   static constexpr TextView NAME { "upstream-rsp-status-reason" };
 
-  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
-
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
@@ -1066,8 +1064,6 @@ BufferWriter& Ex_proxy_rsp_status::format(BufferWriter &w, Spec const &spec, Con
 class Ex_proxy_rsp_status_reason : public StringExtractor {
 public:
   static constexpr TextView NAME { "proxy-rsp-status-reason" };
-
-  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
@@ -1196,12 +1192,13 @@ Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
   Extractor::define(Ex_remap_target_port::NAME, &remap_target_port);
   Extractor::define(Ex_remap_replacement_port::NAME, &remap_replacement_port);
 
-  Extractor::define("ua-pristine-url", &pre_remap_url);
-  Extractor::define("ua-pristine-scheme", &pre_remap_scheme);
-  Extractor::define("ua-pristine-loc", &pre_remap_loc);
-  Extractor::define("ua-pristine-host", &pre_remap_host);
-  Extractor::define("ua-pristine-path", &pre_remap_path);
-  Extractor::define("ua-pristine-query", &pre_remap_query);
+  Extractor::define("pristine-url", &pre_remap_url);
+  Extractor::define("pristine-scheme", &pre_remap_scheme);
+  Extractor::define("pristine-loc", &pre_remap_loc);
+  Extractor::define("pristine-host", &pre_remap_host);
+  Extractor::define("pristine-port", &pre_remap_port);
+  Extractor::define("pristine-path", &pre_remap_path);
+  Extractor::define("pristine-query", &pre_remap_query);
 
   Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
   Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);

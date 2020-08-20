@@ -12,13 +12,17 @@
 Examples
 ********
 
+|TxB| is a large, complex plugin and it can be challenging to get started. This section provides a
+number of example uses, all of which are based on actual production use of |TxB|.
+
 Default Accept-Encoding
 =======================
 
-The goal is to set the "Accept-Encoding" field to the value "identity" if it is not already set on
-requests to the upstream so that the field is never empty.
+Goal
+   Force all proxy requests to have a value for the "Accept-Encoding" field. If not already set, it
+   should be set to "identity".
 
-.. literalinclude:: "../test/autest/accept-encoding/config.yaml
+.. literalinclude:: "../test/autest/accept-encoding/config.yaml"
 
 This acts on the proxy request hook. The "Accept-Encoding" field is extracted and then modified
 using the :mod:`else` which
