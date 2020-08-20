@@ -284,15 +284,21 @@ Proxy Request
 
    The proxy request method.
 
+.. extractor:: proxy-req-url
+   :result: string
+
+   The URL in the request.
+
 .. extractor:: proxy-req-scheme
    :result: string
 
    The URL scheme in the proxy request.
 
-.. extractor:: proxy-req-url
+.. extractor:: proxy-req-loc
    :result: string
 
-   The URL in the request.
+   The network location in the request. This is retrieved from the URL if present, otherwise from
+   the ``Host`` field.
 
 .. extractor:: proxy-req-host
    :result: string
@@ -314,7 +320,22 @@ Proxy Request
 .. extractor:: proxy-req-query
    :result: string
 
-   The query string in the proxy request URL.
+   The query string in the request URL.
+
+.. extractor:: proxy-req-url-loc
+   :result: string
+
+   The network location in the request URL.
+
+.. extractor:: proxy-req-url-host
+   :result: string
+
+   The host in the request URL.
+
+.. extractor:: proxy-req-url-port
+   :result: integer
+
+   The port in the request URL.
 
 .. extractor:: proxy-req-field
    :result: NULL, string, string list
@@ -330,6 +351,16 @@ Proxy Request
 Upstream Response
 -----------------
 
+.. extractor:: upstream-rsp-status-code
+   :result: integer
+
+   The code of the response status.
+
+.. extractor:: upstream-rsp-status-reason
+   :result: string
+
+   The reason of the response status.
+
 .. extractor:: upstream-rsp-field
    :result: NULL, string, string list
    :arg: name
@@ -343,6 +374,16 @@ Upstream Response
 
 Proxy Response
 --------------
+
+.. extractor:: proxy-rsp-status-code
+   :result: integer
+
+   The code of the response status.
+
+.. extractor:: proxy-rsp-status-reason
+   :result: string
+
+   The reason of the response status.
 
 .. extractor:: proxy-rsp-field
    :result: NULL, string, string list
