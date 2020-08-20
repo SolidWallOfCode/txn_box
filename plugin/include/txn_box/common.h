@@ -484,7 +484,7 @@ inline void clear(Feature & feature) {
 }
 
 static constexpr swoc::TextView ACTIVE_FEATURE_KEY { "..." };
-static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "*" };
+static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "%" };
 
 /// Conversion between @c ValueType and printable names.
 extern swoc::Lexicon<ValueType> const ValueTypeNames;

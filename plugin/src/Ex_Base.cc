@@ -342,9 +342,9 @@ BufferWriter& Ex_active_feature::format(BufferWriter &w, Spec const &spec, Conte
 }
 
 /* ------------------------------------------------------------------------------------ */
-/// Extract the most recent selection feature.
-class Ex_remainder_feature : public Extractor {
-  using self_type = Ex_remainder_feature; ///< Self reference type.
+/// Remnant capture group.
+class Ex_unmatched_group : public Extractor {
+  using self_type = Ex_unmatched_group; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME = REMAINDER_FEATURE_KEY;
@@ -353,16 +353,16 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Feature Ex_remainder_feature::extract(class Context & ctx, const struct Extractor::Spec &) {
+Feature Ex_unmatched_group::extract(class Context & ctx, const struct Extractor::Spec &) {
   return ctx._remainder;
 }
 
-BufferWriter& Ex_remainder_feature::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_unmatched_group::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._remainder);
 }
 
 Rv<ActiveType>
-Ex_remainder_feature::validate(Config&, Extractor::Spec&, TextView const&) { return { STRING }; }
+Ex_unmatched_group::validate(Config&, Extractor::Spec&, TextView const&) { return {STRING }; }
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
@@ -410,12 +410,13 @@ static constexpr TextView WEEKS = "weeks";
 Ex_duration<std::chrono::weeks, &WEEKS> weeks;
 
 Ex_active_feature ex_with_feature;
-Ex_remainder_feature ex_remainder_feature;
+Ex_unmatched_group unmatched_group;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_this::NAME, &ex_this);
   Extractor::define(Ex_active_feature::NAME, &ex_with_feature);
-  Extractor::define(Ex_remainder_feature::NAME, &ex_remainder_feature);
+  Extractor::define(Ex_unmatched_group::NAME, &unmatched_group);
+  Extractor::define("unmatched", &unmatched_group);
 
   Extractor::define(Ex_txn_conf::NAME, &txn_conf);
 
