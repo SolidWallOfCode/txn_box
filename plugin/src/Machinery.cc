@@ -1812,7 +1812,7 @@ protected:
 };
 
 const std::string Do_debug_msg::KEY { "debug" };
-const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::POST_LOAD, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
 Do_debug_msg::Do_debug_msg(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 
@@ -2059,7 +2059,7 @@ protected:
 };
 
 const std::string Do_txn_conf::KEY { "txn-conf" };
-const HookMask Do_txn_conf::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
+const HookMask Do_txn_conf::HOOKS { MaskFor({Hook::TXN_START, Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
 
 Errata Do_txn_conf::invoke(Context &ctx) {
   auto value = ctx.extract(_expr);
