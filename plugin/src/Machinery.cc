@@ -12,11 +12,8 @@
 #include <swoc/ArenaWriter.h>
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
-#include <swoc/bwf_ex.h>
-#include <swoc/bwf_std.h>
 
 #include "txn_box/Directive.h"
-#include "txn_box/Extractor.h"
 #include "txn_box/Comparison.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
@@ -1004,7 +1001,7 @@ protected:
    */
   virtual swoc::TextView key() const = 0;
 
-  template < typename T > void apply(Context& ctx, ts::HttpHeader && hdr, T const& value) {}
+  template < typename T > void apply(Context&, ts::HttpHeader &&, T const&) {}
 
   /// Visitor to perform the assignment.
   struct Apply {
@@ -1598,7 +1595,7 @@ Rv<Directive::Handle> Do_proxy_rsp_body::load(Config& cfg, YAML::Node drtv_node,
     return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
 
-  return std::move(Handle(new self_type(std::move(expr))));
+  return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Redirect.
@@ -1765,7 +1762,7 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc:
   } else if (key_value.IsSequence()) {
     errata = self->_fg.load_as_tuple(cfg, key_value, { { STATUS_KEY, FeatureGroup::REQUIRED } , { LOCATION_KEY, FeatureGroup::REQUIRED } });
   } else if (key_value.IsMap()) {
-    Errata errata = self->_fg.load(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED }, { STATUS_KEY }, { REASON_KEY }, { BODY_KEY } });
+    errata = self->_fg.load(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED }, { STATUS_KEY }, { REASON_KEY }, { BODY_KEY } });
   } else {
     return Error(R"(Value for "{}" key at {} is must be a scalar, a 2-tuple, or a map and is not.)", KEY, key_value.Mark());
   }
