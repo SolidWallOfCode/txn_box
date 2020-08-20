@@ -351,7 +351,7 @@ Proxy Request
 Upstream Response
 -----------------
 
-.. extractor:: upstream-rsp-status-code
+.. extractor:: upstream-rsp-status
    :result: integer
 
    The code of the response status.
@@ -375,7 +375,7 @@ Upstream Response
 Proxy Response
 --------------
 
-.. extractor:: proxy-rsp-status-code
+.. extractor:: proxy-rsp-status
    :result: integer
 
    The code of the response status.

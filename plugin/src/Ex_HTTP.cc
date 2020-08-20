@@ -1002,9 +1002,9 @@ ts::HttpHeader Ex_upstream_rsp_field::hdr(Context & ctx) const {
   return ctx.upstream_rsp_hdr();
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_upstream_rsp_status_code : public IntegerExtractor {
+class Ex_upstream_rsp_status : public IntegerExtractor {
 public:
-  static constexpr TextView NAME { "upstream-rsp-status-code" };
+  static constexpr TextView NAME { "upstream-rsp-status" };
 
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
@@ -1014,15 +1014,15 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_upstream_rsp_status_code::validate(Config &, Spec &, TextView const&) {
+Rv<ActiveType> Ex_upstream_rsp_status::validate(Config &, Spec &, TextView const&) {
   return { INTEGER };
 }
 
-Feature Ex_upstream_rsp_status_code::extract(Context &ctx, Extractor::Spec const&) {
+Feature Ex_upstream_rsp_status::extract(Context &ctx, Extractor::Spec const&) {
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.ursp_hdr().status());
 }
 
-BufferWriter& Ex_upstream_rsp_status_code::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_upstream_rsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.ursp_hdr().status());
 }
 // ----
@@ -1039,9 +1039,9 @@ BufferWriter& Ex_upstream_rsp_status_reason::format(BufferWriter &w, Spec const 
   return bwformat(w, spec, ctx._txn.ursp_hdr().reason());
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_proxy_rsp_status_code : public IntegerExtractor {
+class Ex_proxy_rsp_status : public IntegerExtractor {
 public:
-  static constexpr TextView NAME { "proxy-rsp-status-code" };
+  static constexpr TextView NAME { "proxy-rsp-status" };
 
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
@@ -1051,15 +1051,15 @@ public:
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
-Rv<ActiveType> Ex_proxy_rsp_status_code::validate(Config &, Spec &, TextView const&) {
+Rv<ActiveType> Ex_proxy_rsp_status::validate(Config &, Spec &, TextView const&) {
   return { INTEGER };
 }
 
-Feature Ex_proxy_rsp_status_code::extract(Context &ctx, Extractor::Spec const&) {
+Feature Ex_proxy_rsp_status::extract(Context &ctx, Extractor::Spec const&) {
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.prsp_hdr().status());
 }
 
-BufferWriter& Ex_proxy_rsp_status_code::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_proxy_rsp_status::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, ctx._txn.prsp_hdr().status());
 }
 // ----
@@ -1138,8 +1138,8 @@ Ex_proxy_req_field proxy_req_field;
 Ex_proxy_rsp_field proxy_rsp_field;
 Ex_upstream_rsp_field upstream_rsp_field;
 
-Ex_proxy_rsp_status_code proxy_rsp_status_code;
-Ex_upstream_rsp_status_code upstream_rsp_status_code;
+Ex_proxy_rsp_status proxy_rsp_status;
+Ex_upstream_rsp_status upstream_rsp_status;
 Ex_proxy_rsp_status_reason proxy_rsp_status_reason;
 Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
 
@@ -1203,8 +1203,8 @@ Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
   Extractor::define("ua-pristine-path", &pre_remap_path);
   Extractor::define("ua-pristine-query", &pre_remap_query);
 
-  Extractor::define(Ex_proxy_rsp_status_code::NAME, &proxy_rsp_status_code);
-  Extractor::define(Ex_upstream_rsp_status_code::NAME, &upstream_rsp_status_code);
+  Extractor::define(Ex_proxy_rsp_status::NAME, &proxy_rsp_status);
+  Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
   Extractor::define(Ex_proxy_rsp_status_reason::NAME, &proxy_rsp_status_reason);
   Extractor::define(Ex_upstream_rsp_status_reason::NAME, &upstream_rsp_status_reason);
 
