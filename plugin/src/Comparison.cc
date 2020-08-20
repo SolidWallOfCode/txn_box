@@ -227,7 +227,7 @@ protected:
 bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (text == active) {
     ctx.set_literal_capture(active);
-    ctx._active = FeatureView{}; // matched everything, clear active feature.
+    ctx._remainder.clear();
     return true;
   }
   return false;
@@ -247,7 +247,7 @@ protected:
 bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (0 == strcasecmp(text,active)) {
     ctx.set_literal_capture(active);
-    ctx._active = FeatureView{}; // matched everything, clear active feature.
+    ctx._remainder.clear();
     return true;
   }
   return false;
@@ -267,7 +267,7 @@ protected:
 bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
-    ctx._active = active.remove_suffix(text.size());
+    ctx._remainder = active.remove_suffix(text.size());
     return true;
   }
   return false;
@@ -287,7 +287,7 @@ protected:
 bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with_nocase(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
-    ctx._active = active.remove_suffix(text.size());
+    ctx._remainder = active.remove_suffix(text.size());
     return true;
   }
   return false;
@@ -306,7 +306,7 @@ protected:
 bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.starts_with(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
-    ctx._active = active.remove_prefix(text.size());
+    ctx._remainder = active.remove_prefix(text.size());
     return true;
   }
   return false;
@@ -325,7 +325,7 @@ protected:
 bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.starts_with_nocase(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
-    active.remove_prefix(text.size());
+    ctx._remainder = active.remove_prefix(text.size());
     return true;
   }
   return false;
@@ -341,8 +341,9 @@ protected:
   friend super_type;
 };
 
-bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool Cmp_Contains::operator()(Context&, TextView const& text, TextView active) const {
   if (auto idx = active.find(text) ; idx != TextView::npos) {
+    #if 0
     if (ctx._update_remainder_p) {
       auto n = active.size() - text.size();
       auto span = ctx._arena->alloc(n).rebind<char>();
@@ -350,6 +351,7 @@ bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView activ
       memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
       ctx.set_literal_capture(span.view());
     }
+    #endif
     return true;
   }
   return false;
@@ -365,11 +367,12 @@ protected:
   friend super_type;
 };
 
-bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool Cmp_ContainsNC::operator()(Context&, TextView const& text, TextView active) const {
   if (text.size() <= active.size()) {
     auto spot = std::search(active.begin(), active.end(), text.begin(), text.end()
                             , [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
     if (spot != active.end()) {
+      #if 0
       if (ctx._update_remainder_p) {
         size_t idx = spot - active.begin();
         auto n = active.size() - text.size();
@@ -378,6 +381,7 @@ bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView act
         memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
         ctx.set_literal_capture(span.view());
       }
+      #endif
       return true;
     }
   }

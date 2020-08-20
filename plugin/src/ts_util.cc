@@ -458,7 +458,13 @@ bool ts::HttpResponse::status_set(TSHttpStatus status) const {
   return TS_SUCCESS == TSHttpHdrStatusSet(_buff, _loc, status);
 }
 
-bool ts::HttpHeader::reason_set(swoc::TextView reason) {
+TextView ts::HttpResponse::reason() const {
+  int length = 0;
+  char const * text = TSHttpHdrReasonGet(_buff, _loc, &length);
+  return length > 0 ? TextView{text, size_t(length) } : TextView{};
+}
+
+bool ts::HttpResponse::reason_set(swoc::TextView reason) {
   return this->is_valid() &&
          TS_SUCCESS == TSHttpHdrReasonSet(_buff, _loc, reason.data(), reason.size());
 }

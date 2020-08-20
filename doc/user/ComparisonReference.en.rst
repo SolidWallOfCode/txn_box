@@ -96,6 +96,9 @@ do **not** contain a string.
    Suffix string match. Successful if the value is a suffix of the feature.
 
 .. txb:comparison:: tld
+   :type: string
+   :tuple:
+   :groups: 0,*
 
    Top level domain matching. This is similar to :txb:cmp:`suffix` but has a special case for
    the "." separator for domains. It will match the exact feature, or as a suffix if there is

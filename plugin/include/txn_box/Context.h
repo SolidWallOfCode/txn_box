@@ -235,8 +235,8 @@ public:
 
   ts::HttpRequest ua_req_hdr(); ///< @return user agent (client) request.
   ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
-  ts::HttpHeader upstream_rsp_hdr(); ///< @return upstream request.
-  ts::HttpHeader proxy_rsp_hdr(); ///< @return proxy response.
+  ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
+  ts::HttpResponse proxy_rsp_hdr(); ///< @return proxy response.
 
   /** Store a transaction variable.
    *
@@ -331,8 +331,8 @@ protected:
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
   ts::HttpRequest _proxy_req; ///< Proxy request header.
-  ts::HttpHeader _upstream_rsp; ///< Upstream response header.
-  ts::HttpHeader _proxy_rsp; ///< Proxy response header.
+  ts::HttpResponse _upstream_rsp; ///< Upstream response header.
+  ts::HttpResponse _proxy_rsp; ///< Proxy response header.
 
   /// Base / Global configuration object.
   std::shared_ptr<Config> _cfg;

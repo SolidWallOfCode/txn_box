@@ -222,14 +222,14 @@ ts::HttpRequest Context::proxy_req_hdr() {
   return _proxy_req;
 }
 
-ts::HttpHeader Context::upstream_rsp_hdr() {
+ts::HttpResponse Context::upstream_rsp_hdr() {
   if (!_upstream_rsp.is_valid()) {
     _upstream_rsp = _txn.ursp_hdr();
   }
   return _upstream_rsp;
 }
 
-ts::HttpHeader Context::proxy_rsp_hdr() {
+ts::HttpResponse Context::proxy_rsp_hdr() {
   if (!_proxy_rsp.is_valid()) {
     _proxy_rsp = _txn.prsp_hdr();
   }

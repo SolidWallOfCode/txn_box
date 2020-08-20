@@ -302,13 +302,6 @@ public:
    * @return @a this.
    */
   self_type& field_remove(swoc::TextView name);
-
-  /** Set the reason field in the header.
-   *
-   * @param reason Reason string.
-   * @return @c true if success, @c false if not.
-   */
-  bool reason_set(swoc::TextView reason);
 };
 
 class HttpRequest : public HttpHeader {
@@ -375,8 +368,16 @@ public:
   /// Make super type constructors available.
   using super_type::super_type;
 
-  TSHttpStatus status() const { return TSHttpHdrStatusGet(_buff, _loc); }
+  TSHttpStatus status() const;
   bool status_set(TSHttpStatus status) const;
+
+  swoc::TextView reason() const;
+  /** Set the reason field in the header.
+   *
+   * @param reason Reason string.
+   * @return @c true if success, @c false if not.
+   */
+  bool reason_set(swoc::TextView reason);
 };
 
 /** Wrapper for a TS C API session.
@@ -594,6 +595,8 @@ inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc
 
 inline TxnConfigVar::TxnConfigVar(swoc::TextView const &name, TSOverridableConfigKey key
                            , TSRecordDataType type) : _name(name), _key(key), _ts_type(type) {}
+
+inline TSHttpStatus HttpResponse::status() const { return TSHttpHdrStatusGet(_buff, _loc); }
 
 inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 
