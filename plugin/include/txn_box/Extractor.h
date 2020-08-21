@@ -122,14 +122,19 @@ public:
    * @param name Extractor name.
    * @return A pointer to the extractor, @c nullptr if not found.
    */
-  static self_type* find(swoc::TextView const& name) {
-    auto spot { _ex_table.find(name)};
-    return spot == _ex_table.end() ? nullptr : spot->second;
-  }
+  static self_type* find(swoc::TextView const& name);
 
 protected:
-  /// Named extractors.
-  static Table _ex_table;
+  /** Defined extractors.
+   *
+   * A default constructed @c std::unique_ptr is guaranteed to be initialized before run time to a
+   * valid (empty) state. Therefore it is not dependent on translation unit linking order. The
+   * actual table is constructed on first use making that order independent as well.
+   */
+  static std::unique_ptr<Table> _ex_table;  /// Obtain the named extractor table.
+
+  /// Obtain the table, forcing construction if first use.
+  static Table* table();
 };
 
 /** Cross reference extractor.

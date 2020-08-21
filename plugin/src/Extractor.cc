@@ -22,11 +22,18 @@ using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
-Extractor::Table Extractor::_ex_table;
+std::unique_ptr<Extractor::Table> Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
+auto Extractor::table() -> Table* {
+  if (! _ex_table) {
+    _ex_table.reset(new Table);
+  }
+  return _ex_table.get();
+}
+
 Errata Extractor::define(TextView name, self_type * ex) {
-  _ex_table[name] = ex;
+  (*table())[name] = ex;
   return {};
 }
 
@@ -37,6 +44,11 @@ swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView con
 }
 
 Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
+
+Extractor::self_type *Extractor::find(TextView const& name) {
+  auto spot { _ex_table->find(name)};
+  return spot == _ex_table->end() ? nullptr : spot->second;
+}
 
 /* ---------------------------------------------------------------------------------------------- */
 auto FeatureGroup::Tracking::find(swoc::TextView const &name) const -> Tracking::Info * {
