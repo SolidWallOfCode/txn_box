@@ -110,7 +110,7 @@ each of which would be evaluated in order to select a paricular rule. When that 
 decided it would be better to a more "slicing" style for the configuration, where early decisions
 would preclude having to check other, no longer possible conditions. For instance, consider a
 comparison using series of regular expression such as ".*[.]example[.]one", ".*[.]example[.]two",
-etc. as the host. These must be compared, one by one, until a match is found. With |TxB| is possible
+etc. as the host. These must be compared, one by one, until a match is found. Do_with |TxB| is possible
 to first to a (fast) suffix check for "example.one". If there are multiple regular expressions for
 hosts in that domain, then those can as a group be checked or not depending on the suffix check,
 reducing the overal number of comparisons.
@@ -221,7 +221,7 @@ the field name is needed and so this remains on the concept box.
 Boolean Expressions
 ===================
 
-With the addition of the :code:`not` comparison and suport for implicit "or" in other comparison
+Do_with the addition of the :code:`not` comparison and suport for implicit "or" in other comparison
 operators such as :code:`match`, it is possible to implement the "NOR" operator, which in turn is
 sufficient to represent any boolean computation. Although this seems to make that somewhat obscure,
 in practice use of complex booleans expressions doesn't occur due to its difficulty in comprehension

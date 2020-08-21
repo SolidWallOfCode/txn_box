@@ -32,7 +32,9 @@ Errata Extractor::define(TextView name, self_type * ex) {
 
 bool Extractor::has_ctx_ref() const { return false; }
 
-swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView const&) { return ActiveType{STRING }; }
+swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView const&) {
+  return ActiveType{ NIL, STRING };
+}
 
 Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
 

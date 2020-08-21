@@ -46,7 +46,7 @@ PROJECT_NUMBER         = "0.2.14"
 
 PROJECT_BRIEF          = "Transaction tool box plugin for Traffic Server"
 
-# With the PROJECT_LOGO tag one can specify a logo or an icon that is included
+# Do_with the PROJECT_LOGO tag one can specify a logo or an icon that is included
 # in the documentation. The maximum height of the logo should not exceed 55
 # pixels and the maximum width should not exceed 200 pixels. Doxygen will copy
 # the logo to the output directory.
@@ -275,7 +275,7 @@ OPTIMIZE_FOR_FORTRAN   = NO
 OPTIMIZE_OUTPUT_VHDL   = NO
 
 # Doxygen selects the parser to use depending on the extension of the files it
-# parses. With this tag you can assign which parser to use for a given
+# parses. Do_with this tag you can assign which parser to use for a given
 # extension. Doxygen has a built-in mapping, but you can override or extend it
 # using this tag. The format is ext=language, where ext is a file extension, and
 # language is one of the parsers supported by doxygen: IDL, Java, Javascript,
@@ -1197,7 +1197,7 @@ HTML_TIMESTAMP         = NO
 
 HTML_DYNAMIC_SECTIONS  = NO
 
-# With HTML_INDEX_NUM_ENTRIES one can control the preferred number of entries
+# Do_with HTML_INDEX_NUM_ENTRIES one can control the preferred number of entries
 # shown in the various tree structured indices initially; the user can expand
 # and collapse entries dynamically later on. Doxygen will expand the tree to
 # such a level that at most the specified number of entries are visible (unless
@@ -1577,7 +1577,7 @@ EXTERNAL_SEARCH        = NO
 SEARCHENGINE_URL       =
 
 # When SERVER_BASED_SEARCH and EXTERNAL_SEARCH are both enabled the unindexed
-# search data is written to a file for indexing by an external tool. With the
+# search data is written to a file for indexing by an external tool. Do_with the
 # SEARCHDATA_FILE tag the name of this file can be specified.
 # The default file is: searchdata.xml.
 # This tag requires that the tag SEARCHENGINE is set to YES.
