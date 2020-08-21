@@ -141,6 +141,12 @@ meta:
       - match: "3"
         do:
         - ua-req-field<Host-Check>: ua-req-host
+      - prefix: "21"
+        do:
+        - ua-req-field<z-from>: "From: '{remap-target-url}'"
+        - when: proxy-req
+          do:
+          - proxy-req-field<z-pristine>: "Pre: '{pre-remap-url}'"
       - rxp: "^rxp/([^-]+)-key(?:/(.*))?"
         do:
         - ua-req-field<rxp-tag>: "Tag is '{1}' with trailer '{2}'"
@@ -219,7 +225,7 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ Host-Check, "remap.ex", "equal" ]
+        - [ Host-Check, "remapped.ex", "equal" ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -539,3 +545,20 @@ sessions:
         fields:
         - [ "very", "accepT", equal ]
 
+  - all: { headers: { fields: [[ uuid, 21]]}}
+    client-request:
+      <<: *base-req
+      url: "/21"
+      headers:
+        fields:
+        - [ Host, remap.ex ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ "z-from", "From: 'http://remap.ex/'", equal ]
+        - [ "z-pristine", "Pre: 'http://remap.ex/21'", equal ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200

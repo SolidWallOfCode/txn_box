@@ -130,16 +130,6 @@ public:
 protected:
   /// Named extractors.
   static Table _ex_table;
-
-  /** Update the extractor in a @a spec.
-   *
-   * @param cfg Configuration instance.
-   * @param spec Specifier to parse / update.
-   * @return Errors, if any.
-   *
-   * This updates the extractor for a just parsed specifier.
-   */
-  static swoc::Errata update_extractor(Config & cfg, Spec & spec);
 };
 
 /** Cross reference extractor.
