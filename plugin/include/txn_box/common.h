@@ -61,12 +61,19 @@ public:
   using super_type::super_type; ///< Import constructors.
   using super_type::operator=; ///< Import assignment.
 
-  /** Return a literal full.
+  /** Return a literal feature view.
    *
    * @param view Text of the literal.
    * @return A @c FeatureView marked as a literal.
    */
-  static self_type Literal(TextView view);
+  static self_type Literal(TextView const& view);
+
+  /** Create a direct feature view.
+   *
+   * @param view Base view.
+   * @return A @c FeatureView for @a view that is direct.
+   */
+  static self_type Direct(TextView const& view);
 };
 
 /// YAML tag type for literal (no feature extraction).
@@ -570,12 +577,17 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
 
-/** Create a feature that is a literal string of @a full.
- *
- * @param view Soure string.
- * @return A literal feature that is the same as @a full.
- */
-inline FeatureView FeatureView::Literal(TextView view) { self_type zret { view }; zret._literal_p = true; return zret; }
+inline FeatureView FeatureView::Literal(TextView const& view) {
+  self_type zret { view };
+  zret._literal_p = true;
+  return zret;
+}
+
+inline FeatureView FeatureView::Direct(TextView const& view) {
+  self_type zret { view };
+  zret._direct_p = true;
+  return zret;
+}
 
 /// Conversion enumeration for checking boolean strings.
 enum BoolTag {

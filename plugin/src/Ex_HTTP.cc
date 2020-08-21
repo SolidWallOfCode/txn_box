@@ -487,10 +487,7 @@ public:
 Feature Ex_ua_req_path::extract(Context &ctx, Spec const&) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
-      FeatureView zret;
-      zret._direct_p = true;
-      zret = url.path();
-      return zret;
+      return FeatureView::Direct(url.path());
     }
   }
   return NIL_FEATURE;
@@ -509,12 +506,10 @@ public:
 };
 
 Feature Ex_pre_remap_path::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
-    zret = url.path();
+    return FeatureView::Direct(url.path());
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_pre_remap_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -530,14 +525,15 @@ public:
 };
 
 Feature Ex_remap_target_path::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( ctx._remap_info ) {
     if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
+      FeatureView zret;
+      zret._direct_p = true;
       zret = url.path();
+      return zret;
     }
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_remap_target_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
