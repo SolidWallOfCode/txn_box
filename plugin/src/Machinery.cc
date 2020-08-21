@@ -2192,9 +2192,9 @@ Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node, swoc::TextView const
  *
  * This is a core directive that has lots of special properties.
  */
-class With : public Directive {
+class Do_with : public Directive {
   using super_type = Directive;
-  using self_type = With;
+  using self_type = Do_with;
 public:
   static const std::string KEY;
   static const std::string SELECT_KEY;
@@ -2225,19 +2225,19 @@ protected:
   using CaseGroup = std::vector<Case>;
   CaseGroup _cases; ///< List of cases for the select.
 
-  With() = default;
+  Do_with() = default;
 
   Errata load_case(Config & cfg, YAML::Node node);
 };
 
-const std::string With::KEY { "with" };
-const std::string With::SELECT_KEY { "select" };
-const std::string With::FOR_EACH_KEY { "for-each" };
-const std::string With::CONTINUE_KEY { "continue" };
+const std::string Do_with::KEY {"with" };
+const std::string Do_with::SELECT_KEY {"select" };
+const std::string Do_with::FOR_EACH_KEY {"for-each" };
+const std::string Do_with::CONTINUE_KEY {"continue" };
 
-const HookMask With::HOOKS  { MaskFor({Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+const HookMask Do_with::HOOKS  {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
-Errata With::invoke(Context &ctx) {
+Errata Do_with::invoke(Context &ctx) {
   Feature feature { ctx.extract(_expr) };
   ctx.commit(feature);
   Feature save { ctx._active };
@@ -2281,7 +2281,7 @@ Errata With::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+swoc::Rv<Directive::Handle> Do_with::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   // Need to parse this first, so the feature type can be determined.
   auto && [ expr, errata ] = cfg.parse_expr(key_value);
 
@@ -2345,7 +2345,7 @@ swoc::Rv<Directive::Handle> With::load(Config& cfg, YAML::Node drtv_node, swoc::
   return handle;
 }
 
-Errata With::load_case(Config & cfg, YAML::Node node) {
+Errata Do_with::load_case(Config & cfg, YAML::Node node) {
   if (node.IsMap()) {
     Case c;
     YAML::Node do_node { node[DO_KEY]};
@@ -2425,7 +2425,7 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, swoc::
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Config::define(When::KEY, When::HOOKS, When::load);
-  Config::define(With::KEY, With::HOOKS, With::load);
+  Config::define(Do_with::KEY, Do_with::HOOKS, Do_with::load);
 
   Config::define(Do_ua_req_field::KEY, Do_ua_req_field::HOOKS, Do_ua_req_field::load);
   Config::define<Do_ua_req_host>();

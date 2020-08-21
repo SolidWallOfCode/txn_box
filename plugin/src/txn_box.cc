@@ -35,7 +35,8 @@ const std::string Config::REMAP_ROOT_KEY { "." };
 
 Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
   static const std::map<TSEvent, Hook> table{
-      {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
+      { TS_EVENT_HTTP_TXN_START, Hook::TXN_START}
+      , {TS_EVENT_HTTP_READ_REQUEST_HDR,  Hook::CREQ}
       , {TS_EVENT_HTTP_SEND_REQUEST_HDR,  Hook::PREQ}
       , {TS_EVENT_HTTP_READ_RESPONSE_HDR, Hook::URSP}
       , {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP}

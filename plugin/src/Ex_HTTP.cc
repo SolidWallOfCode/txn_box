@@ -30,17 +30,18 @@ class Ex_ua_req_method : public Extractor {
 public:
   static constexpr TextView NAME { "ua-req-method" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec)  override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_method::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    FeatureView zret;
+    zret._direct_p = true;
     zret = hdr.method();
+    return zret;
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_ua_req_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -51,17 +52,18 @@ class Ex_proxy_req_method : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-method" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec)  override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_method::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    FeatureView zret;
+    zret._direct_p = true;
     zret = hdr.method();
+    return zret;
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_proxy_req_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -73,19 +75,35 @@ BufferWriter& Ex_proxy_req_method::format(BufferWriter &w, Spec const &spec, Con
  * obtained here is transient. To avoid problems, the base class copies it into context
  * storage.
  */
-class Ex_ua_req_url : public StringExtractor {
+class Ex_ua_req_url : public Extractor {
 public:
   static constexpr TextView NAME { "ua-req-url" };
 
+  Feature extract(Context & ctx, Spec const& spec)  override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+  ts::URL url(Context& ctx);
 };
 
-BufferWriter& Ex_ua_req_url::format(BufferWriter &w, Spec const &, Context &ctx) {
-  FeatureView zret;
+ts::URL Ex_ua_req_url::url(Context& ctx) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
-      url.write_full(w);
-    }
+    return hdr.url();
+  }
+  return {};
+}
+
+Feature Ex_ua_req_url::extract(Context& ctx, const Spec&) {
+  swoc::ArenaWriter w{*ctx._arena};
+  if ( auto url { this->url(ctx) } ; url.is_valid()) {
+    url.write_full(w);
+    return w.view();
+  }
+  return NIL_FEATURE;
+}
+
+BufferWriter& Ex_ua_req_url::format(BufferWriter &w, Spec const &, Context &ctx) {
+  if ( auto url { this->url(ctx) } ; url.is_valid()) {
+    url.write_full(w);
   }
   return w;
 }
@@ -467,14 +485,15 @@ public:
 };
 
 Feature Ex_ua_req_path::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      FeatureView zret;
+      zret._direct_p = true;
       zret = url.path();
+      return zret;
     }
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_ua_req_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -1002,7 +1021,7 @@ ts::HttpHeader Ex_upstream_rsp_field::hdr(Context & ctx) const {
   return ctx.upstream_rsp_hdr();
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_upstream_rsp_status : public IntegerExtractor {
+class Ex_upstream_rsp_status : public Extractor {
 public:
   static constexpr TextView NAME { "upstream-rsp-status" };
 
@@ -1037,7 +1056,7 @@ BufferWriter& Ex_upstream_rsp_status_reason::format(BufferWriter &w, Spec const 
   return bwformat(w, spec, ctx._txn.ursp_hdr().reason());
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_proxy_rsp_status : public IntegerExtractor {
+class Ex_proxy_rsp_status : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-rsp-status" };
 

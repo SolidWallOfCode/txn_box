@@ -99,6 +99,7 @@ Upstream Response  read-response  upstream-rsp READ_RESPONSE_HDR_HOOK
 Proxy Response     send-response  proxy-rsp    SEND_RESPONSE_HDR_HOOK
 Pre remap          pre-remap                   PRE_REMAP_HOOK
 Post remap         post-remap                  POST_REMAP_HOOK
+Transaction Open   txn-open                    TXN_START
 Load time          post-load
 ================== =============  ============ ========================
 
@@ -116,3 +117,8 @@ For a remap plugin, the directives are wrapped in a notional code:`when: remap` 
 explicit :code:`when` directive is needed and all top level directives are performed during remap.
 If :code:`when` is used the :code:`when` is exectued during remap, scheduling the contained
 directives for the future hook on that transaction.
+
+The ``post-load`` hook is invoked immediately after the configuration is loaded and parsed.
+Directives on this hook may return errors which prevents the configuration from successfully
+loading. It is used to create resources that persist for the entire time the configuration is in
+use.

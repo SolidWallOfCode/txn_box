@@ -55,8 +55,8 @@ public:
    * @param arg Argument for the extractor.
    * @return The value type for @a spec and @a arg.
    *
-   * The base implementation returns successfully as a @c STRING. If the extractor returns some other
-   * type or needs to actually validate @a spec, it must override this method.
+   * The base implementation returns successfully as a @c STRING or @c NULL. If the extractor
+   * returns some other type or needs to actually validate @a spec, it must override this method.
    */
   virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg);
 
@@ -164,35 +164,12 @@ protected:
 
 extern Ex_this ex_this;
 
-/** A string expressed as a full.
- * The feature is extracted to transient memory.
+/** A string.
+ * The feature is extracted to transient memory. The subclass needs to provide only the @c format
+ * method, this @c extract will use that to return a string.
  */
 class StringExtractor : public Extractor {
 public:
-  virtual ValueType result_type() const;
   Feature extract(Context& ctx, Spec const& spec) override;
 };
-
-inline auto StringExtractor::result_type() const -> ValueType { return STRING; }
-
-/// @deprecated - feature / value type is returned via @c validate now.
-class IntegerExtractor : public Extractor {
-public:
-  /// Type of extracted feature.
-  ValueType result_type() const;
-};
-
-inline auto IntegerExtractor::result_type() const -> ValueType { return INTEGER; }
-
-/// @deprecated - feature / value type is returned via @c validate now.
-class BooleanExtractor : public Extractor {
-public:
-  /// C++ type of extracted feature.
-  using ExType = std::variant_alternative_t<IndexFor(BOOLEAN), Feature::variant_type>;
-
-  /// Type of extracted feature.
-  ValueType result_type() const;
-};
-
-inline auto BooleanExtractor::result_type() const -> ValueType { return BOOLEAN; }
 

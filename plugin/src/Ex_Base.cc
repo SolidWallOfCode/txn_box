@@ -52,10 +52,12 @@ BufferWriter& Ex_var::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_is_internal : public BooleanExtractor {
+class Ex_is_internal : public Extractor {
 public:
   static constexpr TextView NAME { "is-internal" }; ///< Extractor name.
 
+  /// Check argument and indicate possible feature types.
+  Rv<ActiveType> validate(Config &, Spec &, swoc::TextView const&) override { return ActiveType{BOOLEAN}; }
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Spec const& spec) override;
 
@@ -98,7 +100,7 @@ public:
 };
 
 Rv<ActiveType> Ex_inbound_remote_remote::validate(Config &, Extractor::Spec &, TextView const &) {
-  return { IP_ADDR };
+  return ActiveType{ NIL, IP_ADDR };
 }
 
 Feature Ex_inbound_remote_remote::extract(Context & ctx, Spec const& ) {

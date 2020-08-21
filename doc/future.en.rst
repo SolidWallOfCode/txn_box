@@ -180,7 +180,7 @@ here may be a bit tricky but it should be possible to distinguish tuples from mo
      *  For error reporting, if the second element is an object then it is treated as a modified feature.
         Otherwise, it is treated as a tuple. If the first element is an object, it's a malformed value.
 
-With a list feature, the matching is done across elements of the list. This can be done in an iterative
+Do_with a list feature, the matching is done across elements of the list. This can be done in an iterative
 style where a comparison is made against each element in the list, or tuple style where there is a
 different comparison for each element in the list.
 
@@ -258,7 +258,7 @@ Issues
    was an "apply" directive which loaded the :code:`with` context, e.g. regular expression groups
    and :code:`...` without even trying to do matches.e43se
 
-*  With support for :code:`do` in each comparison, this may be of more limited utility. But that
+*  Do_with support for :code:`do` in each comparison, this may be of more limited utility. But that
    would be verbose to (for instance) do something for every tuple with a specific first element
    if there are multiple cases that match with that element.
 
