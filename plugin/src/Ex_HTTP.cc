@@ -376,18 +376,16 @@ public:
 };
 
 Feature Ex_ua_req_host::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    zret = hdr.host();
+    return FeatureView::Direct(hdr.host());
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_ua_req_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-
+// ----
 class Ex_proxy_req_host : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-host" };
@@ -397,18 +395,16 @@ public:
 };
 
 Feature Ex_proxy_req_host::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    zret = hdr.host();
+    return FeatureView::Direct(hdr.host());
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_proxy_req_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-
+// ----
 class Ex_pre_remap_host : public Extractor {
 public:
   static constexpr TextView NAME { "pre-remap-host" };
@@ -418,18 +414,16 @@ public:
 };
 
 Feature Ex_pre_remap_host::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
-    zret = url.host();
+    return FeatureView::Direct(url.host());
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_pre_remap_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-
+// ----
 class Ex_remap_target_host : public Extractor {
 public:
   static constexpr TextView NAME { "remap-target-host" };
@@ -439,20 +433,18 @@ public:
 };
 
 Feature Ex_remap_target_host::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
   if ( ctx._remap_info ) {
-    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl } ; url.is_valid()) {
-      zret = url.host();
+    if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl}; url.is_valid()) {
+      return FeatureView::Direct(url.host());
     }
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_remap_target_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-
+// ----
 class Ex_remap_replacement_host : public Extractor {
 public:
   static constexpr TextView NAME { "remap-replacement-host" };
@@ -462,20 +454,17 @@ public:
 };
 
 Feature Ex_remap_replacement_host::extract(Context &ctx, Spec const&) {
-  FeatureView zret;
-  zret._direct_p = true;
-  if ( ctx._remap_info ) {
-    if (ts::URL url { ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl } ; url.is_valid()) {
-      zret = url.host();
+  if (ctx._remap_info) {
+    if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl}; url.is_valid()) {
+      return FeatureView::Direct(url.host());
     }
   }
-  return zret;
+  return NIL_FEATURE;
 }
 
 BufferWriter& Ex_remap_replacement_host::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
-
 /* ------------------------------------------------------------------------------------ */
 /// Destination IP port.
 class Ex_ua_req_port : public Extractor {
