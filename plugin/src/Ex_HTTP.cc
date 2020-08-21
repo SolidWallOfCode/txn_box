@@ -20,6 +20,7 @@
 
 using swoc::TextView;
 using swoc::BufferWriter;
+using swoc::ArenaWriter;
 using swoc::Errata;
 using swoc::Rv;
 namespace bwf = swoc::bwf;
@@ -292,8 +293,8 @@ class Ex_proxy_req_scheme : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-scheme" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
@@ -313,13 +314,24 @@ BufferWriter& Ex_proxy_req_scheme::format(BufferWriter &w, Spec const &spec, Con
 
 /* ------------------------------------------------------------------------------------ */
 /// The network location in the URL.
-class Ex_ua_req_loc : public StringExtractor {
+class Ex_ua_req_loc : public Extractor {
   using self_type = Ex_ua_req_loc;
   using super_type = StringExtractor;
 public:
   static constexpr TextView NAME { "ua-req-loc" };
+
+  Feature extract(Context & ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
+
+Feature Ex_ua_req_loc::extract(Context& ctx, const Spec&) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    ArenaWriter w{*ctx._arena};
+    hdr.write_loc(w);
+    return w.view();
+  }
+  return NIL_FEATURE;
+}
 
 BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, Spec const &, Context &ctx) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
@@ -328,13 +340,24 @@ BufferWriter& Ex_ua_req_loc::format(BufferWriter &w, Spec const &, Context &ctx)
   return w;
 }
 // ----
-class Ex_proxy_req_loc : public StringExtractor {
+class Ex_proxy_req_loc : public Extractor {
   using self_type = Ex_proxy_req_loc;
   using super_type = StringExtractor;
 public:
   static constexpr TextView NAME { "proxy-req-loc" };
+
+  Feature extract(Context & ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
+
+Feature Ex_proxy_req_loc::extract(Context& ctx, const Spec&) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    ArenaWriter w{*ctx._arena};
+    hdr.write_loc(w);
+    return w.view();
+  }
+  return NIL_FEATURE;
+}
 
 BufferWriter& Ex_proxy_req_loc::format(BufferWriter &w, Spec const &, Context &ctx) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
