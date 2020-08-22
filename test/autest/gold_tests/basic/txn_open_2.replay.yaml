@@ -6,6 +6,7 @@ meta:
     global:
     - when: txn-open
       do:
+      - debug: [ "txn_box" , "Checking '{ua-req-scheme}' for '{ua-req-host}'" ]
       - with: ua-req-path
         select:
         - is-empty:
@@ -14,6 +15,8 @@ meta:
 
     - when: proxy-req
       do:
+      - debug: [ "txn_box" , "UA {ua-req-method}: '{ua-req-scheme}' for '{ua-req-host}'" ]
+      - debug: [ "txn_box" , "PROXY {proxy-req-method}: '{proxy-req-scheme}' for '{proxy-req-host}'" ]
       - proxy-req-field<Test>: "NATO = {txn-conf<proxy.config.http.transaction_no_activity_timeout_out>}"
 
   blocks:
