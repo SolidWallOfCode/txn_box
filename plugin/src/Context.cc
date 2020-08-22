@@ -6,6 +6,7 @@
 */
 
 #include <swoc/MemSpan.h>
+#include <swoc/ArenaWriter.h>
 
 #include "txn_box/Context.h"
 #include "txn_box/Config.h"
@@ -17,6 +18,7 @@ using swoc::MemSpan;
 using swoc::Errata;
 using swoc::BufferWriter;
 using swoc::FixedBufferWriter;
+using swoc::ArenaWriter;
 using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
@@ -179,7 +181,43 @@ Feature Context::extract(Expr const &expr) {
   return value;
 }
 
-Context& Context::commit(Feature &feature) {
+FeatureView Context::extract_view(const Expr& expr, std::initializer_list<ViewOption> opts) {
+  FeatureView zret;
+
+  bool commit_p = false;
+  bool cstr_p = false;
+  for ( auto opt : opts ) {
+    switch (opt) {
+      case EX_COMMIT: commit_p = true; break;
+      case EX_C_STR: cstr_p = true; break;
+    }
+  }
+
+  auto f = this->extract(expr);
+  if (IndexFor(STRING) == f.index()) {
+    zret = std::get<IndexFor(STRING)>(f);
+    if (cstr_p && ! zret._cstr_p) {
+
+    }
+  } else {
+    ArenaWriter w{*_arena};
+    if (cstr_p) {
+      w.print("{}\0", f);
+      zret = TextView{w.view()}.remove_suffix(1);
+      zret._cstr_p = true;
+    } else {
+      w.print("{}", f);
+      zret = w.view();
+    }
+  }
+  if (commit_p && ! zret._literal_p && ! zret._direct_p) {
+    _arena->alloc(zret.size() + (zret._cstr_p ? 1 : 0));
+    zret._literal_p = true;
+  }
+  return zret;
+}
+
+Feature& Context::commit(Feature &feature) {
   if (auto fv = std::get_if<STRING>(&feature) ; fv != nullptr) {
     if (fv->_literal_p) {
       // nothing
@@ -194,7 +232,7 @@ Context& Context::commit(Feature &feature) {
       fv->_literal_p = true;
     }
   }
-  return *this;
+  return feature;
 }
 
 swoc::MemSpan<void> Context::storage_for(Directive const * drtv) {

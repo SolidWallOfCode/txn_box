@@ -11,6 +11,7 @@ Test transaction start hook.
 '''
 
 tr = Test.TxnBoxTestAndRun("Test txn_open 2", "txn_open_2.replay.yaml", config_path='Auto', config_key="meta.txn_box.global"
+                           , remap = [[ "http://one.ex" ]]
                 )
 
 ts = tr.Variables.TS

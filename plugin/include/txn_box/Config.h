@@ -24,13 +24,6 @@
 using TSCont = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;
 
-/// Result from looking at node structure for a value node.
-enum class FeatureNodeStyle {
-  INVALID, ///< The nodes are not structured as a valie feature.
-  SINGLE, ///< Structure is suitable for a single feature.
-  TUPLE, ///< Structure is suitable for a list of features.
-};
-
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
 class Config {
@@ -194,16 +187,6 @@ public:
    */
   swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node);
 
-  /** Check the node structure of a value.
-   *
-   * @param value Value node to check.
-   * @return The type of feature represented by @a value.
-   *
-   * Primarily this checks @a value to see if it's a valid feature, and whether it's single or
-   * multiple.
-   */
-  FeatureNodeStyle feature_node_style(YAML::Node value);
-
   /** Parse a feature expression.
    *
    * @param fmt_node The node with the expression.
@@ -217,6 +200,11 @@ public:
    */
   swoc::Rv<Expr> parse_expr(YAML::Node fmt_node);
 
+  enum LocalOpt {
+    LOCAL_VIEW, ///< Localize as view.
+    LOCAL_CSTR ///< Localize as C string.
+  };
+
   /** Copy @a text to local storage in this instance.
    *
    * @param text Text to copy.
@@ -225,8 +213,8 @@ public:
    * Strings in the YAML configuration are transient. If the content needs to be available at
    * run time it must be first localized.
    */
-  std::string_view& localize(std::string_view & text);
-  swoc::TextView localize(std::string_view const& text) { swoc::TextView tv { text }; return this->localize(tv); }
+  std::string_view& localize(std::string_view & text, LocalOpt opt = LOCAL_VIEW);
+  swoc::TextView localize(std::string_view const& text, LocalOpt opt = LOCAL_VIEW) { swoc::TextView tv { text }; return this->localize(tv, opt); }
 
   self_type& localize(Feature & feature);
 
