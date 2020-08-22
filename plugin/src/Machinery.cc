@@ -1814,17 +1814,9 @@ const HookMask Do_debug::HOOKS {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook:
 Do_debug::Do_debug(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 
 Errata Do_debug::invoke(Context &ctx) {
-  TextView tag = std::get<IndexFor(STRING)>(ctx.extract(_tag));
-  auto msg = ctx.extract(_msg);
-  TextView view;
-  if (msg.index() == IndexFor(STRING)) {
-    view = std::get<IndexFor(STRING)>(msg);
-  } else {
-    swoc::ArenaWriter w(*(ctx._arena));
-    w.print("{}", msg);
-    view = w.view();
-  }
-  TSDebug(tag.data(), "%.*s", static_cast<int>(view.size()), view.data());
+  TextView tag = ctx.extract_view(_tag, { Context::EX_COMMIT, Context::EX_C_STR});
+  TextView msg = ctx.extract_view(_msg);
+  TSDebug(tag.data(), "%.*s", static_cast<int>(msg.size()), msg.data());
   return {};
 }
 
