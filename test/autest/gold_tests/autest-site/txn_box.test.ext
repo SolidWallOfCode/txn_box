@@ -85,7 +85,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             # Parse the replacement URL and change just the port.
             url = urlparse(map_to)
             url = url._replace(netloc='{}:{}'.format(url.hostname, self.Variables.TXNBOX_SERVER.Variables.http_port))
-            line = 'regex_map {} {} '.format(map_from, url.geturl())
+            line = 'map {} {} '.format(map_from, url.geturl())
             if pparams:
                 line += '@plugin=txn_box.so '
                 for pparam in pparams:

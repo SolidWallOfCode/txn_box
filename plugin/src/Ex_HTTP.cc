@@ -210,13 +210,13 @@ class Ex_ua_req_scheme : public Extractor {
 public:
   static constexpr TextView NAME { "ua-req-scheme" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_scheme::extract(Context &ctx, Spec const&) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+    if ( auto url { hdr.url() } ; url.is_valid()) {
       return FeatureView::Direct(url.scheme());
     }
   }
@@ -300,7 +300,7 @@ public:
 Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
   FeatureView zret;
   zret._direct_p = true;
-  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       return FeatureView::Direct(url.scheme());
     }
@@ -1192,7 +1192,7 @@ Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_method);
   Extractor::define(Ex_proxy_req_method::NAME, &proxy_req_method);
 
-  Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_method);
+  Extractor::define(Ex_ua_req_scheme::NAME, &ua_req_scheme);
   Extractor::define(Ex_pre_remap_scheme::NAME, &pre_remap_scheme);
   Extractor::define(Ex_remap_replacement_scheme::NAME, &remap_replacement_scheme);
   Extractor::define(Ex_remap_target_scheme::NAME, &remap_target_scheme);

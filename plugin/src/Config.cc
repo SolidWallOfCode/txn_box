@@ -144,23 +144,21 @@ Config::self_type &Config::localize(Feature &feature) {
   return *this;
 }
 
-std::string_view & Config::localize(std::string_view & text) {
-  auto span { _arena.alloc(text.size()).rebind<char>() };
-  memcpy(span, text);
-  return text = span.view();
-};
-
-FeatureNodeStyle Config::feature_node_style(YAML::Node value) {
-  if (value.IsScalar()) {
-    return FeatureNodeStyle::SINGLE;
-  }
-  if (value.IsSequence()) {
-    if (value.size() == 0) {
-      return FeatureNodeStyle::SINGLE;
+std::string_view & Config::localize(std::string_view & text, LocalOpt opt) {
+  if (text.size()) {
+    if (LOCAL_CSTR == opt) {
+      auto span{_arena.alloc(text.size() + 1).rebind<char>()};
+      memcpy(span, text);
+      span[text.size()] = 0;
+      text = span.subspan(0, text.size()).view();
+    } else {
+      auto span{_arena.alloc(text.size() ).rebind<char>()};
+      memcpy(span, text);
+      text = span.view();
     }
   }
-  return FeatureNodeStyle::INVALID;
-}
+  return text;
+};
 
 Rv<ActiveType> Config::validate(Extractor::Spec &spec) {
   if (spec._name.empty()) {
@@ -249,7 +247,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     bool spec_p = parser(literal, spec);
 
     if (!literal.empty()) {
-      literal_spec._ext = this->localize(literal);
+      literal_spec._ext = this->localize(literal, LOCAL_CSTR);
       specs.push_back(literal_spec);
     }
 
@@ -274,7 +272,10 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     if (specs[0]._exf) {
       return Expr{specs[0], single_vt};
     } else if (specs[0]._type == Extractor::Spec::LITERAL_TYPE) {
-      return Expr{FeatureView(this->localize(specs[0]._ext))};
+      FeatureView f { specs[0]._ext };
+      f._literal_p = true;
+      f._cstr_p = true;
+      return Expr{f};
     } else {
       return Error("Internal consistency error - specifier is neither an extractor nor a literal.");
     }

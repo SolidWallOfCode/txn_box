@@ -57,6 +57,7 @@ class FeatureView : public swoc::TextView {
 public:
   bool _direct_p = false; ///< String is in externally controlled memory.
   bool _literal_p = false; ///< String is in transaction static memory.
+  bool _cstr_p = false; ///< There is a null char immediately after the view.
 
   using super_type::super_type; ///< Import constructors.
   using super_type::operator=; ///< Import assignment.

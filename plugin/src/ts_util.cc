@@ -683,7 +683,7 @@ TaskHandle PerformAsTask(std::function<void ()> &&task) {
 
 TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::milliseconds period) {
   // The lambda runs under lock for the continuation mutex, therefore it can cancel as needed.
-  // External cancel tries the lock - if that happens it can cancel and prevent the lambda
+  // External cancel tries the lock - if that succeeds it can cancel and prevent the lambda
   // entirely. Otherwise it atomically sets @a _active to @c false.
   static auto lambda = [](TSCont contp, TSEvent, void *event) -> int {
     auto data = static_cast<TaskHandle::Data*>(TSContDataGet(contp));

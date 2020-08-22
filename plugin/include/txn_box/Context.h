@@ -94,10 +94,17 @@ public:
    */
   Feature extract(Expr const& expr);
 
+  enum ViewOption {
+    EX_COMMIT, ///< Force transient to be committed
+    EX_C_STR ///< Force C-string (null terminated)
+  };
+
+  FeatureView extract_view(Expr const& expr, std::initializer_list<ViewOption> opts = {});
+
   /** Commit a feature.
    *
    * @param feature Feature to commit.
-   * @return @a this
+   * @return @a feature (after possible modification)
    *
    * This causes the feature data in @a feature to be committed such that it will no longer be
    * overwritten by future feature extractions. This @b must be called on the most recently
@@ -105,7 +112,7 @@ public:
    *
    * @see extract
    */
-  self_type& commit(Feature & feature);
+  Feature& commit(Feature & feature);
 
   /** Allocate context (txn scoped) space for an array of @a T.
    *

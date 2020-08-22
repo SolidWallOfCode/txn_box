@@ -1791,8 +1791,8 @@ Errata Do_redirect::type_init(Config &cfg) {
 }
 /* ------------------------------------------------------------------------------------ */
 /// Send a debug message.
-class Do_debug_msg : public Directive {
-  using self_type = Do_debug_msg;
+class Do_debug : public Directive {
+  using self_type = Do_debug;
   using super_type = Directive;
 public:
   static const std::string KEY;
@@ -1805,24 +1805,30 @@ protected:
   Expr _tag;
   Expr _msg;
 
-  Do_debug_msg(Expr && tag, Expr && msg);
+  Do_debug(Expr && tag, Expr && msg);
 };
 
-const std::string Do_debug_msg::KEY { "debug" };
-const HookMask Do_debug_msg::HOOKS { MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+const std::string Do_debug::KEY {"debug" };
+const HookMask Do_debug::HOOKS {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
 
-Do_debug_msg::Do_debug_msg(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
+Do_debug::Do_debug(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 
-Errata Do_debug_msg::invoke(Context &ctx) {
+Errata Do_debug::invoke(Context &ctx) {
   TextView tag = std::get<IndexFor(STRING)>(ctx.extract(_tag));
   auto msg = ctx.extract(_msg);
-  swoc::ArenaWriter w(*(ctx._arena));
-  w.print("{}", msg);
-  TSDebug(tag.data(), "%.*s", static_cast<int>(w.view().size()), w.view().data());
+  TextView view;
+  if (msg.index() == IndexFor(STRING)) {
+    view = std::get<IndexFor(STRING)>(msg);
+  } else {
+    swoc::ArenaWriter w(*(ctx._arena));
+    w.print("{}", msg);
+    view = w.view();
+  }
+  TSDebug(tag.data(), "%.*s", static_cast<int>(view.size()), view.data());
   return {};
 }
 
-Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle> Do_debug::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   if (key_value.IsScalar()) {
     auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value);
     if (! msg_errata.is_ok()) {
@@ -1836,17 +1842,17 @@ Rv<Directive::Handle> Do_debug_msg::load(Config& cfg, YAML::Node drtv_node, swoc
     } else if (key_value.size() < 1) {
       return Error(R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY, key_value.Mark());
     }
-    auto && [ tag_fmt, tag_errata ] = cfg.parse_expr(key_value[0]);
+    auto && [ tag_expr, tag_errata ] = cfg.parse_expr(key_value[0]);
     if (!tag_errata.is_ok()) {
       tag_errata.info(R"(While parsing tag at {} for "{}" directive at {}.)", key_value[0].Mark(), KEY, drtv_node.Mark());
-      return { {}, std::move(tag_errata) };
+      return std::move(tag_errata);
     }
-    auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value[1]);
+    auto && [ msg_expr, msg_errata ] = cfg.parse_expr(key_value[1]);
     if (!tag_errata.is_ok()) {
       tag_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value[1].Mark(), KEY, drtv_node.Mark());
-      return { {}, std::move(tag_errata) };
+      return std::move(tag_errata);
     }
-    return { Handle(new self_type(std::move(tag_fmt), std::move(msg_fmt))), {} };
+    return Handle(new self_type(std::move(tag_expr), std::move(msg_expr)));
   }
   return Error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_value.Mark());
 }
@@ -2463,7 +2469,7 @@ namespace {
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
   Config::define<Do_redirect>();
-  Config::define(Do_debug_msg::KEY, Do_debug_msg::HOOKS, Do_debug_msg::load);
+  Config::define<Do_debug>();
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
   return true;
 } ();
