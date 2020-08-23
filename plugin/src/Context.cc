@@ -138,6 +138,7 @@ Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
   }
   this->invoke_callbacks(); // Any accumulated callbacks.
 
+  // Revert from remap style invocation.
   _cur_hook = Hook::INVALID;
   _remap_info = nullptr;
 
@@ -149,17 +150,9 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
 }
 
 Feature Expr::bwf_visitor::operator()(const Composite &comp) {
-  FixedBufferWriter w{_ctx._arena->remnant()};
-  // double write - try in the remnant first. If that suffices, done.
-  // Otherwise the size is now known and the needed space can be correctly allocated.
+  ArenaWriter w{*_ctx._arena};
   w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
-  if (!w.error()) {
-    return w.view();
-  } else {
-    FixedBufferWriter w2{_ctx._arena->require(w.extent()).remnant()};
-    w2.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
-    return w2.view();
-  }
+  return w.view();
 }
 
 Feature Expr::bwf_visitor::operator()(List const & list) {
@@ -195,10 +188,31 @@ FeatureView Context::extract_view(const Expr& expr, std::initializer_list<ViewOp
 
   auto f = this->extract(expr);
   if (IndexFor(STRING) == f.index()) {
-    zret = std::get<IndexFor(STRING)>(f);
-    if (cstr_p && ! zret._cstr_p) {
-
+    auto view = std::get<IndexFor(STRING)>(f);
+    if (cstr_p && ! view._cstr_p) {
+      if (! view._literal_p && ! view._direct_p) { // in temporary memory
+        // If there's room, just add the null terminator.
+        if (auto span = _arena->remnant().rebind<char>(); span.data() == view.data_end()) {
+          _arena->alloc(1);
+          span[0] = '\0';
+          view._cstr_p = true;
+        } else {
+          _arena->alloc(view.size()); // commit the view data and copy.
+          view._literal_p = true;
+        }
+      }
+      // if it's still in fixed memory, need to copy and terminate.
+      if (view._literal_p) {
+        auto span = _arena->require(view.size() + 1).remnant().rebind<char>();
+        memcpy(span, view);
+        span[view.size()] = '\0';
+        view = span.view();
+        view.remove_suffix(1); // drop null from view.
+        view._cstr_p = true;
+        view._literal_p = false;
+      }
     }
+    zret = view;
   } else {
     ArenaWriter w{*_arena};
     if (cstr_p) {
