@@ -244,7 +244,14 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
   while (parser) {
     Extractor::Spec spec;
     std::string_view literal;
-    bool spec_p = parser(literal, spec);
+    bool spec_p = false;
+    try {
+      spec_p = parser(literal, spec);
+    } catch (std::exception const& exp) {
+      return Error("Invalid syntax - {}", exp.what());
+    } catch (...) {
+      return Error("Invalid syntax.");
+    }
 
     if (!literal.empty()) {
       literal_spec._ext = this->localize(literal, LOCAL_CSTR);
