@@ -9,10 +9,8 @@ meta:
         select:
         - match: [ "1", "2" ]
           do:
+          - debug: "Fill is {txn-conf<proxy.config.http.background_fill_completed_threshold>>"
           - var<Best-Band>: "Delain"
-#        - match: "3"
-#          do:
-#          - txn-conf<proxy.config.url_remap.pristine_host_hdr>: enable
 
     - when: proxy-rsp
       do:
