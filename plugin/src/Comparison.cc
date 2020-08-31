@@ -547,7 +547,7 @@ public:
   Cmp_RxpSingle(Expr && expr, Rxp::Options);
   Cmp_RxpSingle(Rxp && rxp);
 protected:
-  bool operator()(Context &ctx, FeatureView const& active) const override;
+  bool operator()(Context &ctx, feature_type_for<STRING> const& active) const override;
 
   Item _rxp;
   Rxp::Options _opt;
@@ -699,88 +699,63 @@ bool Cmp_RxpList::operator()(Context &ctx, FeatureView const&) const {
 }
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
-                                        , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
-                                       , { BoolTag::INVALID }
-};
-
 /** Compare a boolean value.
  * Check if a value is true.
  */
-class Cmp_true: public Comparison {
-  using self_type = Cmp_true; ///< Self reference type.
+class Cmp_is_true: public Comparison {
+  using self_type = Cmp_is_true; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, feature_type_for<STRING> const& text) const override;
-  bool operator() (Context& ctx, feature_type_for<BOOLEAN> flag) const override;
-  bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
+  bool operator()(Context& ctx, Feature const& feature) const;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
 
 protected:
-  Cmp_true() = default;
+  Cmp_is_true() = default;
 };
 
-const std::string Cmp_true::KEY { "is-true" };
-const ValueMask Cmp_true::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const std::string Cmp_is_true::KEY {"is-true" };
+const ValueMask Cmp_is_true::TYPES {MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_true::operator()(Context &, feature_type_for<STRING> const& text) const {
-  return true == BoolNames[text];
+bool Cmp_is_true::operator()(Context &, Feature const& feature) const {
+  return static_cast<bool>(feature);
 }
 
-bool Cmp_true::operator()(Context &, feature_type_for<BOOLEAN> flag) const {
-  return flag;
-}
-
-bool Cmp_true::operator()(Context &, feature_type_for<INTEGER> n) const {
-  return n != 0;
-}
-
-Rv<Comparison::Handle> Cmp_true::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+Rv<Comparison::Handle> Cmp_is_true::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 
 /** Compare a boolean value.
  * Check if a value is false.
  */
-class Cmp_false: public Comparison {
-  using self_type = Cmp_false; ///< Self reference type.
+class Cmp_is_false: public Comparison {
+  using self_type = Cmp_is_false; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, feature_type_for<STRING> const& text) const override;
-  bool operator() (Context& ctx, feature_type_for<BOOLEAN> flag) const override;
-  bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
+  bool operator()(Context& ctx, Feature const& feature) const;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
 
 protected:
-  Cmp_false() = default;
+  Cmp_is_false() = default;
 };
 
-const std::string Cmp_false::KEY { "is-false" };
-const ValueMask Cmp_false::TYPES { MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const std::string Cmp_is_false::KEY {"is-false" };
+const ValueMask Cmp_is_false::TYPES {MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
-bool Cmp_false::operator()(Context &, feature_type_for<STRING> const& text) const {
-  return false == BoolNames[text];
+bool Cmp_is_false::operator()(Context &, Feature const& feature) const {
+  return !static_cast<bool>(feature);
 }
 
-bool Cmp_false::operator()(Context &, feature_type_for<BOOLEAN> flag) const {
-  return ! flag;
-}
-
-bool Cmp_false::operator()(Context &, feature_type_for<INTEGER> n) const {
-  return n == 0;
-}
-
-Rv<Comparison::Handle> Cmp_false::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
+Rv<Comparison::Handle> Cmp_is_false::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
   return { Handle{new self_type}, {} };
 }
 
@@ -1274,8 +1249,8 @@ Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node nod
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Comparison::define(Cmp_otherwise::KEY, Cmp_otherwise::TYPES, Cmp_otherwise::load);
-  Comparison::define(Cmp_true::KEY, Cmp_true::TYPES, Cmp_true::load);
-  Comparison::define(Cmp_false::KEY, Cmp_false::TYPES, Cmp_false::load);
+  Comparison::define(Cmp_is_true::KEY, Cmp_is_true::TYPES, Cmp_is_true::load);
+  Comparison::define(Cmp_is_false::KEY, Cmp_is_false::TYPES, Cmp_is_false::load);
   Comparison::define(Cmp_is_null::KEY, Cmp_is_null::TYPES, Cmp_is_null::load);
   Comparison::define(Cmp_is_empty::KEY, Cmp_is_empty::TYPES, Cmp_is_empty::load);
 
