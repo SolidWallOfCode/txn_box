@@ -1,7 +1,7 @@
 logging:
   formats:
   - name: ramp
-    format: '%<{Host}cqh>'
+    format: '%<cqu>'
 
   logs:
   - filename: ramp

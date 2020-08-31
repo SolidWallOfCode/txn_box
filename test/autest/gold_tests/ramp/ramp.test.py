@@ -5,11 +5,8 @@
 #
 import os.path
 
-'''
-Basic smoke tests.
-'''
 Test.Summary = '''
-Test basic functions and directives.
+Test traffic ramping.
 '''
 
 class State:
@@ -43,7 +40,7 @@ state = State()
 
 tr = Test.TxnBoxTestAndRun("Ramping", "ramp.replay.yaml"
                 , remap=[
-                        ('http://ex.one', 'http://ex.three',( '--key=meta.txn_box.remap-generic', 'ramp.replay.yaml') )
+                        ('http://ex.one', 'http://ex.three',( '--key=meta.txn_box.remap', 'ramp.replay.yaml') )
                        ]
                 , verifier_client_args="--verbose diag --repeat {}".format(state.RepeatCount)
                 )
