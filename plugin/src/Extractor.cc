@@ -331,6 +331,24 @@ ActiveType Feature::active_type() const {
 }
 // ----
 namespace {
+struct bool_visitor {
+  bool operator()(feature_type_for<NIL>) { return false;}
+  bool operator()(feature_type_for<STRING> const& s) { return BoolNames[s] == True; }
+  bool operator()(feature_type_for<INTEGER> n) { return n != 0; }
+  bool operator()(feature_type_for<FLOAT> f) { return f != 0; }
+//  bool operator()(feature_type_for<IP_ADDR> addr) { return addr.is_addr_any(); }
+  bool operator()(feature_type_for<BOOLEAN> flag) { return flag; }
+  bool operator()(feature_type_for<TUPLE> t) { return t.size() > 0; }
+
+  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, bool> { return false; }
+};
+
+}
+Feature::operator bool() const {
+  return std::visit(bool_visitor{}, *this);
+}
+// ----
+namespace {
 struct join_visitor {
   swoc::BufferWriter & _w;
   TextView _glue;

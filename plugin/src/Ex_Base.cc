@@ -349,7 +349,7 @@ class Ex_unmatched_group : public Extractor {
   using self_type = Ex_unmatched_group; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
-  static constexpr TextView NAME = REMAINDER_FEATURE_KEY;
+  static constexpr TextView NAME = UNMATCHED_FEATURE_KEY;
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
   Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;

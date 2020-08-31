@@ -255,6 +255,12 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
    */
   bool is_list() const;
 
+  /** Force feature to @c bool.
+   *
+   * @return @c true if equivalent to @c true, @c false otherwise.
+   */
+  explicit operator bool() const;
+
   /** Create a string feature by combining this feature.
    *
    * @param ctx Runtime context.
@@ -492,7 +498,7 @@ inline void clear(Feature & feature) {
 }
 
 static constexpr swoc::TextView ACTIVE_FEATURE_KEY { "..." };
-static constexpr swoc::TextView REMAINDER_FEATURE_KEY { "%" };
+static constexpr swoc::TextView UNMATCHED_FEATURE_KEY {"*" };
 
 /// Conversion between @c ValueType and printable names.
 extern swoc::Lexicon<ValueType> const ValueTypeNames;

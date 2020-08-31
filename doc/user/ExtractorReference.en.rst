@@ -90,6 +90,21 @@ http://evil-kow.ex:4443/path   evil-kow.ex          4443  evil-kow.ex:4443
 https://evil-kow.ex:4443/path  evil-kow.ex          4443  evil-kow.ex:4443
 ============================== ==================== ==== =====================
 
+Paths
+-----
+
+Unfortunately due to how the plugin API works, paths are a bit odd. One result is
+
+.. important:: Paths do not have a leading slash
+
+Given the URL "http://delain.nl/pix", the path is "pix", not "/pix". The existence of the slash is
+implied by the existence of the path. There is, unfortunately, no way to distinguish a missing from
+an empty path. E.g. "http://delain.nl" and "http://delain.nl/" are not distinguishable by looking at
+the value from a path extractor, both will yield an empty string. This matters less than it appears
+because both ATS and the upstream will treat them indentically. Note this applies only to the slash
+separating the "authority" / "location" from the path. The path for the URLs
+"http://delain.nl/pix/charlotte" and "http://delain.nl/pix/charlotte/" are distinguishable.
+
 User Agent Request
 ------------------
 
@@ -162,6 +177,8 @@ User Agent Request
    If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
+
+.. _ex-pre-remap:
 
 Pre-Remap
 ~~~~~~~~~

@@ -305,7 +305,7 @@ protected:
 
 bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.starts_with(text)) {
-    ctx.set_literal_capture(active.suffix(text.size()));
+    ctx.set_literal_capture(active.prefix(text.size()));
     ctx._remainder = active.remove_prefix(text.size());
     return true;
   }
@@ -324,7 +324,7 @@ protected:
 
 bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.starts_with_nocase(text)) {
-    ctx.set_literal_capture(active.suffix(text.size()));
+    ctx.set_literal_capture(active.prefix(text.size()));
     ctx._remainder = active.remove_prefix(text.size());
     return true;
   }
@@ -341,7 +341,7 @@ protected:
   friend super_type;
 };
 
-bool Cmp_Contains::operator()(Context&, TextView const& text, TextView active) const {
+bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (auto idx = active.find(text) ; idx != TextView::npos) {
     #if 0
     if (ctx._update_remainder_p) {
@@ -351,6 +351,8 @@ bool Cmp_Contains::operator()(Context&, TextView const& text, TextView active) c
       memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
       ctx.set_literal_capture(span.view());
     }
+    #else
+    ctx._remainder.clear();
     #endif
     return true;
   }
@@ -367,7 +369,7 @@ protected:
   friend super_type;
 };
 
-bool Cmp_ContainsNC::operator()(Context&, TextView const& text, TextView active) const {
+bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (text.size() <= active.size()) {
     auto spot = std::search(active.begin(), active.end(), text.begin(), text.end()
                             , [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
@@ -381,6 +383,8 @@ bool Cmp_ContainsNC::operator()(Context&, TextView const& text, TextView active)
         memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
         ctx.set_literal_capture(span.view());
       }
+      #else
+      ctx._remainder.clear();
       #endif
       return true;
     }
@@ -401,8 +405,7 @@ protected:
 bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
     ctx.set_literal_capture(active.suffix(text.size()+1));
-    ctx._remainder = active;
-    ctx._remainder.remove_suffix(text.size()+1);
+    ctx._remainder = active.remove_suffix(text.size()+1);
     return true;
   }
   return false;
@@ -421,7 +424,7 @@ protected:
 bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with_nocase(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
     ctx.set_literal_capture(active.suffix(text.size()+1));
-    active.remove_suffix(text.size()+1);
+    ctx._remainder = active.remove_suffix(text.size()+1);
     return true;
   }
   return false;
@@ -485,10 +488,17 @@ public:
 
 protected:
   /// Static value - a literal or a dynamic regular expression.
+  /// @see rxp_visitor
   using Item = std::variant<Rxp, Expr>;
 
   /// Process the comparison based on the expression type.
+  /// This is used during configuration load.
   struct expr_visitor {
+    /** Constructor.
+     *
+     * @param cfg Configuration being loaded.
+     * @param opt Options from directive arguments.
+     */
     expr_visitor(Config & cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
 
     Rv<Handle> operator() (std::monostate);
@@ -497,12 +507,31 @@ protected:
     Rv<Handle> operator() (Expr::Direct & d);
     Rv<Handle> operator() (Expr::Composite & comp);
 
-    Config & _cfg;
-    Rxp::Options _rxp_opt;
+    Config & _cfg; ///< Configuration being loaded.
+    Rxp::Options _rxp_opt; ///< Any options from directive arguments.
   };
 
+  /** Handlers for @c Item.
+   *
+   * This enables dynamic regular expressions at a reasonable run time cost. If the configuration
+   * is a literal it is compiled during configuration load and stored as an @c Rxp instance.
+   * Otherwise the @c Expr is stored and evaluated on invocation.
+   */
   struct rxp_visitor {
+    /** Invoke the @a rxp against the active feature.
+     *
+     * @param rxp Compiled regular expression.
+     * @return @c true on success, @c false otherwise.
+     */
     bool operator() (Rxp const& rxp);
+    /** Compile the @a expr into a regular expression.
+     *
+     * @param expr Feature expression.
+     * @return @c true on successful match, @c false otherwise.
+     *
+     * @internal This compiles the feature from @a expr and then invokes the @c Rxp overload to do
+     * the match.
+     */
     bool operator() (Expr const& expr);
 
     Context & _ctx; ///< Configuration context.
@@ -578,6 +607,7 @@ bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
   auto result = rxp(_src, _ctx.rxp_working_match_data());
   if (result > 0) {
     _ctx.rxp_commit_match(_src);
+    _ctx._remainder.clear();
     return true;
   }
   return false;
@@ -589,7 +619,7 @@ bool Cmp_Rxp::rxp_visitor::operator() (Expr const& expr) {
     auto &&[rxp, rxp_errata]{Rxp::parse(*text, _rxp_opt)};
     if (rxp_errata.is_ok()) {
       _ctx.rxp_match_require(rxp.capture_count());
-      return (*this)(rxp);
+      return (*this)(rxp); // forward to Rxp overload.
     }
   }
   return false;

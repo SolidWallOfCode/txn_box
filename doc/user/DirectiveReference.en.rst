@@ -40,7 +40,7 @@ Fundamental
    invoked. This should be used sparingly as the point of this rule is to make it unambiguous which directives were invoked for a transaction. Note that if no comparison is successful subsequent directives are invoked and the :drtv:`with` has no effect.
 
    A comparison is not required to have ``do`` in which case if it is matched, nothing is done but it counts as a match for the purposes of no return.
-   
+
    A comparison does not require an actual comparison but can consist only of ``do``. In this case it always matches and this form serves as a convenient "match anything" comparison. Obviously it should always be the last comparison if used.
 
    The ``do`` key can be used to invoke directives before any of the comparisons. This is useful primarily for access to the feature for :arg:`expression` via the :ex:`...` extractor which extracts that feature. If there is a nested :drtv:`with` that will terminate the list of ``do`` directives but will not prevent the comparisons and their associated directives.
@@ -133,7 +133,7 @@ Proxy Request
    Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
    create a field for every element of the tuple and set the value for that field to the tuple
    element.
-   
+
    To set the field named "Best-Band" to the correct value "Delain" - ::
 
       proxy-req-field<Best-Band>: "Delain"
@@ -148,7 +148,7 @@ Proxy response
    Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
    create a field for every element of the tuple and set the value for that field to the tuple
    element.
-   
+
    To set the field named "Best-Band" to the correct value "Delain" - ::
 
       proxy-rsp-field<Best-Band>: "Delain"
@@ -284,7 +284,37 @@ Compatibility
    *  If only a portion of the URL is to be changed,  this needs to be used to prevent ATS from
       wiping out that change, while still getting the effect of updating the post-rewrite URL.
 
-   *  When matching on the client request, this (and the pre-ATS 9 URL rewriting) changes the
-      client request URL and therefore changes what will be matched.
+   *  When matching on the client request, this (and the pre-ATS 9 URL rewriting) changes the client
+      request URL and therefore changes what will be matched. See :ref:`pre-remap extractors
+      <ex-pre-remap>` for additional information.
 
-   *  It is possible to execute other directives first but this requires much care and isn't   portable across ATS versions because it is impossible to replicate as of ATS 9.
+   *  It is possible to execute other directives first but this requires much care and isn't
+      portable across ATS versions because it is impossible to replicate as of ATS 9.
+
+.. directive:: did-remap
+
+   Valid only in the ``REMAP`` hook. This sets whether the |TS| core will consider |TxB| to have done
+   the URL rewriting for a rule. If so, then the core will *not* do the rule URL rewriting. If no
+   value is provide, this will mark the plugin as having done the URL rewrite. If there is a value
+   if it is equivalent to ``true`` then the plugin will be marked as having done the rewrite, and if
+   if the equivalent of ``false`` will be marked as *not* having done the rewrite. The last instance
+   invoked in a hook determines the effective value. This makes it easier to, for instance, mark as
+   rewriting and then unmark if not actually done. ::
+
+      -  did-remap: true # assume something will match and rewrite.
+      -  with: ua-req-path
+         select:
+         -  prefix: "v1/video/search"
+            do:
+            - ua-req-host: "staging.app.ex"
+         -  prefix: "v1/video/api"
+            do:
+            -  ua-req-host: "staging.api.app.ex"
+      -  did-remap: false # only get here if nothing matched in the with
+
+   This is useful for versions of |TS| before 9. Starting with |TS| 9 the URL rewriting is done
+   before any plugin is called and therefore cannot be prevented by a plugin. In contrast with
+   earlier versions if |TxB| is the first plugin, the rewrite done by |TxB| can be wiped out by the
+   core rewrite. This directive can be necessary to prevent that. This is nicely compatible because
+   for version 9 and later it has no effect and can therefore be included in configurations used in
+   different versions.
