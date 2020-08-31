@@ -11,7 +11,7 @@ import os.path
 import types
 from urllib.parse import urlparse
 
-def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None):
+def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server'):
     """
     Create a base test object specialized for TxnBox testing.
 
@@ -26,7 +26,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             if to is missing, it is set equal to from yielding an identity remap.
     """
 
-    ts = self.MakeATSProcess("ts")
+    ts = self.MakeATSProcess("ts", command=command)
     self.Variables.TXNBOX_TS = ts
     self.Variables.TXNBOX_REPLAY_PATH = replay_path
 
@@ -122,7 +122,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
 
     return self
 
-def TxnBoxRun(self, text, replay_path=None, verifier_client_args="--verbose diag"):
+def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     """
     Set up a standard test run for TxnBox
 
@@ -142,7 +142,8 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args="--verbose diag
     pv_client = run.AddVerifierClientProcess(
         "pv-client", ts, replay_path,
         http_ports=[ts.Variables.port],
-        other_args=verifier_client_args)
+        other_args="--verbose diag {}".format(verifier_client_args))
+
     run.Variables.CLIENT = pv_client
 
     pv_server = self.Variables.TXNBOX_SERVER
