@@ -509,9 +509,9 @@ public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  /** Construct with feature extractor @a fmt.
+  /** Construct with feature expression..
    *
-   * @param fmt Feature for host.
+   * @param expr Feature expression for the URL.
    */
   Do_proxy_req_url(Expr && expr);
 
@@ -562,6 +562,68 @@ swoc::Rv<Directive::Handle> Do_proxy_req_url::load(Config& cfg, YAML::Node drtv_
   }
   return Handle(new self_type(std::move(expr)));
 }
+/* ------------------------------------------------------------------------------------ */
+class Do_did_remap : public Directive {
+  using self_type = Do_did_remap;
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression for the URL.
+   */
+  Do_did_remap(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  Expr _expr; ///< Boolean to set whether remap was done.
+};
+
+const std::string Do_did_remap::KEY {"did-remap" };
+const HookMask Do_did_remap::HOOKS {MaskFor(Hook::REMAP) };
+
+Do_did_remap::Do_did_remap(Expr && expr) : _expr(std::move(expr)) {}
+
+Errata Do_did_remap::invoke(Context& ctx) {
+  auto f = ctx.extract(_expr);
+  ctx._remap_status = static_cast<bool>(f) ? TSREMAP_DID_REMAP : TSREMAP_NO_REMAP;
+  return {};
+}
+
+Rv<Directive::Handle> Do_did_remap::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  // Default, with no value, is @c true.
+  if (key_value.IsNull()) {
+    return Handle{new self_type(Expr(true))};
+  }
+  auto && [ expr, errata ] { cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing value of "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(BOOLEAN)) {
+    return Error(R"(Value for "{}" directive at {} must be convertible to a {}.)", KEY, drtv_node.Mark(), BOOLEAN);
+  }
+  return Handle{new self_type{std::move(expr)}};
+}
+
 /* ------------------------------------------------------------------------------------ */
 /** Do the remap.
  */
@@ -2463,6 +2525,9 @@ namespace {
   Config::define<Do_redirect>();
   Config::define<Do_debug>();
   Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
+
+  Config::define<Do_did_remap>();
+
   return true;
 } ();
 } // namespace
