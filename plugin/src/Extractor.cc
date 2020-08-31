@@ -25,6 +25,11 @@ using namespace swoc::literals;
 std::unique_ptr<Extractor::Table> Extractor::_ex_table;
 
 /* ------------------------------------------------------------------------------------ */
+swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
+                                             , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
+                                         , { BoolTag::INVALID }
+};
+/* ------------------------------------------------------------------------------------ */
 auto Extractor::table() -> Table* {
   if (! _ex_table) {
     _ex_table.reset(new Table);
