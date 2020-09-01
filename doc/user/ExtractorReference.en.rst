@@ -161,7 +161,7 @@ User Agent Request
 
    Host for the user agent request URL.
 
-.. extractor:: ua-req-port
+.. extractor:: ua-req-url-port
    :result: integer
 
    The port for the user agent request URL.

@@ -10,6 +10,7 @@ JAVA          ?= java
 PLANTUML_JAR  ?= $(HOME)/bin/plantuml.jar
 PLANTUML_ARGS ?=
 REALPATH       = $(if $(WINDIR), cygpath --absolute --windows, realpath)
+TXB_VERSION   ?= $(shell grep 'release =' conf.py | sed -e 's/release = //' | sed -e 's/"//g')
 
 SBUILD = $(SPHINXBUILD) ${PAPEROPT_letter}
 PLANTUML = $(JAVA) -jar $(PLANTUML_JAR) $(PLANTUML_ARGS)
@@ -51,6 +52,7 @@ doxygen:
 	doxygen
 
 publish: clean doxygen html
+	if [ -z $(TXB_VERSION) ] ; then echo "Could not find version" ; exit 1; fi
 	( cd docbuild/html ; tar cfh /tmp/txn_box_doc.tar *)
 	scp /tmp/txn_box_doc.tar aws-swoc-1:/tmp
-	ssh aws-swoc-1 sh bin/txn-box-doc-install.sh
+	ssh aws-swoc-1 sh bin/txn-box-doc-install.sh $(TXB_VERSION)
