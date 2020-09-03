@@ -71,20 +71,35 @@ state = State()
 
 tr = Test.TxnBoxTestAndRun("Multi-path bucketing", "multi-ramp.replay.yaml"
                 , remap=[
-                        ('http://base.ex/', 'http://base.ex/',( '--key=meta.txn_box.remap', 'multi-ramp.replay.yaml') )
+                          ['http://base.ex/', 'http://base.ex/', ( '--key=meta.txn_box.remap', 'multi-ramp.replay.yaml') ]
+                        , ['https://base.ex/', 'https://base.ex/', ( '--key=meta.txn_box.remap', 'multi-ramp.replay.yaml') ]
                        ]
                 , verifier_client_args="--verbose info --repeat {}".format(state.RepeatCount)
+                , enable_tls=True
                 )
 
 ts = tr.Variables.TS
 ts.Setup.Copy("multi-ramp.replay.yaml", ts.Variables.CONFIGDIR)
 ts.Setup.Copy("ramp.logging.yaml", os.path.join(ts.Variables.CONFIGDIR, "logging.yaml"))
+ts.Setup.Copy("../../ssl/server.key", ts.Variables.SSLDir)
+ts.Setup.Copy("../../ssl/server.pem", ts.Variables.SSLDir)
 
 ts.Disk.records_config.update({
       'proxy.config.diags.debug.enabled': 1
     , 'proxy.config.diags.debug.tags': 'txn_box'
     , 'proxy.config.http.cache.http':  0
+
+    , 'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir)
+    , 'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir)
+    # enable ssl port
+    , 'proxy.config.http.server_ports': '{0} {1}:ssl'.format(ts.Variables.port, ts.Variables.ssl_port)
+    , 'proxy.config.ssl.client.verify.server': 0
+    , 'proxy.config.ssl.server.cipher_suite': 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-RSA-RC4-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:RC4-SHA:RC4-MD5:AES128-SHA:AES256-SHA:DES-CBC3-SHA!SRP:!DSS:!PSK:!aNULL:!eNULL:!SSLv2'
+
 })
+ts.Disk.ssl_multicert_config.AddLine(
+    'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'
+)
 
 pv_client = tr.Variables.CLIENT
 

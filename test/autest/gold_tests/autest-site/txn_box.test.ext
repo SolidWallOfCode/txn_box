@@ -11,7 +11,7 @@ import os.path
 import types
 from urllib.parse import urlparse
 
-def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server'):
+def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server', enable_tls=False):
     """
     Create a base test object specialized for TxnBox testing.
 
@@ -26,7 +26,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             if to is missing, it is set equal to from yielding an identity remap.
     """
 
-    ts = self.MakeATSProcess("ts", command=command)
+    ts = self.MakeATSProcess("ts", command=command, enable_tls=enable_tls)
     self.Variables.TXNBOX_TS = ts
     self.Variables.TXNBOX_REPLAY_PATH = replay_path
 
@@ -53,7 +53,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
         ts.Disk.plugin_config.AddLine(txn_box_command)
 
     # Configure Traffic Server to use the DNS process.
-    self.Variables.TXNBOX_DNS = self.MakeDNServer("dns", ip='127.0.0.1', default=['127.0.0.1'])
+    self.Variables.TXNBOX_DNS = self.MakeDNServer("dns", ip='127.0.0.1', default='127.0.0.1')
 
     self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server", replay_path)
 
@@ -84,7 +84,10 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
 
             # Parse the replacement URL and change just the port.
             url = urlparse(map_to)
-            url = url._replace(netloc='{}:{}'.format(url.hostname, self.Variables.TXNBOX_SERVER.Variables.http_port))
+            port = self.Variables.TXNBOX_SERVER.Variables.http_port
+            if url.scheme == "https" :
+                port = self.Variables.TXNBOX_SERVER.Variables.https_port
+            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
             line = 'map {} {} '.format(map_from, url.geturl())
             if pparams:
                 line += '@plugin=txn_box.so '
@@ -109,7 +112,10 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
                                  "(from, to) or (from, to, [pparams])")
 
             url = urlparse(map_to)
-            url = url._replace(netloc='{}:{}'.format(url.hostname, self.Variables.TXNBOX_SERVER.Variables.http_port))
+            port = self.Variables.TXNBOX_SERVER.Variables.http_port
+            if url.scheme == "https" :
+                port = self.Variables.TXNBOX_SERVER.Variables.https_port
+            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
             line = 'regex_map {} {} '.format(map_from, url.geturl())
             if pparams:
                 line += '@plugin=txn_box.so '
@@ -142,6 +148,7 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     pv_client = run.AddVerifierClientProcess(
         "pv-client", ts, replay_path,
         http_ports=[ts.Variables.port],
+        https_ports=[ts.Variables.ssl_port],
         other_args="--verbose diag {}".format(verifier_client_args))
 
     run.Variables.CLIENT = pv_client
@@ -158,8 +165,8 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     return run
 
 def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta.txn_box", remap=None
-                     , verifier_client_args="--verbose diag"):
-    self.TxnBoxTest(replay_path, config_path, config_key, remap)
+                     , verifier_client_args="--verbose diag", enable_tls=False):
+    self.TxnBoxTest(replay_path, config_path, config_key, remap, enable_tls=enable_tls)
     return self.TxnBoxRun(name, verifier_client_args=verifier_client_args)
 
 ExtendTest(TxnBoxTest, name="TxnBoxTest")

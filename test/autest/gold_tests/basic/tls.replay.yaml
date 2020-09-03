@@ -2,51 +2,34 @@ meta:
   version: "1.0"
 
   txn_box:
+    global:
+    - when: proxy-req
+      do:
+      - var<req-url>: proxy-req-url
+      - proxy-req-field<req-host>: proxy-req-url-host
+    - when: proxy-rsp
+      do:
+      - proxy-rsp-field<req-url>: var<req-url>
+
     remap:
+    - txn-conf<proxy.config.url_remap.pristine_host_hdr>: 1
     - with: pre-remap-path
       select:
       - any-of:
         - prefix: "v1/video/search/"
         - prefix: "v1/video/alias/"
+        - prefix: "v1/video/channels/"
+        - prefix: "v1/video/sub/"
         do:
-        - with: random
-          select:
-          - lt: 30
-            do:
-            - ua-req-host: "stage.video.ex"
-      - prefix: "v1/video/channels/"
-        do:
-        - with: random
-          select:
-          - lt: 10
-            do:
-            - ua-req-host: "stage.video.ex"
-      - prefix: "v1/video/sub/"
-        do:
-        - with: random
-          select:
-          - lt: 100
-            do:
-            - ua-req-host: "stage.video.ex"
+        - debug: "Setting URL host"
+        - ua-req-url-host: "stage.video.ex"
 
   blocks:
   - base_request: &base_request
       version: "1.1"
       scheme: "http"
       method: "GET"
-
-sessions:
-- protocol: [ ipv4, tcp, tls ]
-  transactions:
-  - client-request:
-      <<: *base_request
-      url: "/v1/video/search/channel/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base_request
-    server-response:
+  - base-rsp: &base-rsp
       status: 200
       reason: OK
       content:
@@ -55,6 +38,26 @@ sessions:
         fields:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ ipv4, tcp, tls  ]
+  transactions:
+
+  # Smoke test first.
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      <<: *base_request
+      url: "/v1/video/search/channel/delain"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    server-response:
+      <<: *base-rsp
     proxy-response:
       status: 200
 
@@ -63,21 +66,18 @@ sessions:
       url: "/v1/video/channels/nightwish"
       headers:
         fields:
-        - [ Host, base.ex ]
+        - [ "Host", "base.ex" ]
     proxy-request:
       <<: *base_request
-    server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
       headers:
         fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+        - [ "Host", "base.ex" ]
+    server-response:
+      <<: *base-rsp
     proxy-response:
       status: 200
 
+archive:
   - client-request:
       <<: *base_request
       url: "/v1/video/alias/within-temptation"

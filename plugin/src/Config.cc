@@ -533,15 +533,14 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
   return {};
 }
 
-Errata Config::parse_yaml(YAML::Node const& root, TextView path) {
-  YAML::Node base_node { root };
+Errata Config::parse_yaml(YAML::Node root, TextView path) {
   static constexpr TextView ROOT_PATH { "." };
   // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
   // do not walk at all.
   for ( auto p = (path == ROOT_PATH ? TextView{} : path) ; p ; ) {
     auto key { p.take_prefix_at('.') };
-    if ( auto node { base_node[key] } ; node ) {
-      base_node = node;
+    if ( auto node { root[key] } ; node ) {
+      root.reset(node);
     } else {
       return Error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
     }
@@ -555,15 +554,15 @@ Errata Config::parse_yaml(YAML::Node const& root, TextView path) {
     drtv_loader = &self_type::load_remap_directive;
   }
 
-  if (base_node.IsSequence()) {
-    for ( auto const& child : base_node ) {
+  if (root.IsSequence()) {
+    for ( auto child : root ) {
       errata.note((this->*drtv_loader)(child));
     }
     if (! errata.is_ok()) {
-      errata.info(R"(While loading list of top level directives for "{}" at {}.)", path, base_node.Mark());
+      errata.info(R"(While loading list of top level directives for "{}" at {}.)", path, root.Mark());
     }
-  } else if (base_node.IsMap()) {
-    errata = (this->*drtv_loader)(base_node);
+  } else if (root.IsMap()) {
+    errata = (this->*drtv_loader)(root);
   } else {
   }
   return errata;

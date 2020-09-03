@@ -131,55 +131,6 @@ swoc::Rv<Directive::Handle> Do_proxy_req_url_host::load(Config& cfg, YAML::Node 
   return Handle(new self_type{std::move(expr)});
 }
 
-// ---
-
-#if 0
-class Do_remap_req_url_host : public Directive {
-  using super_type = Directive;
-  using self_type = Do_remap_req_url_host;
-public:
-  static const std::string KEY;
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  /** Construct with feature expression..
-   *
-   * @param expr Feature expression.
-   */
-  Do_remap_req_url_host(Expr && expr);
-
-  Errata invoke(Context &ctx) override;
-  static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
-protected:
-  Expr _expr; ///< Host feature expression.
-};
-
-const std::string Do_remap_req_url_host::KEY {"remap-url-host" };
-const HookMask Do_remap_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::POST_REMAP}) };
-
-Do_remap_req_url_host::Do_remap_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
-
-Errata Do_remap_req_url_host::invoke(Context &ctx) {
-  auto value = ctx.extract(_expr);
-  if (auto host = std::get_if<IndexFor(STRING)>(&value); nullptr != host) {
-    ts::URL(ctx._remap_info->requestBufp, ctx._remap_info->requestUrl).host_set(*host);
-    ctx._remap_status = TSREMAP_DID_REMAP;
-  }
-  return {};
-}
-
-swoc::Rv<Directive::Handle> Do_remap_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
-  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
-    return std::move(errata);
-  }
-  if (! expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
-  }
-  return Handle(new self_type{std::move(expr)});
-}
-#endif
 /* ------------------------------------------------------------------------------------ */
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
@@ -667,7 +618,7 @@ Errata Do_apply_remap_rule::invoke(Context &ctx) {
   ts::URL target_url { ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl };
   ts::URL request_url { ctx._remap_info->requestBufp, ctx._remap_info->requestUrl };
 
-  in_port_t port = replacement_url.port_get();
+  in_port_t port = replacement_url.port();
   // decanonicalize the port - may need to dig in and see if it was explicitly set.
   if ((port == 80 && replacement_url.scheme() == ts::URL_SCHEME_HTTP) ||
       (port == 443 && replacement_url.scheme() == ts::URL_SCHEME_HTTPS)) {
@@ -1194,7 +1145,6 @@ const std::string Do_ua_req_field::KEY {"ua-req-field" };
 const HookMask Do_ua_req_field::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP }) };
 
 Errata Do_ua_req_field::invoke(Context &ctx) {
-  ctx._remap_status = TSREMAP_DID_REMAP;
   return this->super_type::invoke(ctx, ctx.ua_req_hdr());
 }
 
@@ -2488,21 +2438,20 @@ namespace {
   Config::define(Do_with::KEY, Do_with::HOOKS, Do_with::load);
 
   Config::define(Do_ua_req_field::KEY, Do_ua_req_field::HOOKS, Do_ua_req_field::load);
+  Config::define<Do_ua_req_url>();
+  Config::define<Do_ua_req_url_host>();
+  Config::define<Do_ua_req_scheme>();
   Config::define<Do_ua_req_host>();
   Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
-  Config::define<Do_ua_req_scheme>();
   Config::define<Do_ua_req_query>();
-  Config::define<Do_ua_req_url>();
 
   Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
-  Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
-  Config::define("prsp-field", Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
-  Config::define<Do_proxy_req_url_host>();
-  Config::define(Do_proxy_req_host::KEY, Do_proxy_req_host::HOOKS, Do_proxy_req_host::load);
-  Config::define<Do_proxy_req_path>();
-  Config::define<Do_proxy_req_scheme>();
-  Config::define<Do_proxy_req_query>();
   Config::define<Do_proxy_req_url>();
+  Config::define<Do_proxy_req_url_host>();
+  Config::define<Do_proxy_req_host>();
+  Config::define<Do_proxy_req_scheme>();
+  Config::define<Do_proxy_req_path>();
+  Config::define<Do_proxy_req_query>();
 
 //  Config::define(Do_remap_host::KEY, Do_remap_host::HOOKS, Do_remap_host::load);
 //  Config::define(Do_remap_path::KEY, Do_remap_path::HOOKS, Do_remap_path::load);
@@ -2516,6 +2465,7 @@ namespace {
 
   Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
 
+  Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
   Config::define<Do_proxy_rsp_status>();
   Config::define<Do_proxy_rsp_reason>();
   Config::define<Do_proxy_rsp_body>();
