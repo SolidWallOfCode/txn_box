@@ -188,20 +188,16 @@ public:
 
 Feature Ex_proxy_req_url::extract(Context& ctx, const Spec&) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    if (auto url{hdr.url()}; url.is_valid()) {
-      swoc::ArenaWriter w{*ctx._arena};
-      url.write_full(w);
-      return w.view();
-    }
+    ArenaWriter w{*ctx._arena};
+    hdr.effective_url(w);
+    return w.view();
   }
   return NIL_FEATURE;
 }
 
 BufferWriter& Ex_proxy_req_url::format(BufferWriter &w, Spec const &, Context &ctx) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
-      url.write_full(w);
-    }
+    hdr.effective_url(w);
   }
   return w;
 }

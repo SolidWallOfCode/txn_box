@@ -15,6 +15,7 @@
 #include <swoc/TextView.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
+#include <swoc/bwf_ex.h>
 #include <swoc/ArenaWriter.h>
 #include <swoc/swoc_meta.h>
 
@@ -158,20 +159,23 @@ BufferWriter& ts::URL::write_full(BufferWriter& w) const {
 
 TextView ts::URL::scheme() const {
   if (this->is_valid()) {
-    int length;
-    auto text = TSUrlSchemeGet(_buff, _loc, &length);
-    return {text, static_cast<size_t>(length)};
+    char const* text;
+    int size;
+    if (nullptr != (text = TSUrlSchemeGet(_buff, _loc, &size))) {
+      return {text, static_cast<size_t>(size)};
+    }
   }
-  return {};
+  return ""_tv;
 }
 
 BufferWriter& ts::URL::write_loc(BufferWriter& w) const {
   auto host_name = this->host();
   if (! host_name.empty()) {
-    if (this->is_port_canonical()) {
+    auto port = this->port();
+    if (port == 0 || this->is_port_canonical()) {
       w.write(host_name);
     } else {
-      w.print("{}:{}", host_name, this->port());
+      w.print("{}:{}", host_name, port);
     }
   }
   return w;
@@ -183,7 +187,7 @@ TextView ts::URL::host() const {
   if (this->is_valid() && nullptr != (text = TSUrlHostGet(_buff, _loc, &size))) {
     return {text, static_cast<size_t>(size)};
   }
-  return {};
+  return ""_tv;
 }
 
 in_port_t  ts::URL::port() const {
@@ -195,6 +199,10 @@ bool ts::URL::is_port_canonical(TextView const& scheme, in_port_t port) {
       ((80 == port  && scheme.size() == 4) ||
        (443 == port && scheme.size() == 5 && 's' == tolower(scheme[4]))
       );
+}
+
+std::tuple<TextView, in_port_t> ts::URL::loc() const {
+  return { this->host(), this->port() };
 }
 
 bool ts::HttpRequest::url_set(TextView text) {
@@ -269,6 +277,28 @@ ts::URL ts::HttpRequest::url() const {
   return {};
 }
 
+BufferWriter& ts::HttpRequest::effective_url(BufferWriter& w) {
+  if (this->is_valid()) {
+    auto url { this->url() };
+    auto scheme { url.scheme() };
+    auto path { url.path() };
+    auto query { url.query() };
+    auto [ host, port ] { this->loc() };
+    if (url.is_port_canonical(scheme, port)) {
+      port = 0;
+    }
+
+    w.print("{}{}{}{}{}"
+            , bwf::Optional("{}:", scheme)
+            , bwf::Optional("//{}", host)
+            , bwf::Optional(":{}", port)
+            , bwf::Optional("/{}", path)
+            , bwf::Optional("?{}", query)
+            );
+  }
+  return w;
+}
+
 BufferWriter& ts::HttpRequest::write_loc(BufferWriter& w) const {
   // Try the URL first.
   auto n = w.extent();
@@ -300,18 +330,33 @@ TextView ts::HttpRequest::host() const {
 
 in_port_t ts::HttpRequest::port() const {
   auto url { const_cast<self_type*>(this)->url() };
-  if (auto port = url.port_get() ; port != 0) {
+  if (auto port = url.port() ; port != 0) {
     return port;
   }
   if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
     auto value = field.value();
-    TextView host_token, port_token, rest_token;
+    TextView host_token, port_token;
     if (swoc::IPEndpoint::tokenize(value, &host_token, &port_token)) {
       return swoc::svtoi(port_token);
     }
   }
   return 0;
 }
+
+std::tuple<TextView, in_port_t> ts::HttpRequest::loc() const {
+  auto loc { url().loc() };
+  if (std::get<0>(loc).empty()) {
+    if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
+      auto value = field.value();
+      TextView host_token, port_token;
+      if (swoc::IPEndpoint::tokenize(value, &host_token, &port_token)) {
+        return { host_token, swoc::svtoi(port_token) };
+      }
+    }
+  }
+  return { TextView{}, 0 };
+}
+
 
 bool ts::HttpRequest::host_set(swoc::TextView const &host) {
   auto url{this->url()};

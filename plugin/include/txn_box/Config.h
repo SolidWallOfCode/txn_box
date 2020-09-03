@@ -164,7 +164,7 @@ public:
    * a remap based configuration.
    *
    */
-  Errata parse_yaml(YAML::Node const& root, swoc::TextView path);
+  Errata parse_yaml(YAML::Node root, swoc::TextView path);
 
   void mark_as_remap() { _hook = Hook::REMAP; }
 

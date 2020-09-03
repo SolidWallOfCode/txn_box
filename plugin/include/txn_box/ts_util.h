@@ -144,7 +144,19 @@ public:
    */
   swoc::BufferWriter& write_loc(swoc::BufferWriter& w) const;
 
+  /** Get the network location
+   *
+   * @return A tuple of [ host, port ].
+   */
+  std::tuple<swoc::TextView, in_port_t> loc() const;
+
   swoc::TextView host() const; ///< View of the URL host.
+  /** Get the port in the URL.
+   *
+   * @return The port.
+   *
+   * @note If the port is not explicitly set, it is computed based on the scheme.
+   */
   in_port_t port() const; ///< Port.
   swoc::TextView scheme() const; ///< View of the URL scheme.
   swoc::TextView path() const; ///< View of the URL path.
@@ -170,14 +182,6 @@ public:
    * @return @a this.
    */
   self_type & host_set(swoc::TextView const& host);
-
-  /** Get the port in the URL.
-   *
-   * @return The port.
-   *
-   * @note If the port is not explicitly set, it is computed based on the scheme.
-   */
-  in_port_t port_get();
 
   static bool is_port_canonical(swoc::TextView const& scheme, in_port_t port);
   bool is_port_canonical() const { return this->is_port_canonical(this->scheme(), this->port()); }
@@ -317,6 +321,13 @@ public:
    */
   URL url() const;
 
+  /** Effective URL for the request.
+   *
+   * @param arena Temporary memory to write the URL.
+   * @return A view of the URL in @a arena.
+   */
+  swoc::BufferWriter& effective_url(swoc::BufferWriter&w);
+
   swoc::TextView method() const;
 
   /** Write the request network location to @a w.
@@ -330,6 +341,12 @@ public:
 
   swoc::TextView host() const;
   in_port_t port() const;
+
+  /** Get the network location
+   *
+   * @return A tuple of [ host, port ].
+   */
+  std::tuple<swoc::TextView, in_port_t> loc() const;
 
   /** Assign @a text as the URL.
    *
@@ -556,8 +573,6 @@ inline TSMBuffer HeapObject::mbuff() const { return _buff; }
 inline TSMLoc HeapObject::mloc() const { return _loc; }
 
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
-
-inline in_port_t URL::port_get() { return TSUrlPortGet(_buff, _loc); }
 
 inline swoc::TextView URL::path() const { int length; auto text = TSUrlPathGet(_buff, _loc, &length); return { text, static_cast<size_t>(length) }; }
 
