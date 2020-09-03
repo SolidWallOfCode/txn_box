@@ -22,7 +22,7 @@ meta:
         - prefix: "v1/video/sub/"
         do:
         - debug: "Setting URL host"
-        - ua-req-url-host: "stage.video.ex"
+        - ua-url-host: "stage.video.ex"
 
   blocks:
   - base_request: &base_request

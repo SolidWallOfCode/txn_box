@@ -48,7 +48,7 @@ Fundamental
 User Agent Request
 ==================
 
-.. directive:: ua-url
+.. directive:: ua-req-url
    :value: string
 
    Set the URL of the user agent request to :arg:`string`. This must be the full, parsable URL. To
@@ -65,6 +65,14 @@ User Agent Request
 
    Set the host in the URL for the user agent request to :arg:`value`. This has no effect on the
    port nor on the ``Host`` field.
+
+   This can interact with with the |TS| core in odd ways on the ``remap`` hook. By default, after
+   URL rewriting |TS| will itself update the ``Host`` header to match the host in the URL. This can
+   be prevented by enabling `pristine host header
+   <https://docs.trafficserver.apache.org/en/latest/admin-guide/files/records.config.en.html#proxy.config.url_remap.pristine_host_hdr>`__
+   or overridden by using :drtv:`when` to revert the ``Host`` field on a later hook (such as
+   ``post-remap``). The former  can be done globally as configuration, or locally using
+   :drtv:`txn-conf`.
 
 .. directive:: ua-req-port
    :value: integer
@@ -103,7 +111,7 @@ User Agent Request
 Proxy Request
 =============
 
-.. directive:: proxy-url
+.. directive:: proxy-req-url
    :value: string
 
    Set the URL of the proxy request to :arg:`string`. This must be the full, parsable URL. To set
@@ -152,8 +160,6 @@ Proxy response
    To set the field named "Best-Band" to the correct value "Delain" - ::
 
       proxy-rsp-field<Best-Band>: "Delain"
-
-
 
 Transaction
 ===========
@@ -204,7 +210,7 @@ Transaction
 Utility
 =======
 
-.. txb:directive:: debug
+.. directive:: debug
 
   :code:`debug: <message>`
 
