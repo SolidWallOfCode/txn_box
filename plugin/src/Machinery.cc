@@ -31,9 +31,9 @@ using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 Feature Generic::extract() const { return NIL_FEATURE; }
 /* ------------------------------------------------------------------------------------ */
-class Do_ua_req_url_host : public Directive {
+class Do_ua_url_host : public Directive {
   using super_type = Directive;
-  using self_type = Do_ua_req_url_host;
+  using self_type = Do_ua_url_host;
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -42,7 +42,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_url_host(Expr && expr);
+  Do_ua_url_host(Expr && expr);
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
@@ -51,12 +51,12 @@ protected:
   Expr _expr; ///< Feature expression.
 };
 
-const std::string Do_ua_req_url_host::KEY {"ua-req-url-host" };
-const HookMask Do_ua_req_url_host::HOOKS {MaskFor({ Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+const std::string Do_ua_url_host::KEY {"ua-url-host" };
+const HookMask Do_ua_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
-Do_ua_req_url_host::Do_ua_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
+Do_ua_url_host::Do_ua_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
-Errata Do_ua_req_url_host::invoke(Context &ctx) {
+Errata Do_ua_url_host::invoke(Context &ctx) {
   if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
       auto value = ctx.extract(_expr);
@@ -68,7 +68,7 @@ Errata Do_ua_req_url_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_ua_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+swoc::Rv<Directive::Handle> Do_ua_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -82,9 +82,9 @@ swoc::Rv<Directive::Handle> Do_ua_req_url_host::load(Config& cfg, YAML::Node drt
 
 // ---
 
-class Do_proxy_req_url_host : public Directive {
+class Do_proxy_url_host : public Directive {
   using super_type = Directive;
-  using self_type = Do_proxy_req_url_host;
+  using self_type = Do_proxy_url_host;
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -93,7 +93,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_proxy_req_url_host(Expr && expr);
+  Do_proxy_url_host(Expr && expr);
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load( Config& cfg, YAML::Node drtv_node, swoc::TextView const& name
@@ -102,12 +102,12 @@ protected:
   Expr _expr; ///< Host feature expression.
 };
 
-const std::string Do_proxy_req_url_host::KEY {"proxy-req-url-host" };
-const HookMask Do_proxy_req_url_host::HOOKS {MaskFor({ Hook::PREQ }) };
+const std::string Do_proxy_url_host::KEY {"proxy-url-host" };
+const HookMask Do_proxy_url_host::HOOKS {MaskFor({Hook::PREQ }) };
 
-Do_proxy_req_url_host::Do_proxy_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
+Do_proxy_url_host::Do_proxy_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
-Errata Do_proxy_req_url_host::invoke(Context &ctx) {
+Errata Do_proxy_url_host::invoke(Context &ctx) {
   if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
       auto value = ctx.extract(_expr);
@@ -119,7 +119,7 @@ Errata Do_proxy_req_url_host::invoke(Context &ctx) {
   return {};
 }
 
-swoc::Rv<Directive::Handle> Do_proxy_req_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+swoc::Rv<Directive::Handle> Do_proxy_url_host::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -2439,7 +2439,7 @@ namespace {
 
   Config::define(Do_ua_req_field::KEY, Do_ua_req_field::HOOKS, Do_ua_req_field::load);
   Config::define<Do_ua_req_url>();
-  Config::define<Do_ua_req_url_host>();
+  Config::define<Do_ua_url_host>();
   Config::define<Do_ua_req_scheme>();
   Config::define<Do_ua_req_host>();
   Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
@@ -2447,7 +2447,7 @@ namespace {
 
   Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
   Config::define<Do_proxy_req_url>();
-  Config::define<Do_proxy_req_url_host>();
+  Config::define<Do_proxy_url_host>();
   Config::define<Do_proxy_req_host>();
   Config::define<Do_proxy_req_scheme>();
   Config::define<Do_proxy_req_path>();
