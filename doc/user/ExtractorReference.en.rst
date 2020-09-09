@@ -435,6 +435,35 @@ Session
 
    The SNI name sent on the inbound session.
 
+Duration
+========
+
+A "duration" is a span of time. This is specified by one of a set of extractors.
+
+.. extractor:: milliseconds
+   :arg: count
+   :result: duration
+
+   A duration of :arg:`count` milliseconds.
+
+.. extractor:: seconds
+   :arg: count
+   :result: duration
+
+   A duration of :arg:`count` seconds.
+
+.. extractor:: minutes
+   :arg: count
+   :result: duration
+
+   A duration of :arg:`count` minutes.
+
+.. extractor:: hours
+   :arg: count
+   :result: duration
+
+   A duration of :arg:`count` hours.
+
 Utility
 =======
 
@@ -464,6 +493,12 @@ This is an ecletic collection of extractors that do not depend on transaction or
         do: # ...
       - lt: 25: # match 20% of the time - 25% less the previous 5%
         do: # ...
+
+.. extractor:: text-block
+   :arg: name
+   :result: string
+
+   Extract the content of the text block (defined by a :drtv:`text-block-define`) for :arg:`name`.
 
 .. extractor:: ip-col
    :arg: Column name or index

@@ -10,7 +10,7 @@ meta:
     - text-block-define:
         name: "SWOC"
         path: "static_file.txt"
-        duration: seconds<20>
+        duration: hours<12>
 
     - text-block-define:
         name: "alternate"
@@ -23,6 +23,15 @@ meta:
         text: "Concert missing."
         duration: seconds<20>
 
+# -- Doc jwt open
+    - text-block-define:
+        name: "default-jwt"
+        path: "/var/www/jwt/default-token.jwt"
+        text: "N/A"
+        duration: hours<12>
+# -- Doc jwt close
+
+# -- Doc 1 open
   - when: upstream-rsp
     do:
     - with: [ upstream-rsp-status , proxy-req-path ]
@@ -36,7 +45,7 @@ meta:
                            # To report abusive behavior please visit http://yoyodyne.exe\n\
                            Contact: mailto:security@yoyodyne.ex\n\
                           "
-
+# -- Doc 1 close
 
   - when: proxy-req
     do:
@@ -61,6 +70,15 @@ meta:
     do:
     - proxy-rsp-field<SWOC>: [ proxy-rsp-field<SWOC>, { else: text-block<SWOC> }]
 
+# -- Doc jwt-apply open
+  - when: proxy-rsp
+    do:
+    - with: proxy-req-field<Author-i-tay>
+      select:
+      - is-empty:
+        do:
+        - proxy-req-field<Author-i-tay>: text-block<default-jwt>
+# -- Doc jwt-apply close
 
 sessions:
 - protocol: [ ipv4, tcp ]
