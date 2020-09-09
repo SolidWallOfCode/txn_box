@@ -146,7 +146,34 @@ Proxy Request
 
       proxy-req-field<Best-Band>: "Delain"
 
-Proxy response
+
+Upstream Response
+=================
+
+.. directive:: upstream-rsp-field
+   :arg: name
+   :value: string, tuple of strings.
+
+   Set the field named :arg:`name` to the :arg:`value`. If :arg:`value` is a tuple of strings,
+   create a field for every element of the tuple and set the value for that field to the tuple
+   element.
+
+.. directive:: upstream-rsp-status
+   :value: integer, tuple of integer, string
+
+   Set the upstream response status. If the value is an integer, the response status is set to
+   that value. If the value is a list, it must two elements, an integer and a string. The status
+   is set to the integer value and the reason is set to the string.
+
+   Set the status to 403 ::
+
+      upstream-rsp-status: 403
+
+   Set the status to 404 with the reason "Desk too messy" ::
+
+      upstream-rsp-status: [ 404, "Desk too messy" ]
+
+Proxy Response
 ==============
 
 .. directive:: proxy-rsp-field
@@ -160,6 +187,26 @@ Proxy response
    To set the field named "Best-Band" to the correct value "Delain" - ::
 
       proxy-rsp-field<Best-Band>: "Delain"
+
+.. directive:: proxy-rsp-status
+   :value: integer, tuple of integer, string
+
+   Set the proxy response status. If the value is an integer, the response status is set to
+   that value. If the value is a list, it must two elements, an integer and a string. The status
+   is set to the integer value and the reason is set to the string.
+
+   Set the status to 403 ::
+
+      proxy-rsp-status: 403
+
+   Set the status to 404 with the reason "Desk too messy" ::
+
+      proxy-rsp-status: [ 404, "Desk too messy" ]
+
+.. directive:: proxy-rsp-body
+   :value: string
+
+   Replace the proxy response body with the value of this directive.
 
 Transaction
 ===========
@@ -219,6 +266,29 @@ Utility
   Generate a plugin debug message. If *tag* is specified it is used as the debug tag, otherwise
   the plugin tag "txn_box" is used.
 
+.. directive:: text-block-define
+
+   Define a text block. This is valid only in the ``post-load`` hook. A text block can be read
+   from a file or config based text, or both. If a file is specified it can be set to be checked
+   for modifications and reloaded if changed. The keys are
+
+   name
+      Name of the text block. This is used to reference the contents via :ex:`text-block`. This is
+      required.
+
+   path
+      Path to a file with content for the text block.
+
+   text
+      Explicit text content for the text block.
+
+   duration
+      An optional value that specifies how often to check the file for changes.
+
+   One of ``path`` and ``text`` must be present. If both are present ``path`` takes precedence. The
+   file contents are used if the file can be read, otherwise the value in ``text`` is used. If
+   only ``path`` is present it is a configuration error if the file specified by ``path`` cannot
+   be read.
 
 IPSpace
 =======
