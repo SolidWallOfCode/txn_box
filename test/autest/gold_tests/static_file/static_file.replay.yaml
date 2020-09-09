@@ -32,7 +32,11 @@ meta:
         - match: "security.txt"
         do:
         - upstream-rsp-status: [ 200 , "OK" ]
-        - proxy-rsp-body: "Generic security.txt content."
+        - proxy-rsp-body: "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
+                           # To report abusive behavior please visit http://yoyodyne.exe\n\
+                           Contact: mailto:security@yoyodyne.ex\n\
+                          "
+
 
   - when: proxy-req
     do:

@@ -145,11 +145,14 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     run = self.AddTestRun(text)
     ts = run.Variables.TS = self.Variables.TXNBOX_TS
 
-    pv_client = run.AddVerifierClientProcess(
-        "pv-client", ts, replay_path,
-        http_ports=[ts.Variables.port],
-        https_ports=[ts.Variables.ssl_port],
-        other_args="--verbose diag {}".format(verifier_client_args))
+    vc_args = { 'other_args' : "--verbose diag {}".format(verifier_client_args)
+              , 'http_ports' : [ ts.Variables.port ]
+              }
+    try:
+        vc_args['https_ports'] = [ ts.Variables.ssl_port ]
+    except:
+        pass # not an error if it's missing, just don't pass it.
+    pv_client = run.AddVerifierClientProcess("pv-client", ts, replay_path, **vc_args)
 
     run.Variables.CLIENT = pv_client
 
