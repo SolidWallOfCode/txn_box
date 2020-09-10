@@ -125,9 +125,12 @@ Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
   // What about directive storage?
 
   // Remap rule directives.
+  _terminal_p = false; // reset before each top level invocation.
   for (auto const &handle : rule_cfg.hook_directives(_cur_hook)) {
-    _terminal_p = false; // reset before each top level invocation.
     handle->invoke(*this); // need to log errors here.
+    if (_terminal_p) {
+      break;
+    }
   }
   // Now the global config directives for REMAP
   if (_cfg) {
