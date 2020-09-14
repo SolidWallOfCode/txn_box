@@ -60,7 +60,7 @@ User Agent Request
    Set the host for the user agent request to :arg:`value`. This updates both the URL and the
    ``Host`` field as needed. This has no effect on the request port.
 
-.. directive:: ua-url-host
+.. directive:: ua-req-url-host
    :value: string
 
    Set the host in the URL for the user agent request to :arg:`value`. This has no effect on the
@@ -123,7 +123,7 @@ Proxy Request
    Set the host for the proxy request to :arg:`value`. This updates both the URL and the ``Host``
    field as needed. This has no effect on the request port.
 
-.. directive:: proxy-url-host
+.. directive:: proxy-req-url-host
    :value: string
 
    Set the host in the URL for the proxy request to :arg:`value`. This has no effect on the
