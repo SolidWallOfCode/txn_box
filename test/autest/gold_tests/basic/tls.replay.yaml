@@ -12,7 +12,7 @@ meta:
       - proxy-rsp-field<req-url>: var<req-url>
 
     remap:
-    - txn-conf<proxy.config.url_remap.pristine_host_hdr>: 1
+    - did-remap: true
     - with: pre-remap-path
       select:
       - any-of:
@@ -21,8 +21,8 @@ meta:
         - prefix: "v1/video/channels/"
         - prefix: "v1/video/sub/"
         do:
-        - debug: "Setting URL host"
-        - ua-url-host: "stage.video.ex"
+        - txn-conf<proxy.config.ssl.client.sni_policy>: "@{remap-target-host}"
+        - ua-req-host: "stage.video.ex"
 
   blocks:
   - base_request: &base_request
@@ -39,7 +39,46 @@ meta:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 96 ]
 
+
 sessions:
+
+# Plain text
+- protocol: [ ipv4, tcp ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 101 ]]}}
+    client-request:
+      <<: *base_request
+      url: "/v1/video/search/channel/delain"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ "Host", "stage.video.ex", equal ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [ [ uuid, 102 ] ] } }
+    client-request:
+      <<: *base_request
+      url: "/v1/video/channels/nightwish"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base_request
+      headers:
+        fields:
+        - [ "Host", "stage.video.ex", equal ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
 - protocol: [ ipv4, tcp, tls  ]
   transactions:
 
@@ -55,13 +94,14 @@ sessions:
       <<: *base_request
       headers:
         fields:
-        - [ "Host", "base.ex" ]
+        - [ "Host", "stage.video.ex", equal ]
     server-response:
       <<: *base-rsp
     proxy-response:
       status: 200
 
-  - client-request:
+  - all: { headers: { fields: [ [ uuid, 2 ] ] } }
+    client-request:
       <<: *base_request
       url: "/v1/video/channels/nightwish"
       headers:
@@ -71,7 +111,7 @@ sessions:
       <<: *base_request
       headers:
         fields:
-        - [ "Host", "base.ex" ]
+        - [ "Host", "stage.video.ex", equal ]
     server-response:
       <<: *base-rsp
     proxy-response:
