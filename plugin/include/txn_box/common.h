@@ -505,10 +505,13 @@ extern swoc::Lexicon<ValueType> const ValueTypeNames;
 
 /// Supported hooks.
 /// @internal These must be in order because that is used to check if the value for the _when_
-/// directive is valid from the current hook.
+/// directive is valid from the current hook. Special hooks that can't be scheduled from a
+/// transaction go before @c TXN_START so they are always "in the past".
 enum class Hook {
   INVALID, ///< Invalid hook (default initialization value).
-  POST_LOAD, ///< After configuration loading.
+  POST_LOAD, ///< After configuration has been loaded.
+  POST_ACTIVE, ///< After the configuration has become active.
+  MSG, ///< During plugin message handling (implicit).
   TXN_START, ///< Transaction start.
   CREQ, ///< Read Request from user agent.
   PRE_REMAP, ///< Before remap.
@@ -517,8 +520,7 @@ enum class Hook {
   PREQ, ///< Send request from proxy to upstream.
   URSP, ///< Read response from upstream.
   PRSP, ///< Send response to user agent from proxy.
-  TXN_CLOSE, ///< Transaction close.
-  MSG ///< During plugin message handling (implicit).
+  TXN_CLOSE ///< Transaction close.
 };
 
 /// Make @c tuple_size work for the @c Hook enum.
