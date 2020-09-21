@@ -42,6 +42,7 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
       , {TS_EVENT_HTTP_SEND_RESPONSE_HDR, Hook::PRSP}
       , {TS_EVENT_HTTP_PRE_REMAP, Hook::PRE_REMAP}
       , {TS_EVENT_HTTP_POST_REMAP, Hook::POST_REMAP}
+      , { TS_EVENT_HTTP_TXN_CLOSE, Hook::TXN_CLOSE}
   };
   if (auto spot{table.find(ev)}; spot != table.end()) {
     return spot->second;
