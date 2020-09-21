@@ -186,11 +186,11 @@ assume this outer wrapper is present. ::
    txn_box:
    - when: creq
      do:
-     - with: creq-host
+     - with: ua-req-host
        select:
        -  suffix: ".apache.org"
           do:
-          -  rewrite-url: "{creq-scheme}://apache.org/{...}{creq-path}"
+          -  rewrite-url: "{ua-req-scheme}://apache.org/{...}{ua-req-path}"
        -  match: "apache.org"
           # Explicitly do nothing with the base host name to count as "matched".
 
@@ -201,11 +201,11 @@ Access to upstream resources can be controlled on a fine grained level by doing 
 using the :code:`deny` directive. For instance, if access to ``id.example.one`` should be restricted
 to the ``GET``, ``POST``, and ``HEAD`` methods, this could be done wth ::
 
-   with: creq-url
+   with: ua-req-url
    select:
    -  match: "id.example.one"
       do:
-      -  with: creq-method
+      -  with: ua-req-method
          select:
          -  none-of:
                match: [ "GET", "POST", "HEAD" ]
@@ -223,7 +223,7 @@ This could be done in another way ::
    select:
    -  match: "id.example.one"
       do:
-      -  with: "{creq.method}"
+      -  with: "{ua-req-method}"
          select:
          -  match: [ "GET", "POST", "HEAD" ]
             do:
@@ -265,7 +265,7 @@ Reverse Mapping
 If the URL "example.one" is rewritten to "some.place", then it useful to rewrite the ``Location``
 header from "some.place" to "example.one". This could be done as ::
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.one"
       do:
@@ -303,7 +303,7 @@ As with referer remapping, this is easily done by extracting and selecting on th
 To restrict the URL "example.one" to connections to the local port 8180 ::
 
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.one"
       do:
@@ -316,7 +316,7 @@ To restrict the URL "example.one" to connections to the local port 8180 ::
 Note because of the no backtrack rule, the request will pass through unmodified if allowed. If it
 needed to be changed to "special.example.one" that would be ::
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.one"
       do:
@@ -340,7 +340,7 @@ has modifier.
 Presuming the production destination is "example.one" and the test destination is "stage.example.one"
 then 1% of traffic can be sent to the staging system with ::
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.com"
       do:
@@ -353,7 +353,7 @@ then 1% of traffic can be sent to the staging system with ::
 
 To be more deterministic, the bucket could be based on the client IP address. ::
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.com"
       do:
@@ -367,7 +367,7 @@ To be more deterministic, the bucket could be based on the client IP address. ::
 As another alternative, this could be done with a cookie in the client request. If the cookie was
 "example" with the test bucket indicated by the value "test", then it would be. ::
 
-   with: "{creq-host}"
+   with: "{ua-req-host}"
    select:
    -  match: "example.com"
       do:
