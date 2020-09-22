@@ -165,7 +165,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
       path_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(path_errata);
     }
-    if (!path_expr.is_literal()) {
+    if (! path_expr.is_literal() || ! path_expr.result_type().can_satisfy(STRING)) {
       return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY, drtv_node.Mark());
     }
     drtv_node.remove(path_node);
@@ -321,14 +321,12 @@ Feature Ex_text_block::extract(Context &ctx, const Spec &spec) {
       }
     }
   }
-  // Couldn't find the directive, or the block, or any content, so return NULL.
+  // Couldn't find the directive, or the block, or any content
   return NIL_FEATURE;
 }
 
 BufferWriter& Ex_text_block::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  auto view = spec._data.rebind<TextView>()[0];
-  auto tag = ctx._txn.ssn().proto_contains(view);
-  return bwformat(w, spec, tag);
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
