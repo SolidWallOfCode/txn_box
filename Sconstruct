@@ -29,7 +29,7 @@ AddOption("--with-ssl",
 
 # the depends
 Part("code/libswoc.part"
-        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.2.8")
+        ,vcs_type=VcsGit(server="github.com", repository="SolidWallOfCode/libswoc", tag="1.2.10")
         )
 Part("#lib/libyaml-cpp.part", vcs_type=VcsGit(server="github.com", repository="jbeder/yaml-cpp.git", protocol="https", tag="yaml-cpp-0.6.3"))
 #Part("#lib/libyaml-cpp.part")
@@ -37,7 +37,7 @@ Part("#lib/libyaml-cpp.part", vcs_type=VcsGit(server="github.com", repository="j
 # this is just a shim part. it passes info based on stuff being installed on the box
 # it should have a better check for the real version of trafficserver being used
 ts_path = GetOption("with_trafficserver")
-Part("#lib/trafficserver.part", PKG_PREFIX=ts_path, PKG_VERSION="7.1.2")
+Part("#lib/trafficserver.part", PKG_PREFIX=ts_path, PKG_VERSION="10.0.0")
 
 path = GetOption("with_ssl")
 Part("#lib/openssl.part", CUSTOM_PATH=path)
