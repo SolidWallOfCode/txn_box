@@ -11,8 +11,8 @@ Basic TLS testing.
 
 tr = Test.TxnBoxTestAndRun("Basic TLS", "tls.replay.yaml", config_path='Auto', config_key='meta.txn_box.global'
                 , remap=[
-                          ['http://base.ex/', 'http://base.ex/', ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
-                        , ['https://base.ex/', 'https://base.ex/', ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
+                          ['http://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
+                        , ['https://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
                        ]
                 , verifier_client_args="--verbose info"
                 , enable_tls=True
