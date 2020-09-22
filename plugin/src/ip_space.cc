@@ -6,16 +6,15 @@
 */
 
 #include <shared_mutex>
+#include <limits>
 
 #include "txn_box/common.h"
 
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
-#include <swoc/ArenaWriter.h>
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
 #include <swoc/bwf_ex.h>
-#include <swoc/bwf_std.h>
 #include <swoc/Lexicon.h>
 
 #include "txn_box/Directive.h"
@@ -58,7 +57,7 @@ enum class ColumnData {
  */
 class BitSpan {
   using self_type = BitSpan; ///< Self reference type.
-  static constexpr unsigned BITS = BITSPERBYTE; ///< # of bits per unit.
+  static constexpr unsigned BITS = std::numeric_limits<uint8_t>::digits; ///< # of bits per unit.
 
   /// Reference class to make the index operator work.
   /// An instance of this fronts for a particular bit in the bit set.
