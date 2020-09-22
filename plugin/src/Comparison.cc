@@ -1039,6 +1039,8 @@ protected:
   static Errata load_case(Config& cfg, std::vector<Handle> & cmps, YAML::Node node);
 };
 
+const ActiveType ComboComparison::TYPES { ActiveType::any_type() };
+
 auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<std::vector<Handle>> {
   std::vector<Handle> cmps;
   if (value_node.IsMap()) {
@@ -1067,8 +1069,6 @@ Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::N
   cmps.emplace_back(std::move(cmp_handle));
   return {};
 }
-
-const ActiveType ComboComparison::TYPES { ActiveType::any_type() };
 
 // ---
 
@@ -1165,6 +1165,135 @@ auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key
 
 // ---
 
+class Cmp_for_all : public Comparison {
+  using self_type = Cmp_for_all; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "for-all"; ///< Comparison name.
+  static const ActiveType TYPES; ///< Supported types.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Comparison::Handle _cmp;
+  explicit Cmp_for_all(Handle && cmp) : _cmp(std::move(cmp)) {}
+};
+
+const ActiveType Cmp_for_all::TYPES { ActiveType::any_type() };
+
+bool Cmp_for_all::operator()(Context &ctx, Feature const& feature) const {
+  if (TUPLE != ValueTypeOf(feature)) {
+    return (*_cmp)(ctx, feature);
+  }
+
+  auto & t { std::get<TUPLE>(feature) };
+  return std::all_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+}
+
+auto Cmp_for_all::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
+  if (! value_node.IsMap()) {
+    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+  }
+  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
+  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  if (!errata.is_ok()) {
+    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(cmp)});
+}
+
+// ---
+
+class Cmp_for_any : public Comparison {
+  using self_type = Cmp_for_any; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "for-any"; ///< Comparison name.
+  static const ActiveType TYPES; ///< Supported types.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Comparison::Handle _cmp;
+  explicit Cmp_for_any(Handle && cmp) : _cmp(std::move(cmp)) {}
+};
+
+const ActiveType Cmp_for_any::TYPES { ActiveType::any_type() };
+
+bool Cmp_for_any::operator()(Context &ctx, Feature const& feature) const {
+  if (TUPLE != ValueTypeOf(feature)) {
+    return (*_cmp)(ctx, feature);
+  }
+
+  auto & t { std::get<TUPLE>(feature) };
+  return std::any_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+}
+
+auto Cmp_for_any::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
+  if (! value_node.IsMap()) {
+    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+  }
+  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
+  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  if (!errata.is_ok()) {
+    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(cmp)});
+}
+
+// ---
+
+class Cmp_for_none : public Comparison {
+  using self_type = Cmp_for_none; ///< Self reference type.
+  using super_type = Comparison; ///< Parent type.
+public:
+  static constexpr TextView KEY = "for-none"; ///< Comparison name.
+  static const ActiveType TYPES; ///< Supported types.
+
+  TextView const& key() const { return KEY; }
+
+  bool operator()(Context& ctx, Feature const& feature) const override;
+
+  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+protected:
+  Comparison::Handle _cmp;
+  explicit Cmp_for_none(Handle && cmp) : _cmp(std::move(cmp)) {}
+};
+
+const ActiveType Cmp_for_none::TYPES { ActiveType::any_type() };
+
+bool Cmp_for_none::operator()(Context &ctx, Feature const& feature) const {
+  if (TUPLE != ValueTypeOf(feature)) {
+    return (*_cmp)(ctx, feature);
+  }
+
+  auto & t { std::get<TUPLE>(feature) };
+  return std::all_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+}
+
+auto Cmp_for_none::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
+  if (! value_node.IsMap()) {
+    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+  }
+  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
+  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  if (!errata.is_ok()) {
+    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(cmp)});
+}
+
+// ---
+
 /// Compare the active feature as a tuple to a list of comparisons.
 class Cmp_as_tuple : public ComboComparison {
   using self_type = Cmp_as_tuple; ///< Self reference type.
@@ -1178,7 +1307,7 @@ public:
 
   static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 protected:
-  Cmp_as_tuple(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+  explicit Cmp_as_tuple(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
 };
 
 bool Cmp_as_tuple::operator()(Context &ctx, Feature const& feature) const {
@@ -1275,6 +1404,10 @@ namespace {
   Comparison::define(Cmp_all_of::KEY, Cmp_all_of::TYPES, Cmp_all_of::load);
   Comparison::define(Cmp_any_of::KEY, Cmp_any_of::TYPES, Cmp_any_of::load);
   Comparison::define(Cmp_as_tuple::KEY, Cmp_as_tuple::TYPES, Cmp_as_tuple::load);
+
+  Comparison::define(Cmp_for_all::KEY, Cmp_for_all::TYPES, Cmp_for_all::load);
+  Comparison::define(Cmp_for_any::KEY, Cmp_for_any::TYPES, Cmp_for_any::load);
+  Comparison::define(Cmp_for_none::KEY, Cmp_for_none::TYPES, Cmp_for_none::load);
 
   return true;
 } ();

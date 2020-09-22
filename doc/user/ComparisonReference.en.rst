@@ -262,19 +262,46 @@ These comparisons do not directly compare values. They combine or change other c
    This serves as the "not" comparison if the list is of length 1. For instance, if the goal was to
    find features that do **not** contain a regular expression ::
 
-      none-of:
-      -  rxp: "(?:one)|(?:two)|(?:three)"
-      do:
-      - # yadda yadda
+      with: proxy-req-field<App>
+      select:
+      - none-of:
+        -  rxp: "^channel=(?:(?:.* metal)|(?:.*symphonic.*))"
+        do:
+        - proxy-req-field<Best-Band>: "Delain"
 
    This could be done as a "negative regular expression" but those are tricky to write, slow, and
    can create stack explosions. This approach is more robust and faster. Note the ``do`` is
    attached to the ``none-of``. If attached to ``rxp`` those directives would trigger on the ``rxp``
    succeeding, not on it failing.
 
+Tuple Comparisons
+-----------------
+
+These comparisons are compound in that they do not directly compare values but take other
+comparisons and apply those. They are intended for use on tuples or lists of values. The "for-..."
+comparisons treat the tuple as a homogenous list where the same comparison is used on every element.
+:code:`as-tuple` is for heterogenous lists where the different comparisons are used on different
+elements of the tuple.
+
+.. comparison:: for-any
+
+   The value must be another comparison. The comparison is applied to every element of the tuple and
+   the comparison is successful if nested comparison is successful for any element of the tuple.
+
+.. comparison:: for-all
+
+   The value must be another comparison. The comparison is applied to every element of the tuple and
+   the comparison is successful if nested comparison is successful for every element of the tuple.
+
+.. comparison:: for-none
+
+   The value must be another comparison. The comparison is applied to every element of the tuple and
+   the comparison is successful if nested comparison is successful for no elements of the tuple.
+
 .. txb:comparison:: as-tuple
 
     Compare a tuple as a tuple. This requires a list of comparisons which are applied to the tuple
-    elements in the same order.
+    elements in the same order. The list may be a different length than the tuple, in which case
+    the excess elements (tuple values or comparisons) are ignored.
 
 

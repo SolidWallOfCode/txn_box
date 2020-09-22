@@ -18,11 +18,6 @@ Issues
 #. What happens to the remap requirement? What counts as a remap match? Currently adding a
    comparison "always" which always matches, so that can count as a match.
 
-#. There are some use cases that want to check just for an extract string to be empty or non-empty.
-   Should there be a forcing to the ``bool`` type for these, which are then ``true`` for non-empty
-   and ``false`` for empty? Specific match operators for empty and non-empty (although this can be
-   done with ``match: ""``)?
-
 #. How optional should ``do`` nodes be? For instance, for selection cases is it OK to omit the
    node entirely if there's nothing to actually do, it's just a match for some other reason (e.g.
    to prevent requests that match from matching subsequent cases)?
@@ -93,45 +88,6 @@ Another example is setting the "Server" field to "TxnBox-Enhanced-Server" if it 
 ::
 
    upstream-field<Server>: [ upstream-field<Server> , { else: "TxnBox-Enhanced-Server" } ]
-
-TBD: Tuple / multi-valued fields.
-
-For a multi-valued field, if it is useful to handle it as distinct values (instead of one string)
-this can be done with the extension "by-value". This extracts a list of items, one for each value
-in the field. This includes duplicate fields. In this case, normal comparisons won't work, as they
-apply only to single values. There are comparison specific to lists that must be used which apply
-single value comparisons to elements of the list. This can be done in two ways, either as a list
-(where the same comparison is applied to every element) or as a tuple, where different comparisons
-can be applied to each element.
-
-The list comparisons are
-
-for-all
-   Apply the comparison(s) to each element and match if every element successfully matches.
-
-for-any
-   Apply the comparison(s) to each element and match if any element successfully matches.
-
-for-none
-   Apply the comparison(s) to each element and match if no element successfully matches.
-
-For performance reasons the comparison ends as soon as the result is known. For example ``for-all``
-stops as soon as any comparison doesn't match.
-
-The comparison :txb:cmp:`as-tuple` takes a list of comparisons and applies them in order to the
-list. Any of the list comparisons can be used as the last comparison of a tuple in which case it is
-applied to the remaining elements of the tuple. Note an empty comparison always matches which can be
-used to skip elements in the tuple.
-
-As an example, to check if any element of the "Via" field has the string "trafficserver" ::
-
-   with: ua-req-field<via>
-   select:
-   -  for-any:
-      -  contains<nc>: "trafficserver"
-      do: # invoked if any Via value matched
-
-Note selecting on just :code:`ua-req-field<via>` would only check the first "Via" field.
 
 Finally, for fields like "Set-Cookie", handling must be done by the actual fields in the message
 header. Here is an example that walks the "Set-Cookie" fields and if the domain is set to

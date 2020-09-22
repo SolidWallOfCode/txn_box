@@ -688,6 +688,39 @@ Errata &HttpTxn::init(swoc::Errata &errata) {
   return errata;
 }
 
+// ----
+
+int plugin_stat_value(int idx) {
+  return TSStatIntGet(idx);
+}
+
+int plugin_stat_index(TextView const & name) {
+  int idx;
+  if (TS_SUCCESS == TSStatFindName(name.data(), &idx)) {
+    return idx;
+  }
+  return -1;
+}
+
+Rv<int> plugin_stat_define(TextView const& name, int value, bool persistent_p) {
+  int idx = plugin_stat_index(name);
+  if (idx >= 0) { // Already there, just return the index.
+    return idx;
+  }
+  // Create the stat.
+  idx = TSStatCreate(name.data(), TS_RECORDDATATYPE_INT, (persistent_p ? TS_STAT_PERSISTENT : TS_STAT_NON_PERSISTENT), TS_STAT_SYNC_SUM);
+  if (idx == TS_ERROR) {
+    return Error("Failed to create stat '{}'", name);
+  }
+  TSStatIntSet(idx, value);
+  return idx;
+}
+
+void plugin_stat_update(int idx, intmax_t value) {
+  TSStatIntIncrement(idx, value);
+}
+
+// ----
 void TaskHandle::cancel() {
   if (_action != nullptr) {
     TSMutex m = TSContMutexGet(_cont);

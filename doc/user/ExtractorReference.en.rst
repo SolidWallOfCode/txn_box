@@ -507,3 +507,12 @@ This is an ecletic collection of extractors that do not depend on transaction or
    needed to extract the column value for that row. The argument can be the name of the column, if
    it has a name, or the index. Note index 0 is the IP address range, and data columns start at
    index 1.
+
+.. extractor:: stat
+   :arg: Plugin statistic name.
+   :result: integer
+
+   This extracts the value of a plugin statistic, which is currently limited to integers by |TS|.
+
+   Note statistic values are eventually consistent, there can be multiple second delays between
+   incrementing a statistic with :drtv:`stat-update` and the value changing.

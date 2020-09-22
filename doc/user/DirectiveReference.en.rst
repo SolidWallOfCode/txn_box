@@ -290,6 +290,29 @@ Utility
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot
    be read.
 
+.. directive:: stat-define
+
+   Define a plugin statistic, which can be externally accessed. Currently |TS| limits plugin
+   statistics to integers.
+
+   name
+      Name of the statistic.
+
+   value
+      Initial value. This is optional. If not present the value zero is used.
+
+   persistent
+      Whether the statistic is persistent, the value must be a boolean. This is optional. If not
+      present the statistic is not persistent.
+
+.. directive:: stat-update
+   :arg: *name*
+   :value: integer
+
+   Change the value of the plugin statistic :arg:`name`. If the value is present it must be an
+   integer, which is added to the value of the statistic. If not present the statistic is
+   incremented by 1.
+
 IPSpace
 =======
 

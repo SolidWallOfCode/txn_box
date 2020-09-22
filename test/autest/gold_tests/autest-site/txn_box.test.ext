@@ -11,7 +11,63 @@ import os.path
 import types
 from urllib.parse import urlparse
 
-def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server', enable_tls=False):
+def TxnBoxUrlRewrite(tester, rules, ports):
+    if rules:
+        for line in rules:
+            pparams = None
+            target = line[0]
+            if len(line) == 1:
+                replacement = target
+            elif len(line) == 2:
+                if isinstance(line[1], str):
+                    replacement = line[1]
+                else:
+                    replacement = target
+                    pparams = line[1]
+            elif len(line) == 3:
+                replacement = line[1]
+                pparams = line[2]
+            else:
+                raise ValueError("remap entries must be either (from, to) or (from, to, [pparams])")
+
+            # Parse the replacement URL and change just the port.
+            url = urlparse(replacement)
+            port = ports[url.scheme]
+            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
+            line = 'map {} {} '.format(target, url.geturl())
+            if pparams:
+                line += '@plugin=txn_box.so '
+                for pparam in pparams:
+                    line += '@pparam={} '.format(pparam)
+            tester.Disk.remap_config.AddLine(line)
+
+def TxnBoxRxUrlRewrite(tester, rules, ports):
+    if rules:
+        for rule in rules:
+            pparams = None
+            target = rule[0]
+            if len(rule) == 2:
+                if isinstance(rule[1], str):
+                    replacement = rule[1]
+                else:
+                    pparams = rule[1]
+            elif len(rule) == 3:
+                replacement = rule[1]
+                pparams = rule[2]
+            else:
+                raise ValueError("remap entries must be either (from, to) or (from, to, [pparams])")
+
+            url = urlparse(replacement)
+            port = ports[url.scheme]
+            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
+            line = 'regex_map {} {} '.format(target, url.geturl())
+            if pparams:
+                line += '@plugin=txn_box.so '
+                for pparam in pparams:
+                    line += '@pparam={} '.format(pparam)
+            tester.Disk.remap_config.AddLine(line)
+
+def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server', enable_tls=False, suffix=""):
     """
     Create a base test object specialized for TxnBox testing.
 
@@ -26,7 +82,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             if to is missing, it is set equal to from yielding an identity remap.
     """
 
-    ts = self.MakeATSProcess("ts", command=command, enable_tls=enable_tls)
+    ts = self.MakeATSProcess("ts{}".format(suffix), command=command, enable_tls=enable_tls)
     self.Variables.TXNBOX_TS = ts
     self.Variables.TXNBOX_REPLAY_PATH = replay_path
 
@@ -53,9 +109,9 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
         ts.Disk.plugin_config.AddLine(txn_box_command)
 
     # Configure Traffic Server to use the DNS process.
-    self.Variables.TXNBOX_DNS = self.MakeDNServer("dns", ip='127.0.0.1', default='127.0.0.1')
+    self.Variables.TXNBOX_DNS = self.MakeDNServer("dns{}".format(suffix), ip='127.0.0.1', default='127.0.0.1')
 
-    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server", replay_path)
+    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path)
 
     ts.Disk.records_config.update({
         'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(self.Variables.TXNBOX_DNS.Variables.Port),
@@ -64,64 +120,10 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
         # 'proxy.config.plugin.dynamic_reload': 0
     })
 
-    if remap:
-        for remap_line in remap:
-            pparams = None
-            map_from = remap_line[0]
-            if len(remap_line) == 1:
-                map_to = map_from
-            elif len(remap_line) == 2:
-                if isinstance(remap_line[1], str):
-                    map_to = remap_line[1]
-                else:
-                    map_to = map_from
-                    pparams = remap_line[1]
-            elif len(remap_line) == 3:
-                map_to = remap_line[1]
-                pparams = remap_line[2]
-            else:
-                raise ValueError("remap entries must be either (from, to) or (from, to, [pparams])")
-
-            # Parse the replacement URL and change just the port.
-            url = urlparse(map_to)
-            port = self.Variables.TXNBOX_SERVER.Variables.http_port
-            if url.scheme == "https" :
-                port = self.Variables.TXNBOX_SERVER.Variables.https_port
-            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
-            line = 'map {} {} '.format(map_from, url.geturl())
-            if pparams:
-                line += '@plugin=txn_box.so '
-                for pparam in pparams:
-                    line += '@pparam={} '.format(pparam)
-            ts.Disk.remap_config.AddLine(line)
-
-    if regex_map:
-        for rule in regex_map:
-            pparams = None
-            map_from = rule[0]
-            if len(rule) == 2:
-                if isinstance(rule[1], str):
-                    map_to = rule[1]
-                else:
-                    pparams = rule[1]
-            elif len(rule) == 3:
-                map_to = rule[1]
-                pparams = rule[2]
-            else:
-                raise ValueError("remap entries must be either "
-                                 "(from, to) or (from, to, [pparams])")
-
-            url = urlparse(map_to)
-            port = self.Variables.TXNBOX_SERVER.Variables.http_port
-            if url.scheme == "https" :
-                port = self.Variables.TXNBOX_SERVER.Variables.https_port
-            url = url._replace(netloc='{}:{}'.format(url.hostname, port))
-            line = 'regex_map {} {} '.format(map_from, url.geturl())
-            if pparams:
-                line += '@plugin=txn_box.so '
-                for pparam in pparams:
-                    line += '@pparam={} '.format(pparam)
-            ts.Disk.remap_config.AddLine(line)
+    TxnBoxUrlRewrite(ts, remap, { "http" : self.Variables.TXNBOX_SERVER.Variables.http_port
+                                , "https" : self.Variables.TXNBOX_SERVER.Variables.https_port})
+    TxnBoxRxUrlRewrite(ts, regex_map, { "http" : self.Variables.TXNBOX_SERVER.Variables.http_port
+                                      , "https" : self.Variables.TXNBOX_SERVER.Variables.https_port})
 
     # Always add this as a catch all at the end
     ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(self.Variables.TXNBOX_SERVER.Variables.http_port))
@@ -168,8 +170,8 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     return run
 
 def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta.txn_box", remap=None
-                     , verifier_client_args="--verbose diag", enable_tls=False):
-    self.TxnBoxTest(replay_path, config_path, config_key, remap, enable_tls=enable_tls)
+                     , verifier_client_args="--verbose diag", enable_tls=False, suffix=""):
+    self.TxnBoxTest(replay_path, config_path, config_key, remap, enable_tls=enable_tls, suffix=suffix)
     return self.TxnBoxRun(name, verifier_client_args=verifier_client_args)
 
 ExtendTest(TxnBoxTest, name="TxnBoxTest")
