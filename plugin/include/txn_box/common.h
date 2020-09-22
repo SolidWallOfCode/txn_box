@@ -525,7 +525,7 @@ enum class Hook {
 
 /// Make @c tuple_size work for the @c Hook enum.
 namespace std {
-template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::MSG)+1> {};
+template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::TXN_CLOSE)+1> {};
 }; // namespace std
 
 /** Convert a @c Hook enumeration to an unsigned value.

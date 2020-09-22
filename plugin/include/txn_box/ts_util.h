@@ -543,6 +543,18 @@ public:
 protected:
 };
 
+// ----
+
+int plugin_stat_index(swoc::TextView const& name);
+
+int plugin_stat_value(int idx);
+
+void plugin_stat_update(int idx, intmax_t value);
+
+swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool persistent_p);
+
+// ----
+
 struct TaskHandle {
   /// Wrapper for data needed when the event is dispatched.
   struct Data {

@@ -1,39 +1,27 @@
 meta:
   version: "1.0"
 
-  txn_box:
-    remap:
-    - with: pre-remap-path
-      select:
-      - any-of:
-        - prefix: "v1/video/search/"
-        - prefix: "v1/video/alias/"
-        do:
-        - with: random
-          select:
-          - lt: 30
-            do:
-            - ua-req-host: "stage.video.ex"
-      - prefix: "v1/video/channels/"
-        do:
-        - with: random
-          select:
-          - lt: 10
-            do:
-            - ua-req-host: "stage.video.ex"
-      - prefix: "v1/video/sub/"
-        do:
-        - with: random
-          select:
-          - lt: 100
-            do:
-            - ua-req-host: "stage.video.ex"
-
   blocks:
+  - ua-req-hdr: &ua-req-hdr
+      headers:
+        fields:
+        - [ Host, base.ex ]
+
   - base_request: &base_request
       version: "1.1"
       scheme: "http"
       method: "GET"
+      <<: *ua-req-hdr
+
+  - upstream-rsp: &upstream-rsp
+      status: 200
+      reason: OK
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
 
 sessions:
 - protocol: [ ipv4, tcp, tls ]
@@ -41,119 +29,65 @@ sessions:
   - client-request:
       <<: *base_request
       url: "/v1/video/search/channel/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v1/video/search/channel/delain"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200
 
   - client-request:
       <<: *base_request
       url: "/v1/video/channels/nightwish"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v1/video/channels/nightwish"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200
 
   - client-request:
       <<: *base_request
       url: "/v1/video/alias/within-temptation"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v1/video/alias/within-temptation"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200
 
   - client-request:
       <<: *base_request
       url: "/v2/video/channels/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v2/video/channels/delain"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200
 
   - client-request:
       <<: *base_request
       url: "/v1/audio/channels/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v1/audio/channels/delain"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200
 
   - client-request:
       <<: *base_request
       url: "/v1/video/sub/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
     proxy-request:
       <<: *base_request
+      url: "/v1/video/sub/delain"
     server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
+      <<: *upstream-rsp
     proxy-response:
       status: 200

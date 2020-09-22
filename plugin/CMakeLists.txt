@@ -17,6 +17,7 @@ add_library(plugin SHARED
 	src/Modifier.cc
 	src/Machinery.cc
         src/Rxp.cc
+	src/stats.cc
 	src/ts_util.cc
 	src/yaml_util.cc
 
