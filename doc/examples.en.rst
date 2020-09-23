@@ -22,10 +22,12 @@ Goal
    Force all proxy requests to have a value for the "Accept-Encoding" field. If not already set, it
    should be set to "identity".
 
-.. literalinclude:: "../test/autest/accept-encoding/config.yaml"
+.. literalinclude:: ../test/autest/gold_tests/example/accept-encoding.replay.yaml
+   :start-after: doc.start
+   :end-before: doc.end
 
 This acts on the proxy request hook. The "Accept-Encoding" field is extracted and then modified
-using the :mod:`else` which
+using the :mod:`else` which modifies the feature only if the feature is null or the empty string.
 
 Traffic Ramping
 ===============
