@@ -1,8 +1,0 @@
-txn_box:
-- when: preq
-  do:
-  - with: "{creq-host}"
-    select:
-    - match: "httpbin.org"
-      do:
-      - set-proxy-req-field.X-swoc: "Modified"
