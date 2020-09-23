@@ -51,6 +51,13 @@ meta:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 96 ]
 
+  - base-txn: &base-txn
+      proxy-request:
+        <<: *base-req
+      server-response:
+        <<: *base-rsp
+      proxy-response:
+        status: 200
 
 sessions:
 
@@ -61,64 +68,34 @@ sessions:
     client-request:
       <<: *base-req
       url: "/one"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
 
   - all: { headers: { fields: [ [ uuid, 102 ] ] } }
     client-request:
       <<: *base-req
       url: "/two"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
 
   - all: { headers: { fields: [ [ uuid, 103 ] ] } }
     client-request:
       <<: *base-req
       url: "/two"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
 
   - all: { headers: { fields: [ [ uuid, 104 ] ] } }
     client-request:
       <<: *base-req
       url: "/two"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
 
   - all: { headers: { fields: [ [ uuid, 105 ] ] } }
     client-request:
       <<: *base-req
       url: "/two"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
 
   - all: { headers: { fields: [ [ uuid, 106 ] ] } }
     client-request:
       <<: *base-req
       url: "/two"
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 200
+    <<: *base-txn
