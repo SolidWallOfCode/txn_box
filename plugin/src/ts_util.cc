@@ -26,6 +26,7 @@ using swoc::MemArena;
 using swoc::Errata;
 using swoc::Rv;
 using swoc::BufferWriter;
+using swoc::MemSpan;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
@@ -682,6 +683,14 @@ Rv<ConfVarData> HttpTxn::override_fetch(const TxnConfigVar &var) {
       break;
   }
   return Error(R"(Failed to retrieve config variable "{})", var.name());
+}
+
+int HttpSsn::protocol_stack(MemSpan<const char *> tags) const {
+  int n = 0;
+  if (TS_SUCCESS != TSHttpSsnClientProtocolStackGet(_ssn, tags.count(), tags.data(), &n)) {
+    return -1;
+  }
+  return n;
 }
 
 Errata &HttpTxn::init(swoc::Errata &errata) {

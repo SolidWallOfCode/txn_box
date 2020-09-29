@@ -464,6 +464,17 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
   return w;
 }
 
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple const& t) {
+  if (t.count() > 0) {
+    bwformat(w, spec, t[0]);
+    for (auto && f : t.subspan(1, t.count() - 1)) {
+      w.write(", ");
+      bwformat(w, spec, f);
+    }
+  }
+  return w;
+}
+
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature) {
   if (is_nil(feature)) {
     return bwformat(w, spec, "NULL"_tv);

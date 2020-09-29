@@ -411,6 +411,17 @@ public:
 
   swoc::TextView proto_contains(swoc::TextView const& tag) const;
 
+  /** Retrieve the protocol stack for @a this session in to @a tags.
+   *
+   * @param tags [out] Protocol tags.
+   * @return The actual number of protocol tags, or -1 on error.
+   *
+   * The number of tags retrieved will be the minimum of the actual number of tags and the
+   * size of @a tags. The return value will be the number of actual tags. It is the caller's
+   * responsibility to handle the case where this is larger than @a tags.
+   */
+  int protocol_stack(swoc::MemSpan<char const*> tags) const;
+
   swoc::IPEndpoint remote_addr() const;
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
@@ -493,24 +504,83 @@ public:
    */
   void error_body_set(swoc::TextView body, swoc::TextView content_type);
 
+  /** Assign the cache @a key for the transaction.
+   *
+   * @param key Cache key for the retrieved object.
+   * @return Errors, if any.
+   */
   swoc::Errata cache_key_assign(swoc::TextView const& key);
 
-  HttpSsn ssn() const;;
+  /// @return The session object for @a this transaction.
+  HttpSsn ssn() const;
 
+  /** Fix the upstream address.
+   *
+   * @param addr Address to use for the upstream.
+   * @return Errors, if any.
+   */
   bool set_upstream_addr(swoc::IPAddr const& addr) const;
 
+  /** Assign @a n to the integer transaction overridable configuration @a var
+   *
+   * @param var Overridable variable.
+   * @param n Value to assign.
+   * @return Errors, if any.
+   *
+   * @note This does not check if @a var is in fact an integer, the caller must assure that.
+   */
   swoc::Errata override_assign(TxnConfigVar const& var, intmax_t n);
+
+  /** Assign @a n to the string transaction overridable configuration @a var
+   *
+   * @param var Overridable variable.
+   * @param text Value to assign.
+   * @return Errors, if any.
+   *
+   * @note This does not check if @a var is in fact an string, the caller must assure that.
+   */
   swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
+
+  /** Assign @a n to the double transaction overridable configuration @a var
+   *
+   * @param var Overridable variable.
+   * @param text Value to assign.
+   * @return Errors, if any.
+   *
+   * @note This does not check if @a var is in fact an double, the caller must assure that.
+   */
   swoc::Errata override_assign(TxnConfigVar const& var, double f);
 
   swoc::Rv<ConfVarData> override_fetch(TxnConfigVar const& var);
 
+  /** Look up the transaction overridable configuration variable @a name.
+   *
+   * @param name Variable name.
+   * @return The variable, or @a nullptr if @a name is not found to be a valid.
+   */
   static TxnConfigVar * find_override(swoc::TextView const& name);
 
+  /** Retrieve transaction arg @a idx
+   *
+   * @param idx Index of argument.
+   * @return The value for the transaction argument at index @a idx.
+   */
   void * arg(int idx);
+
+  /** Assign the transaction are at @a idx.
+   *
+   * @param idx Index of argument.
+   * @param value Value to assign.
+   */
   void arg_assign(int idx, void * value);
+
   static swoc::Rv<int> reserve_arg(swoc::TextView const &name, swoc::TextView const &description);
 
+  /** Perform DSO load time intialization.
+   *
+   * @param errata Current errors.
+   * @return @a errata, updated with any additional errors.
+   */
   static swoc::Errata & init(swoc::Errata & errata);
 
 protected:

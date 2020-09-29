@@ -10,6 +10,7 @@ meta:
     - when: proxy-rsp
       do:
       - proxy-rsp-field<req-url>: var<req-url>
+      - debug: inbound-protocol-stack
 
     remap:
     - did-remap: true

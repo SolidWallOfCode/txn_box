@@ -435,6 +435,41 @@ Session
 
    The SNI name sent on the inbound session.
 
+.. extractor:: has-inbound-protocol-prefix
+   :result: boolean
+   :arg: tag prefix
+
+   For the inbound session there is a `list of protocol tags
+   <https://docs.trafficserver.apache.org/en/latest/developer-guide/api/functions/TSClientProtocolStack.en.html>`__
+   that describe the network protocols used for that network connection. This list can be checked to
+   see if it contains a tag that has a specific prefix. The primary use is to determine if the
+   inbound session is TLS ::
+
+      with: has-inbound-protocol-prefix<tls>
+      select:
+      -  is-true:
+         do:
+         # TLS only stuff.
+
+   The actual TLS tags are of the form "tls/1.X" where X is the minor version number. But only
+   the TLS tags have a prefix of "tls".
+
+.. extractor:: inbound-protocol-stack
+   :result: tuple of strings
+
+   This extracts the entire stack of tags for the network protocols of the inbound connection as a
+   tuple. This could be used to check for an IPv4 connection ::
+
+      with: inbound-protocol-stack
+      select:
+      -  for-any:
+            match: "ipv4"
+         do:
+         # IPv4 only things.
+
+   In general, though, :ex:`has-inbound-protocol-prefix` is usually a better choice for doing such
+   checking unless the full stack or a full tag is needed.
+
 Duration
 ========
 

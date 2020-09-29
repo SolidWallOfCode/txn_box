@@ -32,8 +32,8 @@ using the :mod:`else` which modifies the feature only if the feature is null or 
 Traffic Ramping
 ===============
 
-For this example, there is an existing set of remap rules that map from externally visible URLs to a
-specific upstream ("app.example.one") that has the application processing. A new version is being
+For this example, there is an existing set of remap rules that map from an externally visible URL to
+a specific upstream ("app.example.one") that has the application processing. A new version is being
 staged on the host "staging.app.example.one". The goal is to redirect a fixed percentage of traffic
 from the existing host to the staging host, in way that makes it easy to change. This should only be
 done for the most recent version of the application (1.2) - older versions should continue without

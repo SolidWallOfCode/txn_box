@@ -15,7 +15,6 @@ with open("gold_tests/ramp/multi_ramp_common.py") as f:
     code = compile(f.read(), "multi_ramp_common.py", 'exec')
     exec(code)
 
-
 CFG_PATH = "multi-ramp-1.cfg.yaml"
 tr = Test.TxnBoxTestAndRun("Multi bucketing 1", "multi-ramp.replay.yaml"
                            , remap=[
