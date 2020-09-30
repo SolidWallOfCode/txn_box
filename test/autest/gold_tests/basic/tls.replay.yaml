@@ -2,18 +2,7 @@ meta:
   version: "1.0"
 
   txn_box:
-    global:
-    - when: proxy-req
-      do:
-      - var<req-url>: proxy-req-url
-      - proxy-req-field<req-host>: proxy-req-url-host
-    - when: proxy-rsp
-      do:
-      - proxy-rsp-field<req-url>: var<req-url>
-      - debug: inbound-protocol-stack
-
     remap:
-    - did-remap: true
     - with: pre-remap-path
       select:
       - any-of:
@@ -26,7 +15,7 @@ meta:
         - ua-req-host: "stage.video.ex"
 
   blocks:
-  - base_request: &base_request
+  - base-req: &base-req
       version: "1.1"
       scheme: "http"
       method: "GET"
@@ -40,24 +29,21 @@ meta:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 96 ]
 
-
 sessions:
-
-# Plain text
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ] # plain text sessions
   transactions:
   - all: { headers: { fields: [[ uuid, 101 ]]}}
     client-request:
-      <<: *base_request
+      <<: *base-req
       url: "/v1/video/search/channel/delain"
       headers:
         fields:
         - [ Host, base.ex ]
     proxy-request:
-      <<: *base_request
+      <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", equal ]
+        - [ "Host", "stage.video.ex", prefix ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -65,37 +51,35 @@ sessions:
 
   - all: { headers: { fields: [ [ uuid, 102 ] ] } }
     client-request:
-      <<: *base_request
+      <<: *base-req
       url: "/v1/video/channels/nightwish"
       headers:
         fields:
         - [ "Host", "base.ex" ]
     proxy-request:
-      <<: *base_request
+      <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", equal ]
+        - [ "Host", "stage.video.ex", prefix ]
     server-response:
       <<: *base-rsp
     proxy-response:
       status: 200
 
-- protocol: [ ipv4, tcp, tls  ]
+- protocol: [ { name: "ip", version : 4} , { name: "tls" }] # plain text sessions
   transactions:
-
-  # Smoke test first.
-  - all: { headers: { fields: [[ uuid, 1 ]]}}
+  - all: { headers: { fields: [[ uuid, 1 ]] }}
     client-request:
-      <<: *base_request
+      <<: *base-req
       url: "/v1/video/search/channel/delain"
       headers:
         fields:
         - [ Host, base.ex ]
     proxy-request:
-      <<: *base_request
+      <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", equal ]
+        - [ "Host", "stage.video.ex", prefix ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -103,98 +87,17 @@ sessions:
 
   - all: { headers: { fields: [ [ uuid, 2 ] ] } }
     client-request:
-      <<: *base_request
+      <<: *base-req
       url: "/v1/video/channels/nightwish"
       headers:
         fields:
         - [ "Host", "base.ex" ]
     proxy-request:
-      <<: *base_request
+      <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", equal ]
+        - [ "Host", "stage.video.ex", prefix ]
     server-response:
       <<: *base-rsp
-    proxy-response:
-      status: 200
-
-archive:
-  - client-request:
-      <<: *base_request
-      url: "/v1/video/alias/within-temptation"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base_request
-    server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
-    proxy-response:
-      status: 200
-
-  - client-request:
-      <<: *base_request
-      url: "/v2/video/channels/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base_request
-    server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
-    proxy-response:
-      status: 200
-
-  - client-request:
-      <<: *base_request
-      url: "/v1/audio/channels/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base_request
-    server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
-    proxy-response:
-      status: 200
-
-  - client-request:
-      <<: *base_request
-      url: "/v1/video/sub/delain"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base_request
-    server-response:
-      status: 200
-      reason: OK
-      content:
-        size: 96
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 96 ]
     proxy-response:
       status: 200

@@ -7,6 +7,7 @@
 
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
+#include <swoc/bwf_ip.h>
 
 #include "txn_box/common.h"
 #include "txn_box/Expr.h"

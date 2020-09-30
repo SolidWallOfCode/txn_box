@@ -10,6 +10,7 @@
 
 #include <swoc/TextView.h>
 #include <swoc/ArenaWriter.h>
+#include <swoc/bwf_ip.h>
 
 #include "txn_box/common.h"
 #include "txn_box/yaml_util.h"
@@ -92,7 +93,7 @@ BufferWriter& Ex_inbound_sni::format(BufferWriter &w, Spec const &spec, Context 
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session remote address.
-class Ex_inbound_remote_remote : public Extractor {
+class Ex_inbound_remote_addr : public Extractor {
 public:
   static constexpr TextView NAME { "inbound-addr-remote" };
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
@@ -100,15 +101,15 @@ public:
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Rv<ActiveType> Ex_inbound_remote_remote::validate(Config &, Extractor::Spec &, TextView const &) {
+Rv<ActiveType> Ex_inbound_remote_addr::validate(Config &, Extractor::Spec &, TextView const &) {
   return ActiveType{ NIL, IP_ADDR };
 }
 
-Feature Ex_inbound_remote_remote::extract(Context & ctx, Spec const& ) {
-  return ctx._txn.ssn().remote_addr();
+Feature Ex_inbound_remote_addr::extract(Context & ctx, Spec const& ) {
+  return swoc::IPAddr(ctx._txn.ssn().remote_addr());
 }
 
-BufferWriter& Ex_inbound_remote_remote::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter& Ex_inbound_remote_addr::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
@@ -455,7 +456,7 @@ Ex_txn_conf txn_conf;
 
 Ex_inbound_sni inbound_sni;
 Ex_inbound_protocol inbound_protocol;
-Ex_inbound_remote_remote inbound_remote_addr;
+Ex_inbound_remote_addr inbound_remote_addr;
 Ex_has_inbound_protocol_prefix has_inbound_protocol_prefix;
 Ex_inbound_protocol_stack inbound_protocol_stack;
 
@@ -495,7 +496,7 @@ Ex_unmatched_group unmatched_group;
   Extractor::define(Ex_inbound_protocol::NAME, &inbound_protocol);
   Extractor::define(Ex_has_inbound_protocol_prefix::NAME, &has_inbound_protocol_prefix);
   Extractor::define(Ex_inbound_protocol_stack::NAME, &inbound_protocol_stack);
-  Extractor::define(Ex_inbound_remote_remote::NAME, &inbound_remote_addr);
+  Extractor::define(Ex_inbound_remote_addr::NAME, &inbound_remote_addr);
 
   Extractor::define(NANOSECONDS, &nanoseconds);
   Extractor::define(MILLISECONDS, &milliseconds);

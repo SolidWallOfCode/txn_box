@@ -283,9 +283,8 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
       f._literal_p = true;
       f._cstr_p = true;
       return Expr{f};
-    } else {
-      return Error("Internal consistency error - specifier is neither an extractor nor a literal.");
     }
+    // else it's an indexed specifier, treat as a composite.
   }
   // Multiple specifiers, check for overall properties.
   Expr expr;

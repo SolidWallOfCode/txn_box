@@ -9,7 +9,7 @@ Test.Summary = '''
 Basic TLS testing.
 '''
 
-tr = Test.TxnBoxTestAndRun("Basic TLS", "tls.replay.yaml", config_path='Auto', config_key='meta.txn_box.global'
+tr = Test.TxnBoxTestAndRun("Basic TLS", "tls.replay.yaml"
                 , remap=[
                           ['http://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
                         , ['https://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]

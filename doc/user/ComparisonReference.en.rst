@@ -100,9 +100,9 @@ do **not** contain a string.
    :tuple:
    :groups: 0,*
 
-   Top level domain matching. This is similar to :txb:cmp:`suffix` but has a special case for
-   the "." separator for domains. It will match the exact feature, or as a suffix if there is
-   an intervening ".". ::
+   Top level domain matching. This is similar to :cmp:`suffix` but has a special case for the "."
+   separator for domains. It will match the exact feature, or as a suffix if there is an intervening
+   ".". ::
 
       tld: "yahoo.com"
 
@@ -124,12 +124,32 @@ do **not** contain a string.
       -  contains: "zri" # failure
       -  contains: "zreb" # success
 
+.. comparison:: path
+   :type: string
+   :groups: 0,*
+
+   This is a literal match which accepts an optional trailing "/" character. This is useful for
+   matching a specific path in a URL because the request may or may not add the trailing character.
+   That is ::
+
+      path: "albums"
+
+   will match a path of "albums" or "albums/". I.e. it is identical to ::
+
+      any-of:
+      -  match: "albums"
+      -  match: "albums/"
+
+   and to ::
+
+      path: "albums/"
+
 .. txb:comparison:: rxp
    :type: string
    :groups: 0,1..N
 
-   Regular expression comparison. If this matches the the index scoped extractors are set. Index 0
-   is the entire match, index 1 is the first capture group, etc.
+   Regular expression comparison. If this matches the index scoped extractors are set. Index 0 is
+   the entire match, index 1 is the first capture group, etc.
 
 .. comparison:: is-empty
    :type: NIL, string
@@ -244,23 +264,31 @@ Compound Comparisons
 
 These comparisons do not directly compare values. They combine or change other comparisons.
 
-.. txb:comparison:: any-of
+Combining Comparisons
+---------------------
 
-   This has a list of comparisons and succeeds if *any* of the comparisons in the list succeed. This
-   is another term for "or". This stops doing comparisons in the list as soon as one succeeds.
+These combine the results of other comparisons.
 
-.. txb:comparison:: all-of
+.. comparison:: any-of
 
-   This has a list of comparisons and succeeds if *all* of the comparisons in the list succeed. This
-   is another term for "and". This stops doing comparisons in the list as soon as one does not succeed.
+   Given a list of comparisons, this comparison succeeds if *any* of the comparisons in the list
+   succeed. This is another term for "or". This stops doing comparisons in the list as soon as one
+   succeeds.
 
-.. txb:comparison:: none-of
+.. comparison:: all-of
 
-   This has a list of comparisons and succeeds if *none* of the comparisons in the list succeed. This
-   stops as doing comparisons as soon as one succeeds.
+   Given a list of comparisons, this comparison succeeds if *all* of the comparisons in the list
+   succeed. This is another term for "and". This stops doing comparisons in the list as soon as one
+   does not succeed.
+
+.. comparison:: none-of
+
+   Given a list of comparisons, this comparison succeeds if *none* of the comparisons in the list
+   succeed. This stops as doing comparisons as soon as one succeeds.
 
    This serves as the "not" comparison if the list is of length 1. For instance, if the goal was to
-   find features that do **not** contain a regular expression ::
+   set the field "Best-Band" in proxy requests where the "App" field does **not** match a specific
+   regular expression ::
 
       with: proxy-req-field<App>
       select:
@@ -298,10 +326,8 @@ elements of the tuple.
    The value must be another comparison. The comparison is applied to every element of the tuple and
    the comparison is successful if nested comparison is successful for no elements of the tuple.
 
-.. txb:comparison:: as-tuple
+.. comparison:: as-tuple
 
-    Compare a tuple as a tuple. This requires a list of comparisons which are applied to the tuple
-    elements in the same order. The list may be a different length than the tuple, in which case
-    the excess elements (tuple values or comparisons) are ignored.
-
-
+   Compare a tuple as a tuple. This requires a list of comparison which are applied to the tuple
+   elements in the same order. The list may be a different length than the tuple, in which case
+   the excess elements (tuple values or comparisons) are ignored.

@@ -144,6 +144,7 @@ public:
   static constexpr TextView PREFIX_KEY { "prefix" };
   static constexpr TextView SUFFIX_KEY { "suffix" };
   static constexpr TextView TLD_KEY { "tld" };
+  static constexpr TextView PATH_KEY { "path" };
 
   /// Mark for @c STRING support only.
   static const ActiveType TYPES;
@@ -404,8 +405,9 @@ protected:
 
 bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
-    ctx.set_literal_capture(active.suffix(text.size()+1));
-    ctx._remainder = active.remove_suffix(text.size()+1);
+    auto capture = active.suffix(text.size() + 1);
+    ctx.set_literal_capture(capture);
+    ctx._remainder = active.prefix(active.size() - capture.size());
     return true;
   }
   return false;
@@ -423,12 +425,64 @@ protected:
 
 bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, TextView active) const {
   if (active.ends_with_nocase(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
-    ctx.set_literal_capture(active.suffix(text.size()+1));
-    ctx._remainder = active.remove_suffix(text.size()+1);
+    auto capture = active.suffix(text.size() + 1);
+    ctx.set_literal_capture(capture);
+    ctx._remainder = active.prefix(active.size() - capture.size());
     return true;
   }
   return false;
 }
+
+// ---
+
+class Cmp_Path : public Cmp_LiteralString {
+protected:
+  using self_type = Cmp_Path;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
+  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
+};
+
+bool Cmp_Path::operator()(Context& ctx, TextView const& text, TextView active) const {
+  auto target = text;
+  target.rtrim('/'); // Not reliable to do at load, since not always a config time constant.
+  if (active.starts_with(target)) {
+    auto rest = active.substr(target.size());
+    if (rest.empty() || rest == "/"_tv) {
+      auto n = target.size() + rest.size();
+      ctx.set_literal_capture(active.prefix(n));
+      ctx._remainder = active.substr(n);
+      return true;
+    }
+  }
+  return false;
+}
+
+class Cmp_PathNC : public Cmp_LiteralString {
+protected:
+  using self_type = Cmp_PathNC;
+  using super_type = Cmp_LiteralString;
+  using super_type::super_type;
+  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+
+  friend super_type;
+};
+
+bool Cmp_PathNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+  if (active.starts_with_nocase(text)) {
+    auto rest = active.substr(text.size());
+    if (rest.empty() || rest == "/"_tv) {
+      auto n = text.size() + rest.size();
+      ctx.set_literal_capture(active.prefix(n));
+      ctx._remainder = active.substr(n);
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---
 
 Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
@@ -471,6 +525,10 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
     return options.f.nc
            ? Handle(new Cmp_TLDNC(std::move(expr)))
            : Handle(new Cmp_TLD(std::move(expr)));
+  } else if (PATH_KEY == key) {
+    return options.f.nc
+           ? Handle(new Cmp_PathNC(std::move(expr)))
+           : Handle(new Cmp_Path(std::move(expr)));
   }
 
   return Error(R"(Internal error, unrecognized key "{}".)", key);
@@ -1388,6 +1446,7 @@ namespace {
   Comparison::define(Cmp_LiteralString::SUFFIX_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
   Comparison::define(Cmp_LiteralString::CONTAIN_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
   Comparison::define(Cmp_LiteralString::TLD_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
+  Comparison::define(Cmp_LiteralString::PATH_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);
 
   Comparison::define(Cmp_Rxp::KEY, Cmp_Rxp::TYPES, Cmp_Rxp::load);
 

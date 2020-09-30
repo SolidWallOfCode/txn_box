@@ -89,7 +89,7 @@ def _configure_server(obj, process, name, replay_dir, http_ports=None, https_por
             if os.path.isfile(ssl_cert):
                 run_ssl_cert = os.path.join(server_dir, os.path.basename(ssl_cert))
                 process.Setup.Copy(ssl_cert, run_ssl_cert, CopyLogic.SoftFiles)
-            command += ' --cert "{}" '.format(run_ssl_cert)
+            command += ' --server-cert "{}" '.format(run_ssl_cert)
 
     if replay_dir:
         # Create a copy of the replay directory in the run directory.
@@ -101,9 +101,7 @@ def _configure_server(obj, process, name, replay_dir, http_ports=None, https_por
     process.Command = command
 
     process.Ready = When.FileContains(os.path.join(process.RunDirectory, "server-status.log"), "ready")
-    # The server is designed to be long-lived and thus will be interrupted by
-    # the test. Because of this, its return code will be non-zero.
-    process.ReturnCode = -2
+    process.ReturnCode = 0
 
     process.Streams.stdout = Testers.ExcludesExpression(
             "Violation",

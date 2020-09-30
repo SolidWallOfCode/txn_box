@@ -1,0 +1,165 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    global:
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - path: "delain/albums"
+          do:
+          - proxy-req-field<cmp-path>: "true"
+
+    - when: proxy-req
+      do:
+      - with: ua-req-field<channel>
+        select:
+        - rxp: "^v1/video/channels/(.*)/subchannel/(.*)"
+          do:
+          - proxy-req-field<rxp-sub>: "v1/video/channels/{1}/subchannel/{2}"
+          - proxy-req-field<rxp-0>: "{0}"
+
+    - when: proxy-req
+      do:
+      - with: ua-req-field<channel>
+        select:
+        - any-of:
+          - match: "v1/video/channels"
+          - match: "v1/video/channels/"
+          - rxp: "^v1/video/channels/(.*)/subchannel/(.*)"
+          do:
+          - proxy-req-field<cmp-any>: "true"
+
+    - when: proxy-req
+      do:
+      - with: ua-req-field<channel>
+        select:
+        - any-of:
+          - path: "v1/video/channels/"
+          - all-of:
+            - prefix: "v1/video/channels/"
+            - contains: "/subchannel/"
+          do:
+          - proxy-req-field<cmp-split>: "true"
+
+    - when: proxy-req
+      do:
+      - with: ua-req-field<channel>
+        select:
+        - prefix: "v1/video/channels"
+          do:
+          - with: "{*}"
+            select:
+            - any-of:
+              - is-empty:
+              - match: "/"
+              - contains: "/subchannel/"
+              do:
+              - proxy-req-field<cmp-mix>: "true"
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+
+  - base-rsp: &base-rsp
+      status: 200
+      reason: "OK"
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ { name: ip, version : 4} ] # plain text sessions
+  transactions:
+  #
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "channel", "v1/video/channels/delain/subchannel/streaming"]
+    proxy-request:
+      headers:
+        fields:
+        - [ cmp-path, "true", equal ]
+        - [ "rxp-sub", "v1/video/channels/delain/subchannel/streaming", equal]
+        - [ "rxp-0", "v1/video/channels/delain/subchannel/streaming", equal]
+        - [ "cmp-any", "true", equal ]
+        - [ "cmp-mix", "true", equal ]
+        - [ "cmp-split", "true", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums/"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "channel", "v1/video/channels"]
+    proxy-request:
+      headers:
+        fields:
+        - [ cmp-path, "true", equal ]
+        - [ "cmp-any", "true", equal ]
+        - [ "cmp-mix", "true", equal ]
+        - [ "cmp-split", "true", equal]
+        - [ "rxp-sub", "", absent ]
+        - [ "rxp-0", "", absent ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, 3 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums/lucidity.html"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "channel", "v1/video/channels/"]
+    proxy-request:
+      headers:
+        fields:
+        - [ cmp-path, "", absent ]
+        - [ "cmp-any", "true", equal ]
+        - [ "cmp-mix", "true", equal ]
+        - [ "cmp-split", "true", equal]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, 4 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums-lucidity.html"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "channel", "v1/video/channels/delain/studio/"]
+    proxy-request:
+      headers:
+        fields:
+        - [ "cmp-path", "", absent ]
+        - [ "cmp-any", "", absent ]
+        - [ "cmp-mix", "", absent ]
+        - [ "cmp-split", "", absent ]
+        - [ "rxp-sub", "", absent ]
+        - [ "rxp-0", "", absent ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
