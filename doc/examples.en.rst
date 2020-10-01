@@ -68,15 +68,11 @@ It might be reasonable to split every path in to a different bucket to make adju
 easier. In that case the previous example could be changed to look like
 
 .. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-3.cfg.yaml
-   :start-after: doc.start.1
-   :end-before: doc.end.1
-
-.. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-3.cfg.yaml
-   :start-after: doc.start.2
-   :end-before: doc.end.2
+   :lines: 1-12,16-17
 
 This style presumes the bucket action is identical for all buckets. If not, the previous style would
-be better.
+be better. Note the :code:`do` is attached to the :cmp:`any-of` so that if any of the nested comparisons
+succeed the action is performed.
 
 Static File Serving
 ===================
