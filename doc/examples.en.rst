@@ -32,13 +32,51 @@ using the :mod:`else` which modifies the feature only if the feature is null or 
 Traffic Ramping
 ===============
 
-For this example, there is an existing set of remap rules that map from an externally visible URL to
-a specific upstream ("app.example.one") that has the application processing. A new version is being
-staged on the host "staging.app.example.one". The goal is to redirect a fixed percentage of traffic
-from the existing host to the staging host, in way that makes it easy to change. This should only be
-done for the most recent version of the application (1.2) - older versions should continue without
-change. In addition, to prevent the staging host from becoming overloaded, cached data should still
-be served even for diverted requests.
+For the purposes of this example, there is presumed to exist a remap rule for a specific externally
+visible host, "base.ex". A new version is being staged on the host "stage.video.ex". The goal is to
+redirect a fixed percentage of traffic from the existing host to the staging host, in way that is
+easy to change. In addition it should be easy to have multiple ramping values for different URL
+paths. The paths for the two hosts are identical, only the host for the request needs to be changed.
+
+The simplest way to do this would be
+
+.. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-1.cfg.yaml
+   :start-after: doc.start
+   :end-before: doc.end
+
+This has two buckets, the first at 30% and the second at 10%. :ex:`random` is used to generate
+random numbers in the range 0..99 which means the extracted value is :code:`lt: 30` roughly 30 times
+out of every hunder, or 30% of the time. The buckets are selected by first checking the pre-remap
+path (so that it is not affected by other plugins which may run earlier in remapping). Two paths
+are in the 30% bucket and one in the 10% bucket. Adding additiona paths is easy, as is changing
+the percent diversion. Other buckets can also be added easily.
+
+This can be done in another way by generating the random value once and checking it multiple times.
+Given the no backtrack rule, this is challenging to do by checking the percentage first. Instead the
+use of tuples makes it possible to check both the value and the path together.
+
+.. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-2.cfg.yaml
+   :start-after: doc.start
+   :end-before: doc.end
+
+The :drtv:`with` is provided with a tuple of size 2, the random value and the pre-remap path. Each
+comparison uses :cmp:`as-tuple` to perform parallel comparisons on the tuple. The first comparison
+is applied to the first tuple element, the value, and the second comparison to the second value, the
+path. Because there is no nested :drtv:`with` there is no need to backtrack.
+
+It might be reasonable to split every path in to a different bucket to make adjusting the percentage
+easier. In that case the previous example could be changed to look like
+
+.. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-3.cfg.yaml
+   :start-after: doc.start.1
+   :end-before: doc.end.1
+
+.. literalinclude:: ../test/autest/gold_tests/ramp/multi-ramp-3.cfg.yaml
+   :start-after: doc.start.2
+   :end-before: doc.end.2
+
+This style presumes the bucket action is identical for all buckets. If not, the previous style would
+be better.
 
 Static File Serving
 ===================
