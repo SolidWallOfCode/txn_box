@@ -1181,8 +1181,13 @@ protected:
       }
     }
 
-    // Other types, do nothing.
-    template<typename T> auto operator()(T&&) -> EnableForFeatureTypes<T, void> {}
+    // Other types, convert to string
+    template<typename T> auto operator()(T&& t) -> EnableForFeatureTypes<T, void> {
+      swoc::ArenaWriter w{*(_ctx._arena)};
+      bwformat(w, bwf::Spec::DEFAULT, t);
+      this->assign(w.view());
+      this->clear_dups();
+    }
   };
 
 };
@@ -1203,10 +1208,11 @@ Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
   return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
 }
 
-auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
-                         , Expr &&)> const &maker
+auto FieldDirective::load(Config &cfg
+                         , std::function<Handle(TextView const &, Expr &&)> const &maker
                          , TextView const &key, TextView const &arg
-                         , YAML::Node key_value) -> Rv<Handle> {
+                         , YAML::Node key_value
+                         ) -> Rv<Handle> {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing value for "{}".)", key);
@@ -1217,7 +1223,7 @@ auto FieldDirective::load(Config &cfg, std::function<Handle(TextView const &
   if (! expr_type.has_value()) {
     return Error(R"(Directive "{}" must have a value.)", key);
   }
-  if (!expr_type.can_satisfy({ NIL, STRING, ActiveType::TupleOf(STRING)})) {
+  if (!expr_type.can_satisfy({ NIL, STRING, IP_ADDR, BOOLEAN, FLOAT, INTEGER, ActiveType::TupleOf(STRING)})) {
     return Error(R"(Value for "{}" directive at {} must be a NULL, a string or a list of strings.)", key, key_value.Mark());
   }
 
