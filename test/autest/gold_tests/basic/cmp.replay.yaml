@@ -13,6 +13,20 @@ meta:
 
     - when: proxy-req
       do:
+      - with: proxy-req-path
+        select:
+        - any-of:
+          - match: "nightwish/albums"
+          - match: "nightwish/albums/"
+          - match: "lyria/albums"
+          - match: "lyria/albums/"
+          - match: "delain/albums"
+          - match: "delain/albums/"
+          do:
+          - proxy-req-field<match-path>: "true"
+
+    - when: proxy-req
+      do:
       - with: ua-req-field<channel>
         select:
         - rxp: "^v1/video/channels/(.*)/subchannel/(.*)"
@@ -90,6 +104,7 @@ sessions:
       headers:
         fields:
         - [ cmp-path, "true", equal ]
+        - [ "match-path", "true", equal ]
         - [ "rxp-sub", "v1/video/channels/delain/subchannel/streaming", equal]
         - [ "rxp-0", "v1/video/channels/delain/subchannel/streaming", equal]
         - [ "cmp-any", "true", equal ]
@@ -112,6 +127,7 @@ sessions:
       headers:
         fields:
         - [ cmp-path, "true", equal ]
+        - [ "match-path", "true", equal ]
         - [ "cmp-any", "true", equal ]
         - [ "cmp-mix", "true", equal ]
         - [ "cmp-split", "true", equal]
@@ -134,6 +150,7 @@ sessions:
       headers:
         fields:
         - [ cmp-path, "", absent ]
+        - [ "match-path", "", absent ]
         - [ "cmp-any", "true", equal ]
         - [ "cmp-mix", "true", equal ]
         - [ "cmp-split", "true", equal]
@@ -145,7 +162,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, 4 ]]}}
     client-request:
       <<: *base-req
-      url: "/delain/albums-lucidity.html"
+      url: "/delain/albums?name=lucidity.html"
       headers:
         fields:
         - [ Host, one.ex ]
@@ -153,7 +170,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "cmp-path", "", absent ]
+        - [ "cmp-path", "true", equal ]
+        - [ "match-path", "true", equal ]
         - [ "cmp-any", "", absent ]
         - [ "cmp-mix", "", absent ]
         - [ "cmp-split", "", absent ]

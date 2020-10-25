@@ -4,6 +4,7 @@ project(plugin CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 add_library(plugin SHARED
+	src/0_static.cc
 	src/txn_box.cc
 	src/txn_box_remap.cc
 	src/Accelerator.cc
@@ -13,16 +14,16 @@ add_library(plugin SHARED
 	src/Directive.cc
 	src/Extractor.cc
 	src/Ex_Base.cc
-	src/Ex_HTTP.cc
 	src/Modifier.cc
 	src/Machinery.cc
         src/Rxp.cc
-	src/stats.cc
 	src/ts_util.cc
 	src/yaml_util.cc
 
-	src/text_block.cc
+	src/Ex_HTTP.cc
 	src/ip_space.cc
+	src/stats.cc
+	src/text_block.cc
 	)
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")

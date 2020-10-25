@@ -777,7 +777,7 @@ protected:
 };
 
 const std::string Cmp_is_true::KEY {"is-true" };
-const ValueMask Cmp_is_true::TYPES {MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const ValueMask Cmp_is_true::TYPES {MaskFor( STRING, BOOLEAN, INTEGER ) };
 
 bool Cmp_is_true::operator()(Context &, Feature const& feature) const {
   return static_cast<bool>(feature);

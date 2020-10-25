@@ -23,23 +23,14 @@ using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
-std::unique_ptr<Extractor::Table> Extractor::_ex_table;
-
 /* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<BoolTag> const BoolNames { {{ BoolTag::True, { "true", "1", "on", "enable", "Y", "yes" }}
                                              , { BoolTag::False, { "false", "0", "off", "disable", "N", "no" }}}
                                          , { BoolTag::INVALID }
 };
 /* ------------------------------------------------------------------------------------ */
-auto Extractor::table() -> Table* {
-  if (! _ex_table) {
-    _ex_table.reset(new Table);
-  }
-  return _ex_table.get();
-}
-
 Errata Extractor::define(TextView name, self_type * ex) {
-  (*table())[name] = ex;
+  _ex_table[name] = ex;
   return {};
 }
 
@@ -52,8 +43,8 @@ swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView con
 Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
 
 Extractor::self_type *Extractor::find(TextView const& name) {
-  auto spot { _ex_table->find(name)};
-  return spot == _ex_table->end() ? nullptr : spot->second;
+  auto spot { _ex_table.find(name)};
+  return spot == _ex_table.end() ? nullptr : spot->second;
 }
 
 /* ---------------------------------------------------------------------------------------------- */

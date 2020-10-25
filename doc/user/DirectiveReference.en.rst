@@ -173,6 +173,11 @@ Upstream Response
 
       upstream-rsp-status: [ 404, "Desk too messy" ]
 
+.. directive:: upstream-rsp-body
+   :value: string
+
+   Replace the upstream response body with the value of this directive.
+
 Proxy Response
 ==============
 
@@ -202,11 +207,6 @@ Proxy Response
    Set the status to 404 with the reason "Desk too messy" ::
 
       proxy-rsp-status: [ 404, "Desk too messy" ]
-
-.. directive:: proxy-rsp-body
-   :value: string
-
-   Replace the proxy response body with the value of this directive.
 
 Transaction
 ===========

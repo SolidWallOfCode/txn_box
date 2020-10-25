@@ -77,9 +77,9 @@ succeed the action is performed.
 Static File Serving
 ===================
 
-|TxB| enables serving defined content. This can be done with the :drtv:`proxy-rsp-body` directive
-to replace the existing content with other content. This is enhanced with "text blocks" which
-allow obtaining content from external files.
+|TxB| enables serving defined content. This can be done with the :drtv:`upstream-rsp-body` directive
+to replace content from the upstream with configuration specified content. This is enhanced with
+"text blocks" which allow obtaining content from external files.
 
 Goal
    Provide a default `security.txt file <https://securitytxt.org>`__ if an upstream doesn't provide

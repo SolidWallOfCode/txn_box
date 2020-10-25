@@ -52,7 +52,7 @@ protected:
 };
 
 const std::string Do_ua_req_url_host::KEY {"ua-req-url-host" };
-const HookMask Do_ua_req_url_host::HOOKS {MaskFor({Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+const HookMask Do_ua_req_url_host::HOOKS = MaskFor(Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP);
 
 Do_ua_req_url_host::Do_ua_req_url_host(Expr && expr) : _expr(std::move(expr)) {}
 
@@ -1599,9 +1599,9 @@ Rv<Directive::Handle> Do_proxy_rsp_reason::load(Config& cfg, YAML::Node drtv_nod
   return handle;
 }
 /* ------------------------------------------------------------------------------------ */
-/// Set body content for the proxy response.
-class Do_proxy_rsp_body : public Directive {
-  using self_type = Do_proxy_rsp_body; ///< Self reference type.
+/// Replace the upstream response body with a feature.
+class Do_upstream_rsp_body : public Directive {
+  using self_type = Do_upstream_rsp_body; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
@@ -1621,13 +1621,13 @@ public:
 protected:
   Expr _expr; ///< Body content.
 
-  Do_proxy_rsp_body(Expr && expr) : _expr(std::move(expr)) {}
+  Do_upstream_rsp_body(Expr && expr) : _expr(std::move(expr)) {}
 };
 
-const std::string Do_proxy_rsp_body::KEY {"proxy-rsp-body" };
-const HookMask Do_proxy_rsp_body::HOOKS {MaskFor({Hook::URSP}) };
+const std::string Do_upstream_rsp_body::KEY {"upstream-rsp-body" };
+const HookMask Do_upstream_rsp_body::HOOKS {MaskFor({Hook::URSP}) };
 
-Errata Do_proxy_rsp_body::invoke(Context &ctx) {
+Errata Do_upstream_rsp_body::invoke(Context &ctx) {
   auto static transform = [](TSCont contp, TSEvent ev_code, void *) -> int {
     if (TSVConnClosedGet(contp)) {
       TSContDestroy(contp);
@@ -1705,7 +1705,7 @@ Errata Do_proxy_rsp_body::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_proxy_rsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle> Do_upstream_rsp_body::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
@@ -2575,7 +2575,7 @@ namespace {
   Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
   Config::define<Do_proxy_rsp_status>();
   Config::define<Do_proxy_rsp_reason>();
-  Config::define<Do_proxy_rsp_body>();
+  Config::define<Do_upstream_rsp_body>();
 
   Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
   Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);

@@ -41,8 +41,8 @@ meta:
         - match: "security.txt"
         do:
         - upstream-rsp-status: [ 200 , "OK" ]
-        - proxy-rsp-body: "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
-                           # To report abusive behavior please visit http://yoyodyne.exe\n\
+        - upstream-rsp-body: "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
+                           # To report abusive behavior please visit http://yoyodyne.ex\n\
                            Contact: mailto:security@yoyodyne.ex\n\
                           "
 # -- Doc 1 close
@@ -77,11 +77,11 @@ meta:
       select:
       - is-empty:
         do:
-        - proxy-req-field<Author-i-tay>: text-block<default-jwt>
+        - proxy-rsp-field<Author-i-tay>: text-block<default-jwt>
 # -- Doc jwt-apply close
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4 } ]
   transactions:
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:
@@ -177,7 +177,7 @@ sessions:
     proxy-response:
       status: 200
 
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4 } ]
   transactions:
   - all: { headers: { fields: [[ uuid, 4 ]]}}
     client-request:

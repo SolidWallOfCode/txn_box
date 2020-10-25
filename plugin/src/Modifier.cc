@@ -15,9 +15,6 @@ using swoc::Errata;
 using swoc::Rv;
 using namespace swoc::literals;
 
-/// Static mapping from modifier to factory.
-Modifier::Factory Modifier::_factory;
-
 Errata Modifier::define(swoc::TextView name, Modifier::Worker const &f) {
   if (auto spot = _factory.find(name) ; spot == _factory.end()) {
     _factory.insert(spot, {name, f});
@@ -365,7 +362,7 @@ protected:
 };
 
 bool Mod_Else::is_valid_for(ActiveType const& ex_type) const {
-  return ex_type.can_satisfy(MaskFor({STRING, NIL}));
+  return ex_type.can_satisfy(MaskFor(NIL, STRING));
 }
 
 ActiveType Mod_Else::result_type(ActiveType const&) const {

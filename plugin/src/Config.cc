@@ -100,8 +100,6 @@ Config::~Config() {
   }
 }
 
-Config::Factory Config::_factory;
-
 template < typename F > struct on_scope_exit {
   F _f;
   explicit on_scope_exit(F &&f) : _f(std::move(f)) {}

@@ -583,6 +583,22 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
   return mask;
 }
 
+template < typename E > struct MaskTypeFor { };
+template <> struct MaskTypeFor<Hook> { using type = HookMask; };
+template <> struct MaskTypeFor<ValueType> { using type = ValueMask; };
+
+template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<Hook, P>...>, HookMask> {
+  HookMask mask;
+  ( (mask[IndexFor(parms)] = true) ,  ...);
+  return mask;
+}
+
+template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<ValueType, P>...>, ValueMask> {
+  ValueMask mask;
+  ( (mask[IndexFor(parms)] = true) ,  ...);
+  return mask;
+}
+
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
 

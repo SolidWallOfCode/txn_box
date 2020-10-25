@@ -126,15 +126,8 @@ public:
 
 protected:
   /** Defined extractors.
-   *
-   * A default constructed @c std::unique_ptr is guaranteed to be initialized before run time to a
-   * valid (empty) state. Therefore it is not dependent on translation unit linking order. The
-   * actual table is constructed on first use making that order independent as well.
    */
-  static std::unique_ptr<Table> _ex_table;  /// Obtain the named extractor table.
-
-  /// Obtain the table, forcing construction if first use.
-  static Table* table();
+  static Table _ex_table;  /// Obtain the named extractor table.
 };
 
 /** Cross reference extractor.
