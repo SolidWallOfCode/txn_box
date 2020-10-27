@@ -9,7 +9,7 @@ meta:
         select:
         - match: [ "1", "2" ]
           do:
-          - debug: "Fill is {txn-conf<proxy.config.http.background_fill_completed_threshold>>"
+          - debug: "Fill is {txn-conf<proxy.config.http.background_fill_completed_threshold>}"
           - var<Best-Band>: "Delain"
 
     - when: proxy-rsp
@@ -23,7 +23,6 @@ meta:
     remap-1:
     - ua-req-host: "ex.three"
     - var<Host> : ua-req-field<Host>
-    - apply-remap-rule:
     - ua-req-field<Host-Check>: var<Host>
 
   blocks:
@@ -33,7 +32,7 @@ meta:
       method: "GET"
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:

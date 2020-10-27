@@ -4,7 +4,7 @@ meta:
     fields: []
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - client-request:
       version: "1.1"

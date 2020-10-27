@@ -2,7 +2,7 @@ meta:
   version: "1.0"
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - proxy-request:
       version: "1.1"
@@ -23,7 +23,7 @@ sessions:
         - [ Content-Type, html/plaintext ]
         - [ Content-Length, 234 ]
         - [ uuid, 1 ]
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - proxy-request:
       version: "1.1"

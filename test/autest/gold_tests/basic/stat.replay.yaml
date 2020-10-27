@@ -62,7 +62,7 @@ meta:
 sessions:
 
 # Plain text
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - all: { headers: { fields: [[ uuid, 101 ]]}}
     client-request:

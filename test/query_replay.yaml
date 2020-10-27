@@ -48,7 +48,7 @@ config:
 
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - client-request:
       <<: *base_request

@@ -26,5 +26,6 @@ tr = Test.TxnBoxTestAndRun("Multi bucketing 1", "multi-ramp.replay.yaml"
                            )
 
 ramp_test_fixup(tr)
+
 ts = tr.Variables.TXNBOX_TS
 ts.Setup.Copy(CFG_PATH, ts.Variables.CONFIGDIR)

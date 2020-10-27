@@ -41,19 +41,15 @@ bool Expr::bwf_ex::operator()(std::string_view &literal, Extractor::Spec &spec) 
 
 Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
-  _arena.reset(swoc::MemArena::construct_self_contained(4000 + (cfg ? cfg->_ctx_storage_required : 0)));
+  _arena.reset(swoc::MemArena::construct_self_contained(
+      4000 + (cfg ? cfg->_ctx_storage_required : 0)));
 
+  _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
+                                             , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
+                                          , [](void *, void *) -> void {}, this);
   if (cfg) {
-    _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
-                                               , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
-                                            , [](void *, void *) -> void {}, this);
-    // Pre-allocate match data for the maximum # of capture groups in the configuration.
-    // This avoids multiple allocations due to the order of which matches are done first.
-    _rxp_working._match = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
-    _rxp_working._n = cfg->_capture_groups;
-    _rxp_active._match = pcre2_match_data_create(cfg->_capture_groups, _rxp_ctx);
-    _rxp_active._n = cfg->_capture_groups;
-
+    /// Make sure there are sufficient capture groups.
+    this->rxp_match_require(cfg->_capture_groups);
     // Directive shared storage
     _ctx_store = _arena->alloc(cfg->_ctx_storage_required);
   }
@@ -116,10 +112,6 @@ Errata Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri) {
   _cur_hook = Hook::REMAP;
   _remap_info = rri;
   this->clear_cache();
-  // Ugly, but need to make sure the regular expression storage is sufficient for both working
-  // and committed match data.
-  this->rxp_match_require(rule_cfg._capture_groups);
-  this->rxp_commit_match(""); // swap
   this->rxp_match_require(rule_cfg._capture_groups);
 
   // What about directive storage?
@@ -336,27 +328,28 @@ int Context::ts_callback(TSCont cont, TSEvent evt, void *) {
 }
 
 Context & Context::rxp_match_require(unsigned n) {
-  if (_rxp_working._n < n) {
+  if (_rxp_n < n) {
     // Bump up at least 7, or 50%, or at least @a n.
-    n = std::max(_rxp_working._n + 7, n);
-    n = std::max(3 * _rxp_working._n / 2 , n);
-    _rxp_working._match = pcre2_match_data_create(n, _rxp_ctx);
-    _rxp_working._n = n;
+    n = std::max(_rxp_n + 7, n);
+    n = std::max((3 * _rxp_n) / 2 , n);
+    _rxp_working = pcre2_match_data_create(n, _rxp_ctx);
+    _rxp_active = pcre2_match_data_create(n, _rxp_ctx);
+    _rxp_n = n;
   }
   return *this;
 }
 
 void Context::set_literal_capture(swoc::TextView text) {
-  auto ovector = pcre2_get_ovector_pointer(_rxp_active._match);
+  auto ovector = pcre2_get_ovector_pointer(_rxp_active);
   ovector[0] = 0;
   ovector[1] = text.size()-1;
   _rxp_src = text;
 }
 
-Context::RxpCapture *Context::rxp_commit_match(swoc::TextView const&src) {
+pcre2_match_data * Context::rxp_commit_match(swoc::TextView const&src) {
   _rxp_src = src;
   std::swap(_rxp_active, _rxp_working);
-  return &_rxp_active;
+  return _rxp_active;
 }
 
 Feature const&Context::load_txn_var(swoc::TextView const&name) {
@@ -391,12 +384,12 @@ TextView Context::localize_as_c_str(swoc::TextView text) {
 }
 
 unsigned Context::ArgPack::count() const {
-  return pcre2_get_ovector_count(_ctx._rxp_active._match);
+  return pcre2_get_ovector_count(_ctx._rxp_active);
 }
 
 BufferWriter& Context::ArgPack::print(BufferWriter &w
                                       , swoc::bwf::Spec const &spec, unsigned idx) const {
-  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_active._match);
+  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_active);
   idx *= 2; // To account for offset pairs.
   return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx+1] - ovector[idx]));
 }

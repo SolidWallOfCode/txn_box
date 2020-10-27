@@ -111,7 +111,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     # Configure Traffic Server to use the DNS process.
     self.Variables.TXNBOX_DNS = self.MakeDNServer("dns{}".format(suffix), ip='127.0.0.1', default='127.0.0.1')
 
-    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path)
+    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path, other_args='--verbose info')
 
     ts.Disk.records_config.update({
         'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(self.Variables.TXNBOX_DNS.Variables.Port),

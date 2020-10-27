@@ -3,6 +3,7 @@
 # Copyright 2020, Verizon Media
 # SPDX-License-Identifier: Apache-2.0
 #
+
 import os.path
 
 Test.Summary = '''
@@ -10,16 +11,16 @@ Basic TLS testing.
 '''
 
 tr = Test.TxnBoxTestAndRun("Basic TLS", "tls.replay.yaml"
-                , remap=[
-                          ['http://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
+                , remap=[ ['http://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
                         , ['https://base.ex/',  ( '--key=meta.txn_box.remap', 'tls.replay.yaml') ]
-                       ]
+                        ]
                 , verifier_client_args="--verbose info"
                 , enable_tls=True
                 )
 
 ts = tr.Variables.TS
-ts.Setup.Copy("tls.replay.yaml", ts.Variables.CONFIGDIR)
+
+ts.Setup.Copy("tls.replay.yaml", ts.Variables.CONFIGDIR) # because it's remap only - not auto-copied.
 ts.Setup.Copy("../../ssl/server.key", os.path.join(ts.Variables.CONFIGDIR, "server.key"))
 ts.Setup.Copy("../../ssl/server.pem", os.path.join(ts.Variables.CONFIGDIR, "server.pem"))
 
@@ -33,7 +34,6 @@ ts.Disk.records_config.update({
     # enable ssl port
     , 'proxy.config.http.server_ports': '{0} {1}:ssl'.format(ts.Variables.port, ts.Variables.ssl_port)
     , 'proxy.config.ssl.client.verify.server': 0
-
 })
 ts.Disk.ssl_multicert_config.AddLine(
     'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'

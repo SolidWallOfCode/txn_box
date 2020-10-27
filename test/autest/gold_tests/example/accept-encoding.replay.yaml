@@ -26,7 +26,7 @@ meta:
         - [ Content-Length, 234 ]
 
 sessions:
-- protocol: [ ipv4, tcp ]
+- protocol: [ { name: ip, version : 4} ]
   transactions:
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:

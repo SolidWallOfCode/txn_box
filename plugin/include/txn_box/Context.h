@@ -273,14 +273,6 @@ public:
   /// Value to return from a remap invocation.
   TSRemapStatus _remap_status = TSREMAP_NO_REMAP;
 
-  /// Match data support for PCRE.
-  struct RxpCapture {
-    /// PCRE match data.
-    pcre2_match_data *_match = nullptr;
-    /// Number of capture groups supported by @a data.
-    unsigned _n = 0;
-  };
-
   /** Working match data for doing PCRE matching.
    *
    * @param n Number of capture groups required.
@@ -288,10 +280,10 @@ public:
    */
   self_type & rxp_match_require(unsigned n);
 
-  pcre2_match_data * rxp_working_match_data() { return _rxp_working._match; }
+  pcre2_match_data * rxp_working_match_data() { return _rxp_working; }
 
   /// Commit the working match data as the active match data.
-  RxpCapture * rxp_commit_match(swoc::TextView const& src);
+  pcre2_match_data * rxp_commit_match(swoc::TextView const& src);
 
   /** Make a transaction local copy of @a text that is a C string if needed.
    *
@@ -351,10 +343,15 @@ protected:
   swoc::Errata invoke_callbacks();
 
   /// Active regex capture data.
-  RxpCapture _rxp_active;
+  pcre2_match_data * _rxp_active = nullptr;
 
   /// Temporary / working capture group data.
-  RxpCapture _rxp_working;
+  /// If successful, this becomes active via @c rxp_commit_match
+  /// @see rxp_commit_match
+  pcre2_match_data * _rxp_working = nullptr;
+
+  /// Number of capture groups supported by current match data allocations.
+  unsigned _rxp_n = 0;
 
   /// Active full to which the capture groups refer.
   FeatureView _rxp_src;
