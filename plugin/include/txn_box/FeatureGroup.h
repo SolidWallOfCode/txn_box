@@ -11,8 +11,8 @@
 #include "txn_box/Expr.h"
 
 /* ---------------------------------------------------------------------------------------------- */
-/** Mixin for more convenient feature extraction.
- * This provides a general framework for feature extraction and potential cross dependencies.
+/** Handle a group of features that can cross reference.
+ * Support a map or list of features as a group.
  */
 class FeatureGroup {
   using self_type = FeatureGroup; ///< Self reference type.
@@ -25,8 +25,7 @@ public:
   /// Initialization flags.
   enum Flag : int8_t {
     NONE = -1, ///< No flags
-    REQUIRED = 0, ///< Key must exist and have a valid format.
-    MULTI = 1, ///< Key can be a list of formats.
+    REQUIRED = 0, ///< Key must exist and have a valid expression.
   };
 
   /// Description of a key with a feature to extract.
@@ -44,47 +43,38 @@ public:
     Descriptor(swoc::TextView const& name, std::initializer_list<Flag> const& flags);
   };
 
-  /// Information about a specific extractor format.
+  /// Information about an expression.
   /// This is per configuration data.
-  struct ExfInfo {
-    /// Information for a feature with a single extraction format.
-    struct Single {
-      Expr _expr; ///< The format.
-      Feature _feature; ///< Retrieved feature data.
-    };
-
-    /// Information for a feature with multiple extraction formats.
-    struct Multi {
-      std::vector<Expr> _fmt; ///< Extractor formats.
-    };
-
+  struct ExprInfo {
+    Expr _expr; ///< The feature expression.
     swoc::TextView _name; ///< Key name.
-    /// Indices of immediate reference dependencies.
-    swoc::MemSpan<index_type> _edge;
+    swoc::MemSpan<index_type> _edge; ///< Indices of immediate reference dependencies.
+    /// Extracted feature index. For each referenced key, a slot is allocated for caching the
+    /// extracted feature use. If a key isn't referenced, this is invalid.
+    index_type _exf_idx = INVALID_IDX;
+  };
 
-    /// Variant indices for the format data.
-    enum {
-      IDX_NIL, IDX_SINGLE, IDX_MULTI
-    };
-    /// Allow uninitialized, single, or multiple values.
-    using Ex = std::variant<std::monostate, Single, Multi>;
-    /// Extraction data, single or multiple.
-    Ex _ex;
+  /** Store invocation state for extracting features.
+   *
+   */
+  struct State {
+    State(Context & ctx) : _ctx(ctx) {}
+    Context & _ctx;
+    swoc::MemSpan<Feature> _features;
   };
 
   ~FeatureGroup();
 
-  /** Load the extractor formats from @a node.
+  /** Load the feature expressions from @a node.
    *
    * @param cfg Configuration context.
-   * @param node Node with keys that have extractors (must be a Map)
-   * @param ex_keys Keys expected to have extractor formats.
+   * @param node Map with keys that have expressions.
+   * @param ex_keys Keys expected to have expressions.
    * @return Errors, if any.
    *
    * The @a ex_keys are loaded and if those refer to other keys, those other keys are transitively
    * loaded. The loading order is a linear ordering of the dependencies between keys. A circular
-   * dependency is an error and reported. If a key is multi-valued then it creates a format
-   * entry for each value. It is not allowed for a format to be dependent on a multi-valued key.
+   * dependency is an error and reported.
    *
    * @internal The restriction on dependencies on multi-valued keys is a performance issue. I
    * currently do not know how to support that and allow lazy extraction for multi-valued keys. It's
@@ -93,7 +83,7 @@ public:
    */
   swoc::Errata load(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
 
-  /** Load the extractor formats from @a node
+  /** Load the expressions from @a node
    *
    * @param cfg Configuration context.
    * @param node Node - must be a scalar or sequence.
@@ -111,35 +101,43 @@ public:
    * @param name Name of the key.
    * @return The index for the extraction info for @a name or @c INVALID_IDX if not found.
    */
-  index_type exf_index(swoc::TextView const& name);
+  index_type index_of(swoc::TextView const& name);
 
   /** Get the extraction information for @a idx.
    *
    * @param idx Key index.
    * @return The extraction information.
    */
-  ExfInfo & operator [] (index_type idx);
+  ExprInfo & operator [] (index_type idx);
 
   /** Extract the feature.
    *
-   * @param ctx Context for extraction.
+   * @param state Group state for extraction.
    * @param name Name of the feature key.
    * @return The extracted data.
    */
-  Feature extract(Context &ctx, swoc::TextView const &name);
+  Feature extract(State &state, swoc::TextView const &name);
 
   /** Extract the feature.
    *
-   * @param ctx Context for extraction.
+   * @param state Group state for extraction.
    * @param idx Index of the feature key.
    * @return The extracted data.
    */
-  Feature extract(Context &ctx, index_type idx);
+  Feature extract(State &state, index_type idx);
+
+  /** Initialize @a state for extraction.
+   *
+   * @param state Extraction state.
+   * @return @a this.
+   *
+   * This must be called on the @c State instance passed to the extraction methods.
+   */
+  State extract_init(Context & ctx);
 
 protected:
   static constexpr uint8_t DONE = 1; ///< All dependencies computed.
   static constexpr uint8_t IN_PLAY = 2; ///< Dependencies currently being computed.
-  static constexpr uint8_t MULTI_VALUED = 3; ///< Multi-valued with all dependencies computed.
 
   /** Wrapper for tracking array.
    * This wraps a stack allocated variable sized array, which is otherwise inconvenient to use.
@@ -165,16 +163,12 @@ protected:
     /// Vector data is kept as indices so it is stable over vector resizes.
     struct Info {
       swoc::TextView _name; ///< Name.
-      /// Index in feature data array.
-      /// Not valid if @c multi_found_p.
-      index_type _feature_idx;
-      index_type _fmt_idx; ///< Index in format vector, start.
-      index_type _fmt_count = 0; ///< # of formats.
+      Expr _expr; ///< Expression for item.
       index_type _edge_idx; ///< Index in reference dependency vector, start.
       index_type _edge_count = 0; ///< # of immediate dependent references.
+      index_type _exf_idx = 0; ///< Index of extracted feature cache.
       int8_t _mark = NONE; ///< Ordering search march.
       uint8_t _required_p : 1; ///< Key must exist and have a valid format.
-      uint8_t _multi_p : 1; ///< Expr can be a list of formats.
 
       /// Cross reference (dependency graph edge)
       /// @note THIS IS NOT PART OF THE NODE VALUE!
@@ -195,11 +189,6 @@ protected:
 
     YAML::Node const& _node; ///< Node containing the keys.
 
-    /// Shared vector of formats - each key has a span that covers part of this vector.
-    /// @internal Not allocated in the config data because of clean up issues - these can contain
-    /// other allocated data that needs destructors to be invoked.
-    std::vector<Expr> _fmt_array;
-
     /// The number of valid elements in the array.
     index_type _count = 0;
 
@@ -214,8 +203,7 @@ protected:
      * @param info Array.
      * @param n # of elements in @a info.
      */
-    Tracking(YAML::Node const& node, Info * info, unsigned n) : _info(info, n), _node(node)  {
-    }
+    Tracking(YAML::Node const& node, Info * info, unsigned n) : _info(info, n), _node(node)  {}
 
     /// Allocate an entry and return a pointer to it.
     Info * alloc() { return &_info[_count++]; }
@@ -234,8 +222,10 @@ protected:
   /// A representation of the edges in the dependency graph.
   swoc::MemSpan<index_type> _edge;
 
+  index_type _ref_count = 0; ///< Number of edge targets.
+
   /// Storage for keys to extract.
-  swoc::MemSpan<ExfInfo> _exf_info;
+  swoc::MemSpan<ExprInfo> _expr_info;
 
   /// Extractor specialized for this feature group.
   Ex_this _ex_this{*this};
@@ -243,23 +233,23 @@ protected:
   /** Load an extractor format.
    *
    * @param cfg Configuration state.
-   * @param info Tracking info.
-   * @param node Node that has the format as a value.
-   * @return Errors, if any.
+   * @param tracking Tracking info.
+   * @param node Node that has the expression as a value.
+   * @return The parsed expression.
    */
-  swoc::Errata load_fmt(Config & cfg, Tracking & info, YAML::Node const& node);
+  swoc::Rv<Expr> load_expr(Config & cfg, Tracking & tracking, YAML::Node const& node);
 
   /** Load the format at key @a name from the tracking node.
    *
    * @param cfg Configuration state.
-   * @param info Tracking info.
+   * @param tracking Tracking info.
    * @param name Key name.
-   * @return Errors, if any.
+   * @return The tracking info entry for the key.
    *
-   * The base node is contained in @a info. The key for @a name is selected and the
+   * The base node is contained in @a tracking. The key for @a name is selected and the
    * format there loaded.
    */
-  swoc::Errata load_key(Config & cfg, Tracking& info, swoc::TextView name);
+  swoc::Rv<Tracking::Info*> load_key(Config & cfg, Tracking& tracking, swoc::TextView name);
 
 };
 
@@ -274,5 +264,5 @@ inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name
   }
 }
 
-inline FeatureGroup::ExfInfo &FeatureGroup::operator[](FeatureGroup::index_type idx) { return _exf_info[idx]; }
+inline FeatureGroup::ExprInfo &FeatureGroup::operator[](FeatureGroup::index_type idx) { return _expr_info[idx]; }
 /* ---------------------------------------------------------------------------------------------- */

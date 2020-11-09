@@ -191,6 +191,7 @@ protected:
   /// Per configuration data.
   /// An instance of this is stored in the configuration arena.
   struct CfgStoreInfo {
+    Context::ReservedSpan _ctx_reserved_span; ///< Per context reserved storage.
     Map _map; ///< Map of defined spaces.
     self_type * _active = nullptr; ///< Active space.
   };
@@ -263,6 +264,7 @@ protected:
   /// Get the map of IP Space directives from the @a cfg.
   static Map* map(Config& cfg);
 
+  /// Wrapper to do access and casting.
   static CfgStoreInfo * cfg_store_info(Config & cfg);
 
   /// Context information for the active IP Space.
@@ -616,7 +618,7 @@ Errata Do_ip_space_define::cfg_init(Config &cfg) {
   // Scoped access to defined space in a @c Context.
   // Only one space can be active at a time therefore this can be shared among the instances in
   // a single @c Context.
-  cfg.reserve_ctx_storage(sizeof(CtxAxctiveInfo));
+  _rtti->_cfg.reserve_ctx_storage(sizeof(CtxAxctiveInfo));
   return {};
 }
 

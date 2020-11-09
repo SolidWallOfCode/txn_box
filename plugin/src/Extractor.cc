@@ -61,99 +61,107 @@ auto FeatureGroup::Tracking::obtain(swoc::TextView const &name) -> Tracking::Inf
   return spot;
 }
 
-FeatureGroup::index_type FeatureGroup::exf_index(swoc::TextView const &name) {
-  auto spot = std::find_if(_exf_info.begin(), _exf_info.end(), [&name](ExfInfo const& info) { return 0 == strcasecmp(info._name, name); });
-  return spot == _exf_info.end() ? INVALID_IDX : spot - _exf_info.begin();
+FeatureGroup::index_type FeatureGroup::index_of(swoc::TextView const &name) {
+  auto spot = std::find_if(_expr_info.begin(), _expr_info.end(), [&name](ExprInfo const& info) { return 0 == strcasecmp(info._name, name); });
+  return spot == _expr_info.end() ? INVALID_IDX : spot - _expr_info.begin();
 }
-Errata FeatureGroup::load_fmt(Config & cfg, Tracking& info, YAML::Node const &node) {
+
+Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node const &node) {
+  /* A bit tricky, but not unduly so. The goal is to traverse all of the specifiers in the
+   * expression and convert generic "this" extractors to the "this" extractor for @a this
+   * feature group instance. This struct is required by the visitation rules of @c std::variant.
+   * There's an overload for each variant type in @c Expr plus a common helper method.
+   * It's not possible to use lambda gathering because the @c List case is recursive.
+   */
+  struct V {
+    V(FeatureGroup & fg, Config & cfg, Tracking& tracking) : _fg(fg), _cfg(cfg), _tracking(tracking) {}
+    FeatureGroup & _fg;
+    Config & _cfg;
+    Tracking & _tracking;
+
+    /// Update @a spec as needed to have the correct "this" extractor.
+    Errata load_spec(Extractor::Spec& spec) {
+      if (spec._exf == &ex_this) {
+        auto && [ tinfo, errata ] = _fg.load_key(_cfg, _tracking, spec._ext);
+        if (errata.is_ok()) {
+          spec._exf = &_fg._ex_this;
+          // If not already marked as a reference target, do so.
+          if (tinfo->_exf_idx == INVALID_IDX) {
+            tinfo->_exf_idx = _fg._ref_count++;
+          }
+        }
+        return errata;
+      }
+      return {};
+    }
+
+    Errata operator() (std::monostate) { return {}; }
+    Errata operator() (Feature const&) { return {}; }
+    Errata operator() (Expr::Direct & d) {
+      return this->load_spec(d._spec);
+    }
+    Errata operator() (Expr::Composite & c) {
+      for (auto& spec : c._specs) {
+        auto errata = this->load_spec(spec);
+        if (!errata.is_ok()) {
+          return errata;
+        }
+      }
+      return {};
+    }
+    // For list, it's a list of nested @c Expr instances, so visit those as this one was visited.
+    Errata operator() (Expr::List & l){
+      for ( auto & expr : l._exprs) {
+        auto errata = std::visit(*this, expr._expr);
+        if (! errata.is_ok()) {
+          return errata;
+        }
+      }
+      return {};
+    }
+  } v(*this, cfg, tracking);
+
   auto && [ expr, errata ] { cfg.parse_expr(node) };
   if (errata.is_ok()) {
-    // Walk the items to see if any are cross references.
-    #if 0
-    for ( auto & item : expr ) {
-      if (item._exf == &ex_this) {
-        errata = this->load_key(cfg, info, item._ext);
-        if (! errata.is_ok()) {
-          break;
-        }
-        // replace the raw "this" extractor with the localized one.
-        item._exf = &_ex_this;
-      }
+    errata = std::visit(v, expr._expr); // update "this" extractor references.
+    if (errata.is_ok()) {
+      return expr;
     }
-    #endif
   }
-  info._fmt_array.emplace_back(std::move(expr));
-  return std::move(errata);
+  return { std::move(errata) };
 }
 
-Errata FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &info, swoc::TextView name)
+auto FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &tracking, swoc::TextView name)
+     -> Rv<Tracking::Info*>
 {
-  Errata errata;
+  YAML::Node n {tracking._node[name]};
 
-  if (! info._node[name]) {
-    errata.error(R"("{}" is referenced but no such key was found.)", name);
-    return errata;
+  // Check if the key is present in the node. If not, it must be a referenced key because
+  // the presence of explicit keys is checked before loading any keys.
+  if (! n) {
+    return Error(R"("{}" is referenced but no such key was found.)", name);
   }
 
-  auto tinfo = info.obtain(name);
+  auto tinfo = tracking.obtain(name);
 
-  if (tinfo->_mark == DONE) {
-    return errata;
+  if (tinfo->_mark == DONE) { // already loaded, presumably due to a reference.
+    return tinfo;
   }
 
   if (tinfo->_mark == IN_PLAY) {
-    errata.error(R"(Circular dependency for key "{}" at {}.)", name, info._node.Mark());
-    return errata;
-  }
-
-  if (tinfo->_mark == MULTI_VALUED) {
-    errata.error(R"(A multi-valued key cannot be referenced - "{}" at {}.)", name, info._node.Mark());
-    return errata;
+    return Error(R"(Circular dependency for key "{}" at {}.)", name, tracking._node.Mark());
   }
 
   tinfo->_mark = IN_PLAY;
-  tinfo->_fmt_idx = info._fmt_array.size();
-  if (auto n { info._node[name] } ; n) {
-    if (n.IsScalar()) {
-      errata = this->load_fmt(cfg, info, n);
-    } else if (n.IsSequence()) {
-      // many possibilities - empty, singleton, modifier, list of formats.
-      if (n.size() == 0) {
-        if (tinfo->_required_p) {
-          errata.error(R"(Required key "{}" at {} has an empty list with no extraction formats.)", name, info._node.Mark());
-        }
-      } else if (n.size() == 1) {
-        errata = this->load_fmt(cfg, info, n[0]);
-      } else { // > 1
-        if (n[1].IsMap()) {
-          errata = this->load_fmt(cfg, info, n[1]);
-        } else { // list of formats.
-          for (auto const &child : n) {
-            errata = this->load_fmt(cfg, info, child);
-            if (!errata.is_ok()) {
-              break;
-            }
-          }
-        }
-      }
-    } else {
-      errata.error(R"(extraction format expected but is not a scalar nor a list.)", name, info._node.Mark());
-    }
-
-    if (! errata.is_ok()) {
-      errata.info(R"(While loading extraction format for key "{}" at {}.)", name, info._node.Mark());
-    }
-  } else if (tinfo->_required_p) {
-    errata.error(R"(Required key "{}" not found in value at {}.)", name, info._node.Mark());
+  auto && [ expr, errata ] { this->load_expr(cfg, tracking, n) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While loading extraction format for key "{}" at {}.)", name, tracking._node.Mark());
+    return std::move(errata);
   }
 
-  tinfo->_fmt_count = info._fmt_array.size() - tinfo->_fmt_idx;
-  if (tinfo->_fmt_count > 1) {
-    tinfo->_mark = MULTI_VALUED;
-  } else {
-    tinfo->_mark = DONE;
-  }
-  return errata;
+  tinfo->_expr = std::move(expr);
+  tinfo->_mark = DONE;
+  return tinfo;
 }
 
 Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer_list<FeatureGroup::Descriptor> const &ex_keys) {
@@ -164,6 +172,8 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
 
   // Seed tracking info with the explicit keys.
   // Need to do this explicitly to transfer the flags, and to check for duplicates in @a ex_keys.
+  // Further, this means if @c load_key doesn't find the key, that's a reference failure because
+  // this checks all required keys are present in the YAML node.
   for ( auto & d : ex_keys ) {
     auto tinfo = tracking.find(d._name);
     if (nullptr != tinfo) {
@@ -173,23 +183,22 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
       tinfo = tracking.alloc();
       tinfo->_name = d._name;
       tinfo->_required_p = d._flags[REQUIRED];
-      tinfo->_multi_p = d._flags[MULTI];
     } else if (d._flags[REQUIRED]) {
       return Errata().error(R"(The required key "{}" was not found in the node {}.)", d._name, node.Mark());
     }
   }
 
-  // Time to get the formats and walk the references.
+  // Time to get the expressions and walk the references.
   for ( auto & d : ex_keys ) {
-    auto errata { this->load_key(cfg, tracking, d._name) };
+    auto && [ tinfo, errata ] { this->load_key(cfg, tracking, d._name) };
     if (! errata.is_ok()) {
       return errata;
     }
   }
 
   // Persist the tracking info, now that all the sizes are known.
-  _exf_info = cfg.span<ExfInfo>(tracking._count);
-  _exf_info.apply([](ExfInfo & info) { new (&info) ExfInfo; });
+  _expr_info = cfg.span<ExprInfo>(tracking._count);
+  _expr_info.apply([](ExprInfo & info) { new (&info) ExprInfo; });
 
   // If there are dependency edges, copy those over.
   if (tracking._edge_count) {
@@ -201,19 +210,11 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
 
   // Persist the keys by copying persistent data from the tracking data to config allocated space.
   for ( unsigned short idx = 0 ; idx < tracking._count ; ++idx ) {
-    auto &src = tracking._info[idx];
-    auto &dst = _exf_info[idx];
+    Tracking::Info &src = tracking._info[idx];
+    ExprInfo &dst = _expr_info[idx];
     dst._name = src._name;
-    if (src._fmt_count > 1) {
-      dst._ex = ExfInfo::Multi{};
-      ExfInfo::Multi & m = std::get<ExfInfo::IDX_MULTI>(dst._ex);
-      m._fmt.reserve(src._fmt_count);
-      for ( auto & fmt : MemSpan<Expr>{&tracking._fmt_array[src._fmt_idx], src._fmt_count } ) {
-        m._fmt.emplace_back(std::move(fmt));
-      }
-    } else {
-      dst._ex = ExfInfo::Single{std::move(tracking._fmt_array[src._fmt_idx]), {}};
-    }
+    dst._expr = std::move(src._expr);
+    dst._exf_idx = src._exf_idx;
     if (src._edge_count) {
       dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
     }
@@ -227,7 +228,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
   unsigned idx = 0;
   unsigned n_keys = ex_keys.size();
   unsigned n_elts = node.size();
-  ExfInfo info[n_keys];
+  ExprInfo info[n_keys];
 
   // No dependency in tuples, can just walk the keys and load them.
   for ( auto const& key : ex_keys ) {
@@ -239,21 +240,19 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
       continue; // it was optional, skip it and keep checking for REQUIRED keys.
     }
 
-    // Not handling MULTI correctly - need to check if element is a list that is not a format
-    // with modifiers, and gather the multi-values.
-    auto && [ fmt, errata ] = cfg.parse_expr(node[idx]);
+    auto && [ expr, errata ] = cfg.parse_expr(node[idx]);
     if (! errata.is_ok()) {
       return std::move(errata);
     }
     info[idx]._name = key._name;
-    info[idx]._ex = ExfInfo::Single{std::move(fmt), {}}; // safe because of the @c reserve
+    info[idx]._expr = std::move(expr); // safe because of the @c reserve
     ++idx;
   }
   // Localize feature info, now that the size is determined.
-  _exf_info = cfg.span<ExfInfo>(idx);
+  _expr_info = cfg.span<ExprInfo>(idx);
   index_type i = 0;
-  for ( auto & item : _exf_info ) {
-    new (&item) ExfInfo{ std::move(info[i++]) };
+  for ( auto & item : _expr_info ) {
+    new (&item) ExprInfo{std::move(info[i++]) };
   }
   // No dependencies for tuple loads.
   // No feature data because no dependencies.
@@ -261,36 +260,48 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
   return {};
 }
 
-Feature FeatureGroup::extract(Context &ctx, swoc::TextView const &name) {
-  auto idx = this->exf_index(name);
+Feature FeatureGroup::extract(State &state, swoc::TextView const &name) {
+  auto idx = this->index_of(name);
   if (idx == INVALID_IDX) {
     return {};
   }
-  return this->extract(ctx, idx);
+  return this->extract(state, idx);
 }
 
-Feature FeatureGroup::extract(Context &ctx, index_type idx) {
-  auto& info = _exf_info[idx];
-  if (info._ex.index() == ExfInfo::IDX_SINGLE) {
-    ExfInfo::Single &data = std::get<ExfInfo::IDX_SINGLE>(info._ex);
-    if (data._feature.index() != IndexFor(NIL)) {
-      return data._feature;
-    }
-
-    for (index_type edge_idx : info._edge) {
-      ExfInfo::Single& precursor = std::get<ExfInfo::IDX_SINGLE>(_exf_info[edge_idx]._ex);
-      if (precursor._feature.index() == NIL) {
-        precursor._feature = this->extract(ctx, edge_idx);
-      }
-    }
-    data._feature = ctx.extract(data._expr);
-    return data._feature;
+Feature FeatureGroup::extract(State &state, index_type idx) {
+  auto& info = _expr_info[idx];
+  Feature * cached = info._exf_idx == INVALID_IDX ? nullptr : &state._features[info._exf_idx];
+  // If already extracted, return.
+  // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
+  if (cached && ( cached->index() != IndexFor(GENERIC) || std::get<IndexFor(GENERIC)>(*cached) != nullptr)) {
+    return *cached;
   }
-  return {};
+  // Extract precursors.
+  for (index_type edge_idx : info._edge) {
+    ExprInfo& precursor = _expr_info[edge_idx];
+    if (state._features[precursor._exf_idx].index() == IndexFor(NIL)) {
+      this->extract(state, edge_idx);
+    }
+  }
+  auto f = state._ctx.extract(info._expr);
+  if (cached) {
+    *cached = f;
+  }
+  return f;
+}
+
+auto FeatureGroup::extract_init(Context & ctx) -> State {
+  static constexpr Generic * not_a_feature = nullptr;
+  State state(ctx);
+  if (_ref_count > 0) {
+    state._features = ctx.span<Feature>(_ref_count);
+    state._features.apply([](Feature && f) { new (&f) Feature(not_a_feature); });
+  }
+  return state;
 }
 
 FeatureGroup::~FeatureGroup() {
-  _exf_info.apply([](ExfInfo & info) { delete &info; });
+  _expr_info.apply([](ExprInfo & info) { delete &info; });
 }
 
 /* ---------------------------------------------------------------------------------------------- */

@@ -17,6 +17,7 @@
 #include "swoc/Errata.h"
 
 #include "txn_box/common.h"
+#include "txn_box/Context.h"
 #include "txn_box/Extractor.h"
 
 class Context;
@@ -72,9 +73,6 @@ public:
     FactoryInfo const * _static; ///< Related static information.
     unsigned _count = 0; ///< Number of instances.
     swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
-    // @c Context storage can't be stored as a span, because it's different in every @c context instance.
-    size_t _ctx_storage_size = 0; ///< Amount of shared context storage required.
-    size_t _ctx_storage_offset = 0; ///< Offset into shared context storage block.
   };
 
   virtual ~Directive() = default;

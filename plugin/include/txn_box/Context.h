@@ -15,12 +15,12 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Rxp.h"
-#include "txn_box/Directive.h"
 #include "txn_box/Extractor.h"
 #include "txn_box/Expr.h"
 #include "txn_box/ts_util.h"
 #include <ts/remap.h>
 
+class Directive;
 struct _tm_remap_request_info;
 using TSRemapRequestInfo = _tm_remap_request_info;
 
@@ -42,6 +42,12 @@ public:
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
+
+  /// Specification for per context reserved storage.
+  struct ReservedSpan {
+    size_t offset = 0; ///< Offset for start of storage.
+    size_t n = 0; ///< Storage size;
+  };
 
   /// Construct based a specific configuration.
   explicit Context(std::shared_ptr<Config> const& cfg);
@@ -137,7 +143,7 @@ public:
    */
   swoc::MemSpan<void> storage_for(Directive const* drtv);
 
-  swoc::MemSpan<void> storage_for(Directive::CfgInfo const* rtti);
+  swoc::MemSpan<void> storage_for(ReservedSpan const& span);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
@@ -414,11 +420,13 @@ swoc::MemSpan<T> Context::span(unsigned int count) {
   return _arena->alloc(sizeof(T) * count).rebind<T>();
 }
 
+inline swoc::MemSpan<void> Context::storage_for(ReservedSpan const& span) {
+  return _ctx_store.subspan(span.offset, span.n);
+}
+
 inline Config& Context::cfg() { return *_cfg; }
 
 inline std::shared_ptr<Config> Context::acquire_cfg() { return _cfg; }
-
-inline swoc::Errata Context::Callback::invoke(Context& ctx) { return _drtv->invoke(ctx); }
 
 inline void Context::ArenaDestructor::operator()(swoc::MemArena *arena) { arena->swoc::MemArena::~MemArena(); }
 

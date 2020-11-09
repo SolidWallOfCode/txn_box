@@ -130,11 +130,10 @@ Config::Config() {
   }
 }
 
-Errata Config::reserve_ctx_storage(size_t n) {
-  _rtti->_ctx_storage_offset = _ctx_storage_required;
-  _rtti->_ctx_storage_size = n;
+Context::ReservedSpan Config::reserve_ctx_storage(size_t n) {
+  Context::ReservedSpan span { _ctx_storage_required , n };
   _ctx_storage_required += n;
-  return {};
+  return span;
 }
 
 Config::self_type &Config::localize(Feature &feature) {

@@ -241,6 +241,7 @@ public:
    */
   Hook current_hook() const;
 
+  /// @return The type of the active feature.
   ActiveType active_type() const { return _active_feature._type; }
 
   /** Require regular expression capture vectors to support at least @a n groups.
@@ -299,7 +300,7 @@ public:
    * @param n Size in bytes.
    * @return The allocated span.
    *
-   * This also stores the span in the RTTI / TypeInfo for the directive so it is accessible when
+   * This also stores the span in the RTTI / CfgInfo for the directive so it is accessible when
    * the directive is invoked at run time.
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n);
@@ -307,11 +308,11 @@ public:
   /** Prepare for context storage.
    *
    * @param n Number of bytes.
-   * @return Errors, if any.
+   * @return A reserved span that locates memory once the @c Context is created.
    *
-   * This storage is not immediately allocated (in contrast to @c allocate_cfg_storage. Instead it
-   * is allocated when a @c Context is created, for each @c Context instance. This is shared among
-   * instances of the directive, similarly to class static storage. This should be invoked during
+   * This storage is not immediately allocated (in contrast to @c allocate_cfg_storage ). Instead it
+   * is allocated when a @c Context is created. This is shared among instances of the directive in a
+   * single transaction context, similarly to class static storage. This should be invoked during
    * directive type setup or object loading. Per instance context storage should be allocated during
    * invocation.
    *
@@ -319,7 +320,7 @@ public:
    *
    * @see Context::storage_for
    */
-  Errata reserve_ctx_storage(size_t n);
+  Context::ReservedSpan reserve_ctx_storage(size_t n);
 
   /** Get current directive info.
    *

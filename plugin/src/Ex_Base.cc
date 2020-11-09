@@ -432,8 +432,7 @@ Ex_unmatched_group::validate(Config&, Extractor::Spec&, TextView const&) { retur
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
-  Feature feature {_fg->extract(ctx, spec._ext)};
-  return bwformat(w, spec, feature);
+  return bwformat(w, spec, _fg->extract(ctx, spec._ext));
 }
 
 Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {

@@ -35,7 +35,7 @@ public:
     std::vector<Spec>::const_iterator _iter; ///< Current specifier.
   };
 
-  /// Single extractor that generates a direct full.
+  /// Single extractor that generates a direct value.
   struct Direct {
     Direct(Spec const& spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
     Spec _spec; ///< Specifier with extractor.

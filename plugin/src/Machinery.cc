@@ -1749,11 +1749,12 @@ public:
    */
   static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
+  /// Configuration level initialization.
   static Errata type_init(Config& cfg);
 
 protected:
   using index_type = FeatureGroup::index_type;
-  FeatureGroup _fg;
+  FeatureGroup _fg; ///< Support cross references among the keys.
 
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
   index_type _status_idx; ///< Return status.
@@ -1768,11 +1769,6 @@ protected:
 
   Errata load_status();
 
-  /// Load the location value from configuration.
-  Errata load_location(Config& cfg, YAML::Node node);
-  Errata load_reason(Config& cfg, YAML::Node node);
-  Errata load_body(Config& cfg, YAML::Node node);
-
   /// Do post invocation fixup.
   Errata fixup(Context &ctx);
 };
@@ -1783,11 +1779,16 @@ const std::string Do_redirect::REASON_KEY { "reason" };
 const std::string Do_redirect::LOCATION_KEY { "location" };
 const std::string Do_redirect::BODY_KEY { "body" };
 
-const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP}) };
+const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::REMAP}) };
 
 Do_redirect::Do_redirect(Config &cfg) {
-  // Allocate a hook slot for the fixup directive.
-  cfg.reserve_slot(FIXUP_HOOK);
+}
+
+Errata Do_redirect::type_init(Config& cfg) {
+  // Only one redirect can be effective per transaction, therefore shared state per context is best.
+  cfg.reserve_ctx_storage(12);
+  cfg.reserve_slot(FIXUP_HOOK); // Fix up "Location" field in proxy response.
+  return {};
 }
 
 Errata Do_redirect::invoke(Context& ctx) {
@@ -1845,15 +1846,15 @@ Errata Do_redirect::fixup(Context &ctx) {
 }
 
 Errata Do_redirect::load_status() {
-  _status_idx = _fg.exf_index(STATUS_KEY);
+  _status_idx = _fg.index_of(STATUS_KEY);
 
   if (_status_idx == FeatureGroup::INVALID_IDX) { // not present, use default value.
     _status = DEFAULT_STATUS;
     return {};
   }
 
-//  FeatureGroup::ExfInfo & info = _fg[_status_idx];
-//  FeatureGroup::ExfInfo::Single & ex = std::get<FeatureGroup::ExfInfo::SINGLE>(info._expr);
+//  FeatureGroup::ExprInfo & info = _fg[_status_idx];
+//  FeatureGroup::ExprInfo::Single & ex = std::get<FeatureGroup::ExprInfo::SINGLE>(info._expr);
 
   #if 0
   if (ex._expr.is_literal()) {
@@ -1890,9 +1891,9 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc:
     return {{}, std::move(errata)};
   }
 
-  self->_reason_idx = self->_fg.exf_index(REASON_KEY);
-  self->_body_idx = self->_fg.exf_index(BODY_KEY);
-  self->_location_idx = self->_fg.exf_index(LOCATION_KEY);
+  self->_reason_idx = self->_fg.index_of(REASON_KEY);
+  self->_body_idx = self->_fg.index_of(BODY_KEY);
+  self->_location_idx = self->_fg.index_of(LOCATION_KEY);
   errata.note(self->load_status());
 
   if (! errata.is_ok()) {
