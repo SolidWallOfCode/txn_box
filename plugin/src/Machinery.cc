@@ -2311,12 +2311,12 @@ Errata Do_var::invoke(Context &ctx) {
 }
 
 Rv<Directive::Handle> Do_var::load(Config& cfg, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
-  auto &&[fmt, errata]{cfg.parse_expr(key_value)};
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (! errata.is_ok()) {
     return std::move(errata);
   }
 
-  return Handle(new self_type(cfg.localize(arg), std::move(fmt)));
+  return Handle(new self_type(cfg.localize(arg), std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
 /** @c with directive.
