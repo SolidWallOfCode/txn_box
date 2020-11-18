@@ -437,22 +437,50 @@ Session
 
 .. extractor:: has-inbound-protocol-prefix
    :result: boolean
-   :arg: tag prefix
+   :arg: protocol tag prefix
 
    For the inbound session there is a `list of protocol tags
    <https://docs.trafficserver.apache.org/en/latest/developer-guide/api/functions/TSClientProtocolStack.en.html>`__
-   that describe the network protocols used for that network connection. This list can be checked to
-   see if it contains a tag that has a specific prefix. The primary use is to determine if the
-   inbound session is TLS ::
+   that describe the network protocols used for that network connection. This extractor checks the
+   inbound session list to see if it contains a tag that has a specific prefix. The most common use
+   is to determine if the inbound session is TLS ::
 
       with: has-inbound-protocol-prefix<tls>
       select:
       -  is-true:
-         do:
-         # TLS only stuff.
+         do: # TLS only stuff.
 
-   The actual TLS tags are of the form "tls/1.X" where X is the minor version number. But only
-   the TLS tags have a prefix of "tls".
+   .. note::
+
+      Checking a request for the scheme "https" is not identical to checking for TLS. Nothing
+      prevents a user agent from sending a scheme at variance with the network protocol stack. This
+      extractor checks the network protocol, not the request.
+
+   Checking for IPv6 can be done in a similar way. ::
+
+      with: has-inbound-protocol-prefix<ipv6>
+      select:
+      - is-true:
+        do: # IPv6 special handling.
+
+.. extractor:: inbound-protocol
+   :result: string
+   :arg: protocol tag prefix
+
+   For the inbound session there is a `list of protocol tags
+   <https://docs.trafficserver.apache.org/en/latest/developer-guide/api/functions/TSClientProtocolStack.en.html>`__
+   that describe the network protocols used for that network connection. This extractor searches the
+   inbound session list and if there is a prefix match, returns the matched protocol tag. This can
+   be used to check for different versions of TLS. ::
+
+      with: inbound-protocol<tls>
+      select:
+      -  match: "tls/1.3"
+         do: # TLS 1.3 only stuff.
+      -  prefix: "tls"
+         do: # Older TLS stuff.
+      -  otherwise:
+         do: # Non-TLS stuff.
 
 .. extractor:: inbound-protocol-stack
    :result: tuple of strings

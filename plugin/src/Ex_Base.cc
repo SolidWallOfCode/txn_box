@@ -131,8 +131,8 @@ Rv<ActiveType> Ex_has_inbound_protocol_prefix::validate(Config& cfg, Extractor::
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
-  cfg.localize(arg, Config::LOCAL_CSTR);
-  spec._data = MemSpan<char>(const_cast<char*>(arg.data()), arg.size());
+  auto local = cfg.localize(arg, Config::LOCAL_CSTR);
+  spec._data = MemSpan<char>(const_cast<char*>(local.data()), local.size());
   return {BOOLEAN};
 }
 
@@ -196,8 +196,8 @@ Rv<ActiveType> Ex_inbound_protocol::validate(Config &cfg, Spec &spec, const Text
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
-  cfg.localize(arg, Config::LOCAL_CSTR);
-  spec._data = swoc::MemSpan<char>(const_cast<char*>(arg.data()), arg.size());
+  auto local = cfg.localize(arg, Config::LOCAL_CSTR);
+  spec._data = swoc::MemSpan<char>(const_cast<char*>(local.data()), local.size());
   return { STRING };
 }
 
