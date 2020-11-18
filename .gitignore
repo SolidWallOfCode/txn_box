@@ -42,11 +42,8 @@ _build
 dist
 config.log
 cmake-build*
-include/swoc
 include/yaml-cpp
 include/swoc
-include/ts
-include/tscpp
 /lib
 /bin
 /doc/docbuild

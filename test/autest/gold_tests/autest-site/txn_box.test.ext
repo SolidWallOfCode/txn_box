@@ -136,9 +136,8 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
 
     Args:
         text: (str) Description for test run.
-        replay_path: (str) Path to the replay file. Defaults to the path used for TxnBoxTest.
     Keywords
-        replay_path: (str) The replay file.
+        replay_path: (str) Path to the replay file. Defaults to the path used for TxnBoxTest.
     """
 
     if replay_path == None:
@@ -151,11 +150,12 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     vc_args = { 'other_args' : "--verbose diag {}".format(verifier_client_args)
               , 'http_ports' : [ ts.Variables.port ]
               }
+
     try:
         vc_args['https_ports'] = [ ts.Variables.ssl_port ]
     except:
         pass # not an error if it's missing, just don't pass it.
-    pv_client = run.AddVerifierClientProcess("pv-client", ts, replay_path, **vc_args)
+    pv_client = run.AddVerifierClientProcess("pv-client", replay_path, **vc_args)
 
     run.Variables.CLIENT = pv_client
 
