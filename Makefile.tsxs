@@ -1,0 +1,7 @@
+TS_ROOT=${TS_ROOT:-/opt/trafficserver}
+TS_BINDIR=${TS_BINDIR:-${TS_ROOT}/bin}
+${TS_BINDIR}/tsxs -o libexec/txn_box.so -I include -I plugin/include -lpcre2-8 -lswoc.static plugin/src/*.cc
+
+
+# Original working command.
+#~/opt/ts.10/bin/tsxs -o txn_box.so -I /home/amc/git/txn_box/include/ -I ~/git/txn_box/plugin/include/ -lpcre2-8 -L ~/git/txn_box/lib  -lswoc.static.1.2.10 ~/git/txn_box/plugin/src/*.cc
