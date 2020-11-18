@@ -1019,7 +1019,7 @@ Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
     if ( auto field { hdr.field(data._arg) } ; field.is_valid()) {
       if (field.next_dup().is_valid()) {
         auto n = field.dup_count();
-        auto span = ctx.span<Feature>(n);
+        auto span = ctx.alloc_span<Feature>(n);
         for ( auto & item : span) {
           item = field.value();
           field = field.next_dup();

@@ -58,8 +58,6 @@ public:
    *
    */
   struct State {
-    State(Context & ctx) : _ctx(ctx) {}
-    Context & _ctx;
     swoc::MemSpan<Feature> _features;
   };
 
@@ -112,28 +110,29 @@ public:
 
   /** Extract the feature.
    *
+   * @param ctx Transaction context.
    * @param state Group state for extraction.
    * @param name Name of the feature key.
    * @return The extracted data.
    */
-  Feature extract(State &state, swoc::TextView const &name);
+  Feature extract(Context& ctx, swoc::TextView const& name);
 
   /** Extract the feature.
    *
+   * @param ctx Transaction context.
    * @param state Group state for extraction.
    * @param idx Index of the feature key.
    * @return The extracted data.
    */
-  Feature extract(State &state, index_type idx);
+  Feature extract(Context& ctx, index_type idx);
 
-  /** Initialize @a state for extraction.
+  /** Initialize @a this for extraction.
    *
    * @param state Extraction state.
-   * @return @a this.
    *
-   * This must be called on the @c State instance passed to the extraction methods.
+   * Must be called just before extracting features in the group.
    */
-  State extract_init(Context & ctx);
+  void pre_extract(Context & ctx);
 
 protected:
   static constexpr uint8_t DONE = 1; ///< All dependencies computed.
@@ -226,6 +225,9 @@ protected:
 
   /// Storage for keys to extract.
   swoc::MemSpan<ExprInfo> _expr_info;
+
+  /// Context storage to store a @c State instance across feature extraction.
+  ReservedSpan _ctx_state_span;
 
   /// Extractor specialized for this feature group.
   Ex_this _ex_this{*this};

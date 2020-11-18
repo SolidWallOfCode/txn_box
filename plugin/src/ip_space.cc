@@ -164,7 +164,7 @@ public:
     void operator()(); ///< Do the update check.
   };
 
-  ~Do_ip_space_define() noexcept; ///< Destructor.
+  ~Do_ip_space_define() noexcept override; ///< Destructor.
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
@@ -180,9 +180,10 @@ public:
   /** Per config initialization.
    *
    * @param cfg Config.
+   * @param rtti Defined directive data.
    * @return Errors, if any.
    */
-  static Errata cfg_init(Config& cfg);
+  static Errata cfg_init(Config& cfg, CfgStaticData const* rtti);
 
 protected:
   /// Configuration level map of defined spaces.
@@ -190,10 +191,11 @@ protected:
 
   /// Per configuration data.
   /// An instance of this is stored in the configuration arena.
-  struct CfgStoreInfo {
-    Context::ReservedSpan _ctx_reserved_span; ///< Per context reserved storage.
+  struct CfgInfo {
+    ReservedSpan _ctx_reserved_span; ///< Per context reserved storage.
+    /// The active directive during configuration loading.
+    mutable self_type * _active = nullptr;
     Map _map; ///< Map of defined spaces.
-    self_type * _active = nullptr; ///< Active space.
   };
 
   /// A row in the space.
@@ -207,6 +209,7 @@ protected:
   };
   using SpaceHandle = std::shared_ptr<SpaceInfo>;
 
+  /// Information about a column in the IPSpace table.
   struct Column {
     TextView _name; ///< Name.
     unsigned _idx; ///< Index.
@@ -218,6 +221,11 @@ protected:
     Column() = default; ///< Default constructor.
     Column(Column && that) = default; ///< Move constructor.
 
+    /** Extra data for this column from a @a row
+     *
+     * @param row IPSpace row.
+     * @return Data for @a this column in that @a row.
+     */
     MemSpan<std::byte> data_in_row(Row* row) {
       return { row->data() + _row_offset, _row_size};
     }
@@ -259,21 +267,23 @@ protected:
     return _space;
   }
 
-  /// Find the space for the directive instance with @a rtti
-  static Map* map(Directive::CfgInfo const * rtti);
-  /// Get the map of IP Space directives from the @a cfg.
-  static Map* map(Config& cfg);
+  static CfgInfo * cfg_info(Config& cfg);
 
-  /// Wrapper to do access and casting.
-  static CfgStoreInfo * cfg_store_info(Config & cfg);
+  /// Find the space for the directive instance.
+  Map* map();
+  /// Get the map of IP Space directives from the @a cfg.
+//  static Map* map(Config& cfg);
 
   /// Context information for the active IP Space.
+  /// This is set up by the @c ip-space modifier and is only valid in the expression scope.
   struct CtxAxctiveInfo {
     SpaceHandle _space; ///< Active space.
     IPAddr _addr; ///< Search address.
     Row * _row; ///< Active row.
   };
-  /// Per context storage for scoped Space handle.
+  /// Per context storage for the active space.
+  /// This is reserved during config load.
+  /// Reservation is in @c CfgInfo::_ctx_reserved_span
   static CtxAxctiveInfo * ctx_active_info(Context& ctx);
 
   Do_ip_space_define() = default; ///< Default constructor.
@@ -286,6 +296,12 @@ protected:
    */
   Errata define_column(Config & cfg, YAML::Node node);
 
+  /** Parse the input file.
+   *
+   * @param cfg Configuration instance.
+   * @param content File content.
+   * @return The parsed space, or errors.
+   */
   Rv<SpaceHandle> parse_space(Config & cfg, TextView content);
 
   /// Check if it is time to do a modified check on the file content.
@@ -318,16 +334,14 @@ Do_ip_space_define::~Do_ip_space_define() noexcept {
   _task.cancel();
 }
 
-auto Do_ip_space_define::cfg_store_info(Config& cfg) -> CfgStoreInfo * {
-  return cfg.drtv_info(KEY)->_cfg_store.rebind<CfgStoreInfo>().data();
-}
-auto Do_ip_space_define::map(Directive::CfgInfo const * rtti) -> Map* { return &rtti->_cfg_store.rebind<CfgStoreInfo>()[0]._map; }
-auto Do_ip_space_define::map(Config& cfg) -> Map* {
-  return &cfg.drtv_info(KEY)->_cfg_store.rebind<CfgStoreInfo>()[0]._map;
+auto Do_ip_space_define::map() -> Map* { return &_rtti->_cfg_store.rebind<CfgInfo>()[0]._map; }
+
+auto Do_ip_space_define::cfg_info(Config& cfg) -> CfgInfo * {
+  return cfg.drtv_info(NAME_TAG)->_cfg_store.rebind<CfgInfo>().data();
 }
 
 auto Do_ip_space_define::ctx_active_info(Context &ctx) -> CtxAxctiveInfo * {
-  return ctx.storage_for(ctx.cfg().drtv_info(Do_ip_space_define::NAME_TAG)).rebind<CtxAxctiveInfo>().data();
+  return ctx.storage_for(cfg_info(ctx.cfg())->_ctx_reserved_span).rebind<CtxAxctiveInfo>().data();
 }
 
 bool Do_ip_space_define::should_check() {
@@ -600,7 +614,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   self->_space = space_info;
 
   // Put the directive in the map.
-  Map* map = self_type::map(cfg.drtv_info());
+  Map* map = self->map();
   if (auto spot = map->find(self->_name) ; spot != map->end()) {
     return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)"
     , KEY, drtv_node.Mark(), self->_name, spot->second->_line_no);
@@ -610,15 +624,15 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   return handle;
 }
 
-Errata Do_ip_space_define::cfg_init(Config &cfg) {
+Errata Do_ip_space_define::cfg_init(Config &cfg, CfgStaticData const * rtti) {
   // Note - @a h gets a pointer to the Handle.
-  auto h = cfg.allocate_cfg_storage(sizeof(CfgStoreInfo)).rebind<CfgStoreInfo>().data();
-  new (h) CfgStoreInfo();
+  auto h = & rtti->_cfg_store.rebind<CfgInfo>()[0];
+  new (h) CfgInfo();
   cfg.mark_for_cleanup(h); // takes a pointer to the object to clean up.
   // Scoped access to defined space in a @c Context.
   // Only one space can be active at a time therefore this can be shared among the instances in
   // a single @c Context.
-  _rtti->_cfg.reserve_ctx_storage(sizeof(CtxAxctiveInfo));
+  cfg.reserve_ctx_storage(sizeof(CtxAxctiveInfo));
   return {};
 }
 
@@ -654,6 +668,7 @@ void Do_ip_space_define::Updater::operator()() {
 
 /* ------------------------------------------------------------------------------------ */
 /// IPSpace modifier
+/// Convert an IP address feature in to an IPSpace row.
 class Mod_ip_space : public Modifier {
   using self_type = Mod_ip_space; ///< Self reference type.
   using super_type = Modifier; ///< Parent type.
@@ -711,7 +726,7 @@ ActiveType Mod_ip_space::result_type(const ActiveType &) const {
 }
 
 Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::Node key_value) {
-  auto csi = Do_ip_space_define::cfg_store_info(cfg);
+  auto csi = Do_ip_space_define::cfg_info(cfg);
   auto & map = csi->_map;
   auto spot = map.find(arg);
   if (spot == map.end()) {
@@ -728,25 +743,18 @@ Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, 
 };
 
 Rv<Feature> Mod_ip_space::operator()(Context& ctx, feature_type_for<IP_ADDR> addr) {
-  // Need to do better at some point?
-  // All of this sets up data in the context for the extractors to pull from the correct row
-  // in the correct space.
-  std::array<std::byte, sizeof(CtxActiveInfo)> save;
-  auto span = ctx.storage_for(_drtv);
-  memcpy(save.data(), span.data(), sizeof(save)); // save old state.
-  new (span.data()) CtxActiveInfo; // construct current state to know default.
-  auto & ctx_ai = span.rebind<CtxActiveInfo>()[0];
-  ctx_ai._space = _drtv->acquire_space();
-  auto && [ range, payload ] = *ctx_ai._space->space.find(addr);
-  ctx_ai._row = range.empty() ? nullptr : &payload;
-  ctx_ai._addr = addr;
+  // Set up local active state.
+  CtxActiveInfo active;
+  active._space = _drtv->acquire_space();
+  auto && [ range, payload ] = *active._space->space.find(addr);
+  active._row = range.empty() ? nullptr : &payload;
+  active._addr = addr;
 
-  // Environment is ready, do the extraction.
+  // Current active data.
+  auto & store = ctx.storage_for(_drtv->cfg_info(ctx.cfg())->_ctx_reserved_span).rebind<CtxActiveInfo>()[0];
+  // Temporarily update it to local conditions.
+  let scope(store, active);
   auto value = ctx.extract(_expr);
-
-  // shut it down and restore.
-  std::destroy_at(&ctx_ai);
-  memcpy(span.data(), save.data(), sizeof(save)); // restore previous state.
 
   return value;
 }
@@ -777,7 +785,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the column.)", NAME);
   }
-  auto csi = Do_ip_space_define::cfg_store_info(cfg);
+  auto csi = Do_ip_space_define::cfg_info(cfg);
   if (! csi->_active) {
     return Error(R"("{}" extractor can only be used with an active IP Space.)", NAME);
   }
@@ -813,19 +821,19 @@ Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
   // Get all the pieces needed.
   auto info = spec._data.rebind<Info>().data();
   auto & col = info->_drtv->_cols[info->_idx];
-  auto & ctx_ai = ctx.storage_for(info->_drtv).rebind<CtxActiveInfo>()[0];
-  if (ctx_ai._row) {
-    auto data = col.data_in_row(ctx_ai._row);
+  auto ctx_ai = info->_drtv->ctx_active_info(ctx);
+  if (ctx_ai->_row) {
+    auto data = col.data_in_row(ctx_ai->_row);
     switch (col._type) {
       default: break; // Shouldn't happen.
       case ColumnData::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
       case ColumnData::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
       case ColumnData::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
       case ColumnData::FLAGS: {
-        auto t = ctx.span<feature_type_for<TUPLE>>(1)[0];
+        auto t = ctx.alloc_span<feature_type_for<TUPLE>>(1)[0];
         auto bits = BitSpan(data);
         auto n_bits = bits.count();
-        t = ctx.span<Feature>(n_bits);
+        t = ctx.alloc_span<Feature>(n_bits);
         for (unsigned idx = 0, t_idx = 0; idx < col._tags.count(); ++idx) {
           if (bits[idx]) {
             t[t_idx++] = FeatureView::Literal(col._tags[idx]);

@@ -656,7 +656,7 @@ Do_did_remap::Do_did_remap(Expr && expr) : _expr(std::move(expr)) {}
 
 Errata Do_did_remap::invoke(Context& ctx) {
   auto f = ctx.extract(_expr);
-  ctx._remap_status = static_cast<bool>(f) ? TSREMAP_DID_REMAP : TSREMAP_NO_REMAP;
+  ctx._remap_status = f.as_bool() ? TSREMAP_DID_REMAP : TSREMAP_NO_REMAP;
   return {};
 }
 
@@ -1694,7 +1694,7 @@ Errata Do_upstream_rsp_body::invoke(Context &ctx) {
   if (content) {
     // The view contents are in the transaction data, but the full in the feature is not.
     // Make a copy there and pass its address to the continuation.
-    auto ctx_view = ctx.span<TextView>(1);
+    auto ctx_view = ctx.alloc_span<TextView>(1);
     auto cont = TSTransformCreate(transform, ctx._txn);
     ctx_view[0] = *content;
     TSContDataSet(cont, ctx_view.data());
@@ -1723,6 +1723,18 @@ Rv<Directive::Handle> Do_upstream_rsp_body::load(Config& cfg, YAML::Node drtv_no
 class Do_redirect : public Directive {
   using self_type = Do_redirect; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
+
+  /// Per configuration storage.
+  struct CfgInfo {
+    ReservedSpan _ctx_span; ///< Reserved span for @c CtxInfo.
+  };
+
+  /// Per context information.
+  /// This is what is stored in the span @c CfgInfo::_ctx_span
+  struct CtxInfo {
+    TextView _location; ///< Redirect target location.
+  };
+
 public:
   static const std::string KEY; ///< Directive name.
   static const std::string STATUS_KEY; ///< Key for status value.
@@ -1731,6 +1743,10 @@ public:
   static const std::string BODY_KEY; ///< Key for body.
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /// Specify the required amount of reserved configuration storage.
+  static constexpr Options OPTIONS { sizeof(CfgInfo) };
+
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
   /// Status code to use if not specified.
@@ -1750,10 +1766,11 @@ public:
   static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
   /// Configuration level initialization.
-  static Errata type_init(Config& cfg);
+  static Errata cfg_init(Config& cfg, CfgStaticData const * rtti);
 
 protected:
   using index_type = FeatureGroup::index_type;
+
   FeatureGroup _fg; ///< Support cross references among the keys.
 
   int _status = 0; ///< Return status is literal, 0 => extract at runtime.
@@ -1763,9 +1780,6 @@ protected:
   index_type _body_idx; ///< Body content of respons.
   /// Bounce from fixup hook directive back to @a this.
   Directive::Handle _set_location{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
-
-  /// Construct and do configuration related initialization.
-  explicit Do_redirect(Config & cfg);
 
   Errata load_status();
 
@@ -1781,56 +1795,60 @@ const std::string Do_redirect::BODY_KEY { "body" };
 
 const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::REMAP}) };
 
-Do_redirect::Do_redirect(Config &cfg) {
-}
-
-Errata Do_redirect::type_init(Config& cfg) {
+Errata Do_redirect::cfg_init(Config& cfg, CfgStaticData const * rtti) {
+  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
+  new (cfg_info) CfgInfo; // Initialize the span.
   // Only one redirect can be effective per transaction, therefore shared state per context is best.
-  cfg.reserve_ctx_storage(12);
-  cfg.reserve_slot(FIXUP_HOOK); // Fix up "Location" field in proxy response.
+  cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
+  cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
   return {};
 }
 
 Errata Do_redirect::invoke(Context& ctx) {
+  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
+
+  // If the Location view is empty, it hasn't been set and therefore the clean up hook
+  // hasn't been set either, so need to do that.
+  bool need_hook_p = ctx_info->_location.empty();
+
+  // Warm up the FeatureGroup.
+  _fg.pre_extract(ctx);
+
   // Finalize the location and stash it in context storage.
   Feature location = _fg.extract(ctx, _location_idx);
-  ctx.commit(location);
-  // Remember where it is so the fix up can find it.
-  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
-  *view = std::get<IndexFor(STRING)>(location);
+  if ( auto view = std::get_if<IndexFor(STRING)>(&location) ; view ) {
+    ctx.commit(location);
+    ctx_info->_location = *view;
+  } else {
+    return Error("{} directive - '{}' was not a string as required.", KEY, LOCATION_KEY);
+  }
 
   // Set the status to prevent the upstream request.
   if (_status) {
     ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
   } else {
     Feature value = _fg.extract(ctx, _status_idx);
-    int status;
-    if (value.index() == IndexFor(INTEGER)) {
-      status = std::get<IndexFor(INTEGER)>(value);
-    } else { // it's a string.
-      TextView src{std::get<IndexFor(STRING)>(value)}, parsed;
-      status = swoc::svtou(src, &parsed);
-      if (parsed.size() != src.size()) {
-        // Need to log an error.
-        status = DEFAULT_STATUS;
-      }
-    }
+    auto && [ status, errata ] { value.as_integer(DEFAULT_STATUS) };
     if (!(100 <= status && status <= 599)) {
-      // need to log an error.
       status = DEFAULT_STATUS;
     }
     ctx._txn.status_set(static_cast<TSHttpStatus>(status));
   }
   // Arrange for fixup to get invoked.
-  return ctx.on_hook_do(FIXUP_HOOK, _set_location.get());
+  if (need_hook_p) {
+    ctx.on_hook_do(FIXUP_HOOK, _set_location.get());
+  }
+  return {};
 }
 
 Errata Do_redirect::fixup(Context &ctx) {
+  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
   auto hdr {ctx.proxy_rsp_hdr() };
   // Set the Location
   auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
-  auto view = static_cast<TextView*>(ctx.storage_for(this).data());
-  field.assign(*view);
+  field.assign(ctx_info->_location);
 
   // Set the reason.
   if (_reason_idx != FeatureGroup::INVALID_IDX) {
@@ -1853,28 +1871,29 @@ Errata Do_redirect::load_status() {
     return {};
   }
 
-//  FeatureGroup::ExprInfo & info = _fg[_status_idx];
-//  FeatureGroup::ExprInfo::Single & ex = std::get<FeatureGroup::ExprInfo::SINGLE>(info._expr);
+  FeatureGroup::ExprInfo & info = _fg[_status_idx];
 
-  #if 0
-  if (ex._expr.is_literal()) {
-    TextView src{ex._expr.literal()}, parsed;
-    auto status = swoc::svtou(src, &parsed);
-    if (parsed.size() != src.size() || status < 100 || status > 599) {
-      return Errata().error(R"({} "{}" at {} is not a positive integer 100..599 as required.)", STATUS_KEY, src);
-    }
+  if (info._expr.is_literal()) {
+    auto && [ status , errata ] { std::get<Feature>(info._expr._expr).as_integer(DEFAULT_STATUS) };
     _status = status;
+    if (! errata.is_ok()) {
+      errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
+      return std::move(errata);
+    }
+    if (!(100 <= status && status <= 599)) {
+      return Errata().error(R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY, KEY);
+    }
   } else {
-    if (ex._expr._result_type != STRING && ex._expr._result_type != INTEGER) {
+    auto rtype = info._expr.result_type();
+    if (rtype != STRING && rtype != INTEGER) {
       return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
     }
   }
-  #endif
   return {};
 }
 
 Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
-  Handle handle{new self_type{cfg}};
+  Handle handle{new self_type};
   Errata errata;
   auto self = static_cast<self_type *>(handle.get());
   if (key_value.IsScalar()) {
@@ -1902,12 +1921,6 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, YAML::Node drtv_node, swoc:
   }
 
   return { std::move(handle), {} };
-}
-
-Errata Do_redirect::type_init(Config &cfg) {
-  // WRONG - this is per directive type, not per instance.
-  cfg.reserve_ctx_storage(sizeof(TextView));
-  return {};
 }
 /* ------------------------------------------------------------------------------------ */
 /// Send a debug message.
@@ -2542,47 +2555,47 @@ swoc::Rv<Directive::Handle> When::load(Config& cfg, YAML::Node drtv_node, swoc::
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Config::define(When::KEY, When::HOOKS, When::load);
-  Config::define(Do_with::KEY, Do_with::HOOKS, Do_with::load);
+  Config::define<When>();
+  Config::define<Do_with>();
 
-  Config::define(Do_ua_req_field::KEY, Do_ua_req_field::HOOKS, Do_ua_req_field::load);
+  Config::define<Do_ua_req_field>();
   Config::define<Do_ua_req_url>();
-  Config::define("ua-url-host", Do_ua_req_url_host::HOOKS, Do_ua_req_url_host::load); // alias
+  Config::define<Do_ua_req_url>("ua-url-host"_tv); // alias
   Config::define<Do_ua_req_url_host>();
   Config::define<Do_ua_req_url_port>();
   Config::define<Do_ua_req_scheme>();
   Config::define<Do_ua_req_host>();
-  Config::define(Do_ua_req_path::KEY, Do_ua_req_path::HOOKS, Do_ua_req_path::load);
+  Config::define<Do_ua_req_path>();
   Config::define<Do_ua_req_query>();
 
-  Config::define(Do_proxy_req_field::KEY, Do_proxy_req_field::HOOKS, Do_proxy_req_field::load);
+  Config::define<Do_proxy_req_field>();
   Config::define<Do_proxy_req_url>();
   Config::define<Do_proxy_req_url_host>();
   Config::define<Do_proxy_req_url_port>();
-  Config::define("proxy-url-host", Do_proxy_req_url_host::HOOKS, Do_proxy_req_url_host::load); // alias
+  Config::define<Do_proxy_req_url_host>("proxy-url-host"); // alias
   Config::define<Do_proxy_req_host>();
   Config::define<Do_proxy_req_scheme>();
   Config::define<Do_proxy_req_path>();
   Config::define<Do_proxy_req_query>();
 
-  Config::define(Do_apply_remap_rule::KEY, Do_apply_remap_rule::HOOKS, Do_apply_remap_rule::load);
+  Config::define<Do_apply_remap_rule>();
 
-  Config::define(Do_upstream_rsp_field::KEY, Do_upstream_rsp_field::HOOKS, Do_upstream_rsp_field::load);
-  Config::define(Do_upstream_rsp_status::KEY, Do_upstream_rsp_status::HOOKS, Do_upstream_rsp_status::load);
-  Config::define(Do_upstream_reason::KEY, Do_upstream_reason::HOOKS, Do_upstream_reason::load);
+  Config::define<Do_upstream_rsp_field>();
+  Config::define<Do_upstream_rsp_status>();
+  Config::define<Do_upstream_reason>();
 
-  Config::define(Do_upstream_addr::KEY, Do_upstream_addr::HOOKS, Do_upstream_addr::load);
+  Config::define<Do_upstream_addr>();
 
-  Config::define(Do_proxy_rsp_field::KEY, Do_proxy_rsp_field::HOOKS, Do_proxy_rsp_field::load);
+  Config::define<Do_proxy_rsp_field>();
   Config::define<Do_proxy_rsp_status>();
   Config::define<Do_proxy_rsp_reason>();
   Config::define<Do_upstream_rsp_body>();
 
-  Config::define(Do_cache_key::KEY, Do_cache_key::HOOKS, Do_cache_key::load);
-  Config::define(Do_txn_conf::KEY, Do_txn_conf::HOOKS, Do_txn_conf::load);
+  Config::define<Do_cache_key>();
+  Config::define<Do_txn_conf>();
   Config::define<Do_redirect>();
   Config::define<Do_debug>();
-  Config::define(Do_var::KEY, Do_var::HOOKS, Do_var::load);
+  Config::define<Do_var>();
 
   Config::define<Do_did_remap>();
 

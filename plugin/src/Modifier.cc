@@ -238,7 +238,7 @@ Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
           break;
       }
     }
-    auto span = ctx.span<Feature>(dst_idx);
+    auto span = ctx.alloc_span<Feature>(dst_idx);
     for ( unsigned idx = 0 ; idx < dst_idx ; ++idx) {
       span[idx] = dst[idx];
     }
@@ -421,32 +421,21 @@ public:
 protected:
   Expr _value; ///< Default value.
 
-  explicit Mod_As_Integer(Expr && fmt) : _value(std::move(fmt)) {}
-
-  /// Identity conversion.
-  Feature convert(Context & ctx, feature_type_for<INTEGER> n);
-  /// Convert from string
-  Feature convert(Context & ctx, feature_type_for<STRING> s);
-
-  /// Generic failure case.
-  template < typename T > auto convert(Context & ctx, T &) -> EnableForFeatureTypes<T, Feature> {
-    return ctx.extract(_value);
-  }
+  explicit Mod_As_Integer(Expr && expr) : _value(std::move(expr)) {}
 };
 
 const std::string Mod_As_Integer::KEY { "as-integer" };
 
 bool Mod_As_Integer::is_valid_for(ActiveType const& ex_type) const {
-  return ex_type.can_satisfy(MaskFor({STRING, INTEGER}));
+  return ex_type.can_satisfy(MaskFor({STRING, INTEGER, FLOAT, BOOLEAN, NIL}));
 }
 
 ActiveType Mod_As_Integer::result_type(ActiveType const&) const {
   return {MaskFor({NIL, INTEGER})};
 }
 
-Rv<Feature> Mod_As_Integer::operator()(Context &ctx, Feature const& feature) {
-  auto visitor = [&](auto & t) { return this->convert(ctx, t); };
-  return std::visit(visitor, feature);
+Rv<Feature> Mod_As_Integer::operator()(Context &, Feature const& feature) {
+  return Feature(feature.as_integer(0));
 }
 
 Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
@@ -457,18 +446,6 @@ Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node, TextView, Tex
   }
   return Handle(new self_type{std::move(expr)});
 }
-
-Feature Mod_As_Integer::convert(Context&, feature_type_for<INTEGER> n) { return n; }
-
-Feature Mod_As_Integer::convert(Context& ctx, feature_type_for<STRING> s) {
-  TextView parsed;
-  s.trim_if(&isspace);
-  auto n = swoc::svtoi(s, &parsed);
-  if (parsed.size() == s.size()) {
-    return n;
-  }
-  return ctx.extract(_value);
-};
 
 // --- //
 

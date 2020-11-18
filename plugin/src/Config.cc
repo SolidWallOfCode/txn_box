@@ -14,6 +14,7 @@
 #include <swoc/MemSpan.h>
 #include <swoc/swoc_file.h>
 #include <swoc/bwf_std.h>
+#include <swoc/Scalar.h>
 #include <yaml-cpp/yaml.h>
 
 #include "txn_box/Directive.h"
@@ -120,19 +121,34 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-Config::Config() {
+Config::Config() : _arena(_cfg_storage_required + 2048) {
+  _cfg_store = _arena.alloc(_cfg_storage_required);
   // Set up the run time type information for the directives.
-  _drtv_info = this->span<Directive::CfgInfo>(_factory.size());
+  _drtv_info = this->span<Directive::CfgStaticData>(_factory.size());
   for ( auto const& [ name, factory_info ] : _factory ) {
     auto & di = _drtv_info[factory_info._idx];
-    new (&di) Directive::CfgInfo;
+    new (&di) Directive::CfgStaticData;
     di._static = &factory_info;
   }
 }
 
-Context::ReservedSpan Config::reserve_ctx_storage(size_t n) {
-  Context::ReservedSpan span { _ctx_storage_required , n };
-  _ctx_storage_required += n;
+ReservedSpan Config::reserve_cfg_storage(size_t n) {
+  ReservedSpan span { _cfg_storage_required , n };
+  _cfg_storage_required += n;
+  return span;
+}
+
+swoc::MemSpan<void> Config::storage_for(ReservedSpan const& span) {
+  return _cfg_store.subspan(span.offset, span.n);
+}
+
+ReservedSpan Config::reserve_ctx_storage(size_t n) {
+  using Align = swoc::Scalar<8>;
+  // Pre-block to store status of the reserved memory.
+  _ctx_storage_required += Align(swoc::round_up(sizeof(Context::ReservedStatus)));
+  // The actual reservation.
+  ReservedSpan span { _ctx_storage_required , n };
+  _ctx_storage_required += Align(swoc::round_up(n));
   return span;
 }
 
@@ -448,7 +464,7 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
 
       // If this is the first use of the directive, do config level setup for the directive type.
       if (_rtti->_count == 0) {
-        info._cfg_init_cb(*this);
+        info._cfg_init_cb(*this, _rtti);
       }
       ++(_rtti->_count);
 
@@ -564,16 +580,20 @@ Errata Config::parse_yaml(YAML::Node root, TextView path) {
   return errata;
 };
 
-Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::InstanceLoader && worker, Directive::CfgInitializer && cfg_init_cb) {
+Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Options const& options, Directive::InstanceLoader && worker, Directive::CfgInitializer && cfg_init_cb) {
   auto & info { _factory[name] };
   info._idx = _factory.size() - 1;
   info._hook_mask = hooks;
+  if (options._cfg_store_required > 0) {
+    info._cfg_reserve = options._cfg_store_required;
+    self_type::_cfg_storage_required += info._cfg_reserve;
+  }
   info._load_cb = std::move(worker);
   info._cfg_init_cb = std::move(cfg_init_cb);
   return {};
 }
 
-Directive::CfgInfo const* Config::drtv_info(swoc::TextView name) {
+Directive::CfgStaticData const* Config::drtv_info(swoc::TextView const& name) const {
   auto spot = _factory.find(name);
   return spot == _factory.end() ? nullptr : &_drtv_info[spot->second._idx];
 }

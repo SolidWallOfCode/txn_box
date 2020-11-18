@@ -125,7 +125,7 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
   if (errata.is_ok()) {
     errata = std::visit(v, expr._expr); // update "this" extractor references.
     if (errata.is_ok()) {
-      return expr;
+      return std::move(expr);
     }
   }
   return { std::move(errata) };
@@ -206,6 +206,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     for (unsigned short idx = 0; idx < tracking._edge_count; ++idx) {
       _edge[idx] = tracking._info[idx]._edge;
     }
+    _ctx_state_span = cfg.reserve_ctx_storage(sizeof(State));
   }
 
   // Persist the keys by copying persistent data from the tracking data to config allocated space.
@@ -260,16 +261,18 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
   return {};
 }
 
-Feature FeatureGroup::extract(State &state, swoc::TextView const &name) {
+Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
   auto idx = this->index_of(name);
   if (idx == INVALID_IDX) {
     return {};
   }
-  return this->extract(state, idx);
+  return this->extract(ctx, idx);
 }
 
-Feature FeatureGroup::extract(State &state, index_type idx) {
+Feature FeatureGroup::extract(Context& ctx, index_type idx) {
   auto& info = _expr_info[idx];
+  // Get the reserved storage for the @c State instance.
+  State& state = ctx.storage_for(_ctx_state_span).rebind<State>()[0];
   Feature * cached = info._exf_idx == INVALID_IDX ? nullptr : &state._features[info._exf_idx];
   // If already extracted, return.
   // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
@@ -280,24 +283,26 @@ Feature FeatureGroup::extract(State &state, index_type idx) {
   for (index_type edge_idx : info._edge) {
     ExprInfo& precursor = _expr_info[edge_idx];
     if (state._features[precursor._exf_idx].index() == IndexFor(NIL)) {
-      this->extract(state, edge_idx);
+      this->extract(ctx, edge_idx);
     }
   }
-  auto f = state._ctx.extract(info._expr);
+  auto f = ctx.extract(info._expr);
   if (cached) {
     *cached = f;
   }
   return f;
 }
 
-auto FeatureGroup::extract_init(Context & ctx) -> State {
-  static constexpr Generic * not_a_feature = nullptr;
-  State state(ctx);
+auto FeatureGroup::pre_extract(Context & ctx) -> void {
   if (_ref_count > 0) {
-    state._features = ctx.span<Feature>(_ref_count);
-    state._features.apply([](Feature && f) { new (&f) Feature(not_a_feature); });
+    static constexpr Generic *not_a_feature = nullptr;
+    // Get the reserved storage for the @c State instance.
+    State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
+    // Allocate the precursor feature array.
+    state._features = ctx.alloc_span<Feature>(_ref_count);
+    // Initialize to a known invalid state to prevent multiple extractions.
+    state._features.apply([](Feature& f) { new(&f) Feature(not_a_feature); });
   }
-  return state;
 }
 
 FeatureGroup::~FeatureGroup() {
@@ -340,20 +345,69 @@ ActiveType Feature::active_type() const {
 // ----
 namespace {
 struct bool_visitor {
-  bool operator()(feature_type_for<NIL>) { return false;}
+  bool operator()(feature_type_for<NIL>) { return false; }
+
   bool operator()(feature_type_for<STRING> const& s) { return BoolNames[s] == True; }
+
   bool operator()(feature_type_for<INTEGER> n) { return n != 0; }
+
   bool operator()(feature_type_for<FLOAT> f) { return f != 0; }
-//  bool operator()(feature_type_for<IP_ADDR> addr) { return addr.is_addr_any(); }
+
+  bool operator()(feature_type_for<IP_ADDR> addr) { return addr.is_valid(); }
+
   bool operator()(feature_type_for<BOOLEAN> flag) { return flag; }
+
   bool operator()(feature_type_for<TUPLE> t) { return t.size() > 0; }
 
-  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, bool> { return false; }
+  template<typename T> auto operator()(T const&) -> EnableForFeatureTypes<T, bool> { return false; }
 };
 
 }
-Feature::operator bool() const {
+
+auto Feature::as_bool() const -> type_for<BOOLEAN> {
   return std::visit(bool_visitor{}, *this);
+}
+
+namespace {
+struct integer_visitor {
+  /// Target feature type.
+  using ftype = feature_type_for<INTEGER>;
+  /// Return type.
+  using ret_type = Rv<ftype>;
+
+  ftype _invalid;
+
+  explicit integer_visitor(ftype invalid) : _invalid(invalid) {}
+
+  ret_type operator()(feature_type_for<STRING> const& s) {
+    TextView parsed;
+    ftype zret = swoc::svtoi(s, &parsed);
+    if (parsed.size() != s.size()) {
+      return { _invalid
+      , Error("Invalid format for integer at offset {}", parsed.size() + 1)};
+    }
+    return zret;
+  }
+
+  ret_type operator()(feature_type_for<INTEGER> n) { return n; }
+
+  ret_type operator()(feature_type_for<FLOAT> f) { return ftype(f); }
+
+  ret_type operator()(feature_type_for<BOOLEAN> flag) { return ftype(flag); }
+
+  ret_type operator()(feature_type_for<TUPLE> t) { return t.size(); }
+
+  template<typename F> auto operator()(F const&) -> EnableForFeatureTypes<F, ret_type> {
+    return { _invalid
+             , Error("Feature of type {} cannot be coerced to type {}."
+             ,   value_type_of<F>, INTEGER)
+           };
+  }
+};
+
+}
+auto Feature::as_integer(type_for<INTEGER> invalid) const -> Rv<type_for<INTEGER>> {
+  return std::visit(integer_visitor{invalid}, *this);
 }
 // ----
 namespace {

@@ -63,7 +63,7 @@ public:
    */
   static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
 
-  static Errata cfg_init(Config& cfg);
+  static Errata cfg_init(Config& cfg, CfgStaticData const* rtti);
 
 protected:
   using Map = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
@@ -86,7 +86,7 @@ protected:
   static const std::string DURATION_TAG;
 
   /// Map of names to text blocks.
-  static Map* map(Directive::CfgInfo const * rtti);
+  static Map* map(Directive::CfgStaticData const * rtti);
 
   /// Check if it is time to do a modified check on the file content.
   bool should_check();
@@ -108,7 +108,7 @@ Do_text_block_define::~Do_text_block_define() noexcept {
   _task.cancel();
 }
 
-auto Do_text_block_define::map(Directive::CfgInfo const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
+auto Do_text_block_define::map(Directive::CfgStaticData const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
 
 bool Do_text_block_define::should_check() {
   using Clock = std::chrono::system_clock;
@@ -221,7 +221,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   }
 
   // Put the directive in the map.
-  Map* map = self_type::map(cfg.drtv_info());
+  Map* map = self_type::map(self->_rtti);
   if (auto spot = map->find(self->_name) ; spot != map->end()) {
     return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)"
     , KEY, drtv_node.Mark(), self->_name, spot->second->_line_no);
@@ -231,7 +231,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   return handle;
 }
 
-Errata Do_text_block_define::cfg_init(Config &cfg) {
+Errata Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const*) {
   // Note - @a h gets a pointer to the Handle.
   auto h = cfg.allocate_cfg_storage(sizeof(MapHandle)).rebind<MapHandle>().data();
   new (h) MapHandle(std::make_unique<Map>());

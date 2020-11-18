@@ -44,16 +44,19 @@ public:
    */
   using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
 
+  struct CfgStaticData;
+
   /** Functor to do config level initialization.
    *
    * @param cfg Configuration object.
+   * @param rtti Per directive type information.
    *
-   * This is called once per directive class when the @c Config instance is initialized. This should
+   * This is called at most once per directive definition during @c Config loading. This should
    * perform any initialization needed for the directive as a type, rather than as an instance used
    * in the configuration. The most common use is if the directive needs space in a @c Context -
    * that space must be reserved during the invocation of this functor.
    */
-  using CfgInitializer = std::function<swoc::Errata (Config& cfg)>;
+  using CfgInitializer = std::function<swoc::Errata (Config& cfg, CfgStaticData const* rtti)>;
 
   /** Information about a directive type.
    * This is stored in the directive factory.
@@ -61,6 +64,7 @@ public:
   struct FactoryInfo {
     unsigned _idx; ///< Index for doing config time type info lookup.
     HookMask _hook_mask; ///< Valid hooks for this directive.
+    size_t _cfg_reserve; ///< Reserved storage in configuration.
     Directive::InstanceLoader _load_cb; ///< Functor to load the directive from YAML data.
     Directive::CfgInitializer _cfg_init_cb; ///< Configuration init callback.
   };
@@ -69,11 +73,23 @@ public:
    * Each instance of a directive of a specific type has a pointer to this record, which is used to
    * provide the equivalent of run time type information. Instances are stored in the @c Config.
    */
-  struct CfgInfo {
+  struct CfgStaticData {
     FactoryInfo const * _static; ///< Related static information.
     unsigned _count = 0; ///< Number of instances.
     swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
   };
+
+  /// Options for directive definition.
+  struct Options {
+    // Due to a compiler bug in g++ and clang, no in line initializer for nested classes.
+    // In turn, that means a default constructor which disables aggregate construction. Sigh.
+    constexpr Options() : _cfg_store_required(0) {}
+    constexpr Options(size_t storage) : _cfg_store_required(storage) {}
+    size_t _cfg_store_required ; ///< Reserved per configuration storage.
+  };
+
+  /// Provide a default so the templated method works as expected.
+  inline static const Options OPTIONS;
 
   virtual ~Directive() = default;
 
@@ -91,12 +107,12 @@ public:
    * @param Config& Configuration object.
    * @return Errors, if any.
    *
-   * Default implementation that does nothing. Override as needed.
+   * This exists so the templated @c Config::define works as expected, and does nothing.
    */
-  static swoc::Errata cfg_init(Config&) { return {}; }
+  static swoc::Errata cfg_init(Config&, CfgStaticData const*) { return {}; }
 
 protected:
-  CfgInfo const* _rtti = nullptr; ///< Run time (per Config) information.
+  CfgStaticData const* _rtti = nullptr; ///< Run time (per Config) information.
 };
 
 /** An ordered list of directives.

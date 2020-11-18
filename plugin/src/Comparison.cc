@@ -780,7 +780,7 @@ const std::string Cmp_is_true::KEY {"is-true" };
 const ValueMask Cmp_is_true::TYPES {MaskFor( STRING, BOOLEAN, INTEGER ) };
 
 bool Cmp_is_true::operator()(Context &, Feature const& feature) const {
-  return static_cast<bool>(feature);
+  return feature.as_bool();
 }
 
 Rv<Comparison::Handle> Cmp_is_true::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
@@ -810,7 +810,7 @@ const std::string Cmp_is_false::KEY {"is-false" };
 const ValueMask Cmp_is_false::TYPES {MaskFor({ STRING, BOOLEAN, INTEGER }) };
 
 bool Cmp_is_false::operator()(Context &, Feature const& feature) const {
-  return !static_cast<bool>(feature);
+  return !feature.as_bool();
 }
 
 Rv<Comparison::Handle> Cmp_is_false::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {

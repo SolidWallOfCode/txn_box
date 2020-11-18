@@ -32,6 +32,7 @@ using TSRemapRequestInfo = _tm_remap_request_info;
  */
 class Context {
   using self_type = Context;
+  friend class Config;
   /// Cleanup functor for an inverted arena.
   /// @internal Because the arena is inverted, calling the destructor will clean up everything.
   /// For this reason @c delete must @b not be called (that will double free).
@@ -42,12 +43,6 @@ public:
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
-
-  /// Specification for per context reserved storage.
-  struct ReservedSpan {
-    size_t offset = 0; ///< Offset for start of storage.
-    size_t n = 0; ///< Storage size;
-  };
 
   /// Construct based a specific configuration.
   explicit Context(std::shared_ptr<Config> const& cfg);
@@ -130,20 +125,11 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template < typename T > swoc::MemSpan<T> span(unsigned count);
-
-  /** Access per context storage for directive @a drtv.
-   *
-   * @param drtv Directive pointer.
-   * @return Storage allocated.
-   *
-   * This must have been allocated during configuration loading by calling @c Config::reserve_ctx_storage.
-   *
-   * @see Config::reserve_ctx_storage
-   */
-  swoc::MemSpan<void> storage_for(Directive const* drtv);
+  template < typename T > swoc::MemSpan<T> alloc_span(unsigned count);
 
   swoc::MemSpan<void> storage_for(ReservedSpan const& span);
+
+  template < typename T > swoc::MemSpan<T> initialized_storage_for(ReservedSpan const& span);
 
   Hook _cur_hook = Hook::INVALID;
   TSCont _cont = nullptr;
@@ -333,6 +319,12 @@ public:
   self_type & mark_terminal(bool flag) { _terminal_p= flag; return *this; }
 
 protected:
+  /// Header for reserved memory.
+  /// Default zero initialized.
+  struct ReservedStatus {
+    unsigned _initialized_p : 1;
+  };
+
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
   ts::HttpRequest _proxy_req; ///< Proxy request header.
@@ -416,12 +408,23 @@ template < typename T > Context& Context::mark_for_cleanup(T *ptr) {
 }
 
 template<typename T>
-swoc::MemSpan<T> Context::span(unsigned int count) {
+swoc::MemSpan<T> Context::alloc_span(unsigned int count) {
   return _arena->alloc(sizeof(T) * count).rebind<T>();
 }
 
 inline swoc::MemSpan<void> Context::storage_for(ReservedSpan const& span) {
   return _ctx_store.subspan(span.offset, span.n);
+}
+
+template<typename T>
+swoc::MemSpan<T> Context::initialized_storage_for(ReservedSpan const& span) {
+  auto mem = this->storage_for(span).rebind<T>();
+  ReservedStatus& status = *reinterpret_cast<ReservedStatus*>(reinterpret_cast<std::byte*>(mem.data()) - swoc::Scalar<8>(swoc::round_up(sizeof(ReservedStatus))));
+  if (! status._initialized_p) {
+    mem.apply([](T& t){ new (&t) T; });
+    status._initialized_p = true;
+  }
+  return mem;
 }
 
 inline Config& Context::cfg() { return *_cfg; }

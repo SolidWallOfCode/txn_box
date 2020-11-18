@@ -183,9 +183,9 @@ std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g)
 
 } // namespace detail
 
-/** Convert a feature @a type to a variant index.
+/** Convert a value enumeration to a variant index.
  *
- * @param type Feature type.
+ * @param type Value type (enumeration).
  * @return Index in @c FeatureData for that feature type.
  */
 inline constexpr unsigned IndexFor(ValueType type) {
@@ -223,6 +223,10 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   using super_type = FeatureTypeList::template apply<std::variant>; ///< Parent type.
   using variant_type = super_type; ///< The base variant type.
 
+  /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
+  /// @tparam F ValueType enumeration value.
+  template < ValueType F > using type_for = std::variant_alternative_t<IndexFor(F), variant_type>;
+
   #if defined(__INTEL_COMPILER)
   // Intel compiler is very confused by std::variant and doesn't inherit the constructors correctly.
   // Therefore we must re-implement them explicitly.
@@ -259,7 +263,14 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
    *
    * @return @c true if equivalent to @c true, @c false otherwise.
    */
-  explicit operator bool() const;
+  type_for<BOOLEAN> as_bool() const;
+
+  /** Coerce feature to integer.
+   *
+   * @param invalid Invalid value.
+   * @return The feature as an integer, or @a invalid if it cannot be coerced along with errors.
+   */
+  swoc::Rv<type_for<INTEGER>> as_integer(type_for<INTEGER> invalid = 0) const;
 
   /** Create a string feature by combining this feature.
    *
@@ -290,6 +301,34 @@ template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& featu
 
 /// @deprecated - use @c f.value_type()
 inline ValueType ValueTypeOf(Feature const& f) { return f.value_type(); }
+
+namespace detail {
+// Need to document this, and then move it in to libswoc.
+// This walks a typelist and compute the index of a given type @c F in the typelist.
+// The utility is to convert from a feature type in the feature variant to the index in the variant.
+// This is used almost entirely for error reporting.
+template<typename T, typename... Rest>
+struct TypeListIndex;
+
+template<typename T, typename... Rest>
+struct TypeListIndex<T, T, Rest...> : std::integral_constant<std::size_t, 0> {
+};
+
+template<typename T, typename U, typename... Rest>
+struct TypeListIndex<T, U, Rest...> : std::integral_constant<std::size_t,
+    1 + TypeListIndex<T, Rest...>::value> {
+};
+
+template < typename F > struct TypeListIndexWrapper {
+  template < typename ... Args > struct IDX : std::integral_constant<size_t, TypeListIndex<F, Args...>::value> {};
+};
+
+template < typename F > using TypeListIndexer = FeatureTypeList::template apply<detail::TypeListIndexWrapper<F>::template IDX>;
+
+}
+
+template < typename F > static constexpr size_t index_for_type = detail::TypeListIndexer<F>::value;
+template < typename F > static constexpr ValueType value_type_of = ValueType(index_for_type<F>);
 
 /// Nil value feature.
 /// @internal Default constructor doesn't work in the Intel compiler, must be explicit.
@@ -460,7 +499,7 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
 
 /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
 /// @tparam F ValueType enumeration value.
-template < ValueType F > using feature_type_for = std::variant_alternative_t<IndexFor(F), Feature::variant_type>;
+template < ValueType F > using feature_type_for = Feature::type_for<F>;
 
 /// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) {
@@ -637,6 +676,12 @@ struct Global {
   /// Standard name for nested directives and therefore reserved globally.
   static constexpr swoc::TextView DO_KEY = "do";
 
+};
+
+/// Reserved storage descriptor.
+struct ReservedSpan {
+  size_t offset = 0; ///< Offset for start of storage.
+  size_t n = 0; ///< Storage size;
 };
 
 /// Global data.

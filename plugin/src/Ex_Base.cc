@@ -166,7 +166,7 @@ auto Ex_inbound_protocol_stack::extract(Context &ctx, Spec const&) -> Feature {
   std::array<char const*, 10> tags;
   auto n = ctx._txn.ssn().protocol_stack(MemSpan{tags.data(), tags.size()});
   if (n > 0) {
-    auto span = ctx.span<Feature>(n);
+    auto span = ctx.alloc_span<Feature>(n);
     for ( decltype(n) idx = 0 ; idx < n ; ++idx ) {
       // Plugin API guarantees returned tags are process lifetime so can be marked literal.
       span[idx] = FeatureView::Literal(TextView{tags[idx], TextView::npos});
@@ -435,7 +435,7 @@ BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Cont
   return bwformat(w, spec, _fg->extract(ctx, spec._ext));
 }
 
-Feature Ex_this::extract(class Context & ctx, const struct Extractor::Spec & spec) {
+Feature Ex_this::extract(class Context & ctx, Extractor::Spec const & spec) {
   return _fg->extract(ctx, spec._ext);
 }
 

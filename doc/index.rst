@@ -36,7 +36,7 @@ intended, in the long run, to replace "remap.config".
    user/ModifierReference.en
    future.en
    misc.en
-   dev/design.en
+   dev/dev-guide.en
 
 Reference
 *********

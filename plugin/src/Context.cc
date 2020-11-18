@@ -52,6 +52,7 @@ Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
     this->rxp_match_require(cfg->_capture_groups);
     // Directive shared storage
     _ctx_store = _arena->alloc(cfg->_ctx_storage_required);
+    memset(_ctx_store, 0); // Zero initialize it.
   }
 }
 
@@ -153,7 +154,7 @@ Feature Expr::bwf_visitor::operator()(const Composite &comp) {
 }
 
 Feature Expr::bwf_visitor::operator()(List const & list) {
-  feature_type_for<TUPLE> expr_tuple = _ctx.span<Feature>(list._exprs.size());
+  feature_type_for<TUPLE> expr_tuple = _ctx.alloc_span<Feature>(list._exprs.size());
   unsigned idx = 0;
   for ( auto const& expr : list._exprs ) {
     Feature feature { _ctx.extract(expr) };
@@ -372,10 +373,6 @@ TextView Context::localize_as_c_str(swoc::TextView text) {
     text = span.view();
   }
   return text;
-}
-
-swoc::MemSpan<void> Context::storage_for(Directive const * drtv) {
-  return this->storage_for(drtv->_rtti->_reserved_span);
 }
 
 unsigned Context::ArgPack::count() const {

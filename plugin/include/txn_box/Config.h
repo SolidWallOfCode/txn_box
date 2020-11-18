@@ -275,33 +275,72 @@ public:
    * @param ptr Object to clean up.
    * @return @a this
    *
-   * @a ptr is cleaned up by calling
+   * @a ptr is cleaned up by calling @c std::destroy_at.
    */
   template <typename T> self_type & mark_for_cleanup(T* ptr);
-
-  template < typename D > static swoc::Errata define() {
-    return self_type::define(D::KEY, D::HOOKS, &D::load, &D::cfg_init);
-  }
 
   /** Define a directive.
    *
    * @param name Directive name.
    * @param hooks Mask of valid hooks.
+   * @param Options for the directive.
    * @param worker Functor to load / construct the directive from YAML.
    * @param cfg_init_cb Config time initialization if needed.
    * @return Errors, if any.
    */
-  static swoc::Errata define(swoc::TextView name, HookMask const& hooks
+  static swoc::Errata define(swoc::TextView name
+                             , HookMask const& hooks
+                             , Directive::Options const& options
                              , Directive::InstanceLoader && worker
-                             , Directive::CfgInitializer && cfg_init_cb = [](Config&) -> swoc::Errata { return {}; });
+                             , Directive::CfgInitializer && cfg_init_cb = [](Config&, Directive::CfgStaticData const*) -> swoc::Errata { return {}; });
 
-  /** Allocate / reserve storage space in @a this.
+  /** Define a directive.
+   *
+   * @tparam D The directive class.
+   * @return Errors, if any.
+   *
+   * This is used when the directive class layout is completely standard. The template picks out those
+   * pieces and passes them to the argument based @c define.
+   */
+  template < typename D > static swoc::Errata define() {
+    return self_type::define(D::KEY, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
+  }
+
+  /** Define a directive alias.
+   *
+   * @tparam D The directive class.
+   * @param name The alternative name
+   * @return Errors, if any.
+   *
+   * This is used when a directive needs to be available under an alternative name. All of the arguments
+   * are pulled from standard class members except the key (directive name).
+   */
+  template < typename D > static swoc::Errata define(swoc::TextView name) {
+    return self_type::define(name, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
+  }
+
+  /** Reserve storage of size @a n in every config instance.
+   *
+   * @param n Size of storage in bytes.
+   * @return A reservation.
+   *
+   * This must be called before any instance of @c Config is instantiated.
+   *
+   * The reservation is converted to memory via @c Config::storage_for
+   */
+  static ReservedSpan reserve_cfg_storage(size_t n);
+
+  /** Convert a storage reservation into memory.
+   *
+   * @param span Reserved storage descriptor.
+   * @return The span in @a this for @a span.
+   */
+  swoc::MemSpan<void> storage_for(ReservedSpan const& span);
+
+  /** Allocate storage in @a this.
    *
    * @param n Size in bytes.
    * @return The allocated span.
-   *
-   * This also stores the span in the RTTI / CfgInfo for the directive so it is accessible when
-   * the directive is invoked at run time.
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n);
 
@@ -310,7 +349,7 @@ public:
    * @param n Number of bytes.
    * @return A reserved span that locates memory once the @c Context is created.
    *
-   * This storage is not immediately allocated (in contrast to @c allocate_cfg_storage ). Instead it
+   * This storage is not immediately allocated (in contrast to @c Context::span ). Instead it
    * is allocated when a @c Context is created. This is shared among instances of the directive in a
    * single transaction context, similarly to class static storage. This should be invoked during
    * directive type setup or object loading. Per instance context storage should be allocated during
@@ -320,23 +359,17 @@ public:
    *
    * @see Context::storage_for
    */
-  Context::ReservedSpan reserve_ctx_storage(size_t n);
+  ReservedSpan reserve_ctx_storage(size_t n);
 
-  /** Get current directive info.
+  /** Get the configuration level static information for a directive.
    *
-   * @return Current directive configuration information or @c nullptr if no current directive.
+   * @param name Name of the directive.
+   * @return The directive info if found, @c nullptr if not.
    *
-   * This is useful only during configuration loading. Just before a directive is loaded
-   * this is set for that directive, and cleared after the directive is loaded.
+   * @note The directive itself should use its embedded pointer. This is required by other elements
+   * that need access to shared configuration state for the directive.
    */
-  Directive::CfgInfo const * drtv_info() const { return _rtti; }
-
-  /** Get directive info for directive @a name.
-   *
-   * @param name Name of directive.
-   * @return Directive configuration information, or @c nullptr if @a name is not found.
-   */
-  Directive::CfgInfo const* drtv_info(swoc::TextView name);
+  Directive::CfgStaticData const * drtv_info(swoc::TextView const& name) const;
 
   size_t file_count() const { return _cfg_file_count; }
 
@@ -349,7 +382,7 @@ protected:
   Hook _hook = Hook::INVALID;
 
   /// Stash for directive load type initializer callback.
-  Directive::CfgInfo * _rtti = nullptr;
+  Directive::CfgStaticData * _rtti = nullptr;
 
   /// Mark whether there are any top level directives.
   bool _has_top_level_directive_p { false };
@@ -372,14 +405,17 @@ protected:
   ActiveCaptureState _active_capture; ///< Regular expression capture groups.
   /// #}
 
-  /// Current amount of shared config storage required.
-  size_t _cfg_storage_required = 0;
+  /// Current amount of reserved config storage required.
+  inline static size_t _cfg_storage_required = 0;
+
+  /// Reserved configuration storage.
+  swoc::MemSpan<void> _cfg_store;
 
   /// Current amount of shared context storage required.
   size_t _ctx_storage_required = 0;
 
   /// Array of config level information about directives in use.
-  swoc::MemSpan<Directive::CfgInfo> _drtv_info;
+  swoc::MemSpan<Directive::CfgStaticData> _drtv_info;
 
   /// A factory that maps from directive names to generator functions (@c Loader instances).
   using Factory = std::unordered_map<std::string_view, Directive::FactoryInfo>;
