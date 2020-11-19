@@ -38,9 +38,13 @@ using namespace swoc::literals;
 class Do_text_block_define : public Directive {
   using self_type = Do_text_block_define; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
+protected:
+  struct CfgInfo;
 public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  static constexpr Options OPTIONS { sizeof(CfgInfo*) };
 
   /// Functor to do file content updating as needed.
   struct Updater {
@@ -54,20 +58,28 @@ public:
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
-  /** Load from YAML configuration.
+  /** Load from YAML node.
    *
    * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
    * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
   static Errata cfg_init(Config& cfg, CfgStaticData const* rtti);
 
 protected:
   using Map = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
   using MapHandle = std::unique_ptr<Map>;
+
+  struct CfgInfo {
+    MapHandle _map;
+  };
 
   TextView _name; ///< Block name.
   swoc::file::path _path; ///< Path to file (optional)
@@ -108,7 +120,9 @@ Do_text_block_define::~Do_text_block_define() noexcept {
   _task.cancel();
 }
 
-auto Do_text_block_define::map(Directive::CfgStaticData const * rtti) -> Map* { return rtti->_cfg_store.rebind<MapHandle>()[0].get(); }
+auto Do_text_block_define::map(Directive::CfgStaticData const * rtti) -> Map* {
+  return rtti->_cfg_store.rebind<CfgInfo*>()[0]->_map.get();
+}
 
 bool Do_text_block_define::should_check() {
   using Clock = std::chrono::system_clock;
@@ -136,7 +150,7 @@ Errata Do_text_block_define::invoke(Context &ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
   self->_line_no = drtv_node.Mark().line;
@@ -221,7 +235,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   }
 
   // Put the directive in the map.
-  Map* map = self_type::map(self->_rtti);
+  Map* map = self->map(rtti);
   if (auto spot = map->find(self->_name) ; spot != map->end()) {
     return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)"
     , KEY, drtv_node.Mark(), self->_name, spot->second->_line_no);
@@ -231,11 +245,17 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, YAML::Node drtv_no
   return handle;
 }
 
-Errata Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const*) {
-  // Note - @a h gets a pointer to the Handle.
-  auto h = cfg.allocate_cfg_storage(sizeof(MapHandle)).rebind<MapHandle>().data();
-  new (h) MapHandle(std::make_unique<Map>());
-  cfg.mark_for_cleanup(h);
+Errata Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const* rtti) {
+  // Get space for instance.
+  auto cfg_info = cfg.allocate_cfg_storage(sizeof(CfgInfo), 8).rebind<CfgInfo>().data();
+  // Initialize it.
+  new (cfg_info) CfgInfo;
+  // Remember where it is.
+  rtti->_cfg_store.rebind<CfgInfo*>()[0] = cfg_info;
+  // Create the map.
+  cfg_info->_map.reset(new Map);
+  // Clean it up when the config is destroyed.
+  cfg.mark_for_cleanup(cfg_info);
   return {};
 }
 

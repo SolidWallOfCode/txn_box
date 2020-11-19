@@ -78,14 +78,18 @@ public:
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
-  /** Load from YAML configuration.
+  /** Load from YAML node.
    *
    * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
    * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   TextView _name; ///< Stat name
@@ -108,7 +112,7 @@ Errata Do_stat_define::invoke(Context &) {
   return errata;
 }
 
-Rv<Directive::Handle> Do_stat_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
 
@@ -170,14 +174,18 @@ public:
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
-  /** Load from YAML configuration.
+  /** Load from YAML node.
    *
    * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
    * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Stat _stat; ///< Stat to update.
@@ -199,7 +207,7 @@ Errata Do_stat_update::invoke(Context& ctx) {
   return {};
 }
 
-Rv<Directive::Handle> Do_stat_update::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle> Do_stat_update::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
   if (key_value.IsNull()) {
     return Handle(new self_type(cfg, arg, Expr{feature_type_for<INTEGER>(1)}));
   }

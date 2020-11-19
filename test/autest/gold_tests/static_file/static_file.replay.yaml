@@ -21,7 +21,7 @@ meta:
         name: "missing"
         path: "missing.txt"
         text: "Concert missing."
-        duration: seconds<20>
+        duration: minutes<5>
 
 # -- Doc jwt open
     - text-block-define:

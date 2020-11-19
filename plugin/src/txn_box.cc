@@ -89,7 +89,7 @@ int CB_Txn_Start(TSCont, TSEvent, void * payload) {
 void Task_ConfigReload() {
   std::shared_ptr cfg = std::make_shared<Config>();
   auto t0 = std::chrono::system_clock::now();
-  auto errata = cfg->load_args(G._args, 1);
+  auto errata = cfg->load_cli_args(G._args, 1);
   if (!errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: Failed to reload configuration.\n{}", Config::PLUGIN_NAME, errata);
@@ -131,7 +131,7 @@ TxnBoxInit() {
 
   Plugin_Config = std::make_shared<Config>();
   auto t0 = std::chrono::system_clock::now();
-  auto errata = Plugin_Config->load_args(G._args, 1);
+  auto errata = Plugin_Config->load_cli_args(G._args, 1);
   if (!errata.is_ok()) {
     return errata;
   }

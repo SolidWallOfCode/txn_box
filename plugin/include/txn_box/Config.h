@@ -127,8 +127,10 @@ public:
 
   ~Config();
 
-  Errata load_args(std::vector<std::string> const& args, int arg_offset = 0, YamlCache * cache = nullptr);
-  Errata load_args(swoc::MemSpan<char const*> argv, int arg_offset = 0, YamlCache * cache = nullptr);
+  Errata load_cli_args(std::vector<std::string> const& args, int arg_offset = 0
+                       , YamlCache * cache = nullptr);
+  Errata load_cli_args(swoc::MemSpan<char const*> argv, int arg_offset = 0
+                       , YamlCache * cache = nullptr);
 
   /** Load file(s) in to @a this configuation.
    *
@@ -319,30 +321,13 @@ public:
     return self_type::define(name, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
   }
 
-  /** Reserve storage of size @a n in every config instance.
-   *
-   * @param n Size of storage in bytes.
-   * @return A reservation.
-   *
-   * This must be called before any instance of @c Config is instantiated.
-   *
-   * The reservation is converted to memory via @c Config::storage_for
-   */
-  static ReservedSpan reserve_cfg_storage(size_t n);
-
-  /** Convert a storage reservation into memory.
-   *
-   * @param span Reserved storage descriptor.
-   * @return The span in @a this for @a span.
-   */
-  swoc::MemSpan<void> storage_for(ReservedSpan const& span);
-
   /** Allocate storage in @a this.
    *
    * @param n Size in bytes.
+   * @param align Memory alignment.
    * @return The allocated span.
    */
-  swoc::MemSpan<void> allocate_cfg_storage(size_t n);
+  swoc::MemSpan<void> allocate_cfg_storage(size_t n, size_t align = 1);
 
   /** Prepare for context storage.
    *
@@ -380,9 +365,6 @@ protected:
   // Transient properties
   /// Current hook for directives being loaded.
   Hook _hook = Hook::INVALID;
-
-  /// Stash for directive load type initializer callback.
-  Directive::CfgStaticData * _rtti = nullptr;
 
   /// Mark whether there are any top level directives.
   bool _has_top_level_directive_p { false };
@@ -531,8 +513,4 @@ template < typename T > auto Config::mark_for_cleanup(T *ptr) -> self_type & {
   auto f = _arena.make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
   _finalizers.append(f);
   return *this;
-}
-
-inline swoc::MemSpan<void> Config::allocate_cfg_storage(size_t n) {
-  return _rtti->_cfg_store = _arena.alloc(n);
 }

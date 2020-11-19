@@ -29,6 +29,8 @@ class Directive {
   friend Context;
 
 public:
+  struct CfgStaticData;
+
   /// Import global value for convenience.
   static constexpr swoc::TextView DO_KEY = Global::DO_KEY;
 
@@ -42,9 +44,7 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
-
-  struct CfgStaticData;
+  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, CfgStaticData const * rtti, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
 
   /** Functor to do config level initialization.
    *
@@ -152,14 +152,18 @@ public:
 
   Hook get_hook() const;
 
-  /** Load / create an instance from configuration data.
+  /** Load from YAML node.
    *
-   * @param config Configuration object.
-   * @param drtv_node Directive node.
-   * @param key_node Child of @a dctv_node which matched the directive key.
-   * @return A new directive instance on success, error notes on failure.
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
    */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+  static swoc::Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
   Hook _hook { Hook::INVALID };

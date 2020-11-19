@@ -72,7 +72,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   std::unique_ptr<Config> cfg { new Config };
   swoc::MemSpan<char const *> rule_args{ swoc::MemSpan<char*>(argv, argc).rebind<char const *>() };
   cfg->mark_as_remap();
-  Errata errata = cfg->load_args(rule_args, 2
+  Errata errata = cfg->load_cli_args(rule_args, 2
 #if TS_VERSION_MAJOR >= 8
       // pre ATS 8 doesn't support remap reload callbacks, so the cache can't be used.
       , &Remap_Cfg_Cache

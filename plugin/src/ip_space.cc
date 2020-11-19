@@ -168,14 +168,18 @@ public:
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
 
-  /** Load from YAML configuration.
+  /** Load from YAML node.
    *
    * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
    * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+  static swoc::Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                                , swoc::TextView const& arg, YAML::Node key_value);
 
   /** Per config initialization.
    *
@@ -267,10 +271,18 @@ protected:
     return _space;
   }
 
+  /** Get the static information for the directive.
+   *
+   * @param cfg Configuration object.
+   * @return The static configuration information for this directive type.
+   *
+   * This is used by associated elements that do not have access to an instance of this class.
+   */
   static CfgInfo * cfg_info(Config& cfg);
 
   /// Find the space for the directive instance.
   Map* map();
+
   /// Get the map of IP Space directives from the @a cfg.
 //  static Map* map(Config& cfg);
 
@@ -523,7 +535,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   return {};
 }
 
-Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
   self->_line_no = drtv_node.Mark().line;
@@ -614,7 +626,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, YAML::Node drtv_node
   self->_space = space_info;
 
   // Put the directive in the map.
-  Map* map = self->map();
+  Map* map = &rtti->_cfg_store.rebind<CfgInfo>()[0]._map;
   if (auto spot = map->find(self->_name) ; spot != map->end()) {
     return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)"
     , KEY, drtv_node.Mark(), self->_name, spot->second->_line_no);

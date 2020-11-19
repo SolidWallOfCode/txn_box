@@ -132,14 +132,28 @@ Config::Config() : _arena(_cfg_storage_required + 2048) {
   }
 }
 
-ReservedSpan Config::reserve_cfg_storage(size_t n) {
-  ReservedSpan span { _cfg_storage_required , n };
-  _cfg_storage_required += n;
-  return span;
-}
+swoc::MemSpan<void> Config::allocate_cfg_storage(size_t n, size_t align) {
+  if (align == 1) {
+    return _arena.alloc(n);
+  }
 
-swoc::MemSpan<void> Config::storage_for(ReservedSpan const& span) {
-  return _cfg_store.subspan(span.offset, span.n);
+  // Need to add this logic to @c MemArena - shouldn't have to do it here.
+  // Should only loop twice at most - if it doesn't return it requires the arena to have
+  // enough free space to work on the second try.
+  while (true) {
+    auto span = _arena.remnant();
+    if (auto remainder = reinterpret_cast<uintptr_t>(span.data()) % align; remainder) {
+      auto pad = align - remainder;
+      if (span.size() >= n + pad) {
+        return _arena.alloc(n + pad).remove_prefix(pad);
+      }
+      _arena.require(n + pad); // Guarantee enough space to align correctly.
+    } else if (span.size() >= n) {
+      return _arena.alloc(n); // already aligned and big enough.
+    } else {
+      _arena.require(n + align); // bump up to make sure new space can be aligned.
+    }
+  }
 }
 
 ReservedSpan Config::reserve_ctx_storage(size_t n) {
@@ -456,24 +470,27 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
     // If none of the keys are in the factory, that's an error and is reported after the loop.
     if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
       auto & info = spot->second;
-      let scope(_rtti, &_drtv_info[info._idx]);
+      auto rtti = &_drtv_info[info._idx];
 
       if (! info._hook_mask[IndexFor(this->current_hook())]) {
         return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
       }
 
       // If this is the first use of the directive, do config level setup for the directive type.
-      if (_rtti->_count == 0) {
-        info._cfg_init_cb(*this, _rtti);
+      if (rtti->_count == 0) {
+        if (rtti->_static->_cfg_reserve > 0) {
+          rtti->_cfg_store = this->allocate_cfg_storage(rtti->_static->_cfg_reserve, 8);
+        }
+        info._cfg_init_cb(*this, rtti);
       }
-      ++(_rtti->_count);
+      ++(rtti->_count);
 
-      auto && [ drtv, drtv_errata ] { info._load_cb(*this, drtv_node, name, arg, key_value) };
+      auto && [ drtv, drtv_errata ] { info._load_cb(*this, rtti, drtv_node, name, arg, key_value) };
       if (! drtv_errata.is_ok()) {
         drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
         return std::move(drtv_errata);
       }
-      drtv->_rtti = _rtti;
+      drtv->_rtti = rtti;
 
       return std::move(drtv);
     }
@@ -508,7 +525,7 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
   if (drtv_node.IsMap()) {
     YAML::Node key_node { drtv_node[When::KEY] };
     if (key_node) {
-      auto &&[handle, errata] {When::load(*this, drtv_node, When::KEY, {}, key_node)};
+      auto &&[handle, errata] {When::load(*this, this->drtv_info(When::KEY), drtv_node, When::KEY, {}, key_node)};
       if (errata.is_ok()) {
         auto when = static_cast<When*>(handle.get());
         // Steal the directive out of the When.
@@ -586,7 +603,7 @@ Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Opt
   info._hook_mask = hooks;
   if (options._cfg_store_required > 0) {
     info._cfg_reserve = options._cfg_store_required;
-    self_type::_cfg_storage_required += info._cfg_reserve;
+    self_type::_cfg_storage_required += swoc::Scalar<8>(swoc::round_up(info._cfg_reserve));
   }
   info._load_cb = std::move(worker);
   info._cfg_init_cb = std::move(cfg_init_cb);
@@ -662,7 +679,7 @@ Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCach
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Errata Config::load_args(const std::vector<std::string> &args, int arg_offset, YamlCache * cache) {
+Errata Config::load_cli_args(const std::vector<std::string> &args, int arg_offset, YamlCache * cache) {
   using argv_type = char const *; // Overall clearer in context of pointers to pointers.
   std::unique_ptr<argv_type[]> buff { new argv_type[args.size()] };
   swoc::MemSpan<argv_type> argv{ buff.get(), args.size() };
@@ -670,10 +687,10 @@ Errata Config::load_args(const std::vector<std::string> &args, int arg_offset, Y
   for ( auto const& arg : args ) {
     argv[idx++] = arg.c_str();
   }
-  return this->load_args(argv, arg_offset, cache);
+  return this->load_cli_args(argv, arg_offset, cache);
 }
 
-Errata Config::load_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCache * cache) {
+Errata Config::load_cli_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCache * cache) {
   static constexpr TextView KEY_OPT = "key";
   static constexpr TextView CONFIG_OPT = "config"; // An archaism for BC - take out someday.
 
