@@ -87,22 +87,29 @@ If cleanup is needed the same mechanism can be used to invoke the destructor on 
    span.apply([](Alpha &alpha) -> void { std::destroy_at(&alpha); });
 
 This is necessary only when there are references to memory or stateful objects outside of the
-context. If, for instance, this is used as string storage no cleanup is needed.
+context. Generally this memory should reference nothing, or only other context memory in which case
+no clean up is needed. For instance, the most common use is as string storage which needs no
+cleanup.
 
 If the context allocation needs to be shared or accessed from different hooks, this is a bit more
-challenging. A pointer can't be stored directly because it would be different for every context
-creating a self-dependency loop where to find the memory the pointer needs to be found ... To break
-this loop memory in the context can be reserved and be present in every context. Information about
-this is stored in an instance of :txb:`ReservedSpan` which is not a memory span but an offset and
-length which can be converted to a memory span in a specific context using
-:txb:`Context::storage_for`. The reserved span can be stored in a class member if every instance
-needs the storage, or in configuration reserved storage if all the instances need to share the same
-context memory. Internally, reserved context memory is zero initialized. :txb:`Context::storage_for`
-does nothing further, it simply converts the offset and size to a span inside the context instance.
+challenging. A pointer can't be stored directly in the element instance because it would be
+different for every transaction creating a self-dependency loop where to find the memory the pointer
+needs to be found which is in the memory ...
+
+To break this loop memory in the context can be reserved and present in every context at the same
+offset in context memory. Information about this is stored in an instance of :txb:`ReservedSpan`
+which is not a memory span but an offset and length which can be converted to a memory span in a
+specific context using :txb:`Context::storage_for`. The reserved span can be stored in a class
+member if every instance needs access to the memory, or in configuration reserved storage if
+different elements need to share the same context memory. In contrast to directly allocated context
+memory, reserved context memory is zero initialized to enable simple initialization checking by
+different methods in an element or different elements entirely. :txb:`Context::storage_for` does
+nothing further, it simply converts the offset and size to a span inside the context instance.
+
 If the memory needs to be initialized beyond being zero initialized, it could be difficult to
 determine when exactly the initalization should be done. To deal with this the method
 :txb:`Context::initialized_storage_for` method is provided. The context tracks whether this method
 has been called for a specific context and reserved span and if not, the constructor for the span
 type is invoked on the span. This is done exactly as above, the difference being the memory is
 constructed in place at most once for each context. Therefore different elements can all call this
-method with the guarantee only the first one invoked will initialize the span.
+method with the guarantee only the first one invoked for a transaction will initialize the span.

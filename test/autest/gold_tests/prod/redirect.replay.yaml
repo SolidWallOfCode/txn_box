@@ -120,7 +120,7 @@ sessions:
         fields:
         - [ "Location", "http://gamma.ex/nightwish/once.html", equal]
 
-  # The path element must be first, or it shouldn't be clipped.
+  # Check for no clipping if the key path element isn't first.
   - all: { headers: { fields: [ [ uuid, 106 ] ] } }
     client-request:
       <<: *base-req
@@ -137,3 +137,21 @@ sessions:
       headers:
         fields:
         - [ "Location", "http://gamma.ex/album/delain/moon-bathers.html", equal]
+
+  # This shouldn't match the remap rule and therefore shouldn't be redirected.
+  - all: { headers: { fields: [ [ uuid, 107 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/delain/interlude.html"
+      headers:
+        fields:
+        - [ "Host", "unmatched.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "Location", "", absent]
