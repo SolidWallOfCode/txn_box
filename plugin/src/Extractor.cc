@@ -307,7 +307,7 @@ auto FeatureGroup::pre_extract(Context & ctx) -> void {
 }
 
 FeatureGroup::~FeatureGroup() {
-  _expr_info.apply([](ExprInfo & info) { delete &info; });
+  _expr_info.apply([](ExprInfo & info) { std::destroy_at(&info); });
 }
 
 /* ---------------------------------------------------------------------------------------------- */

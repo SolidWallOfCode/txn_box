@@ -7,10 +7,10 @@
 import os.path
 
 Test.Summary = '''
-Verification for YTS-3489: Redirect only one path for an upstream.
+Test that redirect can be used to clip the path for specific URL paths.
 '''
 
-replay_file="yts-3489.replay.yaml"
+replay_file="redirect.replay.yaml"
 
 tr = Test.TxnBoxTestAndRun("Redirect", replay_file
                 , remap=[ ['http://base.ex/',  ( '--key=meta.txn_box.remap', replay_file) ]

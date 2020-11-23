@@ -14,7 +14,8 @@ meta:
             status: 301
     - redirect:
         location: "http://gamma.ex/{pre-remap-path}"
-        status: 301
+        status: 302
+        body: "The album is now located at {this::location}. Please update your link."
 
   blocks:
   - base-req: &base-req
@@ -97,7 +98,7 @@ sessions:
     server-response:
       <<: *base-rsp
     proxy-response:
-      status: 301
+      status: 302
       headers:
         fields:
         - [ "Location", "http://gamma.ex/nightwish", equal]
@@ -114,7 +115,25 @@ sessions:
     server-response:
       <<: *base-rsp
     proxy-response:
-      status: 301
+      status: 302
       headers:
         fields:
         - [ "Location", "http://gamma.ex/nightwish/once.html", equal]
+
+  # The path element must be first, or it shouldn't be clipped.
+  - all: { headers: { fields: [ [ uuid, 106 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/album/delain/moon-bathers.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://gamma.ex/album/delain/moon-bathers.html", equal]
