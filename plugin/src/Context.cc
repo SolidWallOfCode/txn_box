@@ -40,9 +40,9 @@ bool Expr::bwf_ex::operator()(std::string_view &literal, Extractor::Spec &spec) 
 /* ------------------------------------------------------------------------------------ */
 
 Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
+  size_t reserved_size = G._remap_ctx_storage_required + ( cfg ? cfg->reserved_ctx_storage_size() : 0);
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
-  _arena.reset(swoc::MemArena::construct_self_contained(
-      4000 + (cfg ? cfg->_ctx_storage_required : 0)));
+  _arena.reset(swoc::MemArena::construct_self_contained(4000 + reserved_size));
 
   _rxp_ctx = pcre2_general_context_create([](PCRE2_SIZE size
                                              , void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); }
@@ -50,8 +50,11 @@ Context::Context(std::shared_ptr<Config> const& cfg) : _cfg(cfg) {
   if (cfg) {
     /// Make sure there are sufficient capture groups.
     this->rxp_match_require(cfg->_capture_groups);
+  }
+
+  if (reserved_size) {
     // Directive shared storage
-    _ctx_store = _arena->alloc(cfg->_ctx_storage_required);
+    _ctx_store = _arena->alloc(reserved_size);
     memset(_ctx_store, 0); // Zero initialize it.
   }
 }
@@ -373,6 +376,27 @@ TextView Context::localize_as_c_str(swoc::TextView text) {
     text = span.view();
   }
   return text;
+}
+
+MemSpan<void> Context::overflow_storage_for(const ReservedSpan& span) {
+  using T = decltype(_overflow_spans)::value_type;
+  // Is this offset already in the list?
+  auto spot = std::find_if(_overflow_spans.begin(), _overflow_spans.end(),
+                           [&](auto const& item) { return item._offset == span.offset; });
+  if (spot != _overflow_spans.end()) {
+    return spot->_storage;
+  }
+  // Make a record for the list to find later.
+  auto item = _arena->alloc_span<T>(1).data();
+  new (item) T;
+  item->_offset = span.offset;
+  _overflow_spans.append(item);
+  // Get the actual reserved memory block, along with the required status block in front of it.
+  item->_storage = _arena->alloc(span.n + sizeof(ReservedStatus), std::align_val_t(alignof(ReservedStatus)));
+  memset(item->_storage, 0);
+  item->_storage.remove_prefix(sizeof(ReservedStatus));
+
+  return item->_storage;
 }
 
 unsigned Context::ArgPack::count() const {

@@ -165,9 +165,8 @@ protected:
       Expr _expr; ///< Expression for item.
       index_type _edge_idx; ///< Index in reference dependency vector, start.
       index_type _edge_count = 0; ///< # of immediate dependent references.
-      index_type _exf_idx = 0; ///< Index of extracted feature cache.
+      index_type _exf_idx = INVALID_IDX; ///< Index of extracted feature cache.
       int8_t _mark = NONE; ///< Ordering search march.
-      uint8_t _required_p : 1; ///< Key must exist and have a valid format.
 
       /// Cross reference (dependency graph edge)
       /// @note THIS IS NOT PART OF THE NODE VALUE!

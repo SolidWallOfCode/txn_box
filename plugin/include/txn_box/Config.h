@@ -358,6 +358,8 @@ public:
 
   size_t file_count() const { return _cfg_file_count; }
 
+  size_t reserved_ctx_storage_size() const { return _ctx_storage_required; }
+
 protected:
   friend class When;
   friend class Context;

@@ -170,10 +170,9 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   Tracking::Info tracking_info[n_keys];
   Tracking tracking(node, tracking_info, n_keys);
 
-  // Seed tracking info with the explicit keys.
+  // Find the roots of extraction - these are the named keys actually in the node.
   // Need to do this explicitly to transfer the flags, and to check for duplicates in @a ex_keys.
-  // Further, this means if @c load_key doesn't find the key, that's a reference failure because
-  // this checks all required keys are present in the YAML node.
+  // It is not an error for a named key to be missing unless it's marked @c REQUIRED.
   for ( auto & d : ex_keys ) {
     auto tinfo = tracking.find(d._name);
     if (nullptr != tinfo) {
@@ -182,16 +181,18 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     if (node[d._name]) {
       tinfo = tracking.alloc();
       tinfo->_name = d._name;
-      tinfo->_required_p = d._flags[REQUIRED];
     } else if (d._flags[REQUIRED]) {
       return Errata().error(R"(The required key "{}" was not found in the node {}.)", d._name, node.Mark());
     }
   }
 
-  // Time to get the expressions and walk the references.
-  for ( auto & d : ex_keys ) {
-    auto && [ tinfo, errata ] { this->load_key(cfg, tracking, d._name) };
-    if (! errata.is_ok()) {
+  // Time to get the expressions and walk the references. Need to finalize the range before calling
+  // @c load_key as that can modify @a tracking._count. Also must avoid calling this on keys that
+  // are explicit but not required - need to fail on missing keys iff they're referenced, which is
+  // checked by @c load_key. The presence of required keys has already been verified.
+  for ( auto info = tracking_info, limit = info + tracking._count ; info < limit ; ++info ) {
+    auto &&[dummy, errata]{this->load_key(cfg, tracking, info->_name)};
+    if (!errata.is_ok()) {
       return errata;
     }
   }
@@ -273,7 +274,7 @@ Feature FeatureGroup::extract(Context& ctx, index_type idx) {
   auto& info = _expr_info[idx];
   // Get the reserved storage for the @c State instance.
   State& state = ctx.storage_for(_ctx_state_span).rebind<State>()[0];
-  Feature * cached = info._exf_idx == INVALID_IDX ? nullptr : &state._features[info._exf_idx];
+  Feature * cached = (info._exf_idx == INVALID_IDX ? nullptr : &state._features[info._exf_idx]);
   // If already extracted, return.
   // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
   if (cached && ( cached->index() != IndexFor(GENERIC) || std::get<IndexFor(GENERIC)>(*cached) != nullptr)) {

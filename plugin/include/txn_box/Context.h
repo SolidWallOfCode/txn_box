@@ -325,6 +325,26 @@ protected:
     unsigned _initialized_p : 1;
   };
 
+  /// Wrapper for top level directives.
+  /// This is used to handle both configuration level directives and directives scheduled by @c when.
+  struct OverflowSpan {
+    using self_type = OverflowSpan; ///< Self reference type.
+  protected:
+    self_type * _next = nullptr; ///< Intrusive list link.
+    self_type * _prev = nullptr; ///< Intrusive list link.
+  public:
+    /// Intrusive list descriptor.
+    using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
+    /// Constructor.
+    /// @param drtv Directive for the callback.
+    OverflowSpan() = default;
+    /// Offset of reserved span.
+    /// This is also used as the key to find the correct instance.
+    size_t _offset;
+    /// Live memory.
+    swoc::MemSpan<void> _storage;
+  };
+
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
   ts::HttpRequest _proxy_req; ///< Proxy request header.
@@ -357,6 +377,9 @@ protected:
   /// Additional clean up needed when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
 
+  /// List of overflaw reserved spans.
+  swoc::IntrusiveDList<OverflowSpan::Linkage> _overflow_spans;
+
   /// A transaction scope variable.
   struct TxnVar {
     using self_type = TxnVar; ///< Self reference type.
@@ -382,6 +405,8 @@ protected:
 
   /// Flag for continuing invoking directives.
   bool _terminal_p = false;
+
+  swoc::MemSpan<void> overflow_storage_for(ReservedSpan const& span);
 
   /** Entry point from TS via plugin API.
    *
@@ -413,7 +438,10 @@ swoc::MemSpan<T> Context::alloc_span(unsigned int count) {
 }
 
 inline swoc::MemSpan<void> Context::storage_for(ReservedSpan const& span) {
-  return _ctx_store.subspan(span.offset, span.n);
+  if (span.offset + span.n <= _ctx_store.size()) {
+    return _ctx_store.subspan(span.offset, span.n);
+  }
+  return this->overflow_storage_for(span);
 }
 
 template<typename T>

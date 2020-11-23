@@ -669,6 +669,9 @@ struct Global {
   int TxnArgIdx = -1;
   std::vector<std::string> _args; ///< Global configuration arguments.
   TSCont _cont; ///< Global continuation to start transaction handling.
+  /// Amount of reserved storage requested by remap directives.
+  /// This is not always correct, @c Context must handle overflows gracefully.
+  std::atomic<size_t> _remap_ctx_storage_required {0 };
 
   void reserve_txn_arg();
 
@@ -678,14 +681,14 @@ struct Global {
 
 };
 
+/// Global data.
+extern Global G;
+
 /// Reserved storage descriptor.
 struct ReservedSpan {
   size_t offset = 0; ///< Offset for start of storage.
   size_t n = 0; ///< Storage size;
 };
-
-/// Global data.
-extern Global G;
 
 /// Used for clean up in @c Config and @c Context.
 /// A list of these is used to perform additional cleanup for extensions to the basic object.

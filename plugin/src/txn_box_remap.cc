@@ -74,7 +74,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   cfg->mark_as_remap();
   Errata errata = cfg->load_cli_args(rule_args, 2
 #if TS_VERSION_MAJOR >= 8
-      // pre ATS 8 doesn't support remap reload callbacks, so the cache can't be used.
+      // pre ATS 8 doesn't support remap reload callbacks, so the config cache can't be used.
       , &Remap_Cfg_Cache
 #endif
   );
@@ -86,6 +86,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
     return TS_ERROR;
   }
 
+  G._remap_ctx_storage_required += cfg->reserved_ctx_storage_size();
   *ih = new RemapContext { std::move(cfg) };
   return TS_SUCCESS;
 }
@@ -102,7 +103,7 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
   Context * ctx = static_cast<Context*>(ts::HttpTxn(txn).arg(G.TxnArgIdx));
   if (nullptr == ctx) {
     ctx = new Context({});
-    ctx->enable_hooks(txn);
+    ctx->enable_hooks(txn); // This sets G.TxnArgIdx
   }
   ctx->invoke_for_remap(*(r_ctx->rule_cfg), rri);
 
@@ -111,5 +112,8 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
 
 void TSRemapDeleteInstance(void *ih) {
   auto r_ctx = static_cast<RemapContext*>(ih);
-  delete r_ctx;
+  if (r_ctx) {
+    G._remap_ctx_storage_required -= r_ctx->rule_cfg->reserved_ctx_storage_size();
+    delete r_ctx;
+  }
 }

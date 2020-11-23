@@ -1784,7 +1784,7 @@ public:
   static const std::string STATUS_KEY; ///< Key for status value.
   static const std::string REASON_KEY; ///< Key for reason value.
   static const std::string LOCATION_KEY; ///< Key for location value.
-  static const std::string BODY_KEY; ///< Key for body.
+  inline static const std::string BODY_KEY { "body" }; ///< Key for body.
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
@@ -1835,7 +1835,6 @@ const std::string Do_redirect::KEY { "redirect" };
 const std::string Do_redirect::STATUS_KEY { "status" };
 const std::string Do_redirect::REASON_KEY { "reason" };
 const std::string Do_redirect::LOCATION_KEY { "location" };
-const std::string Do_redirect::BODY_KEY { "body" };
 
 const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::REMAP}) };
 
@@ -1850,7 +1849,7 @@ Errata Do_redirect::cfg_init(Config& cfg, CfgStaticData const * rtti) {
 
 Errata Do_redirect::invoke(Context& ctx) {
   auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
+  auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
 
   // If the Location view is empty, it hasn't been set and therefore the clean up hook
   // hasn't been set either, so need to do that.
@@ -1941,7 +1940,7 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, CfgStaticData const*, YAML:
   Errata errata;
   auto self = static_cast<self_type *>(handle.get());
   if (key_value.IsScalar()) {
-    errata = self->_fg.load_as_tuple(cfg, key_value, {{LOCATION_KEY, FeatureGroup::REQUIRED}});
+    errata = self->_fg.load_as_tuple(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED}});
   } else if (key_value.IsSequence()) {
     errata = self->_fg.load_as_tuple(cfg, key_value, { { STATUS_KEY, FeatureGroup::REQUIRED } , { LOCATION_KEY, FeatureGroup::REQUIRED } });
   } else if (key_value.IsMap()) {
