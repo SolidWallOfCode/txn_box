@@ -1,0 +1,120 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    remap:
+    - with: pre-remap-path
+      select:
+      - any-of:
+        - match: "delain"
+        - prefix: "delain/"
+        do:
+        - redirect:
+            location: "http://bravo.ex/{*}"
+            status: 301
+    - redirect:
+        location: "http://gamma.ex/{pre-remap-path}"
+        status: 301
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+  - base-rsp: &base-rsp
+      status: 200
+      reason: OK
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ { name: ip, version : 4} ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 101 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/", equal]
+
+  - all: { headers: { fields: [ [ uuid, 102 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/delain/"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/", equal]
+
+  - all: { headers: { fields: [[ uuid, 103 ]] }}
+    client-request:
+      <<: *base-req
+      url: "/delain/lucidity.html"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/lucidity.html", equal]
+
+  - all: { headers: { fields: [ [ uuid, 104 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://gamma.ex/nightwish", equal]
+
+  - all: { headers: { fields: [ [ uuid, 105 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/once.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://gamma.ex/nightwish/once.html", equal]
