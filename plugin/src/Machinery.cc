@@ -1940,13 +1940,13 @@ Rv<Directive::Handle> Do_redirect::load(Config& cfg, CfgStaticData const*, YAML:
   Errata errata;
   auto self = static_cast<self_type *>(handle.get());
   if (key_value.IsScalar()) {
-    errata = self->_fg.load_as_tuple(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED}});
+    errata = self->_fg.load_as_scalar(cfg, key_value, LOCATION_KEY);
   } else if (key_value.IsSequence()) {
     errata = self->_fg.load_as_tuple(cfg, key_value, { { STATUS_KEY, FeatureGroup::REQUIRED } , { LOCATION_KEY, FeatureGroup::REQUIRED } });
   } else if (key_value.IsMap()) {
     errata = self->_fg.load(cfg, key_value, { { LOCATION_KEY, FeatureGroup::REQUIRED }, { STATUS_KEY }, { REASON_KEY }, { BODY_KEY } });
   } else {
-    return Error(R"(Value for "{}" key at {} is must be a scalar, a 2-tuple, or a map and is not.)", KEY, key_value.Mark());
+    return Error(R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
   }
   if (! errata.is_ok()) {
     errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());

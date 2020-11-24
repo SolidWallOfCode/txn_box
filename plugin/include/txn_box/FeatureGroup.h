@@ -94,6 +94,15 @@ public:
    */
   swoc::Errata load_as_tuple(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
 
+  /** Load the expression from a scalar @a value.
+   *
+   * @param cfg Configuration instance.
+   * @param value Scalar value to load.
+   * @param name Name of the key to load.
+   * @return Errors, if any.
+   */
+  swoc::Errata load_as_scalar(Config& cfg, YAML::Node const& value, swoc::TextView const& name);
+
   /** Get the index of extraction information for @a name.
    *
    * @param name Name of the key.

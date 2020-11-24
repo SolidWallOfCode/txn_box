@@ -225,6 +225,19 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   return {};
 }
 
+Errata FeatureGroup::load_as_scalar(Config& cfg, const YAML::Node& value, swoc::TextView const& name) {
+  auto && [ expr, errata ] { cfg.parse_expr(value) };
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  _expr_info = cfg.span<ExprInfo>(1);
+  auto info = _expr_info.data();
+  new (info) ExprInfo;
+  info->_expr = std::move(expr);
+  info->_name = name;
+  return {};
+}
+
 Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
                                   , std::initializer_list<FeatureGroup::Descriptor> const &ex_keys) {
   unsigned idx = 0;
@@ -237,7 +250,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
 
     if (idx >= n_elts) {
       if (key._flags[REQUIRED]) {
-        return Errata().error(R"(to be done)");
+        return Errata().error(R"(The list was {} elements long but {} are required.)", n_elts, n_keys);
       }
       continue; // it was optional, skip it and keep checking for REQUIRED keys.
     }
