@@ -406,6 +406,9 @@ public:
   /// Default constructor - null session.
   HttpSsn() = default;
 
+  /// Transaction count.
+  unsigned txn_count() const;
+
   /// Return the inbound SNI name, if any.
   swoc::TextView inbound_sni() const;
 
@@ -700,6 +703,8 @@ inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 inline HttpTxn::operator TSHttpTxn() const { return _txn; }
 
 inline HttpSsn HttpTxn::ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; }
+
+inline unsigned HttpSsn::txn_count() const { return TSHttpSsnTransactionCount(_ssn); };
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };

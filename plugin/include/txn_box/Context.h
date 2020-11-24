@@ -236,6 +236,7 @@ public:
   ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
   ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
   ts::HttpResponse proxy_rsp_hdr(); ///< @return proxy response.
+  ts::HttpSsn inbound_ssn() { return _txn.ssn(); }; ///< Inbound session.
 
   /** Store a transaction variable.
    *

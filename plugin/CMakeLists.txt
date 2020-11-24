@@ -21,6 +21,7 @@ add_library(plugin SHARED
 	src/yaml_util.cc
 
 	src/Ex_HTTP.cc
+    src/Ex_Ssn.cc
 	src/ip_space.cc
 	src/stats.cc
 	src/text_block.cc
