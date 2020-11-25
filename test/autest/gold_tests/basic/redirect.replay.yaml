@@ -1,0 +1,177 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    remap:
+    - with: pre-remap-path
+      select:
+      - any-of: # Drop the first path element and redirect.
+        - match: "delain"
+        - prefix: "delain/"
+        do:
+        - redirect: "http://bravo.ex/{*}" # test scalar style.
+      - prefix: "redirect/" # get the target from the rest of the path.
+        do:
+        - redirect: [ 302 , "http://{*}" ] # test tuple style.
+    - redirect: # Otherwise redirect with original path.
+        location: "http://charlie.ex/{pre-remap-path}"
+        status: 302
+        reason: "Because I said so!"
+        body: "The album is now located at <a href=\"{this::location}\">{this::location}</a>. Please update your link."
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+  - base-rsp: &base-rsp
+      status: 200
+      reason: OK
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ { name: ip, version : 4} ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 101 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/", equal]
+
+  - all: { headers: { fields: [ [ uuid, 102 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/delain/"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/", equal]
+
+  - all: { headers: { fields: [[ uuid, 103 ]] }}
+    client-request:
+      <<: *base-req
+      url: "/delain/lucidity.html"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 301
+      headers:
+        fields:
+        - [ "Location", "http://bravo.ex/lucidity.html", equal]
+
+  - all: { headers: { fields: [ [ uuid, 104 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://charlie.ex/nightwish", equal]
+
+  - all: { headers: { fields: [ [ uuid, 105 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/once.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://charlie.ex/nightwish/once.html", equal]
+
+  # Check for no clipping if the key path element isn't first.
+  - all: { headers: { fields: [ [ uuid, 106 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/album/delain/moon-bathers.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://charlie.ex/album/delain/moon-bathers.html", equal]
+
+  # This shouldn't match the remap rule and therefore shouldn't be redirected.
+  - all: { headers: { fields: [ [ uuid, 107 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/delain/interlude.html"
+      headers:
+        fields:
+        - [ "Host", "unmatched.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "Location", "", absent]
+
+  # test tuple value support.
+  - all: { headers: { fields: [ [ uuid, 108 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/redirect/delta.ex/spot.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://delta.ex/spot.html", equal]

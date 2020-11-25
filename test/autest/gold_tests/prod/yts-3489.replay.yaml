@@ -10,18 +10,11 @@ meta:
         - prefix: "delain/"
         do:
         - redirect: "http://bravo.ex/{*}"
-      - prefix: "redirect/" # get the target from the rest of the path.
-        do:
-        - with: "{*}"
-          select:
-          - rxp: "([^/]+)/(.*)$"
-            do:
-            - redirect: [ 302 , "http://{1}/{2}" ]
     - redirect: # Otherwise redirect with original path.
-        location: "http://gamma.ex/{pre-remap-path}"
+        location: "http://charlie.ex/{pre-remap-path}"
         status: 302
         reason: "Because I said so!"
-        body: "The album is now located at {this::location}. Please update your link."
+        body: "The album is now located at <a href=\"{this::location}\">{this::location}</a>. Please update your link."
 
   blocks:
   - base-req: &base-req
@@ -107,7 +100,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://gamma.ex/nightwish", equal]
+        - [ "Location", "http://charlie.ex/nightwish", equal]
 
   - all: { headers: { fields: [ [ uuid, 105 ] ] } }
     client-request:
@@ -124,9 +117,9 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://gamma.ex/nightwish/once.html", equal]
+        - [ "Location", "http://charlie.ex/nightwish/once.html", equal]
 
-  # Check for no clipping if the key path element isn't first.
+  # Verify no clipping if target path element isn't first.
   - all: { headers: { fields: [ [ uuid, 106 ] ] } }
     client-request:
       <<: *base-req
@@ -142,7 +135,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://gamma.ex/album/delain/moon-bathers.html", equal]
+        - [ "Location", "http://charlie.ex/album/delain/moon-bathers.html", equal]
 
   # This shouldn't match the remap rule and therefore shouldn't be redirected.
   - all: { headers: { fields: [ [ uuid, 107 ] ] } }
@@ -161,21 +154,3 @@ sessions:
       headers:
         fields:
         - [ "Location", "", absent]
-
-  # test tuple value support.
-  - all: { headers: { fields: [ [ uuid, 108 ] ] } }
-    client-request:
-      <<: *base-req
-      url: "/redirect/delta.ex/spot.html"
-      headers:
-        fields:
-        - [ "Host", "base.ex" ]
-    proxy-request:
-      <<: *base-req
-    server-response:
-      <<: *base-rsp
-    proxy-response:
-      status: 302
-      headers:
-        fields:
-        - [ "Location", "http://delta.ex/spot.html", equal]
