@@ -49,17 +49,6 @@ public:
    * This is called when the extractor is a @c Direct feature and therefore typed.
    */
   Feature extract(Context & ctx, Spec const& spec)  override;
-
-  /** Output the transaction count.
-   *
-   * @param w Output buffer.
-   * @param spec Format specifier.
-   * @param ctx Current transaction context.
-   * @return @a w
-   *
-   * Called when the extractor is in a @c Composite expression or forced to a string Feature.
-   */
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Rv<ActiveType> Ex_inbound_txn_count::validate(Config&, Extractor::Spec&, TextView const&) {
@@ -67,10 +56,6 @@ Rv<ActiveType> Ex_inbound_txn_count::validate(Config&, Extractor::Spec&, TextVie
 }
 Feature Ex_inbound_txn_count::extract(Context &ctx, Spec const&) {
   return feature_type_for<INTEGER>(ctx.inbound_ssn().txn_count());
-}
-
-BufferWriter& Ex_inbound_txn_count::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the SNI name from the inbound session.

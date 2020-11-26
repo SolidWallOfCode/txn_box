@@ -103,9 +103,9 @@ public:
    * @return @a w.
    *
    * This is the generic entry point for generating string output for a feature, which is required
-   * for all extractors.
+   * for all extractors. The base implementation calls @c extract and pass that to @c bwformat.
    */
-  virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) = 0;
+  virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx);
 
   /** Define @a name as the extractor @a ex.
    *

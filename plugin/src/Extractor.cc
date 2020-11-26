@@ -42,6 +42,10 @@ swoc::Rv<ActiveType> Extractor::validate(Config&, Extractor::Spec&, TextView con
 
 Feature Extractor::extract(Config&, Extractor::Spec const&) { return NIL_FEATURE; }
 
+BufferWriter& Extractor::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
 Extractor::self_type *Extractor::find(TextView const& name) {
   auto spot { _ex_table.find(name)};
   return spot == _ex_table.end() ? nullptr : spot->second;
