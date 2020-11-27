@@ -127,8 +127,23 @@ public:
    */
   template < typename T > swoc::MemSpan<T> alloc_span(unsigned count);
 
+  /** Convert a reserved span into memory in @a this.
+   *
+   * @param span Reserve span.
+   * @return The context local memory.
+   */
   swoc::MemSpan<void> storage_for(ReservedSpan const& span);
 
+  /** Convert a reserved span into memory in @a this and initialize it.
+   *
+   * @tparam T The span type.
+   * @param span The reserved span.
+   * @return Initialized context local memory.
+   *
+   * The elements in the span are constructed in place using the constructor for @a T. The
+   * initialization status is tracked per reserved span per context and only initialized once.
+   * Subsequent calls for the same reserved span in the same context will not initialize the memory.
+   */
   template < typename T > swoc::MemSpan<T> initialized_storage_for(ReservedSpan const& span);
 
   Hook _cur_hook = Hook::INVALID;
@@ -316,7 +331,22 @@ public:
    */
   std::shared_ptr<Config> acquire_cfg();
 
+  /** Check if the directive is marked as terminal.
+   *
+   * @return @c true
+   */
   bool is_terminal() const { return _terminal_p; }
+
+  /** Mark the current directive terminal status.
+   *
+   * @param flag Terminal status.
+   * @return @a this
+   *
+   * If a directive is marked terminal, then it marks a point in the invocation tree for which there
+   * is no backtracking. After the directive finishes invocation (which may involve invoking other
+   * directives) then directive process will terminate. This must be called from the @c invoke
+   * method of the directive.
+   */
   self_type & mark_terminal(bool flag) { _terminal_p= flag; return *this; }
 
 protected:

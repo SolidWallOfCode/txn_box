@@ -80,14 +80,14 @@ class Ex_random : public Extractor {
   using self_type = Ex_random; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
-  static constexpr TextView NAME { "random" };
+  static constexpr TextView NAME { "random" }; ///< Extractor name.
 
+  /// Verify the arguments are a valid integer range.
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context& ctx, Extractor::Spec const& spec) override;
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 protected:
   /// Random generator.
   /// Not thread safe, so have one for each thread.
@@ -100,10 +100,6 @@ Feature Ex_random::extract(Context &, Extractor::Spec const& spec) {
   auto values = spec._data.rebind<feature_type_for<INTEGER>>();
   return std::uniform_int_distribution{values[0], values[1]}(_engine);
 };
-
-BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 
 Rv<ActiveType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto values = cfg.alloc_span<feature_type_for<INTEGER>>(2);
