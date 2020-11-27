@@ -63,16 +63,11 @@ class Ex_inbound_sni : public Extractor {
 public:
   static constexpr TextView NAME { "inbound-sni" };
   /// Extract the SNI  name from the inbound session.
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
 Feature Ex_inbound_sni::extract(Context & ctx, Spec const&) {
-  return ctx._txn.ssn().inbound_sni();
-}
-
-BufferWriter& Ex_inbound_sni::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
+  return ctx.inbound_ssn().inbound_sni();
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session remote address.
@@ -80,7 +75,6 @@ class Ex_inbound_remote_addr : public Extractor {
 public:
   static constexpr TextView NAME { "inbound-addr-remote" };
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
@@ -89,11 +83,7 @@ Rv<ActiveType> Ex_inbound_remote_addr::validate(Config &, Extractor::Spec &, Tex
 }
 
 Feature Ex_inbound_remote_addr::extract(Context & ctx, Spec const& ) {
-  return swoc::IPAddr(ctx._txn.ssn().remote_addr());
-}
-
-BufferWriter& Ex_inbound_remote_addr::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
+  return swoc::IPAddr(ctx.inbound_ssn().remote_addr());
 }
 /* ------------------------------------------------------------------------------------ */
 class Ex_has_inbound_protocol_prefix : public Extractor {
