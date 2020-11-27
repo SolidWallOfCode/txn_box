@@ -104,8 +104,8 @@ Rewriting URLs
 There are a number of ways to rewrite URLs in a client request. It can be done by specifying the
 entire replacement URL or by changing it piecewise.
 
-The primary directive for this is the :txb:drtv:`remap` directive. This always applies to
-the proxy request, and takes a full URL as its value. The proxy request is updated to be to that
+The primary directive for this in a remap invoked configuration is the :txb:drtv:`ua-req-url` directive. This always applies to
+the user agent request, and takes a full URL as its value. The user agent request is updated to be to that
 URL. If the existing URL is a full URL, it is changed to the URL in the value. Otherwise only
 the path is copied over. If the value URL scheme is different, the request is modified to use
 that scheme (e.g., if the value URL has "https://" then the proxy request will use TLS). The
@@ -113,13 +113,13 @@ that scheme (e.g., if the value URL has "https://" then the proxy request will u
 
 For instance, to send the request to the upstream "app.txnbox" ::
 
-   proxy-req-host: "app.txnbox"
+   ua-req-host: "app.txnbox"
 
 This will change the host in the URL if already present and set the "Host" field. This could also
 be done as ::
 
-   proxy-req-url-host: "app.txnbox"
-   proxy-req-field<Host>: "app-txnbox"
+   ua-req-url-host: "app.txnbox"
+   ua-req-field<Host>: "app.txnbox"
 
 The difference is this will cause the host to be in the URL regardless if it was already present.
 
