@@ -310,7 +310,7 @@ Rv<ActiveType> Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the defined text block.)", NAME);
   }
-  auto view = cfg.span<TextView>(1);
+  auto view = cfg.alloc_span<TextView>(1);
   view[0] = cfg.localize(TextView{arg});
   spec._data = view.rebind<void>();
   return { STRING };

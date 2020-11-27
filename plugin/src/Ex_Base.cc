@@ -40,7 +40,7 @@ public:
 };
 
 Rv<ActiveType> Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
-  auto name = cfg.span<feature_type_for<STRING>>(1);
+  auto name = cfg.alloc_span<feature_type_for<STRING>>(1);
   spec._data = name.rebind<void>();
   name[0] = cfg.localize(arg);
   return ActiveType::any_type();
@@ -105,8 +105,8 @@ BufferWriter& Ex_random::format(BufferWriter &w, Extractor::Spec const &spec, Co
 }
 
 Rv<ActiveType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
-  auto values = cfg.span<feature_type_for<INTEGER>>(2);
-  spec._data = values.rebind<void>(); // remember where the storage is.
+  auto values = cfg.alloc_span<feature_type_for<INTEGER>>(2);
+  spec._data = values; // remember where the storage is.
   feature_type_for<INTEGER> min = 0, max = 99; // temporaries for parsing output.
   // Config storage for parsed output.
   values[0] = min;
@@ -170,7 +170,7 @@ template < typename T, const TextView* KEY > BufferWriter& Ex_duration<T,KEY>::f
 }
 
 template < typename T, const TextView* KEY> Rv<ActiveType> Ex_duration<T,KEY>::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
-  auto span = cfg.span<ftype>(1);
+  auto span = cfg.alloc_span<ftype>(1);
   spec._data = span.rebind<void>(); // remember where the storage is.
 
   if (! arg) {
@@ -218,7 +218,7 @@ Rv<ActiveType> Ex_txn_conf::validate(Config &cfg, Spec &spec, const TextView &ar
   if (nullptr == var) {
     return Error(R"("{}" is not a recognized transaction overridable configuration variable name.)", arg);
   }
-  auto ptr = cfg.span<store_type>(1);
+  auto ptr = cfg.alloc_span<store_type>(1);
   ptr[0] = var;
   spec._data = ptr.rebind<void>(); // remember where the pointer is.
   ValueType vt = NIL;

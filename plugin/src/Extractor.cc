@@ -202,12 +202,12 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   }
 
   // Persist the tracking info, now that all the sizes are known.
-  _expr_info = cfg.span<ExprInfo>(tracking._count);
+  _expr_info = cfg.alloc_span<ExprInfo>(tracking._count);
   _expr_info.apply([](ExprInfo & info) { new (&info) ExprInfo; });
 
   // If there are dependency edges, copy those over.
   if (tracking._edge_count) {
-    _edge = cfg.span<unsigned short>(tracking._edge_count);
+    _edge = cfg.alloc_span<unsigned short>(tracking._edge_count);
     for (unsigned short idx = 0; idx < tracking._edge_count; ++idx) {
       _edge[idx] = tracking._info[idx]._edge;
     }
@@ -234,7 +234,7 @@ Errata FeatureGroup::load_as_scalar(Config& cfg, const YAML::Node& value, swoc::
   if (! errata.is_ok()) {
     return std::move(errata);
   }
-  _expr_info = cfg.span<ExprInfo>(1);
+  _expr_info = cfg.alloc_span<ExprInfo>(1);
   auto info = _expr_info.data();
   new (info) ExprInfo;
   info->_expr = std::move(expr);
@@ -268,7 +268,7 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
     ++idx;
   }
   // Localize feature info, now that the size is determined.
-  _expr_info = cfg.span<ExprInfo>(idx);
+  _expr_info = cfg.alloc_span<ExprInfo>(idx);
   index_type i = 0;
   for ( auto & item : _expr_info ) {
     new (&item) ExprInfo{std::move(info[i++]) };

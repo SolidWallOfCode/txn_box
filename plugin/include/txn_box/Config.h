@@ -233,7 +233,7 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template < typename T > swoc::MemSpan<T> span(unsigned count) {
+  template < typename T > swoc::MemSpan<T> alloc_span(unsigned count) {
     return _arena.alloc(sizeof(T) * count).rebind<T>();
   }
 

@@ -124,7 +124,7 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 Config::Config() : _arena(_cfg_storage_required + 2048) {
   _cfg_store = _arena.alloc(_cfg_storage_required);
   // Set up the run time type information for the directives.
-  _drtv_info = this->span<Directive::CfgStaticData>(_factory.size());
+  _drtv_info = this->alloc_span<Directive::CfgStaticData>(_factory.size());
   for ( auto const& [ name, factory_info ] : _factory ) {
     auto & di = _drtv_info[factory_info._idx];
     new (&di) Directive::CfgStaticData;
@@ -436,7 +436,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
 
   Expr expr;
   if (literal_p) {
-    FeatureTuple t = this->span<Feature>(xa.size());
+    FeatureTuple t = this->alloc_span<Feature>(xa.size());
     unsigned idx = 0;
     for ( auto & f : t) {
       f = std::get<Expr::LITERAL>(xa[idx++]._expr);

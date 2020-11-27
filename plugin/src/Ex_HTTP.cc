@@ -966,7 +966,7 @@ BufferWriter& Ex_remap_replacement_port::format(BufferWriter &w, Spec const &spe
 class ExHttpField : public Extractor {
 public:
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
-    auto span = cfg.span<Data>(1);
+    auto span = cfg.alloc_span<Data>(1);
     spec._data = span;
     auto & data = span[0];
     data.opt.all = 0;

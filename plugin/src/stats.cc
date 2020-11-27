@@ -240,7 +240,7 @@ Rv<ActiveType> Ex_stat::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the statistic.)", NAME);
   }
-  spec._data = cfg.span<Stat>(1); // allocate and stash.
+  spec._data = cfg.alloc_span<Stat>(1); // allocate and stash.
   spec._data.rebind<Stat>()[0].assign(cfg, arg);
   return { INTEGER };
 }
