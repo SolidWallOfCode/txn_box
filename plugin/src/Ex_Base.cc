@@ -75,6 +75,7 @@ BufferWriter& Ex_is_internal::format(BufferWriter &w, Extractor::Spec const &spe
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
+/// Random integer extractor.
 class Ex_random : public Extractor {
   using self_type = Ex_random; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.

@@ -5,7 +5,7 @@
 
 .. highlight:: yaml
 
-.. _design:
+.. _memory-management:
 
 ****************
 Memory Mangement
@@ -50,7 +50,7 @@ Note - directive instances are per configuration which means invocations are mul
 entirely possible to have the same directive instance being invoked simultaneously for different
 transactions. If the requirement is to set up shared status this can be done via the configuration
 initializer argument to :txb:`Config::define`. If the templated overload is used then the method
-:txb:`Direct::cfg_init` is used as the initializer. The base class method does nothing therefore
+:txb:`Directive::cfg_init` is used as the initializer. The base class method does nothing therefore
 this method can be omitted if not needed.
 
 When configuration storage is needed, it is frequently the case this is because the directive needs

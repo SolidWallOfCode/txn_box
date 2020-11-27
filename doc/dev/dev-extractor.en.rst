@@ -3,7 +3,7 @@
 .. highlight:: yaml
 .. default-domain:: txb
 
-.. _imp_config:
+.. _dev-extractor:
 
 Extractor Development
 *********************
@@ -16,7 +16,7 @@ Unlike other elements, use of extractor involves referencing a global instance, 
 *  Most extractors do not require any local storage or state.
 
 All extractors are implemented by a class. This must be a subclass of :txb:`Extractor`. By
-convention the name of the class should be "Ex_" followed by the extractor name. For example the
+convention the name of the class should be "Ex\_" followed by the extractor name. For example the
 class :code:`Ex_ua_req_url` is the implementation of the "ua-req-url" extractor.
 
 By convention, a :code:`TextView` named :code:`NAME` is declared to define the name of the

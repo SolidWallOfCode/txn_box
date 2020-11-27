@@ -43,21 +43,13 @@ sys.path.insert(0, os.path.abspath('ext'))
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [ 'sphinx.ext.graphviz'
-             , 'sphinx.ext.intersphinx'
-             , 'sphinx.ext.autodoc'
-             , 'sphinx.ext.todo'
-             , 'sphinx.ext.coverage'
-             , 'sphinx.ext.imgmath'
              , 'sphinx.ext.viewcode'
-             , 'sphinx.ext.githubpages'
+	     , 'sphinx.ext.extlinks'
              , 'sphinxcontrib.plantuml'
              , 'sphinxcontrib.doxylink'
              , 'txnbox'
              , 'local-config'
              ]
-
-# Contains values that are dependent on configure.ac.
-#execfile('ext/local-config.py')
 
 doxylink = { "txb" : ( 'doxygen/txn_box.tag', 'src/' ) }
 
@@ -89,6 +81,8 @@ copyright = u'2020, Verizon Media'
 version = '0.1'
 # The full version, including alpha/beta/rc tags.
 release = "0.2.20"
+
+extlinks = { 'git': ( 'https://github.com/solidwallofcode/txn_box/tree/{}/%s'.format(release) , '') }
 
 import sphinx_rtd_theme
 html_theme = 'sphinx_rtd_theme'

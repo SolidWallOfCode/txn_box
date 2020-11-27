@@ -12,7 +12,7 @@ Design Notes
 ************
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    config.en
    class-reference.en
