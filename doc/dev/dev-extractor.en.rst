@@ -8,9 +8,11 @@
 Extractor Development
 *********************
 
-Extractors are referenced by feature expressions. This means every extractor must be able to output to a string, and may optionally provide typed data.
+Extractors are referenced by feature expressions. This means every extractor must be able to output
+to a string, and may optionally provide typed data.
 
-Unlike other elements, use of extractor involves referencing a global instance, rathe rthan instatiating an instance per use. This is because
+Unlike other elements, use of an extractor involves referencing a global instance, rather than
+instantiating an instance per use. This is because
 
 *  Extractors are used far more frequently.
 *  Most extractors do not require any local storage or state.
@@ -22,7 +24,24 @@ class :code:`Ex_ua_req_url` is the implementation of the "ua-req-url" extractor.
 By convention, a :code:`TextView` named :code:`NAME` is declared to define the name of the
 extractor. This isn't required, the name is defined by the registration call, but it's convenient.
 
-There are several methods that are needed to be fully functional.
+There are several methods that are needed to be fully functional. Several of them take a
+:txb:`Extractor::Spec` parameter. For any specific use of an extractor there is a single instance of
+this class which is passed to all methods of the extractor. In some sense, this represents the
+per use instance data. This class is a subclass of the BufferWriter specifier to provide additional
+members. These are
+
+:code:`_exf`
+   A pointer to the extractor instance. This is used to call the extractor during feature extraction.
+
+:code:`_name`
+   The name of the extractor used in the feature expression.
+
+:code:`_data`
+   A memory span which is by default empty. It can be used to store per instance data if needed as
+   described below in the examples.
+
+Required Methods
+================
 
 .. code-block:: cpp
 
@@ -48,6 +67,8 @@ which will always return the types ``STRING`` and ``NIL`` and no errors.
    requires an argument that is the field name - :code:`proxy-rsp-field<Best-Band>` to get the field
    with the name "Best-Band'. If an argument is required, the :code:`validate` method must parse the
    argument and validate it, returning an error if it is invalid.
+
+An extractor that returns any type other than a string must override this method.
 
 .. code-block:: cpp
 
@@ -96,6 +117,15 @@ from configuration memory. The specifier has a member :txb:`Extractor::Spec::_da
 :code:`extract` a configuration allocated span can be stored there for later retrieval. While any
 span can be assigned to a void span, the :code:`MemSpan::rebind<T>` method must be used to retrieve the actual
 type.
+
+String Extractor
+----------------
+
+For performance reasons string extractors are required to extract into transient context memory. If the
+output size isn't reasonably bounded at extraction time then it may be necessary to attempt the
+extraction, detect the transient memory length being insufficient, and trying again. To simplify this
+there is a class, :txb:`StringExtractor` to help with the implementation. This requires the extractor
+to implement the :code:`format` method and uses that to implement the :code:`extract` method.
 
 Example
 =======

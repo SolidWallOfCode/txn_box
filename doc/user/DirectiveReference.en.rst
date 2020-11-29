@@ -252,7 +252,8 @@ Transaction
          reason: <reason phrase>
          body: <response body>
 
-   This directive generates a redirect response to the user agent without an upstream request.
+   This directive generates a redirect response to the user agent without an upstream request. This
+   must be used before the upstream request is made, that is in the post remap hook or earlier.
 
 Utility
 =======

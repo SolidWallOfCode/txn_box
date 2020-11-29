@@ -424,6 +424,12 @@ Transaction
 Session
 =======
 
+.. extractor::  inbound-txn-coujnt
+   :result: integer
+
+   The number of transactions, including the current on, that have occurred on the inbound
+   transaction.
+
 .. extractor:: inbound-addr-remote
    :result: IP address
 
