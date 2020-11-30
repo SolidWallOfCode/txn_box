@@ -167,6 +167,8 @@ TSPluginInit(int argc, char const *argv[]) {
     TSError("%s", err_str.c_str());
   }
   TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, TSContCreate(&CB_TxnBoxMsg, nullptr));
+#if TS_VERSION_MAJOR >= 9
   TSPluginDSOReloadEnable(false);
+#endif
 };
 /* ------------------------------------------------------------------------ */
