@@ -1,7 +1,7 @@
 meta:
   version: "1.0"
 
-  txn_box:
+  txn-box:
     remap:
     - with: pre-remap-path
       select:

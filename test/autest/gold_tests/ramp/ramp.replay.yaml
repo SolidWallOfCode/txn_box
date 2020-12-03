@@ -24,7 +24,7 @@ sessions:
       <<: *base_request
       headers:
         fields:
-        - [ Host, ex.one ]
+        - [ Host, one.ex ]
     proxy-request:
       <<: *base_request
     server-response:

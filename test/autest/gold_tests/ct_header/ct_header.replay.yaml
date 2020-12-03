@@ -13,7 +13,7 @@ meta:
         - var<ct-policy>:
           - ua-req-host
           - filter:
-            - match: "u.protected.com"
+            - match: "u.protected.ex"
               replace: "enforce"
             - replace: "report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\""
 
@@ -23,7 +23,7 @@ meta:
     - debug: "proxy host is {proxy-req-host}"
     - with: proxy-req-host
       select:
-      - tld: "protected.com"   # protected.com or any subdomain
+      - tld: "protected.ex"   # protected.ex or any subdomain
         do:
         - proxy-req-field<Cookie>: NULL
 
@@ -66,8 +66,8 @@ sessions:
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://example.one/config/settings.yaml"
-      headers: { fields: [[ Host, example.one]]}
+      url: "/config/settings.yaml"
+      headers: { fields: [[ Host, base.ex]]}
 
     proxy-request:
 
@@ -99,10 +99,10 @@ sessions:
 
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://example.one/config/settings.yaml"
-      headers: { fields: [[ Host, example.one ]]}
+      url: "/config/settings.yaml"
+      headers: { fields: [[ Host, base.ex ]]}
 
     proxy-request:
 
@@ -124,16 +124,16 @@ sessions:
         - [ x-content-type-options, "nosniff", equal ]
 
   #
-  # Test 3: For u.protected.com, expect the 'enforce' ct-policy.
+  # Test 3: For u.protected.ex, expect the 'enforce' ct-policy.
   #
   - all: { headers: { fields: [[ uuid, 3 ]]}}
 
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://u.protected.com/config/settings.yaml"
-      headers: { fields: [[ Host, u.protected.com ]]}
+      url: /config/settings.yaml
+      headers: { fields: [[ Host, u.protected.ex ]]}
 
     proxy-request:
 
@@ -155,16 +155,16 @@ sessions:
         - [ x-content-type-options, "nosniff", equal ]
 
   #
-  # Test 4: Not u.protected.com, so expect the default ct-policy.
+  # Test 4: Not u.protected.ex, so expect the default ct-policy.
   #
   - all: { headers: { fields: [[ uuid, 4 ]]}}
 
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://protected.com/config/settings.yaml"
-      headers: { fields: [[ Host, protected.com ]]}
+      url: "/config/settings.yaml"
+      headers: { fields: [[ Host, protected.ex ]]}
 
     proxy-request:
 
@@ -194,10 +194,10 @@ sessions:
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://example.one/config/settings.yaml"
+      url: "/config/settings.yaml"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
         - [ Cookie, "w=some; delicious=cookie" ]
 
     proxy-request:
@@ -226,10 +226,10 @@ sessions:
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
         - [ Cookie, "w=some; delicious=cookie" ]
 
     proxy-request:
@@ -255,10 +255,10 @@ sessions:
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
 
     proxy-request:
 
@@ -286,10 +286,10 @@ sessions:
       version: "1.1"
       scheme: "http"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
 
     proxy-request:
 
@@ -315,12 +315,12 @@ sessions:
   - all: { headers: { fields: [[ uuid, 9 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
 
     proxy-request:
 
@@ -347,12 +347,12 @@ sessions:
   - all: { headers: { fields: [[ uuid, 10 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
 
     proxy-request:
 
@@ -380,12 +380,12 @@ sessions:
   - all: { headers: { fields: [[ uuid, 11 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
+      scheme: "https"
       method: "GET"
-      url: "http://s.protected.com/fancy-picture.jpg"
+      url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
         fields:
-        - [ Host, s.protected.com ]
+        - [ Host, s.protected.ex ]
 
     proxy-request:
       method: "GET"

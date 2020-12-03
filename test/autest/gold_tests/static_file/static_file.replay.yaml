@@ -2,104 +2,128 @@
 
 meta:
   version: "1.0"
-
-  txn_box:
-  - when: post-load
-    do:
-    - debug: "Creating text blocks"
-    - text-block-define:
-        name: "SWOC"
-        path: "static_file.txt"
-        duration: hours<12>
-
-    - text-block-define:
-        name: "alternate"
-        path: "static_file.txt"
-        duration: seconds<20>
-
-    - text-block-define:
-        name: "missing"
-        path: "missing.txt"
-        text: "Concert missing."
-        duration: minutes<5>
-
-# -- Doc jwt open
-    - text-block-define:
-        name: "default-jwt"
-        path: "/var/www/jwt/default-token.jwt"
-        text: "N/A"
-        duration: hours<12>
-# -- Doc jwt close
-
-# -- Doc 1 open
-  - when: upstream-rsp
-    do:
-    - with: [ upstream-rsp-status , proxy-req-path ]
-      select:
-      - as-tuple:
-        - eq: 404
-        - match: "security.txt"
-        do:
-        - upstream-rsp-status: [ 200 , "OK" ]
-        - upstream-rsp-body: "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
+  secure_txt: &secure-text "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
                            # To report abusive behavior please visit http://yoyodyne.ex\n\
                            Contact: mailto:security@yoyodyne.ex\n\
                           "
-# -- Doc 1 close
 
-  - when: proxy-req
-    do:
-    - with: proxy-req-path
-      select:
-      - match: "concert.txt"
-        do:
-        - proxy-req-field<Author-i-tay>:
-          - proxy-req-field<Author-i-tay>
-          - else: text-block<SWOC>
+  txn-box:
+    global:
+    - when: post-load
+      do:
+      - debug: "Creating text blocks"
+      - text-block-define:
+          name: "SWOC"
+          path: "static_file.txt"
+          duration: hours<12>
 
-      - match: "alternate.txt"
-        do:
-        - proxy-req-field<Author-i-tay>: text-block<alternate>
+      - text-block-define:
+          name: "alternate"
+          path: "static_file.txt"
+          duration: seconds<20>
 
-      - match: "missing.txt"
-        do:
-        - proxy-req-field<Author-i-tay>: text-block<missing>
+      - text-block-define:
+          name: "missing"
+          path: "missing.txt"
+          text: "Concert missing."
+          duration: minutes<5>
 
-  txn-box-remap:
-  - when: proxy-rsp
-    do:
-    - proxy-rsp-field<SWOC>: [ proxy-rsp-field<SWOC>, { else: text-block<SWOC> }]
+# -- Doc jwt open
+      - text-block-define:
+          name: "default-jwt"
+          path: "/var/www/jwt/default-token.jwt"
+          text: "N/A"
+          duration: hours<12>
+# -- Doc jwt close
 
-# -- Doc jwt-apply open
-  - when: proxy-rsp
-    do:
-    - with: proxy-req-field<Author-i-tay>
-      select:
-      - is-empty:
-        do:
-        - proxy-rsp-field<Author-i-tay>: text-block<default-jwt>
+    - when: proxy-req
+      do:
+      - with: proxy-req-path
+        select:
+        - match: "concert.txt"
+          do:
+          - proxy-req-field<Author-i-tay>:
+            - proxy-req-field<Author-i-tay>
+            - else: text-block<SWOC>
+
+        - match: "alternate.txt"
+          do:
+          - proxy-req-field<Author-i-tay>: text-block<alternate>
+
+        - match: "missing.txt"
+          do:
+          - proxy-req-field<Author-i-tay>: text-block<missing>
+
+  # -- Doc 1 open
+    - when: upstream-rsp
+      do:
+      - with: [ upstream-rsp-status , proxy-req-path ]
+        select:
+        - as-tuple:
+          - eq: 404
+          - match: "security.txt"
+          do:
+          - upstream-rsp-status: [ 200 , "OK" ]
+          - upstream-rsp-body: *secure-text
+          - upstream-rsp-field<Cache-Control>: "max-age=3600"
+  # -- Doc 1 close
+
+    - when: proxy-rsp
+      do:
+      - with: [ proxy-rsp-status , proxy-req-path ]
+        select:
+        - as-tuple:
+          - eq: 404
+          - match: "security.txt"
+          do:
+          - proxy-rsp-status: [ 200 , "OK" ]
+          - proxy-rsp-body: [ *secure-text , "text/plain" ]
+
+    remap:
+    - when: proxy-rsp
+      do:
+      - proxy-rsp-field<SWOC>: [ proxy-rsp-field<SWOC>, { else: text-block<SWOC> }]
+
+  # -- Doc jwt-apply open
+    - when: proxy-rsp
+      do:
+      - with: proxy-req-field<Author-i-tay>
+        select:
+        - is-empty:
+          do:
+          - proxy-rsp-field<Author-i-tay>: text-block<default-jwt>
 # -- Doc jwt-apply close
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      scheme: "http"
+      method: "GET"
+
+  - base-rsp: &base-rsp
+      status: 200
+      reason: "OK"
+      content:
+        size: 56
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 56 ]
 
 sessions:
 - protocol: [ { name: ip, version : 4 } ]
   transactions:
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:
-      version: "1.1"
-      scheme: "http"
-      method: "GET"
+      <<: *base-req
       url: "/1"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
-      version: "1.1"
-      scheme: "http"
-      method: "GET"
-      url: "/1"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     server-response:
       status: 200
       reason: OK
@@ -124,7 +148,7 @@ sessions:
       url: "/2"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
       version: "1.1"
       scheme: "http"
@@ -132,7 +156,7 @@ sessions:
       url: "/2"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     server-response:
       status: 200
       reason: OK
@@ -156,7 +180,7 @@ sessions:
       url: "/security.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
       version: "1.1"
       scheme: "http"
@@ -164,7 +188,7 @@ sessions:
       url: "/security.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     server-response:
       status: 404
       reason: Not Found
@@ -187,7 +211,7 @@ sessions:
       url: "/concert.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
       version: "1.1"
       scheme: "http"
@@ -215,7 +239,7 @@ sessions:
       url: "/concert.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
         - [ Author-i-tay, "Nightwish Concert." ]
     proxy-request:
       headers:
@@ -240,7 +264,7 @@ sessions:
       url: "/alternate.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
         - [ Author-i-tay, "Nightwish Concert." ]
     proxy-request:
       headers:
@@ -265,7 +289,7 @@ sessions:
       url: "/alternate.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
       headers:
         fields:
@@ -281,7 +305,6 @@ sessions:
     proxy-response:
       status: 200
 
-
   - all: { headers: { fields: [[ uuid, 8 ]]}}
     client-request:
       version: "1.1"
@@ -290,7 +313,7 @@ sessions:
       url: "/missing.txt"
       headers:
         fields:
-        - [ Host, example.one ]
+        - [ Host, base.ex ]
     proxy-request:
       headers:
         fields:
@@ -303,5 +326,35 @@ sessions:
         fields:
         - [ Content-Type, text/html ]
         - [ Content-Length, 50 ]
+    proxy-response:
+      status: 200
+
+  # Verify a remap miss generates a 404
+  - all: { headers: { fields: [[ uuid, 9 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain.txt"
+      headers:
+        fields:
+        - [ Host, unmapped.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 404
+
+  # Verify a remap miss for the magic file is still a 200.
+  - all: { headers: { fields: [[ uuid, 10 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/security.txt"
+      headers:
+        fields:
+        - [ Host, unmapped.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
     proxy-response:
       status: 200

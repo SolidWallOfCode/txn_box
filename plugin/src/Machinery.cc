@@ -1610,7 +1610,7 @@ public:
 
 protected:
   TSHttpStatus _status = TS_HTTP_STATUS_NONE; ///< Return status is literal, 0 => extract at runtime.
-  Expr _fmt; ///< Reason phrase.
+  Expr _expr; ///< Reason phrase.
 
   Do_proxy_rsp_reason() = default;
 };
@@ -1619,7 +1619,7 @@ const std::string Do_proxy_rsp_reason::KEY {"proxy-rsp-reason" };
 const HookMask Do_proxy_rsp_reason::HOOKS {MaskFor({Hook::PRSP}) };
 
 Errata Do_proxy_rsp_reason::invoke(Context &ctx) {
-  auto value = ctx.extract(_fmt);
+  auto value = ctx.extract(_expr);
   if (STRING != ValueTypeOf(value)) {
     return Error(R"(Value for "{}" is not a string.)", KEY);
   }
@@ -1638,7 +1638,74 @@ Rv<Directive::Handle> Do_proxy_rsp_reason::load(Config& cfg, CfgStaticData const
   auto self = new self_type;
   Handle handle(self);
 
-  self->_fmt = std::move(expr);
+  self->_expr = std::move(expr);
+
+  return handle;
+}
+/* ------------------------------------------------------------------------------------ */
+/// Set proxy response (error) body.
+class Do_proxy_rsp_body : public Directive {
+  using self_type = Do_proxy_rsp_body; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+public:
+  static const std::string KEY; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Body content.
+
+  Do_proxy_rsp_body() = default;
+};
+
+const std::string Do_proxy_rsp_body::KEY {"proxy-rsp-body" };
+const HookMask Do_proxy_rsp_body::HOOKS {MaskFor({Hook::PRSP}) };
+
+Errata Do_proxy_rsp_body::invoke(Context &ctx) {
+  TextView body, mime { "text/html" };
+  auto value = ctx.extract(_expr);
+  if (STRING == ValueTypeOf(value)) {
+    body = std::get<IndexFor(STRING)>(value);
+  } else if (auto tp = std::get_if<IndexFor(TUPLE)>(&value) ; tp ) {
+    if (tp->count() == 2) {
+      if (auto ptr = std::get_if<IndexFor(STRING)>(&(*tp)[0]) ; ptr ){
+        body = *ptr;
+      }
+      if (auto ptr = std::get_if<IndexFor(STRING)>(&(*tp)[1]) ; ptr ){
+        mime = *ptr;
+      }
+    } else {
+      return Error(R"(Value for "{}" is not a list of length 2.)", KEY);
+    }
+  } else {
+    return Error(R"(Value for "{}" is not a string nor a list.)", KEY);
+  }
+  ctx._txn.error_body_set(body, mime);
+  return {};
+}
+
+Rv<Directive::Handle> Do_proxy_rsp_body::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (! errata.is_ok()) {
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy({ STRING, ActiveType::TupleOf(STRING) })) {
+    return Error(R"(The value for "{}" must be a string or a list of two strings.)", KEY, drtv_node.Mark());
+  }
+  auto self = new self_type;
+  Handle handle(self);
+
+  self->_expr = std::move(expr);
 
   return handle;
 }
@@ -2633,6 +2700,8 @@ namespace {
   Config::define<Do_proxy_rsp_field>();
   Config::define<Do_proxy_rsp_status>();
   Config::define<Do_proxy_rsp_reason>();
+  Config::define<Do_proxy_rsp_body>();
+
   Config::define<Do_upstream_rsp_body>();
 
   Config::define<Do_cache_key>();

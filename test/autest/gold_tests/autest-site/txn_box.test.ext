@@ -125,8 +125,8 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     TxnBoxRxUrlRewrite(ts, regex_map, { "http" : self.Variables.TXNBOX_SERVER.Variables.http_port
                                       , "https" : self.Variables.TXNBOX_SERVER.Variables.https_port})
 
-    # Always add this as a catch all at the end
-    ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(self.Variables.TXNBOX_SERVER.Variables.http_port))
+    if remap == None and regex_map == None :
+        ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(self.Variables.TXNBOX_SERVER.Variables.http_port))
 
     return self
 

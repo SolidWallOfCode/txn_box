@@ -13,7 +13,8 @@ Production use case: Use redirect to clip the path for specific URL paths.
 replay_file="yts-3489.replay.yaml"
 
 tr = Test.TxnBoxTestAndRun("Redirect", replay_file
-                , remap=[ ['http://base.ex/',  ( '--key=meta.txn_box.remap', replay_file) ]
+                , remap=[ [ 'http://base.ex/',  ( '--key=meta.txn-box.remap', replay_file) ]
+                        , [ 'http://unmatched.ex/' ]
                         ]
                 , verifier_client_args="--verbose info"
                 )

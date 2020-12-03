@@ -140,7 +140,7 @@ sessions:
         fields:
         - [ "Location", "http://charlie.ex/album/delain/moon-bathers.html", equal]
 
-  # This shouldn't match the remap rule and therefore shouldn't be redirected.
+  # This should match a remap rule without TxnBox therefore shouldn't be redirected.
   - all: { headers: { fields: [ [ uuid, 107 ] ] } }
     client-request:
       <<: *base-req

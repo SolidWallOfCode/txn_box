@@ -13,8 +13,12 @@ Verify txn_box can filter fields as expected.
 r = Test.TxnBoxTestAndRun("Test HTTP field manipulation", "ct_header.replay.yaml"
                           , config_path='Auto'
                           , config_key="meta.txn_box"
-                          , remap=[ [ "http://example.one/" ]
-                                  , [ "http://s.protected.com" ]
+                          , remap=[ [ "http://base.ex/" ]
+                                  , [ "https://base.ex/" ]
+                                  , [ "https://u.protected.ex/" ]
+                                  , [ "http://s.protected.ex/" ]
+                                  , [ "https://s.protected.ex/" ]
+                                  , [ "https://protected.ex/" ]
                                   ]
                           , enable_tls=True
                           )
