@@ -882,9 +882,9 @@ public:
 
   /** Construct with feature extractor @a fmt.
    *
-   * @param fmt Feature for host.
+   * @param expr Feature for host.
    */
-  Do_ua_req_query(Expr && fmt);
+  Do_ua_req_query(Expr && expr);
 
   /** Invoke directive.
    *
@@ -907,16 +907,16 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _fmt; ///< Host feature.
+  Expr _expr; ///< Host feature.
 };
 
 const std::string Do_ua_req_query::KEY {"ua-req-query" };
 const HookMask Do_ua_req_query::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
-Do_ua_req_query::Do_ua_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_ua_req_query::Do_ua_req_query(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_query::invoke(Context &ctx) {
-  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
   if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     hdr.url().query_set(text);
   }
@@ -928,6 +928,9 @@ swoc::Rv<Directive::Handle> Do_ua_req_query::load(Config& cfg, CfgStaticData con
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
+  }
+  if (expr.is_null()) {
+    expr= Feature{FeatureView::Literal(""_tv)};
   }
   if (!expr.result_type().can_satisfy(STRING)) {
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());

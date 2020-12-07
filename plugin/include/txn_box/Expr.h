@@ -116,6 +116,7 @@ public:
   }
 
   bool is_literal() const { return _expr.index() == LITERAL; }
+  bool is_null() const { return _expr.index() == LITERAL && std::get<LITERAL>(_expr).value_type() == NIL;}
 
   struct bwf_visitor {
     bwf_visitor(Context & ctx) : _ctx(ctx) {}
