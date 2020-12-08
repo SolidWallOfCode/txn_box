@@ -816,11 +816,11 @@ public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  /** Construct with feature extractor @a fmt.
+  /** Construct with feature extractor @a expr.
    *
-   * @param fmt Feature for host.
+   * @param expr Feature for host.
    */
-  Do_ua_req_path(Expr && fmt);
+  Do_ua_req_path(Expr && expr);
 
   /** Invoke directive.
    *
@@ -843,18 +843,20 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  Expr _fmt; ///< Host feature.
+  Expr _expr; ///< Host feature.
 };
 
 const std::string Do_ua_req_path::KEY {"ua-req-path" };
 const HookMask Do_ua_req_path::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
-Do_ua_req_path::Do_ua_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
+Do_ua_req_path::Do_ua_req_path(Expr &&expr) : _expr(std::move(expr)) {}
 
 Errata Do_ua_req_path::invoke(Context &ctx) {
-  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
-    hdr.url().path_set(text);
+  auto value { ctx.extract(_expr)};
+  if (auto text = std::get_if<IndexFor(STRING)>(&value) ; text ) {
+    if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+      hdr.url().path_set(*text);
+    }
   }
   return {};
 }

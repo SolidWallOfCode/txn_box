@@ -593,23 +593,17 @@ class Ex_proxy_req_path : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-path" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
 Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
-  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
     if ( ts::URL url { hdr.url() } ; url.is_valid()) {
       return FeatureView::Direct(url.path());
     }
   }
   return NIL_FEATURE;
 }
-
-BufferWriter& Ex_proxy_req_path::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
 /* ------------------------------------------------------------------------------------ */
 // Query string.
 class Ex_ua_req_query : public Extractor {
