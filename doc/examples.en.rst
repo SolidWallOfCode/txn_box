@@ -118,3 +118,23 @@ on the presumption it is a valid token. If not, then the default token is added.
 
 Once this is set up, pushes of new tokens to the file system on the production system takes no more
 than 12 hours to show up in the default tokens used.
+
+.. _example-path-tweaking:
+Path Tweaking
+=============
+
+This example also serves to illustrate the use of :code:`continue` in :drtv:`with`. The goal is to
+adjust a file name in a path depending on the presence of specific query parameters, which are then
+discarded. If the parameter "ma=0" is present, then the base file name must have the string "_noma"
+attached. If the parameter "mc=1" is present, then the base filename must have the string "_mac"
+attached. If both are present then both strings are added.
+
+.. literalinclude:: ../test/autest/gold_tests/prod/vznith-1.replay.yaml
+   :start-after: doc-start
+   :end-before: doc-end
+
+The configuration uses :drtv:`with` to check for the query parameters and adjust a variable
+containing the file name as needed. The :code:`continue` causes the invocation to proceed past the
+:drtv:`with` even if it matches. At the end, the path is assembled and set and the query parameters
+cleared.
+

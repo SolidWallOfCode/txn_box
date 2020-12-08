@@ -3,21 +3,24 @@ meta:
 
   txn-box:
     remap:
-    - var<path>: "boot"
-    - with: ua-req-query
+    # doc-start
+    - var<path>: "boot" # base file name stem.
+    - with: ua-req-query # Check for ma=0
       select:
       - contains: "ma=0"
         do:
         - var<path>: "{var<path>}_noma"
       continue:
-    - with: ua-req-query
+    - with: ua-req-query # Check for mc=1
       select:
       - contains: "mc=1"
         do:
         - var<path>: "{var<path>}_mac"
       continue:
+    # Correct file name is assembled, update the path.
     - ua-req-path: "edge/file/{var<path>}.ipxe.img"
-    - ua-req-query: NULL
+    - ua-req-query: NULL # Do not pass the query parameters upstream.
+    # doc-end
 
   blocks:
   - base-req: &base-req

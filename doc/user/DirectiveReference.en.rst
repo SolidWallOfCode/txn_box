@@ -30,20 +30,34 @@ Fundamental
    :value: expression
    :keys: select:Comparison list | do:Directive list | continue
 
-   Conditional invoke a list of directives. The :arg:`expression` evaluates to a feature. This feature is then compared against the comparisons in ``select`` list of comparisons. Each element of that list is an object. Each object can have a :ref:`comparison<comparison_reference>` and a list of directives under the ``do`` key. The feature for :arg:`expression` is compared in order by the comparisons and the first successful comparison is selected and the directives for the comparison invoked.
+   Conditional invoke a list of directives. The :arg:`expression` evaluates a feature expression to
+   create the *active feature*. This feature is then compared against the list comparisons attached
+   to the ``select`` keyword. Each element of that list is an object. Each object can have a
+   :ref:`comparison<comparison_reference>` and a list of directives under the ``do`` key. The
+   feature for :arg:`expression` is compared in order by the comparisons and the first successful
+   comparison is selected and the directives for the comparison invoked.
 
    As a fundamental principle, once a comparison is selected and the directives invoked, this
    terminates the invocation of directives for the most recent :drtv:`when` or :drtv:`with`. That
    is, normally there is no return from inside a :drtv:`with` because an outer :drtv:`with` will
    normally also return immediately up to the top level :drtv:`when`. This can be overridden for a
    specific instance by adding the key `continue`. If present then subsequent directives will be
-   invoked. This should be used sparingly as the point of this rule is to make it unambiguous which directives were invoked for a transaction. Note that if no comparison is successful subsequent directives are invoked and the :drtv:`with` has no effect.
+   invoked. This should be used sparingly as the point of this rule is to make it unambiguous which
+   directives were invoked for a transaction. Note that if no comparison is successful subsequent
+   directives are invoked and the :drtv:`with` has no effect. See
+   :ref:`this<example-path-tweaking>`_ as an example of how to use :code:`continue`.
 
-   A comparison is not required to have ``do`` in which case if it is matched, nothing is done but it counts as a match for the purposes of no return.
+   A comparison is not required to have ``do`` in which case if it is matched, nothing is done but
+   it counts as a match for the purposes of no return.
 
-   A comparison does not require an actual comparison but can consist only of ``do``. In this case it always matches and this form serves as a convenient "match anything" comparison. Obviously it should always be the last comparison if used.
+   A comparison does not require an actual comparison but can consist only of ``do``. In this case
+   it always matches and this form serves as a convenient "match anything" comparison. Obviously it
+   should always be the last comparison if used.
 
-   The ``do`` key can be used to invoke directives before any of the comparisons. This is useful primarily for access to the feature for :arg:`expression` via the :ex:`...` extractor which extracts that feature. If there is a nested :drtv:`with` that will terminate the list of ``do`` directives but will not prevent the comparisons and their associated directives.
+   The ``do`` key can be used to invoke directives before any of the comparisons. This is useful
+   primarily for access to the feature for :arg:`expression` via the :ex:`...` extractor which
+   extracts that feature. If there is a nested :drtv:`with` that will terminate the list of ``do``
+   directives but will not prevent the comparisons and their associated directives.
 
 User Agent Request
 ==================
