@@ -2,10 +2,12 @@
 
 meta:
   version: "1.0"
-  secure_txt: &secure-text "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
-                           # To report abusive behavior please visit http://yoyodyne.ex\n\
-                           Contact: mailto:security@yoyodyne.ex\n\
-                          "
+# -- doc-secure-text-->
+  secure_text: &secure-text "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
+                             # To report abusive behavior please visit http://yoyodyne.ex\n\
+                             Contact: mailto:security@yoyodyne.ex\n\
+                            "
+# -- doc-secure-text--<
 
   txn-box:
     global:
@@ -28,13 +30,13 @@ meta:
           text: "Concert missing."
           duration: minutes<5>
 
-# -- Doc jwt open
+# -- doc-jwt-->
       - text-block-define:
           name: "default-jwt"
           path: "/var/www/jwt/default-token.jwt"
           text: "N/A"
           duration: hours<12>
-# -- Doc jwt close
+# -- doc-jwt--<
 
     - when: proxy-req
       do:
@@ -54,7 +56,7 @@ meta:
           do:
           - proxy-req-field<Author-i-tay>: text-block<missing>
 
-  # -- Doc 1 open
+  # -- doc-1-->
     - when: upstream-rsp
       do:
       - with: [ upstream-rsp-status , proxy-req-path ]
@@ -66,25 +68,31 @@ meta:
           - upstream-rsp-status: [ 200 , "OK" ]
           - upstream-rsp-body: *secure-text
           - upstream-rsp-field<Cache-Control>: "max-age=3600"
-  # -- Doc 1 close
+  # -- doc-1--<
 
+# -- doc-proxy-rsp-->
     - when: proxy-rsp
       do:
-      - with: [ proxy-rsp-status , proxy-req-path ]
+      # If this is checking it could be because there was an early failure. In that case the proxy
+      # request may never have been created and proxy-req-path will be NULL. This syntax tries
+      # proxy-req-path and if it is NULL, tries ua-req-path instead which will always be something.
+      - with: [ proxy-rsp-status , [ proxy-req-path , { else: ua-req-path } ] ]
         select:
         - as-tuple:
           - eq: 404
           - match: "security.txt"
           do:
+          - debug: "Resetting proxy response"
           - proxy-rsp-status: [ 200 , "OK" ]
           - proxy-rsp-body: [ *secure-text , "text/plain" ]
+# -- doc-proxy-rsp--<
 
     remap:
     - when: proxy-rsp
       do:
       - proxy-rsp-field<SWOC>: [ proxy-rsp-field<SWOC>, { else: text-block<SWOC> }]
 
-  # -- Doc jwt-apply open
+  # -- doc-jwt-apply-->
     - when: proxy-rsp
       do:
       - with: proxy-req-field<Author-i-tay>
@@ -92,7 +100,7 @@ meta:
         - is-empty:
           do:
           - proxy-rsp-field<Author-i-tay>: text-block<default-jwt>
-# -- Doc jwt-apply close
+# -- doc-jwt-apply--<
 
   blocks:
   - base-req: &base-req

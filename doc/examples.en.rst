@@ -88,11 +88,36 @@ Goal
 Example configuration
 
 .. literalinclude:: ../test/autest/gold_tests/static_file/static_file.replay.yaml
-   :start-after: Doc 1 open
-   :end-before: Doc 1 close
+   :start-after: doc-1-->
+   :end-before: doc-1--<
 
 This checks on the upstream response. If the status is 404 (not found) and the path is exactly
 "security.txt" then change the response to a 200 and provide a hard wired default for the content.
+The text is retrieved via a YAML reference to an anchor.
+
+.. literalinclude:: ../test/autest/gold_tests/static_file/static_file.replay.yaml
+   :start-after: doc-secure-text-->
+   :end-before: doc-secure-text--<
+
+Unfortunately this is insufficient because in some situations there will be no proxy request and
+therefore no upstream response. Because of limitations in the plugin API this can't be handled
+directly and requires an additional bit of configuration for that case. This is the reason for using
+the anchor and reference in the previous configuration, to make sure the exact same text is used in
+both cases. Note this is done during YAML parsing, not at runtime, and is identical to using literal
+strings in both cases.
+
+.. literalinclude:: ../test/autest/gold_tests/static_file/static_file.replay.yaml
+   :start-after: doc-proxy-rsp-->
+   :end-before: doc-proxy-rsp--<
+
+Note only one of these will trigger on a specific transaction, because if the upstream check
+activates, the status will not be 404 when it is checked here. This is also a bit more complex
+because in some situations for which this is checking the proxy request will not have been created,
+e.g. if there is a failure to remap the request. As a result the path uses a modifier so that if
+:ex:`proxy-req-path` isn't available due to the proxy request not having been created, it falls back
+to :ex:`ua-req-path` to get the path the user agent sent. It would also be reasonable to only use
+:ex:`ua-req-path` in both cases so that only if the user agent specifically requested "security.txt"
+would the default be used.
 
 Goal
    Provide a default `JSON web token <https://tools.ietf.org/html/rfc7519>`__.
@@ -106,20 +131,21 @@ to load that file and check it for changes every 12 hours. If the file is missin
 "N/A" that signals this problem to the upstream.
 
 .. literalinclude:: ../test/autest/gold_tests/static_file/static_file.replay.yaml
-   :start-after: Doc jwt open
-   :end-before: Doc jwt close
+   :start-after: doc-jwt-->
+   :end-before: doc-jwt--<
 
 To use this, the proxy request is checked for the "Author-i-tay" field. If set it is passed through
 on the presumption it is a valid token. If not, then the default token is added.
 
 .. literalinclude:: ../test/autest/gold_tests//static_file/static_file.replay.yaml
-   :start-after: Doc jwt-apply open
-   :end-before: Doc jwt-apply close
+   :start-after: doc-jwt-apply-->
+   :end-before: doc-jwt-apply--<
 
 Once this is set up, pushes of new tokens to the file system on the production system takes no more
 than 12 hours to show up in the default tokens used.
 
 .. _example-path-tweaking:
+
 Path Tweaking
 =============
 
