@@ -45,7 +45,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, base ]]}}
     client-request:
       <<: *base-req
-      url: "/edge/file/base.ipxe.img"
+      url: "/edge/file/boot.ipxe.img"
       headers:
         fields:
         - [ Host, base.ex ]
@@ -79,7 +79,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, ma=1 ]]}}
     client-request:
       <<: *base-req
-      url: "/edge/file/?ma=1"
+      url: "/edge/file?ma=1"
       headers:
         fields:
         - [ Host, base.ex ]
@@ -96,7 +96,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, mc=0 ]]}}
     client-request:
       <<: *base-req
-      url: "/edge/file/?mc=0"
+      url: "/edge/file?mc=0"
       headers:
         fields:
         - [ Host, base.ex ]
@@ -181,7 +181,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, both-extra-2 ]]}}
     client-request:
       <<: *base-req
-      url: "/edge/file/?best-band=delain;mc=1;parm=arg;ma=0"
+      url: "/edge/file/boot.ipxe.img?best-band=delain;mc=1;parm=arg;ma=0"
       headers:
         fields:
         - [ Host, base.ex ]
@@ -210,3 +210,21 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 200
+
+  # Enable "ma", longer URL.
+  - all: { headers: { fields: [[ uuid, ma-full-url ]]}}
+    client-request:
+      <<: *base-req
+      url: "/edge/file/boot.ipxe.img?ma=0"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ path, "/edge/file/boot_noma.ipxe.img", equal ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
