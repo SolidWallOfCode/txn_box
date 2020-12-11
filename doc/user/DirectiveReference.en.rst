@@ -45,7 +45,7 @@ Fundamental
    invoked. This should be used sparingly as the point of this rule is to make it unambiguous which
    directives were invoked for a transaction. Note that if no comparison is successful subsequent
    directives are invoked and the :drtv:`with` has no effect. See
-   :ref:`this<example-path-tweaking>`_ as an example of how to use :code:`continue`.
+   :ref:`this<example-path-tweaking>` as an example of how to use :code:`continue`.
 
    A comparison is not required to have ``do`` in which case if it is matched, nothing is done but
    it counts as a match for the purposes of no return.
