@@ -366,3 +366,18 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 200
+
+  # Verify non-exact path is still a 404
+  - all: { headers: { fields: [[ uuid, 11 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/dave/security.txt"
+      headers:
+        fields:
+        - [ Host, unmapped.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 404

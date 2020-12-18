@@ -46,10 +46,10 @@ The simplest way to do this would be
 
 This has two buckets, the first at 30% and the second at 10%. :ex:`random` is used to generate
 random numbers in the range 0..99 which means the extracted value is :code:`lt: 30` roughly 30 times
-out of every hunder, or 30% of the time. The buckets are selected by first checking the pre-remap
+out of every hundred, or 30% of the time. The buckets are selected by first checking the pre-remap
 path (so that it is not affected by other plugins which may run earlier in remapping). Two paths
-are in the 30% bucket and one in the 10% bucket. Adding additiona paths is easy, as is changing
-the percent diversion. Other buckets can also be added easily.
+are in the 30% bucket and one in the 10% bucket. Adding additional paths is easy, as is changing
+the percent diversion. Other buckets can be added with little effort.
 
 This can be done in another way by generating the random value once and checking it multiple times.
 Given the no backtrack rule, this is challenging to do by checking the percentage first. Instead the

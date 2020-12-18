@@ -10,11 +10,32 @@ meta:
         - prefix: "delain/"
         do:
         - redirect: "http://bravo.ex/{*}"
-    - redirect: # Otherwise redirect with original path.
-        location: "http://charlie.ex/{pre-remap-path}"
+    # Otherwise use original path, and preserve the query string if present.
+    - var<query>: "?{pre-remap-query}"
+    - with: pre-remap-query
+      select:
+      - is-empty: # If there wasn't a query string, get rid of the lone "?"
+        do:
+        - var<query>: ""
+      continue:
+    - redirect:
+        location: "http://charlie.ex/{pre-remap-path}{var<query>}"
         status: 302
         reason: "Because I said so!"
         body: "The album is now located at <a href=\"{this::location}\">{this::location}</a>. Please update your link."
+
+    # Alternate way of handling the query string.
+    remap-alt:
+    - with: pre-remap-query
+      select:
+      - is-empty: # Don't use the "?" if no query string.
+        do:
+        - redirect:
+            location: "http://delta.ex/{pre-remap-path}"
+            status: 302
+    - redirect:
+        location: "http://delta.ex/{pre-remap-path}?{pre-remap-query}"
+        status: 302
 
   blocks:
   - base-req: &base-req
@@ -154,3 +175,57 @@ sessions:
       headers:
         fields:
         - [ "Location", "", absent]
+
+  # Is the query string preserved?
+  - all: { headers: { fields: [ [ uuid, 108 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html?track=3"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://charlie.ex/nightwish/ocean-born.html?track=3", equal]
+
+  # Does the alternate style work without a query string?
+  - all: { headers: { fields: [ [ uuid, 109 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html"
+      headers:
+        fields:
+        - [ "Host", "alt.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://delta.ex/nightwish/ocean-born.html", equal]
+
+  # Is the query string preserved in the alternate style?
+  - all: { headers: { fields: [ [ uuid, 110 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html?track=3"
+      headers:
+        fields:
+        - [ "Host", "alt.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://delta.ex/nightwish/ocean-born.html?track=3", equal]
