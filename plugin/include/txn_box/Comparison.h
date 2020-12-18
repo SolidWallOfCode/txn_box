@@ -182,21 +182,23 @@ public:
    */
   Errata load(Config& cfg, YAML::Node node) override;
 
-  iterator operator()(Context& ctx, Feature const& feature) {
-    for ( auto spot = _cmps.begin() , limit = _cmps.end() ; spot != limit ; ++spot ) {
-      if ((*spot)(ctx, feature)) {
-        return spot;
-      }
-    }
-    return _cmps.end();
-  }
+  /** Invoke the comparisons.
+   *
+   * @param ctx Transaction context.
+   * @param feature Active feature to compare.
+   * @return The iterator for the successful comparison, or the end iterator if none succeeded.
+   */
+  iterator operator()(Context& ctx, Feature const& feature);
 
+  /// @return The location of the first comparison.
   iterator begin() { return _cmps. begin(); }
+  /// @return Location past the last comparison.
   iterator end() { return _cmps.end(); }
   const_iterator begin() const { return _cmps.begin(); }
   const_iterator end() const { return _cmps.end(); }
 
 protected:
+  /// The comparisons.
   std::vector<W> _cmps;
 
   /** Load comparison case.
@@ -233,4 +235,14 @@ template < typename W > auto ComparisonGroup<W>::load_case(Config &cfg, YAML::No
 
   _cmps.emplace_back(std::move(w));
   return {};
+}
+
+template<typename W>
+auto ComparisonGroup<W>::operator()(Context& ctx, Feature const& feature) -> iterator {
+  for ( auto spot = _cmps.begin() , limit = _cmps.end() ; spot != limit ; ++spot ) {
+    if ((*spot)(ctx, feature)) {
+      return spot;
+    }
+  }
+  return _cmps.end();
 }

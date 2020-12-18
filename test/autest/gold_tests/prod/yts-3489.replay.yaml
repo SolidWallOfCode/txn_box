@@ -37,6 +37,18 @@ meta:
         location: "http://delta.ex/{pre-remap-path}?{pre-remap-query}"
         status: 302
 
+    # Handle query string using join
+    # This uses the join modifier instead of the conditional with directive.
+    # The tricky bit is join will skip NULL but not empty strings so the query needs to be filtered
+    # out if it's empty before doing the join.
+    remap-join:
+    - redirect:
+        location:
+          - [ "http://echo.ex/{pre-remap-path}" , pre-remap-query ] # list of URL+path, query
+          - filter: [ { is-empty: , drop: } , { pass: } ] # drop query if it's empty.
+          - join: "?" # add "?" and query if query is still there (i.e. is not empty).
+        status: 302
+
   blocks:
   - base-req: &base-req
       version: "1.1"
@@ -229,3 +241,39 @@ sessions:
       headers:
         fields:
         - [ "Location", "http://delta.ex/nightwish/ocean-born.html?track=3", equal]
+
+  # Does the alternate style work without a query string?
+  - all: { headers: { fields: [ [ uuid, 111 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html"
+      headers:
+        fields:
+        - [ "Host", "join.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://echo.ex/nightwish/ocean-born.html", equal]
+
+  # Is the query string preserved in the alternate style?
+  - all: { headers: { fields: [ [ uuid, 112 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html?track=3"
+      headers:
+        fields:
+        - [ "Host", "join.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://echo.ex/nightwish/ocean-born.html?track=3", equal]
