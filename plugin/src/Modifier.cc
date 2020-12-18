@@ -310,6 +310,8 @@ bool Mod_Filter::Case::operator()(Context& ctx, Feature const& feature) {
 Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView, TextView, YAML::Node key_value) {
   auto self = new self_type;
   Handle handle(self);
+  auto active_type = cfg.active_type();
+  auto scope { cfg.feature_scope(active_type.can_satisfy(TUPLE) ? active_type.tuple_types() : active_type) };
 
   if (auto errata = self->_cases.load(cfg, key_value) ; ! errata.is_ok()) {
     errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
@@ -382,7 +384,115 @@ Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node, TextView, TextView,
   return Handle(new self_type{std::move(fmt)});
 };
 
-// --- //
+// ---
+/// Concatenate a tuple into a string.
+class Mod_Join : public Modifier {
+  using self_type = Mod_Join;
+  using super_type = Modifier;
+public:
+  static constexpr TextView KEY { "join" }; ///< Identifier name.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const& ex_type) const override;
+
+  /// Resulting type of feature after modifying.
+  ActiveType result_type(ActiveType const&) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+protected:
+  Expr _separator;
+
+  explicit Mod_Join(Expr && fmt) : _separator(std::move(fmt)) {}
+};
+
+bool Mod_Join::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(MaskFor(NIL, STRING, TUPLE));
+}
+
+ActiveType Mod_Join::result_type(ActiveType const&) const {
+  return STRING;
+}
+
+Rv<Feature> Mod_Join::operator()(Context &ctx, Feature const& feature) {
+  // Get the separator - if that doesn't work, leave it empty.
+  TextView sep;
+  auto value = ctx.extract(_separator);
+  if (auto ptr = std::get_if<IndexFor(STRING)>(&value) ; ptr != nullptr ) {
+    sep = *ptr;
+  }
+  // Output buffer.
+  swoc::FixedBufferWriter w{ctx._arena->remnant()};
+  // Get the tuple to join.
+  if ( auto t = std::get_if<IndexFor(TUPLE)>(&feature) ; t ) {
+    // -
+    auto generate = [](swoc::BufferWriter& w, FeatureTuple const& t, TextView sep) {
+      bool need_sep_p = false;
+      for ( auto const& f : t ) {
+        if (need_sep_p) {
+          w.write(sep);
+        }
+
+        if (!is_nil(f)) {
+          auto n = w.extent();
+          bwformat(w, swoc::bwf::Spec::DEFAULT, f);
+          need_sep_p = w.extent() > n; // Need a separator for the next item if this wasn't empty.
+        }
+      }
+    };
+    //-
+    generate(w, *t, sep);
+    if (w.error()) {
+      w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
+      generate(w, *t, sep);
+    }
+  } else {
+    // Anything except a tuple, force to string.
+    bwformat(w, swoc::bwf::Spec::DEFAULT, feature);
+    if (w.error()) {
+      w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
+      bwformat(w, swoc::bwf::Spec::DEFAULT, feature);
+    }
+  }
+  Feature zret { w.view() };
+  ctx.commit(zret);
+  return zret;
+}
+
+Rv<Modifier::Handle> Mod_Join::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+
+  if (! expr.result_type().can_satisfy(STRING)) {
+    errata.info(R"("{}" modifier at {} requires a string argument.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(expr)});
+};
+
+// ---
 
 /// Convert the feature to an Integer.
 class Mod_As_Integer : public Modifier {
@@ -529,6 +639,7 @@ namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Modifier::define(Mod_Hash::KEY, &Mod_Hash::load);
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
+  Modifier::define(Mod_Join::KEY, &Mod_Join::load);
   Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
   Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);

@@ -858,6 +858,7 @@ public:
 
   bool operator() (Context& ctx, feature_type_for<NIL>) const override;
   bool operator() (Context& ctx, feature_type_for<STRING> const& s) const override;
+  bool operator() (Context& ctx, feature_type_for<TUPLE> const& s) const override;
 
   /// Construct an instance from YAML configuration.
   static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
@@ -867,7 +868,7 @@ protected:
 };
 
 const std::string Cmp_is_empty::KEY {"is-empty" };
-const ValueMask Cmp_is_empty::TYPES {MaskFor({ NIL , STRING }) };
+const ValueMask Cmp_is_empty::TYPES {MaskFor({ NIL , STRING, TUPLE }) };
 
 bool Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const {
   return true;
@@ -875,6 +876,10 @@ bool Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const {
 
 bool Cmp_is_empty::operator()(Context &, feature_type_for<STRING> const& s) const {
   return s.empty();
+}
+
+bool Cmp_is_empty::operator()(Context &, feature_type_for<TUPLE> const& t) const {
+  return t.count() == 0;
 }
 
 Rv<Comparison::Handle> Cmp_is_empty::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
