@@ -22,20 +22,20 @@ meta:
       - text-block-define:
           name: "alternate"
           path: "static_file.txt"
-          duration: seconds<20>
+          duration: [ minutes<1> , seconds<20> ]
 
       - text-block-define:
           name: "missing"
           path: "missing.txt"
           text: "Concert missing."
-          duration: minutes<5>
+          duration: "2 minutes 30 seconds"
 
 # -- doc-jwt-->
       - text-block-define:
           name: "default-jwt"
           path: "/var/www/jwt/default-token.jwt"
           text: "N/A"
-          duration: hours<12>
+          duration: "12h"
 # -- doc-jwt--<
 
     - when: proxy-req

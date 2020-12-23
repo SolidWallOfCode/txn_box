@@ -272,6 +272,13 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
    */
   swoc::Rv<type_for<INTEGER>> as_integer(type_for<INTEGER> invalid = 0) const;
 
+  /** Coerce feature to a duration.
+   *
+   * @param invalid Invalid value.
+   * @return The feature as a duration, or @a invalid if it cannot be coerced along with errors.
+   */
+  swoc::Rv<type_for<DURATION>> as_duration(type_for<DURATION> invalid = std::chrono::seconds(0)) const;
+
   /** Create a string feature by combining this feature.
    *
    * @param ctx Runtime context.
@@ -743,6 +750,7 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple const& t);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, feature_type_for<DURATION> const& d);
 //BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ActiveType const& type);
 }
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
