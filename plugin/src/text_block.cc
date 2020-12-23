@@ -213,11 +213,17 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData cons
       dur_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(dur_errata);
     }
-    if (! dur_expr.is_literal() || ! dur_expr.result_type().can_satisfy(DURATION)) {
-      return Error("{} value at {} for {} directive at {} must be a literal duration.", DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
+    if (! dur_expr.is_literal()) {
+      return Error("{} value at {} for {} directive at {} must be a literal duration."
+                   , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
+    }
+    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._expr).as_duration()};
+    if (! dur_value_errata.is_ok()) {
+      return Error("{} value at {} for {} directive at {} is not a valid duration."
+                   , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
     }
     drtv_node.remove(dur_node);
-    self->_duration = std::get<IndexFor(DURATION)>(std::get<Expr::LITERAL>(dur_expr._expr));
+    self->_duration = dur_value;
   }
 
   if (! self->_path.empty()) {
