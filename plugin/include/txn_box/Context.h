@@ -40,10 +40,6 @@ class Context {
     void operator()(swoc::MemArena* arena);
   };
 public:
-  /// Transaction local storage.
-  /// This is a pointer so that the arena can be inverted to minimize allocations.
-  std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
-
   /// Construct based a specific configuration.
   explicit Context(std::shared_ptr<Config> const& cfg);
 
@@ -115,6 +111,27 @@ public:
    */
   Feature& commit(Feature & feature);
 
+  /** Commit a view.
+   *
+   * @param view View to commit.
+   * @return @a Updated view.
+   *
+   * If @a view is in the transient buffer, or a a direct view, it is committed to the
+   * context arena.
+   *
+   * @note @a view is not modified - the caller @b must use the return value.
+   *
+   * @see extract
+   */
+  FeatureView commit(FeatureView const& feature);
+
+  /** Allocate and initialize a block of memory as an instance of @a T
+
+      The template type specifies the type to create and any arguments are forwarded to the
+      constructor. If the constructed object needs destruction, see @c mark_for_cleanup.
+  */
+  template<typename T, typename... Args> T *make(Args&& ... args);
+
   /** Allocate context (txn scoped) space for an array of @a T.
    *
    * @tparam T Element type.
@@ -126,6 +143,74 @@ public:
    * @see mark_for_cleanup
    */
   template < typename T > swoc::MemSpan<T> alloc_span(unsigned count);
+
+  /** Require @a n bytes of transient buffer.
+   *
+   * @param n Minimum buffer size.
+   * @return @a this
+   *
+   * Any previous transient buffer is committed. Immediately after this method there will be at
+   * least @a n bytes in the transient buffer. This is useful for string rendering when a reasonable
+   * upper bound on the string length can be computed.
+   */
+  self_type & transient_require(size_t n);
+
+  /** Get the transient buffer.
+   *
+   * @return The transient buffer.
+   *
+   * Any previous transient buffer is committed and the entire arena remnant is returned.
+   */
+  swoc::MemSpan<char> transient_buffer();;
+
+  /** Get a transient buffer of a specific fize.
+   *
+   * @param n The number of bytes.
+   * @return A transient span of @a n bytes.
+   *
+   * Any previous transient buffer is committed. The arena remnant is resized as needed to provide
+   * @a n bytes of storage.
+   */
+  swoc::MemSpan<char> transient_buffer(size_t n);
+
+  /** Get a transient span of a specific type.
+   *
+   * @tparam T Element type.
+   * @param count Number of elements.
+   * @return A span of @a count elemenents of type @a T
+   *
+   * Any previous transient span is committed. The arena remnant is resized as needed. The elements
+   * of the span are not initialized, this provides only storage.
+   */
+  template < typename T > swoc::MemSpan<T> transient_span(unsigned count);
+
+  /** Commit the current transient buffer.
+   *
+   * @return @a this
+   *
+   * If there is a transient buffer, it is committed.
+   */
+  self_type & commit_transient();
+
+  /** Discard the current transient buffer.
+   *
+   * @return @a this
+   *
+   * The current transient buffer is discarded and the memory can be re-used. This should be called
+   * in cases where the transient buffer is used only locally, otherwise it will be committed the
+   * next time a transient buffer is requested.
+   */
+  self_type & discard_transient();
+
+  template < typename F > FeatureView render_transient(F const& f) {
+    swoc::FixedBufferWriter w{ this->transient_buffer()};
+    f(w);
+    if (w.error()) {
+      w.assign(this->discard_transient().transient_buffer(w.extent()));
+      f(w);
+    }
+    return w.view();
+  }
 
   /** Convert a reserved span into memory in @a this.
    *
@@ -251,7 +336,7 @@ public:
   ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
   ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
   ts::HttpResponse proxy_rsp_hdr(); ///< @return proxy response.
-  ts::HttpSsn inbound_ssn() { return _txn.ssn(); }; ///< Inbound session.
+  ts::HttpSsn inbound_ssn();; ///< Inbound session.
 
   /** Store a transaction variable.
    *
@@ -376,6 +461,12 @@ protected:
     swoc::MemSpan<void> _storage;
   };
 
+  /// Transaction local storage.
+  /// This is a pointer so that the arena can be inverted to minimize allocations.
+  std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
+
+  size_t _transient = 0; ///< Current amount of reserved / temporary space in the arena.
+
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
   ts::HttpRequest _proxy_req; ///< Proxy request header.
@@ -465,6 +556,7 @@ template < typename T > Context& Context::mark_for_cleanup(T *ptr) {
 
 template<typename T>
 swoc::MemSpan<T> Context::alloc_span(unsigned int count) {
+  this->commit_transient();
   return _arena->alloc(sizeof(T) * count).rebind<T>();
 }
 
@@ -498,3 +590,25 @@ inline void Context::clear_cache() {
   _upstream_rsp = {};
   _proxy_rsp = {};
 }
+
+template<typename T>
+swoc::MemSpan<T> Context::transient_span(unsigned int count) {
+  if (_transient) {
+    _arena->alloc(_transient);
+  }
+  _transient = count * sizeof(T);
+  return _arena->require(_transient).remnant().rebind<T>().prefix(count);
+}
+
+inline Context::self_type& Context::discard_transient() {
+  _transient = 0;
+  return *this;
+}
+
+template<typename T, typename... Args> T *Context::make(Args&& ... args) {
+  this->commit_transient();
+  return new(this->_arena->alloc(sizeof(T)).data()) T(std::forward<Args>(args)...);
+}
+
+inline ts::HttpSsn Context::inbound_ssn() { return _txn.ssn(); }
+

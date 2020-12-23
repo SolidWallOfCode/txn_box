@@ -324,7 +324,10 @@ Feature Ex_text_block::extract(Context &ctx, const Spec &spec) {
     auto map = Do_text_block_define::map(rtti);
     if (auto spot = map->find(arg) ; spot != map->end()) {
       auto block = spot->second;
-      std::shared_ptr<std::string>& content = *ctx._arena->make<std::shared_ptr<std::string>>();
+      // This needs to persist until the end of the invoking directive. There's no direct
+      // support for that so the best that can be done is to persist until the end of the
+      // transaction by putting it in context storage.
+      std::shared_ptr<std::string>& content = *(ctx.make<std::shared_ptr<std::string>>());
 
       { // grab a copy of the shared pointer to file content.
         std::shared_lock lock(block->_content_mutex);

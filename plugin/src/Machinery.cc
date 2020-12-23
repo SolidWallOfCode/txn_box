@@ -1180,9 +1180,7 @@ protected:
 
     // Other types, convert to string
     template<typename T> auto operator()(T&& t) -> EnableForFeatureTypes<T, void> {
-      swoc::ArenaWriter w{*(_ctx._arena)};
-      bwformat(w, bwf::Spec::DEFAULT, t);
-      this->assign(w.view());
+      this->assign(_ctx.template render_transient([&](BufferWriter & w) { bwformat(w, bwf::Spec::DEFAULT, t); }));
       this->clear_dups();
     }
   };
@@ -2098,112 +2096,6 @@ Rv<Directive::Handle> Do_debug::load(Config& cfg, CfgStaticData const*, YAML::No
 }
 
 /* ------------------------------------------------------------------------------------ */
-class QueryDirective {
-public:
-  Errata invoke(Context &ctx, Expr& fmt, ts::URL url, TextView key);
-};
-
-Errata QueryDirective::invoke(Context &ctx, Expr& fmt, ts::URL url, TextView key) {
-  auto feature = ctx.extract(fmt);
-  if (key.empty()) {
-    url.query_set(std::get<IndexFor(STRING)>(feature));
-    return {};
-  }
-
-  // Need remnant space therefore this needs to be permanent.
-  ctx.commit(feature);
-
-  swoc::ArenaWriter aw{*ctx._arena};
-  TextView sep; // last separator found.
-  TextView::size_type offset = 0;
-  auto query { url.query() };
-  // Check each parameter for matching @a _arg.
-  while (offset < query.size()) {
-    if (query.substr(offset).starts_with(key) &&
-        ((query.size() == offset + key.size()) ||
-         ("=&;"_tv.find(query[key.size()]) != TextView::npos ))) {
-      aw.write(sep).write(query.remove_prefix(offset)); // write out prior query section
-      if (!is_nil(feature)) {
-        Feature value = car(feature);
-        if (is_nil(value)) {
-          aw.write(key);
-        } else {
-          aw.print("{}={}", key, value);
-        }
-      }
-      query.remove_prefix(offset).ltrim_if([](char c){return c != '&' && c != ';';});
-      sep = query.take_prefix(1);
-      offset = 0;
-      feature = cdr(feature);
-    } else {
-      offset = query.find_first_of(";&"_sv, offset+1);
-    }
-  }
-  if (query) {
-    aw.write(sep).write(query);
-  }
-  while (! is_nil(feature)) {
-    Feature value = car(feature);
-    if (is_nil(value)) {
-      aw.write(key);
-    } else {
-      aw.print("{}={}", key, value);
-    }
-    feature = cdr(feature);
-  }
-  return {};
-}
-
-class Do_set_creq_query : public Directive, QueryDirective {
-  using self_type = Do_set_creq_query;
-  using super_type = Directive;
-public:
-  static const std::string KEY;
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  Errata invoke(Context & ctx) override;
-
-  /** Load from YAML node.
-   *
-   * @param cfg Configuration data.
-   * @param rtti Configuration level static data for this directive.
-   * @param drtv_node Node containing the directive.
-   * @param name Name from key node tag.
-   * @param arg Arg from key node tag.
-   * @param key_value Value for directive @a KEY
-   * @return A directive, or errors on failure.
-   */
-  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
-  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView arg, YAML::Node key_value);
-
-protected:
-  TextView _arg;
-  Expr _expr;
-
-  Do_set_creq_query(TextView arg, Expr && fmt) : _arg(arg), _expr(std::move(fmt)) {}
-};
-
-const std::string Do_set_creq_query::KEY { "set-creq-query" };
-const HookMask Do_set_creq_query::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP}) };
-
-Errata Do_set_creq_query::invoke(Context &ctx) {
-  return this->QueryDirective::invoke(ctx, _expr, ctx.ua_req_hdr().url(), _arg);
-}
-
-Rv<Directive::Handle> Do_set_creq_query::load(Config &cfg, CfgStaticData const*, YAML::Node drtv_node
-                                             , swoc::TextView const &, swoc::TextView arg
-                                             , YAML::Node key_value) {
-
-  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
-    return std::move(errata);
-  }
-
-  return Handle(new self_type(cfg.localize(arg), std::move(expr)));
-}
-/* ------------------------------------------------------------------------------------ */
 /// Set the cache key.
 class Do_cache_key : public Directive {
   using self_type = Do_cache_key; ///< Self reference type.
@@ -2250,7 +2142,6 @@ Rv<Directive::Handle> Do_cache_key::load(Config& cfg, CfgStaticData const*, YAML
 
   return Handle(new self_type(std::move(fmt)));
 }
-
 /* ------------------------------------------------------------------------------------ */
 /// Set a transaction configuration variable override.
 class Do_txn_conf : public Directive {

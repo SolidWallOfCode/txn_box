@@ -151,7 +151,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -216,7 +216,7 @@ auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case cons
   return nullptr;
 }
 
-Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature const& feature) {
+Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature & feature) {
   Feature zret;
   if (feature.is_list()) {
     auto src = std::get<IndexFor(TUPLE)>(feature);
@@ -322,7 +322,6 @@ Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView, Te
 }
 
 // ---
-
 /// Replace the feature with another feature if the input is nil or empty.
 class Mod_Else : public Modifier {
   using self_type = Mod_Else;
@@ -336,7 +335,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -371,7 +370,7 @@ ActiveType Mod_Else::result_type(ActiveType const&) const {
   return _value.result_type();
 }
 
-Rv<Feature> Mod_Else::operator()(Context &ctx, Feature const& feature) {
+Rv<Feature> Mod_Else::operator()(Context &ctx, Feature & feature) {
   return is_empty(feature) ? ctx.extract(_value) : feature;
 }
 
@@ -398,7 +397,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -433,49 +432,15 @@ ActiveType Mod_Join::result_type(ActiveType const&) const {
   return STRING;
 }
 
-Rv<Feature> Mod_Join::operator()(Context &ctx, Feature const& feature) {
+Rv<Feature> Mod_Join::operator()(Context &ctx, Feature & feature) {
   // Get the separator - if that doesn't work, leave it empty.
   TextView sep;
   auto value = ctx.extract(_separator);
   if (auto ptr = std::get_if<IndexFor(STRING)>(&value) ; ptr != nullptr ) {
     sep = *ptr;
   }
-  // Output buffer.
-  swoc::FixedBufferWriter w{ctx._arena->remnant()};
-  // Get the tuple to join.
-  if ( auto t = std::get_if<IndexFor(TUPLE)>(&feature) ; t ) {
-    // -
-    auto generate = [](swoc::BufferWriter& w, FeatureTuple const& t, TextView sep) {
-      bool need_sep_p = false;
-      for ( auto const& f : t ) {
-        if (need_sep_p) {
-          w.write(sep);
-        }
 
-        if (!is_nil(f)) {
-          auto n = w.extent();
-          bwformat(w, swoc::bwf::Spec::DEFAULT, f);
-          need_sep_p = w.extent() > n; // Need a separator for the next item if this wasn't empty.
-        }
-      }
-    };
-    //-
-    generate(w, *t, sep);
-    if (w.error()) {
-      w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
-      generate(w, *t, sep);
-    }
-  } else {
-    // Anything except a tuple, force to string.
-    bwformat(w, swoc::bwf::Spec::DEFAULT, feature);
-    if (w.error()) {
-      w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
-      bwformat(w, swoc::bwf::Spec::DEFAULT, feature);
-    }
-  }
-  Feature zret { w.view() };
-  ctx.commit(zret);
-  return zret;
+  return feature.join(ctx, sep);
 }
 
 Rv<Modifier::Handle> Mod_Join::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
@@ -493,6 +458,128 @@ Rv<Modifier::Handle> Mod_Join::load(Config &cfg, YAML::Node, TextView, TextView,
 };
 
 // ---
+/// Concatenate a string to the active feature.
+class Mod_concat : public Modifier {
+  using self_type = Mod_concat;
+  using super_type = Modifier;
+public:
+  static constexpr TextView KEY { "concat" }; ///< Identifier name.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const& ex_type) const override;
+
+  /// Resulting type of feature after modifying.
+  ActiveType result_type(ActiveType const&) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+protected:
+  Expr _expr;
+
+  explicit Mod_concat(Expr && expr) : _expr(std::move(expr)) {}
+
+  struct Visitor {
+    Context& _ctx;
+    /// Active feature to modify.
+    /// This will always be a @c STRING - if not, the visitor isn't called at all.
+    Feature & _target;
+    Visitor(Context & ctx, Feature & f) : _ctx(ctx), _target(f) {}
+
+    Rv<Feature> operator() (feature_type_for<STRING> const& s);
+    Rv<Feature> operator() (feature_type_for<TUPLE> const& t);
+
+    /// @return An empty string if it is not a handled type.
+    template < typename F > auto operator() (F const&) -> EnableForFeatureTypes<F, Rv<Feature>> { return _target; }
+  };
+
+};
+
+bool Mod_concat::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(STRING);
+}
+
+ActiveType Mod_concat::result_type(ActiveType const&) const {
+  return STRING;
+}
+
+Rv<Feature> Mod_concat::Visitor::operator()(const feature_type_for<STRING>& s) {
+  if (s.empty()) {
+    return _target;
+  }
+
+  TextView src { std::get<IndexFor(STRING)>(_target)};
+  _ctx.transient_require(src.size() + s.size());
+  auto view = _ctx.render_transient([&](swoc::BufferWriter & w) {
+    w.write(src).write(s);
+  });
+  return { _ctx.commit(view) } ;
+}
+
+Rv<Feature> Mod_concat::Visitor::operator()(const feature_type_for<TUPLE>& t) {
+  TextView src { std::get<IndexFor(STRING)>(_target)};
+  if (t[0].index() != IndexFor(STRING) || t[1].index() != IndexFor(STRING)) {
+    return _target;
+  }
+  TextView text { std::get<IndexFor(STRING)>(t[1])};
+  if (text.empty()) {
+    return _target;
+  }
+  TextView sep { std::get<IndexFor(STRING)>(t[0])};
+
+  _ctx.transient_require(src.size() + sep.size() + text.size());
+  auto view = _ctx.render_transient([=](swoc::BufferWriter & w) {
+    w.write(src);
+    if (!src.ends_with(sep)) {
+      w.write(sep);
+    }
+    w.write(text);
+  });
+  return {_ctx.commit(view)};
+}
+
+Rv<Feature> Mod_concat::operator() (Context &ctx, Feature & feature) {
+  // Only concat to strings, otherwise do nothing.
+  if (feature.index() != IndexFor(STRING)) {
+    return feature;
+  }
+
+  Feature f {ctx.extract(_expr) };
+  return std::visit(Visitor(ctx, feature), f);
+}
+
+Rv<Modifier::Handle> Mod_concat::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(MaskFor(STRING, TUPLE))) {
+    errata.info(R"("{}" modifier at {} requires a string or a list of two strings.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
+// ---
 
 /// Convert the feature to an Integer.
 class Mod_As_Integer : public Modifier {
@@ -507,7 +594,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -544,7 +631,7 @@ ActiveType Mod_As_Integer::result_type(ActiveType const&) const {
   return {MaskFor({NIL, INTEGER})};
 }
 
-Rv<Feature> Mod_As_Integer::operator()(Context &, Feature const& feature) {
+Rv<Feature> Mod_As_Integer::operator()(Context &, Feature & feature) {
   return Feature(feature.as_integer(0));
 }
 
@@ -572,7 +659,7 @@ public:
    * @param feature Feature to modify [in,out]
    * @return Errors, if any.
    */
-  Rv<Feature> operator()(Context& ctx, Feature const& feature) override;
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
 
   /** Check if @a ftype is a valid type to be modified.
    *
@@ -617,7 +704,7 @@ ActiveType Mod_As_IP_Addr::result_type(ActiveType const&) const {
   return {MaskFor({NIL, IP_ADDR})};
 }
 
-Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature const& feature) {
+Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature & feature) {
   auto visitor = [&](auto & t) { return this->convert(ctx, t); };
   return std::visit(visitor, feature);
 }
@@ -640,6 +727,7 @@ namespace {
   Modifier::define(Mod_Hash::KEY, &Mod_Hash::load);
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
   Modifier::define(Mod_Join::KEY, &Mod_Join::load);
+  Modifier::define(Mod_concat::KEY, &Mod_concat::load);
   Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
   Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);

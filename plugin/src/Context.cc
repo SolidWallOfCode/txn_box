@@ -151,9 +151,9 @@ void Context::operator()(swoc::BufferWriter& w, Extractor::Spec const& spec) {
 }
 
 Feature Expr::bwf_visitor::operator()(const Composite &comp) {
-  ArenaWriter w{*_ctx._arena};
-  w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
-  return w.view();
+  return _ctx.render_transient([&](BufferWriter & w) {
+    w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx));
+  } );
 }
 
 Feature Expr::bwf_visitor::operator()(List const & list) {
@@ -232,20 +232,31 @@ FeatureView Context::extract_view(const Expr& expr, std::initializer_list<ViewOp
   return zret;
 }
 
+FeatureView Context::commit(FeatureView const& view) {
+  FeatureView zret { view };
+  if (view._literal_p) { // already committed.
+  } else if (view._direct_p) {
+    auto span { _arena->alloc(view.size())};
+    memcpy(span, view);
+    zret = span.view(); // update full to be the localized copy.
+    zret._direct_p = false;
+    zret._literal_p = true;
+  } else if ( auto r { _arena->remnant() } ; r.contains(view.data())) {
+    // it's in transient memory, finalize it.
+    // Need to commit everything before it as well.
+    size_t n = (view.data() - r.rebind<char>().data()) + view.size();
+    _arena->alloc(n);
+    _transient = (n >= _transient ? 0 : _transient - n);
+    zret._literal_p = true;
+  } else if (_arena->contains(view.data())) { // it's already been committed, mark it so.
+    zret._literal_p = true;
+  }
+  return zret;
+}
+
 Feature& Context::commit(Feature &feature) {
   if (auto fv = std::get_if<STRING>(&feature) ; fv != nullptr) {
-    if (fv->_literal_p) {
-      // nothing
-    } else if (fv->_direct_p) {
-      auto span { _arena->alloc(fv->size())};
-      memcpy(span, *fv);
-      fv->_direct_p = false;
-      fv->_literal_p = true;
-      *fv = span.view(); // update full to be the localized copy.
-    } else if (fv->data() == _arena->remnant().data()) { // it's in transient memory, finalize it.
-      _arena->alloc(fv->size());
-      fv->_literal_p = true;
-    }
+    feature = this->commit(*fv);
   }
   return feature;
 }
@@ -397,6 +408,34 @@ MemSpan<void> Context::overflow_storage_for(const ReservedSpan& span) {
   item->_storage.remove_prefix(sizeof(ReservedStatus));
 
   return item->_storage;
+}
+
+swoc::MemSpan<char> Context::transient_buffer() {
+  this->commit_transient();
+  auto span { _arena->remnant().rebind<char>() };
+  _transient = span.size();
+  return span;
+}
+
+swoc::MemSpan<char> Context::transient_buffer(size_t n) {
+  this->commit_transient();
+  auto span { _arena->require(n).remnant().rebind<char>() };
+  _transient = span.size();
+  return span;
+}
+
+Context::self_type& Context::commit_transient() {
+  if (_transient) {
+    _arena->alloc(_transient);
+    _transient = 0;
+  }
+  return *this;
+}
+
+Context::self_type& Context::transient_require(size_t n) {
+  this->commit_transient();
+  _arena->require(n);
+  return *this;
 }
 
 unsigned Context::ArgPack::count() const {

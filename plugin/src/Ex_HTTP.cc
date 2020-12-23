@@ -27,12 +27,11 @@ namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
-class Ex_ua_req_method : public Extractor {
+class Ex_ua_req_method : public StringExtractor {
 public:
   static constexpr TextView NAME { "ua-req-method" };
 
   Feature extract(Context & ctx, Spec const& spec)  override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_method::extract(Context &ctx, Spec const&) {
@@ -42,16 +41,11 @@ Feature Ex_ua_req_method::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_ua_req_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-class Ex_proxy_req_method : public Extractor {
+class Ex_proxy_req_method : public StringExtractor {
 public:
   static constexpr TextView NAME { "proxy-req-method" };
 
   Feature extract(Context & ctx, Spec const& spec)  override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_method::extract(Context &ctx, Spec const&) {
@@ -60,15 +54,10 @@ Feature Ex_proxy_req_method::extract(Context &ctx, Spec const&) {
   }
   return NIL_FEATURE;
 }
-
-BufferWriter& Ex_proxy_req_method::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 /* ------------------------------------------------------------------------------------ */
 /** The entire URL.
  * The C API doesn't provide direct access to a string for the URL, therefore the string
- * obtained here is transient. To avoid problems, the base class copies it into context
- * storage.
+ * obtained here is transient.
  */
 class Ex_ua_req_url : public Extractor {
 public:
@@ -81,9 +70,7 @@ public:
 Feature Ex_ua_req_url::extract(Context& ctx, const Spec&) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
-      swoc::ArenaWriter w{*ctx._arena};
-      url.write_full(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_full(w); });
     }
   }
   return NIL_FEATURE;
@@ -108,9 +95,7 @@ public:
 
 Feature Ex_pre_remap_url::extract(Context& ctx, const Spec&) {
   if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
-    swoc::ArenaWriter w{*ctx._arena};
-    url.write_full(w);
-    return w.view();
+    return ctx.render_transient([&](BufferWriter & w) { url.write_full(w); });
   }
   return NIL_FEATURE;
 }
@@ -133,9 +118,7 @@ public:
 Feature Ex_remap_target_url::extract(Context& ctx, const Spec&) {
   if ( ctx._remap_info ) {
     if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl}; url.is_valid()) {
-      swoc::ArenaWriter w{*ctx._arena};
-      url.write_full(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_full(w); });
     }
   }
   return NIL_FEATURE;
@@ -161,9 +144,7 @@ public:
 Feature Ex_remap_replacement_url::extract(Context& ctx, const Spec&) {
   if ( ctx._remap_info ) {
     if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl}; url.is_valid()) {
-      swoc::ArenaWriter w{*ctx._arena};
-      url.write_full(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_full(w); });
     }
   }
   return NIL_FEATURE;
@@ -178,7 +159,7 @@ BufferWriter& Ex_remap_replacement_url::format(BufferWriter &w, Spec const &, Co
   return w;
 }
 // ----
-class Ex_proxy_req_url : public StringExtractor {
+class Ex_proxy_req_url : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-url" };
 
@@ -188,26 +169,27 @@ public:
 
 Feature Ex_proxy_req_url::extract(Context& ctx, const Spec&) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    ArenaWriter w{*ctx._arena};
-    hdr.effective_url(w);
-    return w.view();
+    if (auto url{hdr.url()}; url.is_valid()) {
+      return ctx.render_transient([&](BufferWriter & w) { url.write_full(w); });
+    }
   }
   return NIL_FEATURE;
 }
 
 BufferWriter& Ex_proxy_req_url::format(BufferWriter &w, Spec const &, Context &ctx) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    hdr.effective_url(w);
+    if (auto url{hdr.url()}; url.is_valid()) {
+      url.write_full(w);
+    }
   }
   return w;
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_ua_req_scheme : public Extractor {
+class Ex_ua_req_scheme : public StringExtractor {
 public:
   static constexpr TextView NAME { "ua-req-scheme" };
 
   Feature extract(Context & ctx, Spec const& spec) override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_scheme::extract(Context &ctx, Spec const&) {
@@ -219,15 +201,10 @@ Feature Ex_ua_req_scheme::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_ua_req_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-class Ex_pre_remap_scheme : public Extractor {
+class Ex_pre_remap_scheme : public StringExtractor {
 public:
   static constexpr TextView NAME { "pre-remap-scheme" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
@@ -238,16 +215,10 @@ Feature Ex_pre_remap_scheme::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_pre_remap_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-
-class Ex_remap_target_scheme : public Extractor {
+class Ex_remap_target_scheme : public StringExtractor {
 public:
   static constexpr TextView NAME { "remap-target-scheme" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
@@ -260,15 +231,10 @@ Feature Ex_remap_target_scheme::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_remap_target_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-class Ex_remap_replacement_scheme : public Extractor {
+class Ex_remap_replacement_scheme : public StringExtractor {
 public:
   static constexpr TextView NAME { "remap-replacement-scheme" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
@@ -281,16 +247,11 @@ Feature Ex_remap_replacement_scheme::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-BufferWriter& Ex_remap_replacement_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
-class Ex_proxy_req_scheme : public Extractor {
+class Ex_proxy_req_scheme : public StringExtractor {
 public:
   static constexpr TextView NAME { "proxy-req-scheme" };
 
   Feature extract(Context & ctx, Spec const& spec) override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
@@ -303,11 +264,6 @@ Feature Ex_proxy_req_scheme::extract(Context &ctx, Spec const&) {
   }
   return NIL_FEATURE;
 }
-
-BufferWriter& Ex_proxy_req_scheme::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
-
 /* ------------------------------------------------------------------------------------ */
 /// The network location in the URL.
 class Ex_ua_req_loc : public Extractor {
@@ -322,9 +278,7 @@ public:
 
 Feature Ex_ua_req_loc::extract(Context& ctx, const Spec&) {
   if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    ArenaWriter w{*ctx._arena};
-    hdr.write_loc(w);
-    return w.view();
+    return ctx.render_transient([&](BufferWriter & w) { hdr.write_loc(w); });
   }
   return NIL_FEATURE;
 }
@@ -348,9 +302,7 @@ public:
 
 Feature Ex_proxy_req_loc::extract(Context& ctx, const Spec&) {
   if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
-    ArenaWriter w{*ctx._arena};
-    hdr.write_loc(w);
-    return w.view();
+    return ctx.render_transient([&](BufferWriter & w) { hdr.write_loc(w); });
   }
   return NIL_FEATURE;
 }
@@ -680,9 +632,7 @@ public:
 Feature Ex_ua_req_url_loc::extract(Context& ctx, const Spec&) {
   if (auto hdr { ctx.ua_req_hdr()} ; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
-      ArenaWriter w{*ctx._arena};
-      url.write_loc(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_loc(w); });
     }
   }
   return NIL_FEATURE;
@@ -697,7 +647,7 @@ BufferWriter& Ex_ua_req_url_loc::format(BufferWriter &w, Spec const &, Context &
   return w;
 }
 // ----
-class Ex_proxy_req_url_loc : public StringExtractor {
+class Ex_proxy_req_url_loc : public Extractor {
 public:
   static constexpr TextView NAME { "proxy-req-url-loc" };
 
@@ -708,9 +658,7 @@ public:
 Feature Ex_proxy_req_url_loc::extract(Context& ctx, const Spec&) {
   if (auto hdr { ctx.proxy_req_hdr()} ; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
-      ArenaWriter w{*ctx._arena};
-      url.write_loc(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_loc(w); });
     }
   }
   return NIL_FEATURE;
@@ -735,9 +683,7 @@ public:
 
 Feature Ex_pre_remap_loc::extract(Context& ctx, const Spec&) {
   if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
-    ArenaWriter w{*ctx._arena};
-    url.write_loc(w);
-    return w.view();
+    return ctx.render_transient([&](BufferWriter & w) { url.write_loc(w); });
   }
   return NIL_FEATURE;
 }
@@ -760,9 +706,7 @@ public:
 Feature Ex_remap_target_loc::extract(Context& ctx, const Spec&) {
   if ( ctx._remap_info ) {
     if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapFromUrl}; url.is_valid()) {
-      ArenaWriter w{*ctx._arena};
-      url.write_loc(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_loc(w); });
     }
   }
   return NIL_FEATURE;
@@ -788,9 +732,7 @@ public:
 Feature Ex_remap_replacement_loc::extract(Context& ctx, const Spec&) {
   if ( ctx._remap_info ) {
     if (ts::URL url{ctx._remap_info->requestBufp, ctx._remap_info->mapToUrl}; url.is_valid()) {
-      ArenaWriter w{*ctx._arena};
-      url.write_loc(w);
-      return w.view();
+      return ctx.render_transient([&](BufferWriter & w) { url.write_loc(w); });
     }
   }
   return NIL_FEATURE;
