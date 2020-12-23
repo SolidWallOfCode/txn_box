@@ -329,16 +329,7 @@ FeatureGroup::~FeatureGroup() {
 
 /* ---------------------------------------------------------------------------------------------- */
 Feature StringExtractor::extract(Context& ctx, Spec const& spec) {
-  swoc::FixedBufferWriter w{ctx._arena->remnant()};
-  // double write - try in the remnant first. If that suffices, done.
-  // Otherwise the size is now known and the needed space can be correctly allocated.
-  this->format(w, spec, ctx);
-  if (!w.error()) {
-    return w.view();
-  }
-  w.assign(ctx._arena->require(w.extent()).remnant().rebind<char>());
-  this->format(w, spec, ctx);
-  return w.view();
+  return ctx.render_transient([&](BufferWriter & w) { this->format(w, spec, ctx); });
 }
 /* ------------------------------------------------------------------------------------ */
 // Utilities.
@@ -426,49 +417,6 @@ struct integer_visitor {
 }
 auto Feature::as_integer(type_for<INTEGER> invalid) const -> Rv<type_for<INTEGER>> {
   return std::visit(integer_visitor{invalid}, *this);
-}
-// ----
-namespace {
-struct join_visitor {
-  swoc::BufferWriter & _w;
-  TextView _glue;
-  unsigned _recurse = 0;
-
-  swoc::BufferWriter&  glue() {
-    if (_w.size()) {
-      _w.write(_glue);
-    }
-    return _w;
-  }
-
-  void operator()(feature_type_for<NIL>) {}
-  void operator()(feature_type_for<STRING> const& s) { this->glue().write(s); }
-  void operator()(feature_type_for<INTEGER> n) { this->glue().print("{}", n); }
-  void operator()(feature_type_for<BOOLEAN> flag) { this->glue().print("{}", flag);}
-  void operator()(feature_type_for<TUPLE> t) {
-    this->glue();
-    if (_recurse) {
-      _w.write("( "_tv);
-    }
-    auto lw = swoc::FixedBufferWriter{_w.aux_span()};
-    for ( auto const& item : t) {
-      std::visit(join_visitor{lw, _glue, _recurse + 1}, item);
-    }
-    _w.commit(lw.size());
-    if (_recurse) {
-      _w.write(" )"_tv);
-    }
-  }
-
-  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, void> {}
-};
-
-}
-
-Feature Feature::join(Context &ctx, const swoc::TextView &glue) const {
-  swoc::FixedBufferWriter w{ ctx._arena->remnant()};
-  std::visit(join_visitor{w, glue}, *this);
-  return w.view();
 }
 // ----
 Feature car(Feature const& feature) {

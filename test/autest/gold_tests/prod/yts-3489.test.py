@@ -16,6 +16,7 @@ tr = Test.TxnBoxTestAndRun("Redirect", replay_file
                 , remap=[ [ 'http://base.ex/',  ( '--key=meta.txn-box.remap', replay_file) ]
                         , [ 'http://alt.ex/', ('--key=meta.txn-box.remap-alt', replay_file ) ]
                         , [ 'http://join.ex/', ('--key=meta.txn-box.remap-join', replay_file ) ]
+                        , [ 'http://concat.ex/', ('--key=meta.txn-box.remap-concat', replay_file ) ]
                         , [ 'http://unmatched.ex/' ]
                         ]
                 , verifier_client_args="--verbose info"

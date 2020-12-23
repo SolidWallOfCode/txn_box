@@ -49,6 +49,15 @@ meta:
           - join: "?" # add "?" and query if query is still there (i.e. is not empty).
         status: 302
 
+    # Handle query string using concat
+    # Use concat to conditionally add the separator if the query is not empty.
+    remap-concat:
+    - redirect:
+        location:
+        - "http://foxtrot.ex/{pre-remap-path}"
+        - { concat: [ "?", pre-remap-query ] }
+        status: 302
+
   blocks:
   - base-req: &base-req
       version: "1.1"
@@ -277,3 +286,39 @@ sessions:
       headers:
         fields:
         - [ "Location", "http://echo.ex/nightwish/ocean-born.html?track=3", equal]
+
+  # Does the alternate style work without a query string?
+  - all: { headers: { fields: [ [ uuid, 113 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html"
+      headers:
+        fields:
+        - [ "Host", "concat.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://foxtrot.ex/nightwish/ocean-born.html", equal]
+
+  # Is the query string preserved in the alternate style?
+  - all: { headers: { fields: [ [ uuid, 114 ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/nightwish/ocean-born.html?track=3"
+      headers:
+        fields:
+        - [ "Host", "concat.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://foxtrot.ex/nightwish/ocean-born.html?track=3", equal]

@@ -44,7 +44,7 @@ public:
    * @param feature Feature to modify.
    * @return Modified feature, or errors.
    */
-  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature const& feature) {
+  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature & feature) {
     auto visitor = [&](auto && value) { return (*this)(ctx, value); };
     return std::visit(visitor, feature);
   }

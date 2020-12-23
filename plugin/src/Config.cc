@@ -319,9 +319,6 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
   cexpr._specs = std::move(specs);
   for ( auto const& s : specs ) {
     expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
-    if (s._exf) {
-      expr._ctx_ref_p = expr._ctx_ref_p || s._exf->has_ctx_ref();
-    }
   }
 
   return expr;
@@ -347,10 +344,6 @@ Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
         return Error(R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)"
             , expr._max_arg_idx, node.Mark(), _active_capture._count-1, _active_capture._line);
       }
-    }
-
-    if (expr._ctx_ref_p) {
-      _active_feature._ref_p = true;
     }
   }
   return zret;
