@@ -19,32 +19,13 @@ Modifiers
 
 .. modifier:: else
 
-   The :mod:`else` modifier leaves the feature unchanged unless it is the :code:`NULL` value or is an
-   empty string. In that case, the feature is changed to be the value of the modifier.
+   The :mod:`else` modifier leaves the feature unchanged unless it is the :code:`NULL` value or is
+   an empty string. In that case, the feature is changed to be the value of the modifier key.
 
 .. modifier:: hash
 
-   Compute the hash of a feature and take the result modulo the value. This modifier requires a value
-   that is a positive integer.
-
-.. modifier:: as-integer
-
-   Coerce the feature to an Integer type if possible. If the feature is already an Integer, it is
-   left unchanged. If it is a string, it is parsed as an integer string and if that is successfull, the
-   feature is changed to be the resulting integer value. If not, the modifier value is used. This is the
-   :code:`NULL` value if unspecified.
-
-.. modifier:: as-ip-addr
-
-   Convert to an IP address or range. If the conversion can not be done, the result is :code:`NULL`.
-
-.. modifier:: ip-space
-   :arg: IP Space name
-
-   This modifier must be used in conjunction with :drtv:`ip-space-define`. The latter defines and
-   loads an IP space. This modifier changes an IP address feature into a row from the named IP
-   Space. The value for the modifier is a feature expression in which :ex:`ip-col` can be used to
-   extract data from the row. The value of that expression replaces the IP address.
+   Compute the hash of a feature and take the result modulo the value. This modifier requires a
+   value that is a positive integer.
 
 .. modifier:: filter
 
@@ -86,3 +67,74 @@ Modifiers
    It is not permitted to have a :code:`do` key with any of the comparisons.
 
    See :ref:`filter-guide` for examples of using this modifier.
+
+.. modifier:: join
+   :arg: Separator
+
+   Join features in to a string. The value is used as the separator between elements. If used on a
+   scalar feature it will simply convert that feature to a string. If used on tuple it will convert
+   each tuple element to a string and concentate the result, placing the separator between the
+   stirngs. Nested tuples are placed in brackets and the modifier recursively applied. NULL elements are discared, but empty string are retained.
+
+.. modifier:: concat
+   :arg: List of separator, string
+
+   Concatenate a string. This takes a list of two values, the separator and the string. If the active feature is a string, and the string value for the modifier is not empty, the latter is appended to the active feature. The separator is appended first if the active feature does not already end with the separator. For example ::
+
+      [ pre-remap-path , { concat: [ "/" , "albums" ]]
+
+   will add "albums" to the pre-remap path. If that path is "delain" the result is "delain/albums". If the path is "delain/" the result is still "delain/albums".
+
+   A common use is to attach a query string to a URL while avoiding adding "?" if there is no query stirng. E.g. ::
+
+      [ "http://delain.nl/albums/{pre-remap-path}", { concat: [ "?" , pre-remap-query ] ]
+
+   which propagate the query string without creating a URL ending in "?". If there was no query
+   string :ex:`pre-remap-query` will be the empty string and the modifier will not change the
+   string.
+
+.. modifier:: as-integer
+
+   Coerce the feature to an Integer type if possible. If the feature is already an Integer, it is
+   left unchanged. If it is a string, it is parsed as an integer string and if that is successfull, the
+   feature is changed to be the resulting integer value. If not, the modifier value is used. This is the
+   :code:`NULL` value if unspecified.
+
+.. modifier:: as-duration
+
+   Convert to a duration.  If the feature is a string the conversion is done based on following table.
+
+   ============ ========================
+   Duration     Names
+   ============ ========================
+   nanoseconds  ns, nanoseconds
+   microseconds us, microseconds
+   milliseconds ms, milliseconds
+   second       s, sec, second, seconds
+   minute       m, min, minute, minutes
+   hour         h, hour, hours
+   day          d, day, days
+   week         w, week, weeks
+   ============ ========================
+
+   The string must consist of pairs of a number followed by a name. Spaces are ignored, but can be
+   added for clarity. The duration for the string is the sum of all the pairs, irrespective of
+   order. For instance, a duration of ninety minutes could be "90 minutes", "90m", "1h 30m", "5400
+   sec", or even "900 s1 hours15 minute". Note the singular vs. plural forms are purely for
+   convenience, there is no difference at all. "1 day" and "1 days" are indistinguishable, as are
+   "10 minute" and "10 minutes".
+
+   If used on a tuple, each element will be coerced to a duration and all of the durations summed.
+
+.. modifier:: as-ip-addr
+
+   Convert to an IP address or range. If the conversion can not be done, the result is :code:`NULL`.
+
+.. modifier:: ip-space
+   :arg: IP Space name
+
+   This modifier must be used in conjunction with :drtv:`ip-space-define`. The latter defines and
+   loads an IP space. This modifier changes an IP address feature into a row from the named IP
+   Space. The value for the modifier is a feature expression in which :ex:`ip-col` can be used to
+   extract data from the row. The value of that expression replaces the IP address.
+
