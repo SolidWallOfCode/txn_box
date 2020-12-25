@@ -631,14 +631,26 @@ ActiveType Mod_As_Integer::result_type(ActiveType const&) const {
   return {MaskFor({NIL, INTEGER})};
 }
 
-Rv<Feature> Mod_As_Integer::operator()(Context &, Feature & feature) {
-  return Feature(feature.as_integer(0));
+Rv<Feature> Mod_As_Integer::operator()(Context & ctx, Feature & feature) {
+  auto && [ value, errata ] { feature.as_integer() };
+  if (errata.is_ok()) {
+    return Feature{value};
+  }
+  auto invalid { ctx.extract(_value) };
+  if (errata.is_ok()) {
+    return Feature{invalid};
+  }
+  return feature;
 }
 
 Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ expr, errata ] {cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(MaskFor(INTEGER))) {
+    errata.info("Value of {} modifier is not of type {}.", KEY, INTEGER);
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr)});
@@ -720,6 +732,71 @@ Feature Mod_As_IP_Addr::convert(Context&, feature_type_for<STRING> s) {
   return addr.is_valid() ? Feature{addr} : NIL_FEATURE;
 };
 
+// ---
+
+/// Convert the feature to a Duration.
+class Mod_As_Duration : public Modifier {
+  using self_type = Mod_As_Duration;
+  using super_type = Modifier;
+public:
+  static const std::string KEY; ///< Identifier name.
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context& ctx, Feature & feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const& ex_type) const override;
+
+  /// Resulting type of feature after modifying.
+  ActiveType result_type(ActiveType const&) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+protected:
+  Expr _value; ///< Default value.
+
+  explicit Mod_As_Duration(Expr && expr) : _value(std::move(expr)) {}
+};
+
+const std::string Mod_As_Duration::KEY { "as-duration" };
+
+bool Mod_As_Duration::is_valid_for(ActiveType const& ex_type) const {
+  return ex_type.can_satisfy(MaskFor({STRING, DURATION, TUPLE, NIL}));
+}
+
+ActiveType Mod_As_Duration::result_type(ActiveType const&) const {
+  return {MaskFor({NIL, DURATION})};
+}
+
+Rv<Feature> Mod_As_Duration::operator()(Context &, Feature & feature) {
+  return Feature(feature.as_duration());
+}
+
+Rv<Modifier::Handle> Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+  auto && [ expr, errata ] {cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
 // --- //
 
 namespace {
@@ -729,6 +806,7 @@ namespace {
   Modifier::define(Mod_Join::KEY, &Mod_Join::load);
   Modifier::define(Mod_concat::KEY, &Mod_concat::load);
   Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
+  Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
   Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);
   return true;

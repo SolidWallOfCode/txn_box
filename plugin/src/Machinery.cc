@@ -1218,10 +1218,6 @@ auto FieldDirective::load(Config &cfg
   if (! expr_type.has_value()) {
     return Error(R"(Directive "{}" must have a value.)", key);
   }
-  if (!expr_type.can_satisfy({ NIL, STRING, IP_ADDR, BOOLEAN, FLOAT, INTEGER, ActiveType::TupleOf(STRING)})) {
-    return Error(R"(Value for "{}" directive at {} must be a NULL, a string or a list of strings.)", key, key_value.Mark());
-  }
-
   return maker(cfg.localize(arg), std::move(expr));
 }
 
