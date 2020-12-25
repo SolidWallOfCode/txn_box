@@ -298,7 +298,7 @@ Utility
       Explicit text content for the text block.
 
    duration
-      An optional value that specifies how often to check the file for changes.
+      An optional value that specifies how often to check the file for changes. An implicit :mod:`as-duration` is applied to the value.
 
    One of ``path`` and ``text`` must be present. If both are present ``path`` takes precedence. The
    file contents are used if the file can be read, otherwise the value in ``text`` is used. If
