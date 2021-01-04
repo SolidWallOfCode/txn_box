@@ -63,7 +63,7 @@ in which case the field value is really a list. On the other hand, there are exc
 as well, most notably `Set-Cookie <https://tools.ietf.org/html/rfc6265#section-4.1>`__ which,
 while multi-valued, does not follow the standard mechanism.
 
-To handle all of these cases, the extendsion field of the field extractors can be used to force
+To handle all of these cases, the extension field of the field extractors can be used to force
 the field to be handled either by value or by field. In both cases the result is a tuple to which
 the standard :txb:drtv:`with` tuple handling can be used.
 

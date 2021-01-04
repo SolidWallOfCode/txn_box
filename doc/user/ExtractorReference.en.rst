@@ -105,6 +105,19 @@ because both ATS and the upstream will treat them indentically. Note this applie
 separating the "authority" / "location" from the path. The path for the URLs
 "http://delain.nl/pix/charlotte" and "http://delain.nl/pix/charlotte/" are distinguishable.
 
+* :ref:`ex-user-agent`
+* :ref:`ex-pre-remap`
+* :ref:`ex-rewrite-rule-urls`
+* :ref:`ex-proxy-request`
+* :ref:`ex-upstream-response`
+* :ref:`ex-proxy-response`
+* :ref:`ex-transaction`
+* :ref:`ex-session`
+* :ref:`ex-duration`
+* :ref:`ex-utility`
+
+.. _ex-user-agent:
+
 User Agent Request
 ------------------
 
@@ -222,6 +235,8 @@ Pre-Remap
 
       The query string for the pre-remap user agent request URL.
 
+.. _ex-rewrite-rule-urls:
+
 Rewrite Rule URLs
 -----------------
 
@@ -292,6 +307,8 @@ Rewrite Rule URLs
    :result: string
 
    The path in the replacement URL.
+
+.. _ex-proxy-request:
 
 Proxy Request
 -------------
@@ -365,6 +382,8 @@ Proxy Request
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
 
+.. _ex-upstream-response:
+
 Upstream Response
 -----------------
 
@@ -388,6 +407,8 @@ Upstream Response
    If the field is not present, the ``NULL`` value is returned. Note this is distinct from the
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
+
+.. _ex-proxy-response:
 
 Proxy Response
 --------------
@@ -413,6 +434,8 @@ Proxy Response
    empty string which is returned if the field is present but has no value. If there are duplicate
    fields then a string list is returned, each element of which corresponds to a field.
 
+.. _ex-transaction:
+
 Transaction
 ===========
 
@@ -421,10 +444,12 @@ Transaction
 
    This returns a boolean value, ``true`` if the request is an internal request, and ``false`` if not.
 
+.. _ex-session:
+
 Session
 =======
 
-.. extractor::  inbound-txn-coujnt
+.. extractor::  inbound-txn-count
    :result: integer
 
    The number of transactions, including the current on, that have occurred on the inbound
@@ -504,6 +529,27 @@ Session
    In general, though, :ex:`has-inbound-protocol-prefix` is usually a better choice for doing such
    checking unless the full stack or a full tag is needed.
 
+
+.. extractor::  server-ssn-txn-count
+   :result: integer
+
+   The number of transactions between the Traffic Server proxy and the origin server from a single session.
+   Any value greater than zero indicates connection reuse.
+
+   .. code-block:: yaml
+
+      with: server-ssn-txn-count
+      select:
+      - gt: 10
+        do:
+         - proxy-rsp-field<Connection>: "close"
+
+.. warning::
+   For ATS version different to 10, this will return `0` and the value should not be taken
+   into consideration to determine connection reuse.
+
+.. _ex-duration:
+
 Duration
 ========
 
@@ -532,6 +578,8 @@ A "duration" is a span of time. This is specified by one of a set of extractors.
    :result: duration
 
    A duration of :arg:`count` hours.
+
+.. _ex-utility:
 
 Utility
 =======
