@@ -1158,6 +1158,24 @@ BufferWriter& Ex_proxy_rsp_status_reason::format(BufferWriter &w, Spec const &sp
   return bwformat(w, spec, ctx._txn.prsp_hdr().reason());
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_server_ssn_txn_count : public Extractor {
+public:
+  static constexpr TextView NAME { "server-ssn-txn-count" };
+
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Extractor::Spec const&) override;
+};
+
+Rv<ActiveType> Ex_server_ssn_txn_count::validate(Config &, Spec &, TextView const&) {
+  return { INTEGER };
+}
+
+Feature Ex_server_ssn_txn_count::extract(Context &ctx, Extractor::Spec const&) {
+  return static_cast<feature_type_for<INTEGER>>(ctx._txn.server_ssn_txn_count());
+}
+/* ------------------------------------------------------------------------------------ */
 namespace {
 // Extractors aren't constructed, they are always named references to singletons.
 // These are the singletons.
@@ -1223,6 +1241,7 @@ Ex_proxy_rsp_status proxy_rsp_status;
 Ex_upstream_rsp_status upstream_rsp_status;
 Ex_proxy_rsp_status_reason proxy_rsp_status_reason;
 Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
+Ex_server_ssn_txn_count server_ssn_txn_count;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_method);
@@ -1289,6 +1308,7 @@ Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
   Extractor::define(Ex_upstream_rsp_status::NAME, &upstream_rsp_status);
   Extractor::define(Ex_proxy_rsp_status_reason::NAME, &proxy_rsp_status_reason);
   Extractor::define(Ex_upstream_rsp_status_reason::NAME, &upstream_rsp_status_reason);
+  Extractor::define(Ex_server_ssn_txn_count::NAME, &server_ssn_txn_count);
 
   Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
   Extractor::define(Ex_proxy_req_field::NAME, &proxy_req_field);

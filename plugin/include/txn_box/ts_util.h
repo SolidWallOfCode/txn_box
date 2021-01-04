@@ -586,6 +586,12 @@ public:
    */
   static swoc::Errata & init(swoc::Errata & errata);
 
+  /** Gets the number of transactions between the Traffic Server proxy and the
+   *  origin server from a single session. Any value greater than zero indicates connection reuse.
+   *
+   * @return int The number of transaction
+   */
+  int server_ssn_txn_count() const;
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 
@@ -705,6 +711,7 @@ inline HttpTxn::operator TSHttpTxn() const { return _txn; }
 inline HttpSsn HttpTxn::ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; }
 
 inline unsigned HttpSsn::txn_count() const { return TSHttpSsnTransactionCount(_ssn); };
+
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
