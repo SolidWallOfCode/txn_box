@@ -9,6 +9,9 @@
 
 #include <array>
 #include <vector>
+#if __has_include(<memory_resource>)
+#  include <memory_resource>
+#endif
 
 #include <swoc/TextView.h>
 #include <swoc/MemArena.h>
@@ -201,6 +204,11 @@ public:
    * @see Context::extract
    */
   swoc::Rv<Expr> parse_expr(YAML::Node fmt_node);
+
+#if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
+  /// Access the internal memory arena as a memory resource.
+  std::pmr::memory_resource * pmr() { return &_arena; }
+#endif
 
   enum LocalOpt {
     LOCAL_VIEW, ///< Localize as view.

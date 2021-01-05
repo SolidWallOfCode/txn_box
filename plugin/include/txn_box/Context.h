@@ -8,6 +8,9 @@
 #pragma once
 
 #include <memory>
+#if __has_include(<memory_resource>)
+#  include <memory_resource>
+#endif
 #include <functional>
 
 #include <swoc/MemArena.h>
@@ -211,6 +214,11 @@ public:
     }
     return w.view();
   }
+
+#if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
+  /// Access the internal memory arena as a memory resource.
+  std::pmr::memory_resource * pmr() { return _arena.get(); }
+#endif
 
   /** Convert a reserved span into memory in @a this.
    *
