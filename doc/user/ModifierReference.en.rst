@@ -117,12 +117,12 @@ Modifiers
    week         w, week, weeks
    ============ ========================
 
-   The string must consist of pairs of a number followed by a name. Spaces are ignored, but can be
-   added for clarity. The duration for the string is the sum of all the pairs, irrespective of
-   order. For instance, a duration of ninety minutes could be "90 minutes", "90m", "1h 30m", "5400
-   sec", or even "900 s1 hours15 minute". Note the singular vs. plural forms are purely for
-   convenience, there is no difference at all. "1 day" and "1 days" are indistinguishable, as are
-   "10 minute" and "10 minutes".
+   The string must consist of pairs, each pair an integer followed by a name. Spaces are ignored,
+   but can be added for clarity. The duration for the string is the sum of all the pairs,
+   irrespective of order. For instance, a duration of ninety minutes could be "90 minutes", "90m",
+   "1h 30m", "30 m 1 hour", "5400 sec", or even "900 s1 hours15 minute". Note the singular vs.
+   plural forms are purely for convenience. "1 day" and "1 days" are indistinguishable, as are "10
+   minute" and "10 minutes".
 
    If used on a tuple, each element will be coerced to a duration and all of the durations summed.
 

@@ -403,7 +403,7 @@ MemSpan<void> Context::overflow_storage_for(const ReservedSpan& span) {
   item->_offset = span.offset;
   _overflow_spans.append(item);
   // Get the actual reserved memory block, along with the required status block in front of it.
-  item->_storage = _arena->alloc(span.n + sizeof(ReservedStatus), std::align_val_t(alignof(ReservedStatus)));
+  item->_storage = _arena->alloc(span.n + sizeof(ReservedStatus), alignof(ReservedStatus));
   memset(item->_storage, 0);
   item->_storage.remove_prefix(sizeof(ReservedStatus));
 
