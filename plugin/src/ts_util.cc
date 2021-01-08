@@ -140,7 +140,7 @@ auto user_arg_index_name_lookup(char const *name, A *arg_idx, char const **descr
 // TSHttpTxnServerSsnTransactionCount API only available in ATS 10.
 template <typename T>
 auto
-get_server_ssn_txn_count([[maybe_unused]] T const &txn, swoc::meta::CaseTag<0>) -> int
+get_outbound_txn_count([[maybe_unused]] T const &txn, swoc::meta::CaseTag<0>) -> int
 {
   // if not ATS 10, then this should not be taken into consideration for connection reuse.
   return 0;
@@ -148,7 +148,7 @@ get_server_ssn_txn_count([[maybe_unused]] T const &txn, swoc::meta::CaseTag<0>) 
 
 template <typename T>
 auto
-get_server_ssn_txn_count(T const &txn, swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnServerSsnTransactionCount(txn), int())
+get_outbound_txn_count(T const &txn, swoc::meta::CaseTag<1>) -> decltype(TSHttpTxnServerSsnTransactionCount(txn), int())
 {
   return TSHttpTxnServerSsnTransactionCount(txn);
 }
@@ -606,9 +606,9 @@ void HttpTxn::arg_assign(int idx, void * value) {
 }
 
 int
-HttpTxn::server_ssn_txn_count() const
+HttpTxn::outbound_txn_count() const
 {
-  return compat::get_server_ssn_txn_count(_txn, swoc::meta::CaseArg);
+  return compat::get_outbound_txn_count(_txn, swoc::meta::CaseArg);
 }
 
 swoc::Rv<int> HttpTxn::reserve_arg(swoc::TextView const &name, swoc::TextView const &description) {

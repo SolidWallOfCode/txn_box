@@ -530,7 +530,7 @@ Session
    checking unless the full stack or a full tag is needed.
 
 
-.. extractor::  server-ssn-txn-count
+.. extractor::  outbound-txn-count
    :result: integer
 
    The number of transactions between the Traffic Server proxy and the origin server from a single session.
@@ -538,7 +538,7 @@ Session
 
    .. code-block:: yaml
 
-      with: server-ssn-txn-count
+      with: outbound-txn-count
       select:
       - gt: 10
         do:

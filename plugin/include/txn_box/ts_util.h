@@ -591,7 +591,7 @@ public:
    *
    * @return int The number of transaction
    */
-  int server_ssn_txn_count() const;
+  int outbound_txn_count() const;
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 
