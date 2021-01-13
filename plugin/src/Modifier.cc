@@ -658,8 +658,8 @@ Rv<Modifier::Handle> Mod_as_integer::load(Config &cfg, YAML::Node, TextView, Tex
 // --- //
 
 /// Convert the feature to an IP address.
-class Mod_As_IP_Addr : public Modifier {
-  using self_type = Mod_As_IP_Addr;
+class Mod_as_ip_addr : public Modifier {
+  using self_type = Mod_as_ip_addr;
   using super_type = Modifier;
 public:
   static const std::string KEY; ///< Identifier name.
@@ -692,7 +692,7 @@ public:
   static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
 protected:
-  explicit Mod_As_IP_Addr() = default;
+  explicit Mod_as_ip_addr() = default;
 
   /// Identity conversion.
   Feature convert(Context & ctx, feature_type_for<IP_ADDR> n);
@@ -705,28 +705,28 @@ protected:
   }
 };
 
-const std::string Mod_As_IP_Addr::KEY { "as-ip-addr" };
+const std::string Mod_as_ip_addr::KEY {"as-ip-addr" };
 
-bool Mod_As_IP_Addr::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_as_ip_addr::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(MaskFor({IP_ADDR, STRING}));
 }
 
-ActiveType Mod_As_IP_Addr::result_type(ActiveType const&) const {
+ActiveType Mod_as_ip_addr::result_type(ActiveType const&) const {
   return {MaskFor({NIL, IP_ADDR})};
 }
 
-Rv<Feature> Mod_As_IP_Addr::operator()(Context &ctx, Feature & feature) {
+Rv<Feature> Mod_as_ip_addr::operator()(Context &ctx, Feature & feature) {
   auto visitor = [&](auto & t) { return this->convert(ctx, t); };
   return std::visit(visitor, feature);
 }
 
-auto Mod_As_IP_Addr::load(Config &, YAML::Node, TextView, TextView, YAML::Node) -> Rv<Handle>{
+auto Mod_as_ip_addr::load(Config &, YAML::Node, TextView, TextView, YAML::Node) -> Rv<Handle>{
   return Handle(new self_type);
 }
 
-Feature Mod_As_IP_Addr::convert(Context&, feature_type_for<IP_ADDR> n) { return n; }
+Feature Mod_as_ip_addr::convert(Context&, feature_type_for<IP_ADDR> n) { return n; }
 
-Feature Mod_As_IP_Addr::convert(Context&, feature_type_for<STRING> s) {
+Feature Mod_as_ip_addr::convert(Context&, feature_type_for<STRING> s) {
   swoc::IPAddr addr{s};
   return addr.is_valid() ? Feature{addr} : NIL_FEATURE;
 };
@@ -807,7 +807,7 @@ namespace {
   Modifier::define(Mod_as_integer::KEY, &Mod_as_integer::load);
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
-  Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);
+  Modifier::define(Mod_as_ip_addr::KEY, &Mod_as_ip_addr::load);
   return true;
 } ();
 } // namespace
