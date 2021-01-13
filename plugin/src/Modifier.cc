@@ -582,8 +582,8 @@ Rv<Modifier::Handle> Mod_concat::load(Config &cfg, YAML::Node, TextView, TextVie
 // ---
 
 /// Convert the feature to an Integer.
-class Mod_As_Integer : public Modifier {
-  using self_type = Mod_As_Integer;
+class Mod_as_integer : public Modifier {
+  using self_type = Mod_as_integer;
   using super_type = Modifier;
 public:
   static const std::string KEY; ///< Identifier name.
@@ -618,20 +618,20 @@ public:
 protected:
   Expr _value; ///< Default value.
 
-  explicit Mod_As_Integer(Expr && expr) : _value(std::move(expr)) {}
+  explicit Mod_as_integer(Expr && expr) : _value(std::move(expr)) {}
 };
 
-const std::string Mod_As_Integer::KEY { "as-integer" };
+const std::string Mod_as_integer::KEY {"as-integer" };
 
-bool Mod_As_Integer::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_as_integer::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(MaskFor({STRING, INTEGER, FLOAT, BOOLEAN, NIL}));
 }
 
-ActiveType Mod_As_Integer::result_type(ActiveType const&) const {
+ActiveType Mod_as_integer::result_type(ActiveType const&) const {
   return {MaskFor({NIL, INTEGER})};
 }
 
-Rv<Feature> Mod_As_Integer::operator()(Context & ctx, Feature & feature) {
+Rv<Feature> Mod_as_integer::operator()(Context & ctx, Feature & feature) {
   auto && [ value, errata ] { feature.as_integer() };
   if (errata.is_ok()) {
     return Feature{value};
@@ -643,15 +643,14 @@ Rv<Feature> Mod_As_Integer::operator()(Context & ctx, Feature & feature) {
   return feature;
 }
 
-Rv<Modifier::Handle> Mod_As_Integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_as_integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ expr, errata ] {cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
-  if (! expr.result_type().can_satisfy(MaskFor(INTEGER))) {
-    errata.info("Value of {} modifier is not of type {}.", KEY, INTEGER);
-    return std::move(errata);
+  if (! (expr.is_null() || expr.result_type().can_satisfy(MaskFor(INTEGER)))) {
+    return Error("Value of {} modifier is not of type {}.", KEY, INTEGER);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -805,7 +804,7 @@ namespace {
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
   Modifier::define(Mod_Join::KEY, &Mod_Join::load);
   Modifier::define(Mod_concat::KEY, &Mod_concat::load);
-  Modifier::define(Mod_As_Integer::KEY, &Mod_As_Integer::load);
+  Modifier::define(Mod_as_integer::KEY, &Mod_as_integer::load);
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
   Modifier::define(Mod_As_IP_Addr::KEY, &Mod_As_IP_Addr::load);

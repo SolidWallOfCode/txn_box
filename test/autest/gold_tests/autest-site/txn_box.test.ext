@@ -67,7 +67,7 @@ def TxnBoxRxUrlRewrite(tester, rules, ports):
                     line += '@pparam={} '.format(pparam)
             tester.Disk.remap_config.AddLine(line)
 
-def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server', enable_tls=False, suffix=""):
+def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", remap=None, regex_map=None, command='traffic_server', enable_tls=False, suffix="", verifier_server_args="--verbose info"):
     """
     Create a base test object specialized for TxnBox testing.
 
@@ -111,7 +111,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     # Configure Traffic Server to use the DNS process.
     self.Variables.TXNBOX_DNS = self.MakeDNServer("dns{}".format(suffix), ip='127.0.0.1', default='127.0.0.1')
 
-    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path, other_args='--verbose info')
+    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path, other_args=verifier_server_args)
 
     ts.Disk.records_config.update({
         'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(self.Variables.TXNBOX_DNS.Variables.Port),
@@ -171,8 +171,9 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
     return run
 
 def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta.txn_box", remap=None
-                     , verifier_client_args="--verbose diag", command="traffic_server", enable_tls=False, suffix=""):
-    self.TxnBoxTest(replay_path, config_path, config_key, remap, command=command, enable_tls=enable_tls, suffix=suffix)
+                     , verifier_client_args="--verbose diag", verifier_server_args="--verbose info"
+                     , command="traffic_server", enable_tls=False, suffix=""):
+    self.TxnBoxTest(replay_path, config_path, config_key, remap, command=command, enable_tls=enable_tls, suffix=suffix, verifier_server_args=verifier_server_args)
     return self.TxnBoxRun(name, verifier_client_args=verifier_client_args)
 
 ExtendTest(TxnBoxTest, name="TxnBoxTest")

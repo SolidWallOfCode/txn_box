@@ -1826,6 +1826,188 @@ Rv<Directive::Handle> Do_upstream_rsp_body::load(Config& cfg, CfgStaticData cons
 
   return Handle(new self_type(std::move(expr)));
 }
+// ---
+/// Immediate proxy reply.
+class Do_proxy_reply : public Directive {
+  using self_type = Do_proxy_reply; ///< Self reference type.
+  using super_type = Directive; ///< Parent type.
+
+  /// Per configuration storage.
+  struct CfgInfo {
+    ReservedSpan _ctx_span; ///< Reserved span for @c CtxInfo.
+  };
+
+  /// Per context information.
+  /// This is what is stored in the span @c CfgInfo::_ctx_span
+  struct CtxInfo {
+    TextView _reason; ///< Status reason string.
+  };
+
+public:
+  inline static const std::string KEY = "proxy-reply"; ///< Directive name.
+  inline static const std::string STATUS_KEY = "status"; ///< Key for status value.
+  inline static const std::string REASON_KEY = "reason"; ///< Key for reason value.
+  inline static const std::string BODY_KEY ="body"; ///< Key for body.
+
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /// Specify the required amount of reserved configuration storage.
+  static constexpr Options OPTIONS { sizeof(CfgInfo) };
+
+  /// Need to do fixups on a later hook.
+  static constexpr Hook FIXUP_HOOK = Hook::PRSP;
+
+  Errata invoke(Context & ctx) override; ///< Runtime activation.
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+  /// Configuration level initialization.
+  static Errata cfg_init(Config& cfg, CfgStaticData const * rtti);
+
+protected:
+  using index_type = FeatureGroup::index_type;
+
+  FeatureGroup _fg; ///< Support cross references among the keys.
+
+  int _status = 0; ///< Return status is literal, 0 => extract at runtime.
+  index_type _status_idx; ///< Return status.
+  index_type _reason_idx; ///< Status reason text.
+  index_type _body_idx; ///< Body content of respons.
+  /// Bounce from fixup hook directive back to @a this.
+  Directive::Handle _fixup{new LambdaDirective([this] (Context& ctx) -> Errata { return this->fixup(ctx); })};
+
+  Errata load_status();
+
+  /// Do post invocation fixup.
+  Errata fixup(Context &ctx);
+};
+
+const HookMask Do_proxy_reply::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Errata Do_proxy_reply::cfg_init(Config& cfg, CfgStaticData const * rtti) {
+  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
+  new (cfg_info) CfgInfo; // Initialize the span.
+  // Only one proxy_reply can be effective per transaction, therefore shared state per context is best.
+  cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
+  cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
+  return {};
+}
+
+Errata Do_proxy_reply::invoke(Context& ctx) {
+  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
+
+  // If the Location view is empty, it hasn't been set and therefore the clean up hook
+  // hasn't been set either, so need to do that.
+  bool need_hook_p = false;
+
+  // Warm up the FeatureGroup.
+  _fg.pre_extract(ctx);
+
+  // Finalize the location and stash it in context storage.
+  if (_reason_idx != FeatureGroup::INVALID_IDX) {
+    Feature reason = _fg.extract(ctx, _reason_idx);
+    if (reason.index() == IndexFor(STRING)) {
+      ctx.commit(reason);
+      need_hook_p = ctx_info->_reason.empty(); // hook needed if this is first to set reason.
+      ctx_info->_reason = std::get<IndexFor(STRING)>(reason);
+    }
+  }
+
+  // Set the status to prevent the upstream request.
+  if (_status) {
+    ctx._txn.status_set(static_cast<TSHttpStatus>(_status));
+  } else {
+    auto && [ status, errata ] { _fg.extract(ctx, _status_idx).as_integer(-1) };
+    if (100 <= status && status <= 599) {
+      ctx._txn.status_set(static_cast<TSHttpStatus>(status));
+    }
+  }
+
+  // Set the body.
+  if (_body_idx != FeatureGroup::INVALID_IDX) {
+    auto body{_fg.extract(ctx, _body_idx)};
+    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
+  }
+
+  // Arrange for fixup to get invoked.
+  if (need_hook_p) {
+    ctx.on_hook_do(FIXUP_HOOK, _fixup.get());
+  }
+  return {};
+}
+
+Errata Do_proxy_reply::fixup(Context &ctx) {
+  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
+  auto hdr {ctx.proxy_rsp_hdr() };
+  // Set the reason.
+  if (!ctx_info->_reason.empty()) {
+    hdr.reason_set(ctx_info->_reason);
+  }
+  return {};
+}
+
+Errata Do_proxy_reply::load_status() {
+  _status_idx = _fg.index_of(STATUS_KEY);
+
+  FeatureGroup::ExprInfo & info = _fg[_status_idx];
+
+  if (info._expr.is_literal()) {
+    auto && [ status , errata ] { std::get<Feature>(info._expr._expr).as_integer(-1) };
+    if (! errata.is_ok()) {
+      errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
+      return std::move(errata);
+    }
+    if (!(100 <= status && status <= 599)) {
+      return Errata().error(R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY, KEY);
+    }
+    _status = status;
+  } else if (! info._expr.result_type().can_satisfy(MaskFor(STRING, INTEGER))) {
+    return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
+  }
+  return {};
+}
+
+Rv<Directive::Handle> Do_proxy_reply::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  Handle handle{new self_type};
+  Errata errata;
+  auto self = static_cast<self_type *>(handle.get());
+  if (key_value.IsScalar()) {
+    errata = self->_fg.load_as_scalar(cfg, key_value, STATUS_KEY);
+  } else if (key_value.IsSequence()) {
+    errata = self->_fg.load_as_tuple(cfg, key_value, { { STATUS_KEY, FeatureGroup::REQUIRED } , { REASON_KEY } });
+  } else if (key_value.IsMap()) {
+    errata = self->_fg.load(cfg, key_value, { { STATUS_KEY, FeatureGroup::REQUIRED }, { REASON_KEY }, { BODY_KEY } });
+  } else {
+    return Error(R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
+  }
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return {{}, std::move(errata)};
+  }
+
+  self->_reason_idx = self->_fg.index_of(REASON_KEY);
+  self->_body_idx = self->_fg.index_of(BODY_KEY);
+  errata.note(self->load_status());
+
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return { {}, std::move(errata) };
+  }
+
+  return { std::move(handle), {} };
+}
+// ---
 /* ------------------------------------------------------------------------------------ */
 /// Redirect.
 /// Although this could technically be done "by hand", it's common enough to justify
@@ -1843,14 +2025,15 @@ class Do_redirect : public Directive {
   /// This is what is stored in the span @c CfgInfo::_ctx_span
   struct CtxInfo {
     TextView _location; ///< Redirect target location.
+    TextView _reason; ///< Status text.
   };
 
 public:
-  static const std::string KEY; ///< Directive name.
-  static const std::string STATUS_KEY; ///< Key for status value.
-  static const std::string REASON_KEY; ///< Key for reason value.
-  static const std::string LOCATION_KEY; ///< Key for location value.
-  inline static const std::string BODY_KEY { "body" }; ///< Key for body.
+  inline static const std::string KEY = "redirect"; ///< Directive name.
+  inline static const std::string STATUS_KEY = "status"; ///< Key for status value.
+  inline static const std::string REASON_KEY = "reason"; ///< Key for reason value.
+  inline static const std::string LOCATION_KEY = "location"; ///< Key for location value.
+  inline static const std::string BODY_KEY ="body" ; ///< Key for body.
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
@@ -1897,11 +2080,6 @@ protected:
   Errata fixup(Context &ctx);
 };
 
-const std::string Do_redirect::KEY { "redirect" };
-const std::string Do_redirect::STATUS_KEY { "status" };
-const std::string Do_redirect::REASON_KEY { "reason" };
-const std::string Do_redirect::LOCATION_KEY { "location" };
-
 const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::REMAP}) };
 
 Errata Do_redirect::cfg_init(Config& cfg, CfgStaticData const * rtti) {
@@ -1926,9 +2104,9 @@ Errata Do_redirect::invoke(Context& ctx) {
 
   // Finalize the location and stash it in context storage.
   Feature location = _fg.extract(ctx, _location_idx);
-  if ( auto view = std::get_if<IndexFor(STRING)>(&location) ; view ) {
+  if (location.index() == IndexFor(STRING)) {
     ctx.commit(location);
-    ctx_info->_location = *view;
+    ctx_info->_location = std::get<IndexFor(STRING)>(location);
   } else {
     return Error("{} directive - '{}' was not a string as required.", KEY, LOCATION_KEY);
   }
@@ -1944,6 +2122,19 @@ Errata Do_redirect::invoke(Context& ctx) {
     }
     ctx._txn.status_set(static_cast<TSHttpStatus>(status));
   }
+  // Set the reason.
+  if (_reason_idx != FeatureGroup::INVALID_IDX) {
+    auto reason{_fg.extract(ctx, _reason_idx)};
+    if (reason.index() == IndexFor(STRING)) {
+      ctx.commit(reason);
+      ctx_info->_reason = std::get<IndexFor(STRING)>(reason);
+    }
+  }
+  // Set the body.
+  if (_body_idx != FeatureGroup::INVALID_IDX) {
+    auto body{_fg.extract(ctx, _body_idx)};
+    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
+  }
   // Arrange for fixup to get invoked.
   if (need_hook_p) {
     ctx.on_hook_do(FIXUP_HOOK, _set_location.get());
@@ -1955,19 +2146,12 @@ Errata Do_redirect::fixup(Context &ctx) {
   auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
   auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
   auto hdr {ctx.proxy_rsp_hdr() };
-  // Set the Location
+
   auto field { hdr.field_obtain(ts::HTTP_FIELD_LOCATION) };
   field.assign(ctx_info->_location);
 
-  // Set the reason.
-  if (_reason_idx != FeatureGroup::INVALID_IDX) {
-    auto reason{_fg.extract(ctx, _reason_idx)};
-    hdr.reason_set(std::get<IndexFor(STRING)>(reason));
-  }
-  // Set the body.
-  if (_body_idx != FeatureGroup::INVALID_IDX) {
-    auto body{_fg.extract(ctx, _body_idx)};
-    ctx._txn.error_body_set(std::get<IndexFor(STRING)>(body), "text/html");
+  if (!ctx_info->_reason.empty()) {
+    hdr.reason_set(ctx_info->_reason);
   }
   return {};
 }
@@ -2581,7 +2765,6 @@ namespace {
   Config::define<Do_proxy_req_path>();
   Config::define<Do_proxy_req_query>();
 
-  Config::define<Do_apply_remap_rule>();
 
   Config::define<Do_upstream_rsp_field>();
   Config::define<Do_upstream_rsp_status>();
@@ -2599,9 +2782,11 @@ namespace {
   Config::define<Do_cache_key>();
   Config::define<Do_txn_conf>();
   Config::define<Do_redirect>();
+  Config::define<Do_proxy_reply>();
   Config::define<Do_debug>();
   Config::define<Do_var>();
 
+  Config::define<Do_apply_remap_rule>();
   Config::define<Do_did_remap>();
 
   return true;
