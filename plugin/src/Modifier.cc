@@ -60,8 +60,8 @@ swoc::Rv<Feature> Modifier::operator()(Context&, feature_type_for<STRING>) { ret
 
 // ---
 
-class Mod_Hash : public Modifier {
-  using self_type = Mod_Hash;
+class Mod_hash : public Modifier {
+  using self_type = Mod_hash;
   using super_type = Modifier;
 public:
   static const std::string KEY; ///< Identifier name.
@@ -97,27 +97,27 @@ protected:
   unsigned _n = 0; ///< Number of hash buckets.
 
   /// Constructor for @c load.
-  Mod_Hash(unsigned n);
+  Mod_hash(unsigned n);
 };
 
-const std::string Mod_Hash::KEY { "hash" };
+const std::string Mod_hash::KEY {"hash" };
 
-Mod_Hash::Mod_Hash(unsigned n) : _n(n) {}
+Mod_hash::Mod_hash(unsigned n) : _n(n) {}
 
-bool Mod_Hash::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_hash::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(STRING);
 }
 
-ActiveType Mod_Hash::result_type(ActiveType const&) const {
+ActiveType Mod_hash::result_type(ActiveType const&) const {
   return { NIL, INTEGER };
 }
 
-Rv<Feature> Mod_Hash::operator()(Context &, feature_type_for<STRING> feature) {
+Rv<Feature> Mod_hash::operator()(Context &, feature_type_for<STRING> feature) {
   feature_type_for<INTEGER> value = std::hash<std::string_view>{}(feature);
   return Feature{feature_type_for<INTEGER>{value % _n}};
 }
 
-Rv<Modifier::Handle> Mod_Hash::load(Config &, YAML::Node node, TextView, TextView, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_hash::load(Config &, YAML::Node node, TextView, TextView, YAML::Node key_value) {
   if (! key_value.IsScalar()) {
     return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_value.Mark(), node.Mark());
   }
@@ -136,8 +136,8 @@ Rv<Modifier::Handle> Mod_Hash::load(Config &, YAML::Node node, TextView, TextVie
 
 // ---
 /// Filter a list.
-class Mod_Filter : public Modifier {
-  using self_type = Mod_Filter;
+class Mod_filter : public Modifier {
+  using self_type = Mod_filter;
   using super_type = Modifier;
 public:
   static constexpr TextView KEY = "filter"; ///< Identifier name.
@@ -199,15 +199,15 @@ protected:
   Case const* compare(Context& ctx, Feature const& feature) const;
 };
 
-bool Mod_Filter::is_valid_for(ActiveType const&) const {
+bool Mod_filter::is_valid_for(ActiveType const&) const {
   return true;
 }
 
-ActiveType Mod_Filter::result_type(ActiveType const& ex_type) const {
+ActiveType Mod_filter::result_type(ActiveType const& ex_type) const {
   return ex_type;
 }
 
-auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case const * {
+auto Mod_filter::compare(Context& ctx, Feature const&feature) const -> Case const * {
   for ( auto const& c : _cases) {
     if (! c._cmp || (*c._cmp)(ctx, feature)) {
       return &c;
@@ -216,7 +216,7 @@ auto Mod_Filter::compare(Context& ctx, Feature const&feature) const -> Case cons
   return nullptr;
 }
 
-Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature & feature) {
+Rv<Feature> Mod_filter::operator()(Context &ctx, Feature & feature) {
   Feature zret;
   if (feature.is_list()) {
     auto src = std::get<IndexFor(TUPLE)>(feature);
@@ -255,7 +255,7 @@ Rv<Feature> Mod_Filter::operator()(Context &ctx, Feature & feature) {
   return zret;
 }
 
-Errata Mod_Filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
+Errata Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   if (!cmp_node.IsMap()) {
     return Error("List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
   }
@@ -303,11 +303,11 @@ Errata Mod_Filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   return {};
 }
 
-bool Mod_Filter::Case::operator()(Context& ctx, Feature const& feature) {
+bool Mod_filter::Case::operator()(Context& ctx, Feature const& feature) {
   return ! _cmp || (*_cmp)(ctx, feature);
 }
 
-Rv<Modifier::Handle> Mod_Filter::load(Config &cfg, YAML::Node node, TextView, TextView, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_filter::load(Config &cfg, YAML::Node node, TextView, TextView, YAML::Node key_value) {
   auto self = new self_type;
   Handle handle(self);
   auto active_type = cfg.active_type();
@@ -800,13 +800,13 @@ Rv<Modifier::Handle> Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, Te
 
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  Modifier::define(Mod_Hash::KEY, &Mod_Hash::load);
+  Modifier::define(Mod_hash::KEY, &Mod_hash::load);
   Modifier::define(Mod_Else::KEY, &Mod_Else::load);
   Modifier::define(Mod_Join::KEY, &Mod_Join::load);
   Modifier::define(Mod_concat::KEY, &Mod_concat::load);
   Modifier::define(Mod_as_integer::KEY, &Mod_as_integer::load);
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
-  Modifier::define(Mod_Filter::KEY, &Mod_Filter::load);
+  Modifier::define(Mod_filter::KEY, &Mod_filter::load);
   Modifier::define(Mod_as_ip_addr::KEY, &Mod_as_ip_addr::load);
   return true;
 } ();
