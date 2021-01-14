@@ -15,6 +15,8 @@
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
 #include <swoc/bwf_ex.h>
+#include <swoc/bwf_ip.h>
+#include <swoc/bwf_std.h>
 #include <swoc/Lexicon.h>
 
 #include "txn_box/Directive.h"
@@ -152,9 +154,23 @@ inline auto BitSpan::reset() -> self_type & {
 class Do_ip_space_define : public Directive {
   using self_type = Do_ip_space_define; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
+protected:
+  /// Configuration level map of defined spaces.
+  using Map = std::unordered_map<TextView, self_type*, std::hash<std::string_view>>;
+
+  /// Per configuration data.
+  /// An instance of this is stored in the configuration arena.
+  struct CfgInfo {
+    ReservedSpan _ctx_reserved_span; ///< Per context reserved storage.
+    /// The active directive during configuration loading.
+    mutable self_type * _active = nullptr;
+    Map _map; ///< Map of defined spaces.
+  };
 public:
   static const std::string KEY; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
+  /// Specify the required amount of reserved configuration storage.
+  static constexpr Options OPTIONS { sizeof(CfgInfo) };
 
   /// Functor to do file content updating as needed.
   struct Updater {
@@ -190,18 +206,6 @@ public:
   static Errata cfg_init(Config& cfg, CfgStaticData const* rtti);
 
 protected:
-  /// Configuration level map of defined spaces.
-  using Map = std::unordered_map<TextView, self_type*, std::hash<std::string_view>>;
-
-  /// Per configuration data.
-  /// An instance of this is stored in the configuration arena.
-  struct CfgInfo {
-    ReservedSpan _ctx_reserved_span; ///< Per context reserved storage.
-    /// The active directive during configuration loading.
-    mutable self_type * _active = nullptr;
-    Map _map; ///< Map of defined spaces.
-  };
-
   /// A row in the space.
   using Row = MemSpan<std::byte>;
   /// IPSpace to store the rows.
@@ -349,7 +353,7 @@ Do_ip_space_define::~Do_ip_space_define() noexcept {
 auto Do_ip_space_define::map() -> Map* { return &_rtti->_cfg_store.rebind<CfgInfo>()[0]._map; }
 
 auto Do_ip_space_define::cfg_info(Config& cfg) -> CfgInfo * {
-  return cfg.drtv_info(NAME_TAG)->_cfg_store.rebind<CfgInfo>().data();
+  return cfg.drtv_info(KEY)->_cfg_store.rebind<CfgInfo>().data();
 }
 
 auto Do_ip_space_define::ctx_active_info(Context &ctx) -> CtxAxctiveInfo * {
@@ -448,7 +452,7 @@ auto Do_ip_space_define::parse_space(Config& cfg, TextView content) -> Rv<SpaceH
         }
       }
     }
-    space->space.mark(range, row);
+    space->space.fill(range, row);
   }
   return space;
 }
@@ -579,11 +583,16 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
       dur_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(dur_errata);
     }
-    if (! dur_expr.is_literal() || ! dur_expr.result_type().can_satisfy(DURATION)) {
+    if (! dur_expr.is_literal()) {
       return Error("{} value at {} for {} directive at {} must be a literal duration.", DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
     }
+    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._expr).as_duration()};
+    if (! dur_value_errata.is_ok()) {
+      return Error("{} value at {} for {} directive at {} is not a valid duration."
+                   , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
+    }
+    self->_duration = dur_value;
     drtv_node.remove(dur_node);
-    self->_duration = std::get<IndexFor(DURATION)>(std::get<Expr::LITERAL>(dur_expr._expr));
   }
 
   auto cols_node = key_value[COLUMNS_TAG];
@@ -617,6 +626,9 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
 
   std::error_code ec;
   auto content = swoc::file::load(self->_path, ec);
+  if (ec) {
+    return Error("Unable to read input file {} for space {} - {}", self->_path, self->_name, ec);
+  }
   self->_last_modified = swoc::file::modify_time(swoc::file::status(self->_path, ec));
   auto && [ space_info, space_errata ] = self->parse_space(cfg, content);
   if (! space_errata.is_ok()) {

@@ -13,6 +13,15 @@ meta:
       - prefix: "redirect/" # get the target from the rest of the path.
         do:
         - redirect: [ 302 , "http://{*}" ] # test tuple style.
+      # test proxy-reply equivalence
+      # doc-redirect-reply-form-<
+      - prefix: "reply/"
+        do:
+        - proxy-reply: 302
+        - when: proxy-rsp
+          do:
+          - proxy-rsp-field<Location>: "http://reply.ex/{ua-req-path}"
+      # doc-redirect-reply-form->
     - redirect: # Otherwise redirect with original path.
         location: "http://charlie.ex/{pre-remap-path}"
         status: 302
@@ -175,3 +184,21 @@ sessions:
       headers:
         fields:
         - [ "Location", "http://delta.ex/spot.html", equal]
+
+  - all: { headers: { fields: [ [ uuid, reply ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/reply/doc.html"
+      headers:
+        fields:
+        - [ "Host", "base.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", "http://reply.ex/reply/doc.html", equal]
+

@@ -252,7 +252,27 @@ Transaction
 
       txn-conf<proxy.config.http.cache.http>: disable
 
-.. txb:directive:: redirect
+.. directive:: proxy-reply
+
+   :code:`proxy-reply: status`
+
+   :code:`proxy-reply: [ status, reason ]`
+
+   .. code-block:: YAML
+
+      proxy-reply:
+         status: <status code>
+         reason: <reason phrase>
+         body: <response body>
+
+   Cause the proxy to reply to the user agent without connecting to an upstream. This must be
+   invoked before a connection attempt is made to the upstream (post remap hook or earlier).
+   :arg:`status` is required but :arg:`reason` and :arg:`body` are optional. If :arg:`body` is not
+   provided the standard :ref:`error response templates
+   <https://docs.trafficserver.apache.org/en/latest/admin-guide/monitoring/error-messages.en.html#html-messages-sent-to-clients>`
+   are used.
+
+.. directive:: redirect
 
    :code:`redirect <location>`
 
@@ -267,7 +287,18 @@ Transaction
          body: <response body>
 
    This directive generates a redirect response to the user agent without an upstream request. This
-   must be used before the upstream request is made, that is in the post remap hook or earlier.
+   must be used before the upstream request is made (post remap hook or earlier).
+
+   This could be done using :drtv:`proxy-reply` and :drtv:`when` but is a common enough case to
+   warrant a directive. ::
+
+   .. literalinclude: ../../test/autest/gold_tests/basic/redirect.replay.yaml
+      :start-after: doc-redirect-reply-form-<
+      :end-before: doc-redirect-reply-form->
+
+   One slight difference is when the feature expression for the location is extracted - for this
+   directive that is done when the directive is invoked and the result cached for later use, whereas
+   in the above example extraction is done during the proxy response hook.
 
 Utility
 =======
@@ -348,7 +379,7 @@ IPSpace
       Path to the IP space data file.
 
    columns
-      Defines a data column. This has the keys
+      A list of column definitions, each one a map. Each map can have the keys
 
       name
          Name of the column. This is optional.
