@@ -323,8 +323,8 @@ Rv<Modifier::Handle> Mod_filter::load(Config &cfg, YAML::Node node, TextView, Te
 
 // ---
 /// Replace the feature with another feature if the input is nil or empty.
-class Mod_Else : public Modifier {
-  using self_type = Mod_Else;
+class Mod_else : public Modifier {
+  using self_type = Mod_else;
   using super_type = Modifier;
 public:
   static constexpr TextView KEY { "else" }; ///< Identifier name.
@@ -359,22 +359,22 @@ public:
 protected:
   Expr _value;
 
-  explicit Mod_Else(Expr && fmt) : _value(std::move(fmt)) {}
+  explicit Mod_else(Expr && fmt) : _value(std::move(fmt)) {}
 };
 
-bool Mod_Else::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_else::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(MaskFor(NIL, STRING));
 }
 
-ActiveType Mod_Else::result_type(ActiveType const&) const {
+ActiveType Mod_else::result_type(ActiveType const&) const {
   return _value.result_type();
 }
 
-Rv<Feature> Mod_Else::operator()(Context &ctx, Feature & feature) {
+Rv<Feature> Mod_else::operator()(Context &ctx, Feature & feature) {
   return is_empty(feature) ? ctx.extract(_value) : feature;
 }
 
-Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_else::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ fmt, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
@@ -385,8 +385,8 @@ Rv<Modifier::Handle> Mod_Else::load(Config &cfg, YAML::Node, TextView, TextView,
 
 // ---
 /// Concatenate a tuple into a string.
-class Mod_Join : public Modifier {
-  using self_type = Mod_Join;
+class Mod_join : public Modifier {
+  using self_type = Mod_join;
   using super_type = Modifier;
 public:
   static constexpr TextView KEY { "join" }; ///< Identifier name.
@@ -421,18 +421,18 @@ public:
 protected:
   Expr _separator;
 
-  explicit Mod_Join(Expr && fmt) : _separator(std::move(fmt)) {}
+  explicit Mod_join(Expr && fmt) : _separator(std::move(fmt)) {}
 };
 
-bool Mod_Join::is_valid_for(ActiveType const& ex_type) const {
+bool Mod_join::is_valid_for(ActiveType const& ex_type) const {
   return ex_type.can_satisfy(MaskFor(NIL, STRING, TUPLE));
 }
 
-ActiveType Mod_Join::result_type(ActiveType const&) const {
+ActiveType Mod_join::result_type(ActiveType const&) const {
   return STRING;
 }
 
-Rv<Feature> Mod_Join::operator()(Context &ctx, Feature & feature) {
+Rv<Feature> Mod_join::operator()(Context &ctx, Feature & feature) {
   // Get the separator - if that doesn't work, leave it empty.
   TextView sep;
   auto value = ctx.extract(_separator);
@@ -443,7 +443,7 @@ Rv<Feature> Mod_Join::operator()(Context &ctx, Feature & feature) {
   return feature.join(ctx, sep);
 }
 
-Rv<Modifier::Handle> Mod_Join::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
+Rv<Modifier::Handle> Mod_join::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
@@ -801,8 +801,8 @@ Rv<Modifier::Handle> Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, Te
 namespace {
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Modifier::define(Mod_hash::KEY, &Mod_hash::load);
-  Modifier::define(Mod_Else::KEY, &Mod_Else::load);
-  Modifier::define(Mod_Join::KEY, &Mod_Join::load);
+  Modifier::define(Mod_else::KEY, &Mod_else::load);
+  Modifier::define(Mod_join::KEY, &Mod_join::load);
   Modifier::define(Mod_concat::KEY, &Mod_concat::load);
   Modifier::define(Mod_as_integer::KEY, &Mod_as_integer::load);
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
