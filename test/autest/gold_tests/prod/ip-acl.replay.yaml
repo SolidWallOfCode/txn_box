@@ -7,7 +7,7 @@ meta:
       do:
       - ip-space-define:
           name: "acl"
-          path: "/home/amc/git/txn_box/test/autest/gold_tests/prod/ip-acl.csv"
+          path: "ip-acl.csv"
           columns:
           - name: "access"
             type: "enum"
