@@ -268,7 +268,8 @@ Transaction
    Cause the proxy to reply to the user agent without connecting to an upstream. This must be
    invoked before a connection attempt is made to the upstream (post remap hook or earlier).
    :arg:`status` is required but :arg:`reason` and :arg:`body` are optional. If :arg:`body` is not
-   provided the standard `error response templates <https://docs.trafficserver.apache.org/en/latest/admin-guide/monitoring/error-messages.en.html#html-messages-sent-to-clients>`__
+   provided the standard
+   `error response templates <https://docs.trafficserver.apache.org/en/latest/admin-guide/monitoring/error-messages.en.html#html-messages-sent-to-clients>`__
    are used.
 
 .. directive:: redirect
