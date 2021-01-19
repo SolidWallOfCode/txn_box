@@ -50,14 +50,11 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
 
   - base-rsp: &base-rsp
       status: 200
       reason: "OK"
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -79,8 +76,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "", absent ]
-        - [ "with", "passed", equal ] # Didn't update Best-Band, fall through.
+        - [ "Best-Band", { as: absent } ]
+        - [ "with", { value: "passed", as: equal } ] # Didn't update Best-Band, fall as: through} .
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -96,8 +93,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "Delain", equal ]
-        - [ "with", "", absent ] # updated Best-Band, shouldn't do this.
+        - [ "Best-Band", { value: "Delain", as: equal } ]
+        - [ "with", { as: absent } ] # updated Best-Band, shouldn't do as: this} .
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -114,8 +111,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "", absent ]
-        - [ "with", "", absent ]
+        - [ "Best-Band", { as: absent } ]
+        - [ "with", { as: absent } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -131,8 +128,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "Delain", equal ]
-        - [ "with", "", absent ]
+        - [ "Best-Band", { value: "Delain", as: equal } ]
+        - [ "with", { as: absent } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -148,8 +145,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "", absent ]
-        - [ "with", "passed", equal ]
+        - [ "Best-Band", { as: absent } ]
+        - [ "with", { value: "passed", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -165,8 +162,8 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "Best-Band", "Delain", equal ]
-        - [ "with", "passed", equal ]
+        - [ "Best-Band", { value: "Delain", as: equal } ]
+        - [ "with", { value: "passed", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

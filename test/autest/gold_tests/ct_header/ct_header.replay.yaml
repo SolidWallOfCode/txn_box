@@ -64,7 +64,6 @@ sessions:
 
     client-request:
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "/config/settings.yaml"
       headers: { fields: [[ Host, base.ex]]}
@@ -74,7 +73,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 72 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -84,9 +82,9 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ expect-ct, "", absent]
-        - [ x-xss-protection, "", absent]
-        - [ x-content-type-options, "", absent]
+        - [ expect-ct, { as: absent } ]
+        - [ x-xss-protection, { as: absent } ]
+        - [ x-content-type-options, { as: absent } ]
 
 
   #
@@ -99,7 +97,6 @@ sessions:
 
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: "/config/settings.yaml"
       headers: { fields: [[ Host, base.ex ]]}
@@ -109,7 +106,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 72 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -119,9 +115,9 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ expect-ct, "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", equal]
-        - [ x-xss-protection, "1; mode=block", equal ]
-        - [ x-content-type-options, "nosniff", equal ]
+        - [ expect-ct, { value: "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", as: equal } ]
+        - [ x-xss-protection, { value: "1; mode=block", as: equal } ]
+        - [ x-content-type-options, { value: "nosniff", as: equal } ]
 
   #
   # Test 3: For u.protected.ex, expect the 'enforce' ct-policy.
@@ -130,7 +126,6 @@ sessions:
 
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: /config/settings.yaml
       headers: { fields: [[ Host, u.protected.ex ]]}
@@ -140,7 +135,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 72 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -150,9 +144,9 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ expect-ct, "max-age=31536000, enforce", equal]
-        - [ x-xss-protection, "1; mode=block", equal ]
-        - [ x-content-type-options, "nosniff", equal ]
+        - [ expect-ct, { value: "max-age=31536000, enforce", as: equal } ]
+        - [ x-xss-protection, { value: "1; mode=block", as: equal } ]
+        - [ x-content-type-options, { value: "nosniff", as: equal } ]
 
   #
   # Test 4: Not u.protected.ex, so expect the default ct-policy.
@@ -161,7 +155,6 @@ sessions:
 
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: "/config/settings.yaml"
       headers: { fields: [[ Host, protected.ex ]]}
@@ -171,7 +164,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 72 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -181,7 +173,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ expect-ct, "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", equal]
+        - [ expect-ct, { value: "max-age=31536000, report-uri=\"http://cane.example.com/path/cane?src=examplecom-expect-ct-report-only\"", as: equal} ]
 
 - protocol: [ { name: ip, version : 4} ]
   transactions:
@@ -192,7 +184,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 5 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "/config/settings.yaml"
       headers:
@@ -204,12 +195,11 @@ sessions:
       method: "GET"
       headers:
         fields:
-        - [ Cookie, "w=some; delicious=cookie", equal ]
+        - [ Cookie, { value: "w=some; delicious=cookie", as: equal } ]
 
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields: &srv-response-fields
         - [ Content-Type, text/html ]
@@ -224,7 +214,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 6 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "/fancy-picture.jpg"
       headers:
@@ -235,12 +224,11 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ Cookie, "", absent ]
+        - [ Cookie, { as: absent } ]
 
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields: *srv-response-fields
 
@@ -253,7 +241,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 7 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "/fancy-picture.jpg"
       headers:
@@ -265,7 +252,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -276,7 +262,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ set-cookie, "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", equal ]
+        - [ set-cookie, { value: "A1=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", as: equal } ]
 
   #
   # Test 8: Set-Cookie fields with protected.com content should be removed.
@@ -284,7 +270,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 8 ]]}}
     client-request:
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
@@ -296,7 +281,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -307,7 +291,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ set-cookie, "", absent ]
+        - [ set-cookie, { as: absent } ]
 
 #
 # Test 9: Filter out Set-Cookie fields with protected.com content when with another.
@@ -315,7 +299,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 9 ]]}}
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
@@ -327,7 +310,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -339,7 +321,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ set-cookie, "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", equal ]
+        - [ set-cookie, { value: "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly", as: equal } ]
 
   #
   # Test 10: Filter out Set-Cookie fields with protected.com content when with two others.
@@ -347,7 +329,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 10 ]]}}
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
@@ -359,7 +340,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields:
         - [ Content-Type, text/html ]
@@ -372,7 +352,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ set-cookie, [ "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ], equal ]
+        - [ set-cookie, { value: [ "A2=d=AQABBO; Max-Age=31557600; Domain=.example.com; Path=/; SameSite=Lax; Secure; HttpOnly" ], as: equal } ]
 
   #
   # Test 10: Filter out Set-Cookie fields with protected.com content when in between two others.
@@ -380,7 +360,6 @@ sessions:
   - all: { headers: { fields: [[ uuid, 11 ]]}}
     client-request:
       version: "1.1"
-      scheme: "https"
       method: "GET"
       url: "http://s.protected.ex/fancy-picture.jpg"
       headers:
@@ -395,7 +374,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content: { size: 84 }
       headers:
         fields:
         - [ Content-Type, text/html ]

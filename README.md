@@ -37,18 +37,5 @@ cd test/autest/
   --autest-site <path/to/trafficserver>/tests/gold_tests/autest-site \
   gold_tests/autest-site/ \
   --ats-bin <path/to/built/trafficserver/bin> \
-  --verifier-bin <path/to/built/proxy-verifier/bin>
-```
-
-After the first invocation of this, the pipenv shell is created. The tests can
-be re-run more quickly from within the shell like so:
-
-```
-# Still within test/autest/
-autest \
-  -D gold_tests/
-  --autest-site <path/to/trafficserver>/tests/gold_tests/autest-site \
-  gold_tests/autest-site/ \
-  --ats-bin <path/to/built/trafficserver>/bin \
-  --verifier-bin <path/to/built/proxy-verifier>/bin
+  --proxy-verifier-bin <path/to/built/proxy-verifier/bin>
 ```

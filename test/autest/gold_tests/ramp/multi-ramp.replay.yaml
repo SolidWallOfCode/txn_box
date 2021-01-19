@@ -9,15 +9,12 @@ meta:
 
   - base_request: &base_request
       version: "1.1"
-      scheme: "http"
       method: "GET"
       <<: *ua-req-hdr
 
   - upstream-rsp: &upstream-rsp
       status: 200
       reason: OK
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]

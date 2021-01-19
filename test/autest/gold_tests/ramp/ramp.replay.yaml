@@ -12,7 +12,6 @@ meta:
   blocks:
   - base_request: &base_request
       version: "1.1"
-      scheme: "http"
       method: "GET"
       url: "/1"
 
@@ -30,8 +29,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]

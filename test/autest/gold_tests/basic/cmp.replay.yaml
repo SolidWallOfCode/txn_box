@@ -75,7 +75,6 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
 
   - base-rsp: &base-rsp
@@ -103,13 +102,13 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ cmp-path, "true", equal ]
-        - [ "match-path", "true", equal ]
-        - [ "rxp-sub", "v1/video/channels/delain/subchannel/streaming", equal]
-        - [ "rxp-0", "v1/video/channels/delain/subchannel/streaming", equal]
-        - [ "cmp-any", "true", equal ]
-        - [ "cmp-mix", "true", equal ]
-        - [ "cmp-split", "true", equal]
+        - [ cmp-path, { value: "true", as: equal } ]
+        - [ "match-path", { value: "true", as: equal } ]
+        - [ "rxp-sub", { value: "v1/video/channels/delain/subchannel/streaming", as: equal } ]
+        - [ "rxp-0", { value: "v1/video/channels/delain/subchannel/streaming", as: equal } ]
+        - [ "cmp-any", { value: "true", as: equal } ]
+        - [ "cmp-mix", { value: "true", as: equal } ]
+        - [ "cmp-split", { value: "true", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -126,13 +125,13 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ cmp-path, "true", equal ]
-        - [ "match-path", "true", equal ]
-        - [ "cmp-any", "true", equal ]
-        - [ "cmp-mix", "true", equal ]
-        - [ "cmp-split", "true", equal]
-        - [ "rxp-sub", "", absent ]
-        - [ "rxp-0", "", absent ]
+        - [ cmp-path, { value: "true", as: equal } ]
+        - [ "match-path", { value: "true", as: equal } ]
+        - [ "cmp-any", { value: "true", as: equal } ]
+        - [ "cmp-mix", { value: "true", as: equal } ]
+        - [ "cmp-split", { value: "true", as: equal} ]
+        - [ "rxp-sub", { as: absent } ]
+        - [ "rxp-0", { as: absent } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -149,11 +148,11 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ cmp-path, "", absent ]
-        - [ "match-path", "", absent ]
-        - [ "cmp-any", "true", equal ]
-        - [ "cmp-mix", "true", equal ]
-        - [ "cmp-split", "true", equal]
+        - [ cmp-path, { as: absent } ]
+        - [ "match-path", { as: absent } ]
+        - [ "cmp-any", { value: "true", as: equal } ]
+        - [ "cmp-mix", { value: "true", as: equal } ]
+        - [ "cmp-split", { value: "true", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -170,13 +169,13 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ "cmp-path", "true", equal ]
-        - [ "match-path", "true", equal ]
-        - [ "cmp-any", "", absent ]
-        - [ "cmp-mix", "", absent ]
-        - [ "cmp-split", "", absent ]
-        - [ "rxp-sub", "", absent ]
-        - [ "rxp-0", "", absent ]
+        - [ "cmp-path", { value: "true", as: equal } ]
+        - [ "match-path", { value: "true", as: equal } ]
+        - [ "cmp-any", { as: absent } ]
+        - [ "cmp-mix", { as: absent } ]
+        - [ "cmp-split", { as: absent } ]
+        - [ "rxp-sub", { as: absent } ]
+        - [ "rxp-0", { as: absent } ]
     server-response:
       <<: *base-rsp
     proxy-response:

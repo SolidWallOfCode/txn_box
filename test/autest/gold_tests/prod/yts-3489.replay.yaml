@@ -61,13 +61,10 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
   - base-rsp: &base-rsp
       status: 200
       reason: OK
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -91,7 +88,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/", equal]
+        - [ "Location", { value: "http://bravo.ex/", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 102 ] ] } }
     client-request:
@@ -108,7 +105,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/", equal]
+        - [ "Location", { value: "http://bravo.ex/", as: equal } ]
 
   - all: { headers: { fields: [[ uuid, 103 ]] }}
     client-request:
@@ -125,7 +122,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/lucidity.html", equal]
+        - [ "Location", { value: "http://bravo.ex/lucidity.html", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 104 ] ] } }
     client-request:
@@ -142,7 +139,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/nightwish", equal]
+        - [ "Location", { value: "http://charlie.ex/nightwish", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 105 ] ] } }
     client-request:
@@ -159,7 +156,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/nightwish/once.html", equal]
+        - [ "Location", { value: "http://charlie.ex/nightwish/once.html", as: equal } ]
 
   # Verify no clipping if target path element isn't first.
   - all: { headers: { fields: [ [ uuid, 106 ] ] } }
@@ -177,7 +174,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/album/delain/moon-bathers.html", equal]
+        - [ "Location", { value: "http://charlie.ex/album/delain/moon-bathers.html", as: equal } ]
 
   # This shouldn't match the remap rule and therefore shouldn't be redirected.
   - all: { headers: { fields: [ [ uuid, 107 ] ] } }
@@ -195,7 +192,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ "Location", "", absent]
+        - [ "Location", { as: absent } ]
 
   # Is the query string preserved?
   - all: { headers: { fields: [ [ uuid, 108 ] ] } }
@@ -213,7 +210,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/nightwish/ocean-born.html?track=3", equal]
+        - [ "Location", { value: "http://charlie.ex/nightwish/ocean-born.html?track=3", as: equal } ]
 
   # Does the alternate style work without a query string?
   - all: { headers: { fields: [ [ uuid, 109 ] ] } }
@@ -231,7 +228,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://delta.ex/nightwish/ocean-born.html", equal]
+        - [ "Location", { value: "http://delta.ex/nightwish/ocean-born.html", as: equal } ]
 
   # Is the query string preserved in the alternate style?
   - all: { headers: { fields: [ [ uuid, 110 ] ] } }
@@ -249,7 +246,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://delta.ex/nightwish/ocean-born.html?track=3", equal]
+        - [ "Location", { value: "http://delta.ex/nightwish/ocean-born.html?track=3", as: equal } ]
 
   # Does the alternate style work without a query string?
   - all: { headers: { fields: [ [ uuid, 111 ] ] } }
@@ -267,7 +264,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://echo.ex/nightwish/ocean-born.html", equal]
+        - [ "Location", { value: "http://echo.ex/nightwish/ocean-born.html", as: equal } ]
 
   # Is the query string preserved in the alternate style?
   - all: { headers: { fields: [ [ uuid, 112 ] ] } }
@@ -285,7 +282,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://echo.ex/nightwish/ocean-born.html?track=3", equal]
+        - [ "Location", { value: "http://echo.ex/nightwish/ocean-born.html?track=3", as: equal } ]
 
   # Does the alternate style work without a query string?
   - all: { headers: { fields: [ [ uuid, 113 ] ] } }
@@ -303,7 +300,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://foxtrot.ex/nightwish/ocean-born.html", equal]
+        - [ "Location", { value: "http://foxtrot.ex/nightwish/ocean-born.html", as: equal } ]
 
   # Is the query string preserved in the alternate style?
   - all: { headers: { fields: [ [ uuid, 114 ] ] } }
@@ -321,4 +318,4 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://foxtrot.ex/nightwish/ocean-born.html?track=3", equal]
+        - [ "Location", { value: "http://foxtrot.ex/nightwish/ocean-born.html?track=3", as: equal } ]
