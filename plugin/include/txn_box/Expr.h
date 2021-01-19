@@ -55,8 +55,9 @@ public:
     ActiveType _types; ///< Types of the expressions.
   };
 
+  using Raw = std::variant<std::monostate, Feature, Direct, Composite, List>;
   /// Concrete types for a specific expression.
-  std::variant<std::monostate, Feature, Direct, Composite, List> _expr;
+  Raw _expr;
   /// Enumerations for type indices.
   enum {
     /// No value, uninitialized.

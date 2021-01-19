@@ -712,7 +712,7 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Composite & comp
 Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::List & l) {
   auto rxm = new Cmp_RxpList{_rxp_opt};
   Cmp_RxpList::expr_visitor ev {_rxp_opt, rxm->_rxp};
-  for ( auto && elt : l._exprs) {
+  for ( Expr & elt : l._exprs) {
     if (! elt.result_type().can_satisfy(STRING)) {
       return Error(R"("{}" literal must be a string.)", KEY);
     }
