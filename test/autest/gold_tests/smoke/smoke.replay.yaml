@@ -28,7 +28,6 @@ meta:
   blocks:
   - base_request: &base_request
       version: "1.1"
-      scheme: "http"
       method: "GET"
 
 sessions:
@@ -48,8 +47,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content:
-        size: 234
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -57,7 +54,7 @@ sessions:
     proxy-response:
       headers:
         fields:
-        - [ Best-Band, Delain, absent ]
+        - [ Best-Band, { as: absent } ]
 
   - all: { headers: { fields: [[ uuid, 2 ]]}}
     client-request:
@@ -73,8 +70,6 @@ sessions:
     server-response:
       status: 200
       reason: OK
-      content:
-        size: 234
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -82,7 +77,7 @@ sessions:
     proxy-response:
       headers:
         fields:
-        - [ Best-Band, "Delain", equal ]
+        - [ Best-Band, { value: "Delain", as: equal } ]
 
   - all: { headers: { fields: [[ uuid, 3 ]]}}
     client-request:
@@ -94,12 +89,10 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ Host-Check, "ex.three", "equal" ]
+        - [ Host-Check, { value: "ex.three", as: equal } ]
     server-response:
       status: 200
       reason: OK
-      content:
-        size: 130
       headers:
         fields:
         - [ Content-Type, html/plaintext ]

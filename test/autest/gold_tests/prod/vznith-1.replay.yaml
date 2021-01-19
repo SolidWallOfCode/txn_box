@@ -25,13 +25,10 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
   - base-rsp: &base-rsp
       status: 200
       reason: OK
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -52,7 +49,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -69,7 +66,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -86,7 +83,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -103,7 +100,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -120,7 +117,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_mac.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_mac.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -137,7 +134,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma_mac.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma_mac.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -154,7 +151,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma_mac.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma_mac.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -171,7 +168,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma_mac.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma_mac.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -188,7 +185,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma_mac.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma_mac.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -205,7 +202,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -222,7 +219,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ path, "/edge/file/boot_noma.ipxe.img", equal ]
+      - [ path, { value: "/edge/file/boot_noma.ipxe.img", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

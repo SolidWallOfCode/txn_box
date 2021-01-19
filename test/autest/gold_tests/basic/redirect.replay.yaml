@@ -31,13 +31,10 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
   - base-rsp: &base-rsp
       status: 200
       reason: OK
-      content:
-        size: 96
       headers:
         fields:
         - [ Content-Type, html/plaintext ]
@@ -61,7 +58,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/", equal]
+        - [ "Location", { value: "http://bravo.ex/", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 102 ] ] } }
     client-request:
@@ -78,7 +75,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/", equal]
+        - [ "Location", { value: "http://bravo.ex/", as: equal } ]
 
   - all: { headers: { fields: [[ uuid, 103 ]] }}
     client-request:
@@ -95,7 +92,7 @@ sessions:
       status: 301
       headers:
         fields:
-        - [ "Location", "http://bravo.ex/lucidity.html", equal]
+        - [ "Location", { value: "http://bravo.ex/lucidity.html", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 104 ] ] } }
     client-request:
@@ -112,7 +109,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/nightwish", equal]
+        - [ "Location", { value: "http://charlie.ex/nightwish", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, 105 ] ] } }
     client-request:
@@ -129,7 +126,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/nightwish/once.html", equal]
+        - [ "Location", { value: "http://charlie.ex/nightwish/once.html", as: equal } ]
 
   # Check for no clipping if the key path element isn't first.
   - all: { headers: { fields: [ [ uuid, 106 ] ] } }
@@ -147,7 +144,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://charlie.ex/album/delain/moon-bathers.html", equal]
+        - [ "Location", { value: "http://charlie.ex/album/delain/moon-bathers.html", as: equal } ]
 
   # This should match a remap rule without TxnBox therefore shouldn't be redirected.
   - all: { headers: { fields: [ [ uuid, 107 ] ] } }
@@ -165,7 +162,7 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ "Location", "", absent]
+        - [ "Location", { as: absent } ]
 
   # test tuple value support.
   - all: { headers: { fields: [ [ uuid, 108 ] ] } }
@@ -183,7 +180,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://delta.ex/spot.html", equal]
+        - [ "Location", { value: "http://delta.ex/spot.html", as: equal } ]
 
   - all: { headers: { fields: [ [ uuid, reply ] ] } }
     client-request:
@@ -200,5 +197,4 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", "http://reply.ex/reply/doc.html", equal]
-
+        - [ "Location", { value: "http://reply.ex/reply/doc.html", as: equal } ]

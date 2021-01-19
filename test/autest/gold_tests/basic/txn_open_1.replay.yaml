@@ -11,7 +11,6 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
 
   - base-rsp: &base-rsp
@@ -38,7 +37,7 @@ sessions:
     proxy-request:
       headers:
         fields:
-        - [ Test, "NATO = 120", equal ]
+        - [ Test, { value: "NATO = 120", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

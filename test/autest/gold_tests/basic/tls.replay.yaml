@@ -17,7 +17,6 @@ meta:
   blocks:
   - base-req: &base-req
       version: "1.1"
-      scheme: "http"
       method: "GET"
   - base-rsp: &base-rsp
       status: 200
@@ -43,7 +42,7 @@ sessions:
       <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", prefix ]
+        - [ "Host", { value: "stage.video.ex", as: prefix } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -60,7 +59,7 @@ sessions:
       <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", prefix ]
+        - [ "Host", { value: "stage.video.ex", as: prefix } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -79,7 +78,7 @@ sessions:
       <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", prefix ]
+        - [ "Host", { value: "stage.video.ex", as: prefix } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -96,7 +95,7 @@ sessions:
       <<: *base-req
       headers:
         fields:
-        - [ "Host", "stage.video.ex", prefix ]
+        - [ "Host", { value: "stage.video.ex", as: prefix } ]
     server-response:
       <<: *base-rsp
     proxy-response:
