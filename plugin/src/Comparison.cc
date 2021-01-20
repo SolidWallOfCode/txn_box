@@ -886,35 +886,21 @@ Rv<Comparison::Handle> Cmp_is_empty::load(Config &, YAML::Node const&, TextView 
   return { Handle{new self_type}, {} };
 }
 /* ------------------------------------------------------------------------------------ */
-// Integer comparison functions.
-// Because of template issues, can't use standard functors (e.g. std::equal_to) nor lambdas.
-// Well, I _could_, but it would be as verbose as this style and more obscure.
-namespace {
-bool eq(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs == rhs; }
-bool ne(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs != rhs; }
-bool lt(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs <  rhs; }
-bool le(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs <= rhs; }
-bool gt(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs >  rhs; }
-bool ge(feature_type_for<INTEGER> lhs, feature_type_for<INTEGER> rhs) { return lhs >= rhs; }
-} // namespace
-
-/// Comment elements for all binary integer comparisons.
-struct Binary_Integer_Compare_Commons {
-  static const ActiveType TYPES; ///< Feature type supported.
-};
-const ActiveType Binary_Integer_Compare_Commons::TYPES { INTEGER };
-
-template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
-class Cmp_Binary_Integer : public Comparison, public Binary_Integer_Compare_Commons {
-  using self_type = Cmp_Binary_Integer; ///< Self reference type.
+/// Common elements for all binary integer comparisons.
+/// @internal Verify the base comparison operators for @c Feature support these types.
+struct Base_Binary_Cmp : public Comparison {
+  using self_type = Base_Binary_Cmp; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
-  static const std::string KEY; ///< Comparison name.
+  /// Supported types.
+  using Cmp_Types = swoc::meta::type_list
+      < feature_type_for<INTEGER>
+        , feature_type_for<BOOLEAN>
+        , feature_type_for<IP_ADDR>
+        , feature_type_for<DURATION>
+      >;
 
-  bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override {
-    auto value = ctx.extract(_expr);
-    return P(n, std::get<IndexFor(INTEGER)>(value));
-  }
+  static inline const ActiveType TYPES = Cmp_Types::apply<ValueMaskFor>::value; ///< Mask for supported types.
 
   /** Instantiate an instance from YAML configuration.
    *
@@ -930,35 +916,100 @@ public:
 protected:
   Expr _expr;
 
-  Cmp_Binary_Integer(Expr && fmt) : _expr(std::move(fmt)) {}
+  Base_Binary_Cmp(Expr && expr) : _expr(std::move(expr)) {}
 };
 
-template < bool P(feature_type_for<INTEGER>, feature_type_for<INTEGER>) >
-Rv<Comparison::Handle> Cmp_Binary_Integer<P>::load(Config& cfg, YAML::Node const&, TextView const&, TextView const&, YAML::Node value_node) {
+Rv<Comparison::Handle> Base_Binary_Cmp::load(Config& cfg, YAML::Node const&, TextView const& key, TextView const&, YAML::Node value_node) {
   auto && [ expr, errata ] = cfg.parse_expr(value_node);
   if (!errata.is_ok()) {
-    return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", KEY, value_node.Mark()));
+    return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", key, value_node.Mark()));
   }
   auto expr_type = expr.result_type();
   if (! expr_type.can_satisfy(TYPES)) {
-    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, KEY, value_node.Mark(), TYPES);
+    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(), TYPES);
   }
   return Handle(new self_type(std::move(expr)));
 }
 
-using Cmp_eq = Cmp_Binary_Integer<eq>;
-using Cmp_ne = Cmp_Binary_Integer<ne>;
-using Cmp_lt = Cmp_Binary_Integer<lt>;
-using Cmp_le = Cmp_Binary_Integer<le>;
-using Cmp_gt = Cmp_Binary_Integer<gt>;
-using Cmp_ge = Cmp_Binary_Integer<ge>;
+// --- The concrete comparisons.
 
-template<> const std::string Cmp_eq::KEY { "eq" };
-template<> const std::string Cmp_ne::KEY { "ne" };
-template<> const std::string Cmp_lt::KEY { "lt" };
-template<> const std::string Cmp_le::KEY { "le" };
-template<> const std::string Cmp_gt::KEY { "gt" };
-template<> const std::string Cmp_ge::KEY { "ge" };
+struct Cmp_eq : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "eq";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_eq::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return f == value;
+}
+
+struct Cmp_ne : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "ne";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_ne::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return f != value;
+}
+
+struct Cmp_lt : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "lt";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_lt::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return f < value;
+}
+
+struct Cmp_le : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "le";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_le::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return f <= value;
+}
+
+struct Cmp_gt : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "gt";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_gt::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return value < f;
+}
+
+struct Cmp_ge : public Base_Binary_Cmp {
+  using self_type = Cmp_eq; ///< Self reference type.
+  using super_type = Base_Binary_Cmp; ///< Parent type.
+public:
+  static inline const std::string KEY = "ge";
+  bool operator() (Context& ctx, Feature const& f) const override;
+};
+
+bool Cmp_ge::operator()(Context& ctx, Feature const& f) const {
+  auto value = ctx.extract(_expr);
+  return value <= f;
+}
 
 // --- //
 /// Compare against a range.

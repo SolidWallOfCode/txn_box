@@ -344,6 +344,65 @@ auto Feature::as_duration(type_for<DURATION> invalid) const -> Rv<type_for < DUR
 }
 
 /* ------------------------------------------------------------------------------------ */
+bool operator == (Feature const& lhs, Feature const& rhs) {
+  auto lidx = lhs.index();
+  if (lidx != rhs.index()) {
+    return false;
+  }
+  switch (lidx) {
+    case IndexFor(NIL): return true;
+    case IndexFor(BOOLEAN):
+      return std::get<IndexFor(BOOLEAN)>(lhs) == std::get<IndexFor(BOOLEAN)>(rhs);
+    case IndexFor(INTEGER):
+      return std::get<IndexFor(INTEGER)>(lhs) == std::get<IndexFor(INTEGER)>(rhs);
+    case IndexFor(IP_ADDR):
+      return std::get<IndexFor(IP_ADDR)>(lhs) == std::get<IndexFor(IP_ADDR)>(rhs);
+    case IndexFor(DURATION):
+      return std::get<IndexFor(DURATION)>(lhs) == std::get<IndexFor(DURATION)>(rhs);
+    default: break;
+  }
+  return false;
+}
+
+bool operator < (Feature const& lhs, Feature const& rhs) {
+  auto lidx = lhs.index();
+  if (lidx != rhs.index()) {
+    return false;
+  }
+  switch (lidx) {
+    case IndexFor(BOOLEAN):
+      return std::get<IndexFor(BOOLEAN)>(lhs) < std::get<IndexFor(BOOLEAN)>(rhs);
+    case IndexFor(INTEGER):
+      return std::get<IndexFor(INTEGER)>(lhs) < std::get<IndexFor(INTEGER)>(rhs);
+    case IndexFor(IP_ADDR):
+      return std::get<IndexFor(IP_ADDR)>(lhs) < std::get<IndexFor(IP_ADDR)>(rhs);
+    case IndexFor(DURATION):
+      return std::get<IndexFor(DURATION)>(lhs) < std::get<IndexFor(DURATION)>(rhs);
+    default: break;
+  }
+  return false;
+}
+
+bool operator <= (Feature const& lhs, Feature const& rhs) {
+  auto lidx = lhs.index();
+  if (lidx != rhs.index()) {
+    return false;
+  }
+  switch (lidx) {
+    case IndexFor(NIL): return true;
+    case IndexFor(BOOLEAN):
+      return std::get<IndexFor(BOOLEAN)>(lhs) <= std::get<IndexFor(BOOLEAN)>(rhs);
+    case IndexFor(INTEGER):
+      return std::get<IndexFor(INTEGER)>(lhs) <= std::get<IndexFor(INTEGER)>(rhs);
+    case IndexFor(IP_ADDR):
+      return std::get<IndexFor(IP_ADDR)>(lhs) <= std::get<IndexFor(IP_ADDR)>(rhs);
+    case IndexFor(DURATION):
+      return std::get<IndexFor(DURATION)>(lhs) <= std::get<IndexFor(DURATION)>(rhs);
+    default: break;
+  }
+  return false;
+}
+/* ------------------------------------------------------------------------------------ */
 namespace swoc {
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, std::monostate) {
   return w.write("NULL");

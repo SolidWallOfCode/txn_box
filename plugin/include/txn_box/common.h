@@ -193,6 +193,26 @@ inline constexpr unsigned IndexFor(ValueType type) {
   return IDX[static_cast<unsigned>(type)];
 };
 
+/** Helper template for handling overloads for a specific set of types.
+ * @tparam L The type list.
+ * @tparam T The type to check against the type list.
+ * @tparam R The return type of the function / method.
+ *
+ * This can be used to enable a template method for only the types in @a L.
+ * @code
+ *   template < typename T >
+ *   auto operator() (T & t) ->
+ *     EnableForTypes<swoc::meta::type_list<T0, T1, T2>, T, void>
+ *   { ... }
+ * @endcode
+ * The return type @a R can be fixed (as in this case, it is always @c void ) or it can be dependent
+ * on @a T (e.g., @c T& ). This will set a class such that the function operator works for any
+ * type in the Feature variant, but not other types. Note that overloads for specific Feature
+ * types can be defined before such a template. This is generally done when those types are
+ * usable types, with the template for a generic failure response for non-usable types.
+ */
+template < typename L, typename T, typename R > using EnableForTypes = std::enable_if_t<L::template contains<typename std::decay<T>::type>, R>;
+
 /** Helper template for handling @c Feature variants.
  * @tparam T The type to check against the variant type list.
  * @tparam R The return type of the function / method.
@@ -292,6 +312,13 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   self_type join(Context & ctx, swoc::TextView const& glue) const;
 };
 
+bool operator == (Feature const& lhs, Feature const& rhs);
+inline bool operator != (Feature const& lhs, Feature const& rhs) { return !(lhs == rhs);}
+bool operator < (Feature const& lhs, Feature const& rhs);
+inline bool operator > (Feature const& lhs, Feature const& rhs) { return rhs < lhs;}
+bool operator <= (Feature const& lhs, Feature const& rhs);
+inline bool operator >= (Feature const& lhs, Feature const& rhs) { return rhs <= lhs;}
+
 /// @cond NO_DOXYGEN
 // These are overloads for variant visitors so that other call sites can use @c Feature
 // directly without having to reach in to the @c variant_type.
@@ -334,7 +361,16 @@ template < typename F > using TypeListIndexer = FeatureTypeList::template apply<
 
 }
 
+/** Convert a feature type to a feature index.
+ *
+ * @tparam F Feature type.
+ */
 template < typename F > static constexpr size_t index_for_type = detail::TypeListIndexer<F>::value;
+
+/** Convert a feature type to a @c ValueType value.
+ *
+ * @tparam F Feature type.
+ */
 template < typename F > static constexpr ValueType value_type_of = ValueType(index_for_type<F>);
 
 /// Nil value feature.
@@ -507,6 +543,24 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
 /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
 /// @tparam F ValueType enumeration value.
 template < ValueType F > using feature_type_for = Feature::type_for<F>;
+
+/** Compute a feature mask from a list of types.
+ *
+ * @tparam F List of feature types.
+ * @return A mask for the feature types in @a F.
+ *
+ * @internal This can't be @c constexpr because the underlying type @c std::bitset doesn't have a
+ * @c constexpr constructor.
+ */
+template < typename ... F > ValueMask MaskFor() {
+  ValueMask mask;
+  ( (mask[index_for_type<F>] = true) , ...);
+  return mask;
+}
+
+template < typename ... F > struct ValueMaskFor {
+  static inline const ValueMask value { MaskFor<F ...>() };
+};
 
 /// Check if @a feature is nil.
 inline bool is_nil(Feature const& feature) {

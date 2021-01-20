@@ -9,9 +9,14 @@ meta:
       do:
       - with: inbound-addr-remote
         select:
+        - eq: 127.0.0.1
+          do:
+          - txn-conf<proxy.config.http.insert_request_via_str>: 1
         - in: 127.0.0.0/8
           do:
           - txn-conf<proxy.config.http.insert_request_via_str>: 1
+          - ua-req-field<via>: [ ua-req-field<via> , { concat: [ "," , "non-standard loopback" ] } ]
+
 
   blocks:
   - base-req: &base-req
