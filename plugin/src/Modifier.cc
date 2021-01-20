@@ -514,7 +514,7 @@ protected:
 };
 
 bool Mod_concat::is_valid_for(ActiveType const& ex_type) const {
-  return ex_type.can_satisfy(STRING);
+  return ex_type.can_satisfy({ NIL, STRING });
 }
 
 ActiveType Mod_concat::result_type(ActiveType const&) const {
@@ -548,7 +548,7 @@ Rv<Feature> Mod_concat::Visitor::operator()(const feature_type_for<TUPLE>& t) {
   _ctx.transient_require(src.size() + sep.size() + text.size());
   auto view = _ctx.render_transient([=](swoc::BufferWriter & w) {
     w.write(src);
-    if (!src.ends_with(sep)) {
+    if (src.size() && !src.ends_with(sep)) {
       w.write(sep);
     }
     w.write(text);
@@ -557,9 +557,13 @@ Rv<Feature> Mod_concat::Visitor::operator()(const feature_type_for<TUPLE>& t) {
 }
 
 Rv<Feature> Mod_concat::operator() (Context &ctx, Feature & feature) {
-  // Only concat to strings, otherwise do nothing.
-  if (feature.index() != IndexFor(STRING)) {
-    return feature;
+  switch(feature.index()) {
+    case IndexFor(STRING): break;
+    case IndexFor(NIL): // treat NIL as the empty string.
+      feature = FeatureView::Literal("");
+      break;
+    default:
+      return feature;
   }
 
   Feature f {ctx.extract(_expr) };

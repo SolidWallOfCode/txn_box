@@ -79,7 +79,10 @@ Modifiers
 .. modifier:: concat
    :arg: List of separator, string
 
-   Concatenate a string. This takes a list of two values, the separator and the string. If the active feature is a string, and the string value for the modifier is not empty, the latter is appended to the active feature. The separator is appended first if the active feature does not already end with the separator. For example ::
+   Concatenate a string. This takes a list of two values, the separator and the string. If the
+   active feature is a non-empty string, and the string value for the modifier is not empty, the
+   latter is appended to the active feature. The separator is appended first if the active feature
+   does not already end with the separator. For example ::
 
       [ pre-remap-path , { concat: [ "/" , "albums" ]]
 
@@ -92,6 +95,16 @@ Modifiers
    which propagate the query string without creating a URL ending in "?". If there was no query
    string :ex:`pre-remap-query` will be the empty string and the modifier will not change the
    string.
+
+   This can be used to append separated strings even on empty fields. For instance, to make sure the
+   list of rock bands contains "Delain", it would be ::
+
+   .. literalinclude: ../../test/autest/gold_tests/basic/mod.replay.yaml
+     :start-after: doc-concat-empty-<
+     :end-before: doc-concat-empty->
+
+   An empty field is changed to "Delain", while if there is already a value, a comma is added before
+   adding "Delain".
 
 .. modifier:: as-integer
 

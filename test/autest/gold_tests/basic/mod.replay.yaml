@@ -1,0 +1,65 @@
+meta:
+  version: "1.0"
+
+  txn_box:
+    global:
+    - when: proxy-req
+      do:
+      # doc-concat-empty-<
+      - proxy-req-field<bands>:
+        - proxy-req-field<bands>
+        - concat: [ ",", "Delain" ]
+      # doc-concat-empty->
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      method: "GET"
+
+  - base-rsp: &base-rsp
+      status: 200
+      reason: "OK"
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ { name: ip, version : 4} ]
+  transactions:
+  #
+  - all: { headers: { fields: [[ uuid, 1 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Delain", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, 2 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ bands, "Nightwish" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Nightwish,Delain", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
