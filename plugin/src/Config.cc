@@ -672,7 +672,7 @@ Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCach
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Errata Config::load_cli_args(const std::vector<std::string> &args, int arg_offset, YamlCache * cache) {
+Errata Config::load_cli_args(Handle handle, const std::vector<std::string> &args, int arg_idx, YamlCache * cache) {
   using argv_type = char const *; // Overall clearer in context of pointers to pointers.
   std::unique_ptr<argv_type[]> buff { new argv_type[args.size()] };
   swoc::MemSpan<argv_type> argv{ buff.get(), args.size() };
@@ -680,15 +680,15 @@ Errata Config::load_cli_args(const std::vector<std::string> &args, int arg_offse
   for ( auto const& arg : args ) {
     argv[idx++] = arg.c_str();
   }
-  return this->load_cli_args(argv, arg_offset, cache);
+  return this->load_cli_args(handle, argv, arg_idx, cache);
 }
 
-Errata Config::load_cli_args(swoc::MemSpan<char const*> argv, int arg_offset, YamlCache * cache) {
+Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int arg_idx, YamlCache * cache) {
   static constexpr TextView KEY_OPT = "key";
   static constexpr TextView CONFIG_OPT = "config"; // An archaism for BC - take out someday.
 
   TextView cfg_key { _hook == Hook::REMAP ? REMAP_ROOT_KEY : GLOBAL_ROOT_KEY };
-  for ( unsigned idx = arg_offset ; idx < argv.count() ; ++idx ) {
+  for (unsigned idx = arg_idx ; idx < argv.count() ; ++idx ) {
     TextView arg{std::string_view(argv[idx])};
     if (arg.empty()) {
       continue;
@@ -731,11 +731,7 @@ Errata Config::load_cli_args(swoc::MemSpan<char const*> argv, int arg_offset, Ya
   // errors.
   auto& post_load_directives = this->hook_directives(Hook::POST_LOAD);
   if (post_load_directives.size() > 0) {
-    // It's not possible to release an object from a shared ptr, so instead the shared_ptr is
-    // constructed with a no-op deleter. I think this is cleaner than re-arranging the code to pass
-    // in the shared_ptr from the enclosing scope.
-    std::shared_ptr<self_type> tmp(this, [](self_type*)->void{});
-    std::unique_ptr<Context> ctx{new Context(tmp)};
+    std::unique_ptr<Context> ctx{new Context(handle)};
     for (auto&& drtv : post_load_directives) {
       auto errata = drtv->invoke(*ctx);
       if (! errata.is_ok()) {

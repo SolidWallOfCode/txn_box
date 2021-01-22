@@ -17,7 +17,7 @@ meta:
       - text-block-define:
           name: "SWOC"
           path: "static_file.txt"
-          duration: hours<12>
+          duration: "12 hours"
 
       - text-block-define:
           name: "alternate"
@@ -77,6 +77,7 @@ meta:
       # If this is checking it could be because there was an early failure. In that case the proxy
       # request may never have been created and proxy-req-path will be NULL. This syntax tries
       # proxy-req-path and if it is NULL, tries ua-req-path instead which will always be something.
+      - debug: "id {upstream-rsp-field<UUID>} proxy-rsp-status {proxy-rsp-status} proxy-req-path {proxy-req-path}"
       - with: [ proxy-rsp-status , [ proxy-req-path , { else: ua-req-path } ] ]
         select:
         - as-tuple:

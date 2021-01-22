@@ -38,7 +38,7 @@ Config::YamlCache Remap_Cfg_Cache;
 class RemapContext {
   using self_type = RemapContext; ///< Self reference type.
 public:
-  std::unique_ptr<Config> rule_cfg; ///< Configuration for a specific rule in @a r_cfg;
+  std::shared_ptr<Config> rule_cfg; ///< Configuration for a specific rule in @a r_cfg;
 };
 /* ------------------------------------------------------------------------------------ */
 TSReturnCode
@@ -69,10 +69,10 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
     return TS_ERROR;
   }
 
-  std::unique_ptr<Config> cfg { new Config };
+  auto cfg = std::make_shared<Config>();
   swoc::MemSpan<char const *> rule_args{ swoc::MemSpan<char*>(argv, argc).rebind<char const *>() };
   cfg->mark_as_remap();
-  Errata errata = cfg->load_cli_args(rule_args, 2
+  Errata errata = cfg->load_cli_args(cfg, rule_args, 2
 #if TS_VERSION_MAJOR >= 8
       // pre ATS 8 doesn't support remap reload callbacks, so the config cache can't be used.
       , &Remap_Cfg_Cache
@@ -87,7 +87,7 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   }
 
   G._remap_ctx_storage_required += cfg->reserved_ctx_storage_size();
-  *ih = new RemapContext { std::move(cfg) };
+  *ih = new RemapContext { cfg };
   return TS_SUCCESS;
 }
 

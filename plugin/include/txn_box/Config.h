@@ -121,6 +121,9 @@ public:
   /// Global and session variable map.
   using Variables = std::map<swoc::TextView, unsigned>;
 
+  /// External handle to instances.
+  using Handle = std::shared_ptr<self_type>;
+
   /// Cache of parsed YAML for files.
   /// @note Used only for remap.
   using YamlCache = std::unordered_map<swoc::file::path, YAML::Node>;
@@ -130,9 +133,26 @@ public:
 
   ~Config();
 
-  Errata load_cli_args(std::vector<std::string> const& args, int arg_offset = 0
+  /** Load the configuration from CLI arguments.
+   *
+   * @param handle The externally used handle to this instance.
+   * @param args The CLI arguments.
+   * @param arg_idx Index of the first CLI argument to be used.
+   * @param cache Cache of the results of YAML parsing the files.
+   * @return Errors, if any.
+   */
+  Errata load_cli_args(Handle handle, std::vector<std::string> const& args, int arg_idx = 0
                        , YamlCache * cache = nullptr);
-  Errata load_cli_args(swoc::MemSpan<char const*> argv, int arg_offset = 0
+
+  /** Load the configuration from CLI arguments.
+   *
+   * @param handle The externally used handle to this instance.
+   * @param args The CLI arguments.
+   * @param arg_idx Index of the first CLI argument to be used.
+   * @param cache Cache of the results of YAML parsing the files.
+   * @return Errors, if any.
+   */
+  Errata load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int arg_idx = 0
                        , YamlCache * cache = nullptr);
 
   /** Load file(s) in to @a this configuation.

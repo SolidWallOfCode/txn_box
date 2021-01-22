@@ -70,21 +70,24 @@ protected:
   swoc::TextView _view;
 };
 
-using ConfVarData = std::variant<std::monostate, intmax_t, double, swoc::TextView>;
-
 inline ts::String::String(char *s, int64_t size) : _view{ s, static_cast<size_t>(size) } {}
 
 inline String::~String() { if (_view.data()) { TSfree(const_cast<char*>(_view.data())); } }
 
 inline String::operator swoc::TextView() const { return _view; }
 
-inline swoc::file::path && make_absolute(swoc::file::path && path) {
+/// TS configuration variable data as supported by the API.
+using ConfVarData = std::variant<std::monostate, intmax_t, double, swoc::TextView>;
+
+/// Convert to an absolute path in the TS configuration directory.
+inline swoc::file::path make_absolute(swoc::file::path && path) {
   if (path.is_relative()) {
     path = swoc::file::path(TSConfigDirGet()) / path;
   }
   return std::move(path);
 }
 
+/// Convert to an absolute path in the TS configuration directory.
 inline swoc::file::path & make_absolute(swoc::file::path & path) {
   if (path.is_relative()) {
     path = swoc::file::path(TSConfigDirGet()) / path;
@@ -97,6 +100,7 @@ struct IOBufferDeleter {
   void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); } }
 };
 
+/// Smart pointer to TS IO Buffer.
 using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBufferDeleter>;
 
 /** Generic base class for objects in the TS Header heaps.
@@ -110,13 +114,19 @@ public:
   /// Check if there is a valid object.
   bool is_valid() const;
 
+  /// Get the buffer handle.
   TSMBuffer mbuff() const;
+  /// Get the memory location handle.
   TSMLoc mloc() const;
 
+  HeapObject & clear();
+
 protected:
-  TSMBuffer _buff = nullptr;
-  TSMLoc _loc = nullptr;
+  TSMBuffer _buff = nullptr; ///< TS buffer handle.
+  TSMLoc _loc = nullptr; ///< TS memory locatio handle.
 };
+
+inline HeapObject & HeapObject::clear() { _buff = nullptr; _loc = nullptr; return *this; }
 
 class HttpHeader;
 
@@ -151,6 +161,7 @@ public:
   std::tuple<swoc::TextView, in_port_t> loc() const;
 
   swoc::TextView host() const; ///< View of the URL host.
+
   /** Get the port in the URL.
    *
    * @return The port.

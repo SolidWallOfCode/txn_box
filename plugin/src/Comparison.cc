@@ -904,6 +904,7 @@ public:
 
   /** Instantiate an instance from YAML configuration.
    *
+   * @tparam Concrete type to instantiate.
    * @param cfg Global configuration object.
    * @param cmp_node The node containing the comparison.
    * @param key Key for comparison.
@@ -911,6 +912,7 @@ public:
    * @param value_node Value node for for @a key.
    * @return An instance or errors on failure.
    */
+  template < typename T >
   static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
 
 protected:
@@ -919,6 +921,7 @@ protected:
   Base_Binary_Cmp(Expr && expr) : _expr(std::move(expr)) {}
 };
 
+template < typename T >
 Rv<Comparison::Handle> Base_Binary_Cmp::load(Config& cfg, YAML::Node const&, TextView const& key, TextView const&, YAML::Node value_node) {
   auto && [ expr, errata ] = cfg.parse_expr(value_node);
   if (!errata.is_ok()) {
@@ -928,7 +931,7 @@ Rv<Comparison::Handle> Base_Binary_Cmp::load(Config& cfg, YAML::Node const&, Tex
   if (! expr_type.can_satisfy(TYPES)) {
     return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(), TYPES);
   }
-  return Handle(new self_type(std::move(expr)));
+  return Handle(new T(std::move(expr)));
 }
 
 // --- The concrete comparisons.
@@ -938,78 +941,72 @@ struct Cmp_eq : public Base_Binary_Cmp {
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "eq";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return f == ctx.extract(_expr); }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
 
-bool Cmp_eq::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return f == value;
-}
-
 struct Cmp_ne : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type = Cmp_ne; ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "ne";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return f != ctx.extract(_expr); }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
 
-bool Cmp_ne::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return f != value;
-}
-
 struct Cmp_lt : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type = Cmp_lt; ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "lt";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return f < ctx.extract(_expr); }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
 
-bool Cmp_lt::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return f < value;
-}
-
 struct Cmp_le : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type = Cmp_le; ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "le";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return f <= ctx.extract(_expr); }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
 
-bool Cmp_le::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return f <= value;
-}
-
 struct Cmp_gt : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type = Cmp_gt; ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "gt";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return ctx.extract(_expr) < f; }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
 
-bool Cmp_gt::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return value < f;
-}
-
 struct Cmp_ge : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type = Cmp_ge; ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "ge";
-  bool operator() (Context& ctx, Feature const& f) const override;
+  using super_type::super_type;
+  bool operator() (Context& ctx, Feature const& f) const override { return ctx.extract(_expr) <= f; }
+  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+    return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
+  }
 };
-
-bool Cmp_ge::operator()(Context& ctx, Feature const& f) const {
-  auto value = ctx.extract(_expr);
-  return value <= f;
-}
 
 // --- //
 /// Compare against a range.

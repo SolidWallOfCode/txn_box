@@ -344,6 +344,7 @@ public:
   ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
   ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
   ts::HttpResponse proxy_rsp_hdr(); ///< @return proxy response.
+
   ts::HttpSsn inbound_ssn();; ///< Inbound session.
 
   /** Store a transaction variable.
@@ -593,10 +594,10 @@ inline std::shared_ptr<Config> Context::acquire_cfg() { return _cfg; }
 inline void Context::ArenaDestructor::operator()(swoc::MemArena *arena) { arena->swoc::MemArena::~MemArena(); }
 
 inline void Context::clear_cache() {
-  _ua_req = {};
-  _proxy_req = {};
-  _upstream_rsp = {};
-  _proxy_rsp = {};
+  _ua_req.clear();
+  _proxy_req.clear();
+  _upstream_rsp.clear();
+  _proxy_rsp.clear();
 }
 
 template<typename T>

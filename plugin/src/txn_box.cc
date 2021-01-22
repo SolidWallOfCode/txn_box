@@ -52,7 +52,7 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev) {
 
 namespace {
 
- std::shared_ptr<Config> Plugin_Config;
+ Config::Handle Plugin_Config;
  std::shared_mutex Plugin_Config_Mutex; // safe updating of the shared ptr.
  std::atomic<bool> Plugin_Reloading = false;
 
@@ -89,7 +89,7 @@ int CB_Txn_Start(TSCont, TSEvent, void * payload) {
 void Task_ConfigReload() {
   std::shared_ptr cfg = std::make_shared<Config>();
   auto t0 = std::chrono::system_clock::now();
-  auto errata = cfg->load_cli_args(G._args, 1);
+  auto errata = cfg->load_cli_args(cfg, G._args, 1);
   if (!errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: Failed to reload configuration.\n{}", Config::PLUGIN_NAME, errata);
@@ -131,7 +131,7 @@ TxnBoxInit() {
 
   Plugin_Config = std::make_shared<Config>();
   auto t0 = std::chrono::system_clock::now();
-  auto errata = Plugin_Config->load_cli_args(G._args, 1);
+  auto errata = Plugin_Config->load_cli_args(Plugin_Config, G._args, 1);
   if (!errata.is_ok()) {
     return errata;
   }
