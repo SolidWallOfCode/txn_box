@@ -251,7 +251,9 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   // Intel compiler is very confused by std::variant and doesn't inherit the constructors correctly.
   // Therefore we must re-implement them explicitly.
   Feature() = default;
-  template < typename T > Feature(T const& t) : super_type(t) {}
+  template < typename T , typename = EnableForFeatureTypes<T, void> > Feature(T&& t) : super_type(std::forward<T>(t)) {}
+  // Some extra types that are useful but not strictly variant types.
+  Feature(swoc::TextView const & view) : super_type(FeatureView(view)) {}
   #else
   // Inherit variant constructors.
   using super_type::super_type;

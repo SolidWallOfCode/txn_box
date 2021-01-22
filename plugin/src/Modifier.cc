@@ -788,7 +788,8 @@ ActiveType Mod_As_Duration::result_type(ActiveType const&) const {
 }
 
 Rv<Feature> Mod_As_Duration::operator()(Context &, Feature & feature) {
-  return Feature(feature.as_duration());
+  auto && [ duration, errata ] { feature.as_duration()};
+  return { Feature(duration) , std::move(errata) };
 }
 
 Rv<Modifier::Handle> Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value) {

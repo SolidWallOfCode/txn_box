@@ -895,9 +895,9 @@ public:
   /// Supported types.
   using Cmp_Types = swoc::meta::type_list
       < feature_type_for<INTEGER>
-        , feature_type_for<BOOLEAN>
-        , feature_type_for<IP_ADDR>
-        , feature_type_for<DURATION>
+      , feature_type_for<BOOLEAN>
+      , feature_type_for<IP_ADDR>
+      , feature_type_for<DURATION>
       >;
 
   static inline const ActiveType TYPES = Cmp_Types::apply<ValueMaskFor>::value; ///< Mask for supported types.
