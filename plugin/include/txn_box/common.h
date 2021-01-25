@@ -247,17 +247,9 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
   /// @tparam F ValueType enumeration value.
   template < ValueType F > using type_for = std::variant_alternative_t<IndexFor(F), variant_type>;
 
-  #if defined(__INTEL_COMPILER)
-  // Intel compiler is very confused by std::variant and doesn't inherit the constructors correctly.
-  // Therefore we must re-implement them explicitly.
-  Feature() = default;
-  template < typename T , typename = EnableForFeatureTypes<T, void> > Feature(T&& t) : super_type(std::forward<T>(t)) {}
-  // Some extra types that are useful but not strictly variant types.
-  Feature(swoc::TextView const & view) : super_type(FeatureView(view)) {}
-  #else
   // Inherit variant constructors.
   using super_type::super_type;
-  #endif
+  
 
   /** The value type of @a this.
    *
