@@ -32,6 +32,7 @@ using swoc::Rv;
 using swoc::BufferWriter;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
+using Clock = std::chrono::system_clock;
 
 /* ------------------------------------------------------------------------------------ */
 /// Define a static text block.
@@ -85,8 +86,8 @@ protected:
   swoc::file::path _path; ///< Path to file (optional)
   std::optional<TextView> _text; ///< Default literal text (optional)
   feature_type_for<DURATION> _duration; ///< Time between update checks.
-  std::atomic<std::chrono::system_clock::duration> _last_check = std::chrono::system_clock::now().time_since_epoch(); ///< Absolute time of the last alert.
-  std::chrono::system_clock::time_point _last_modified; ///< Last modified time of the file.
+  std::atomic<Clock::duration> _last_check = Clock::now().time_since_epoch(); ///< Absolute time of the last alert.
+  Clock::time_point _last_modified; ///< Last modified time of the file.
   std::shared_ptr<std::string> _content; ///< Content of the file.
   int _line_no = 0; ///< For debugging name conflicts.
   std::shared_mutex _content_mutex; ///< Lock for access @a content.
@@ -99,9 +100,6 @@ protected:
 
   /// Map of names to text blocks.
   static Map* map(Directive::CfgStaticData const * rtti);
-
-  /// Check if it is time to do a modified check on the file content.
-  bool should_check();
 
   Do_text_block_define() = default;
 
@@ -122,22 +120,6 @@ Do_text_block_define::~Do_text_block_define() noexcept {
 
 auto Do_text_block_define::map(Directive::CfgStaticData const * rtti) -> Map* {
   return rtti->_cfg_store.rebind<CfgInfo*>()[0]->_map.get();
-}
-
-bool Do_text_block_define::should_check() {
-  using Clock = std::chrono::system_clock;
-  bool zret = false;
-
-  if (_duration.count() > 0) {
-    Clock::duration last = _last_check; // required because CAS needs lvalue reference.
-    auto now = Clock::now();                   // Current time_point.
-    if (Clock::time_point(last) + _duration <= now) {
-      // it's been long enough, swap out our time for the last time. The winner of this swap
-      // does the actual alert, leaving its current time as the last alert time.
-      zret = _last_check.compare_exchange_strong(last, now.time_since_epoch());
-    }
-  }
-  return zret;
 }
 
 Errata Do_text_block_define::invoke(Context &ctx) {
@@ -268,13 +250,11 @@ Errata Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const* rtti) {
 void Do_text_block_define::Updater::operator()() {
   auto cfg = _cfg.lock(); // Make sure the config is still around while work is done.
   if (!cfg) {
-    return;
+    return; // presume the config destruction is ongoing and will clean this up.
   }
 
-  if (! _block->should_check()) {
-    return; // not time yet.
-  }
-
+  // This should be scheduled at the appropriate intervals and so no need to check time.
+  TSDebug("txn_box", "check at %ld", Clock::now().time_since_epoch().count());
   std::error_code ec;
   auto fs = swoc::file::status(_block->_path, ec);
   if (!ec) {
@@ -288,6 +268,7 @@ void Do_text_block_define::Updater::operator()() {
       std::unique_lock lock(_block->_content_mutex);
       _block->_content = content;
       _block->_last_modified = mtime;
+      TSDebug("txn_box", "Reloaded");
       return;
     }
   }
