@@ -254,7 +254,6 @@ void Do_text_block_define::Updater::operator()() {
   }
 
   // This should be scheduled at the appropriate intervals and so no need to check time.
-  TSDebug("txn_box", "check at %ld", Clock::now().time_since_epoch().count());
   std::error_code ec;
   auto fs = swoc::file::status(_block->_path, ec);
   if (!ec) {
@@ -268,7 +267,6 @@ void Do_text_block_define::Updater::operator()() {
       std::unique_lock lock(_block->_content_mutex);
       _block->_content = content;
       _block->_last_modified = mtime;
-      TSDebug("txn_box", "Reloaded");
       return;
     }
   }
