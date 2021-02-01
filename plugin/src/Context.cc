@@ -314,7 +314,8 @@ Context::self_type &Context::enable_hooks(TSHttpTxn txn) {
 
 int Context::ts_callback(TSCont cont, TSEvent evt, void *) {
   self_type * self = static_cast<self_type*>(TSContDataGet(cont));
-  auto txn = self->_txn; // cache in case it's a close.
+  auto txn = self->_txn; // cache for TXN_CLOSE.
+  self->_global_status = TS_EVENT_HTTP_CONTINUE;
 
   // Run the directives.
   Hook hook { Convert_TS_Event_To_TxB_Hook(evt) };
@@ -322,14 +323,14 @@ int Context::ts_callback(TSCont cont, TSEvent evt, void *) {
     self->invoke_for_hook(hook);
   }
 
-  /// TXN Close is special
+  /// TXN Close is special - do internal cleanup after explicit directives are done.
   if (TS_EVENT_HTTP_TXN_CLOSE == evt) {
     TSContDataSet(cont, nullptr);
     TSContDestroy(cont);
     delete self;
   }
 
-  TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
+  TSHttpTxnReenable(txn, self->_global_status);
   return TS_SUCCESS;
 }
 

@@ -370,6 +370,9 @@ public:
    */
   Feature const& load_txn_var(swoc::TextView const& name);
 
+  /// Status event returned to core after a callback has finished.
+  TSEvent _global_status = TS_EVENT_HTTP_CONTINUE;
+
   /// Storage for remap txn information, if a remap rule is active.
   TSRemapRequestInfo* _remap_info = nullptr;
   /// Value to return from a remap invocation.
