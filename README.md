@@ -34,8 +34,7 @@ Now, run the tests like so:
 ```
 cd test/autest/
 ./autest.sh \
-  --autest-site <path/to/trafficserver>/tests/gold_tests/autest-site \
-  gold_tests/autest-site/ \
+  <path/to/trafficserver_src> \
   --ats-bin <path/to/built/trafficserver/bin> \
   --proxy-verifier-bin <path/to/built/proxy-verifier/bin>
 ```
