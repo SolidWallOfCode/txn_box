@@ -436,7 +436,11 @@ public:
    */
   int protocol_stack(swoc::MemSpan<char const*> tags) const;
 
-  swoc::IPEndpoint remote_addr() const;
+  /// @return The remote address of the session.
+  swoc::IPEndpoint addr_remote() const;
+  /// @return The local address of the session.
+  swoc::IPEndpoint addr_local() const;
+
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
 

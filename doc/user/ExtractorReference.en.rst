@@ -461,6 +461,11 @@ Session
    The remote address for the inbound connection. This is also known as the "client address", the
    address from which the connection originates.
 
+.. extractor:: inbound-addr-local
+   :result: IP address
+
+   The local address for the inbound connection, which is the address used accept the inbound session.
+
 .. txb:extractor:: inbound-sni
    :result: string
 

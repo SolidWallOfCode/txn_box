@@ -8,6 +8,8 @@
 #include <random>
 #include <chrono>
 
+#include <openssl/ssl.h>
+
 #include <swoc/TextView.h>
 #include <swoc/ArenaWriter.h>
 
@@ -71,19 +73,35 @@ Feature Ex_inbound_sni::extract(Context & ctx, Spec const&) {
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session remote address.
-class Ex_inbound_remote_addr : public Extractor {
+class Ex_inbound_addr_remote : public Extractor {
 public:
   static constexpr TextView NAME { "inbound-addr-remote" };
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 };
 
-Rv<ActiveType> Ex_inbound_remote_addr::validate(Config &, Extractor::Spec &, TextView const &) {
+Rv<ActiveType> Ex_inbound_addr_remote::validate(Config &, Extractor::Spec &, TextView const &) {
   return ActiveType{ NIL, IP_ADDR };
 }
 
-Feature Ex_inbound_remote_addr::extract(Context & ctx, Spec const& ) {
-  return swoc::IPAddr(ctx.inbound_ssn().remote_addr());
+Feature Ex_inbound_addr_remote::extract(Context & ctx, Spec const& ) {
+  return swoc::IPAddr(ctx.inbound_ssn().addr_remote());
+}
+/* ------------------------------------------------------------------------------------ */
+/// Extract the client session local address.
+class Ex_inbound_addr_local : public Extractor {
+public:
+  static constexpr TextView NAME { "inbound-addr-local" };
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Rv<ActiveType> Ex_inbound_addr_local::validate(Config &, Extractor::Spec &, TextView const &) {
+  return ActiveType{ NIL, IP_ADDR };
+}
+
+Feature Ex_inbound_addr_local::extract(Context & ctx, Spec const& ) {
+  return swoc::IPAddr(ctx.inbound_ssn().addr_local());
 }
 /* ------------------------------------------------------------------------------------ */
 class Ex_has_inbound_protocol_prefix : public Extractor {
@@ -186,7 +204,8 @@ namespace {
 Ex_inbound_txn_count inbound_txn_count;
 Ex_inbound_sni inbound_sni;
 Ex_inbound_protocol inbound_protocol;
-Ex_inbound_remote_addr inbound_remote_addr;
+Ex_inbound_addr_remote inbound_addr_remote;
+Ex_inbound_addr_local inbound_addr_local;
 Ex_has_inbound_protocol_prefix has_inbound_protocol_prefix;
 Ex_inbound_protocol_stack inbound_protocol_stack;
 
@@ -196,7 +215,8 @@ Ex_inbound_protocol_stack inbound_protocol_stack;
   Extractor::define(Ex_inbound_protocol::NAME, &inbound_protocol);
   Extractor::define(Ex_has_inbound_protocol_prefix::NAME, &has_inbound_protocol_prefix);
   Extractor::define(Ex_inbound_protocol_stack::NAME, &inbound_protocol_stack);
-  Extractor::define(Ex_inbound_remote_addr::NAME, &inbound_remote_addr);
+  Extractor::define(Ex_inbound_addr_remote::NAME, &inbound_addr_remote);
+  Extractor::define(Ex_inbound_addr_local::NAME, &inbound_addr_local);
 
   return true;
 } ();
