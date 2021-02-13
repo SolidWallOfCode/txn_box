@@ -588,8 +588,12 @@ TextView ts::HttpSsn::proto_contains(const swoc::TextView &tag) const {
   return { result, result ? strlen(result) : 0 };
 }
 
-swoc::IPEndpoint ts::HttpSsn::remote_addr() const {
+swoc::IPEndpoint ts::HttpSsn::addr_remote() const {
   return swoc::IPEndpoint{ TSHttpSsnClientAddrGet(_ssn) };
+}
+
+swoc::IPEndpoint ts::HttpSsn::addr_local() const {
+  return swoc::IPEndpoint{ TSHttpSsnIncomingAddrGet(_ssn) };
 }
 
 Errata ts::HttpTxn::cache_key_assign(TextView const &key) {
