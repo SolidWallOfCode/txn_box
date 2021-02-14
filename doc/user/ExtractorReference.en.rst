@@ -534,6 +534,47 @@ Session
    In general, though, :ex:`has-inbound-protocol-prefix` is usually a better choice for doing such
    checking unless the full stack or a full tag is needed.
 
+.. extractor:: inbound-cert-verify-result
+   :result: integer
+
+   The result of verifying the inbound remote (client) certificate. Due to issues in the OpenSSL
+   library this can be a bit odd. If the the inbound session is not TLS the result will be
+   ``X509_V_ERR_INVALID_CALL`` which as of this writing has the value 69 (:ref:`reference
+   <https://www.openssl.org/docs/man1.1.0/man1/verify.html>`). Otherwise, if no client certificate
+   was provided and was not required the result is ``X509_V_OK`` which has the value 0. This lack
+   can be detected indirectly by all of the certificate extractors returning empty strings.
+
+.. extractor:: inbound-cert-local-issuer-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the local (server) certificate issuer for an inbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+.. extractor:: inbound-cert-local-subject-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the local (server) certificate subject for an inbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+.. extractor:: inbound-cert-remote-issuer-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the remote (client) certificate issuer for an inbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+   If a client certificate wasn't provided or failed validation, this will yield an empty string.
+
+.. extractor:: inbound-cert-remote-subject-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the remote (client) certificate subject for an inbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+   If a client certificate wasn't provided or failed validation, this will yield an empty string.
 
 .. extractor::  outbound-txn-count
    :result: integer

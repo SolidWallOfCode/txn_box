@@ -13,6 +13,7 @@ meta:
         do:
         - txn-conf<proxy.config.ssl.client.sni_policy>: "@{remap-target-host}"
         - ua-req-host: "stage.video.ex"
+        - debug: "Subject CN is {inbound-cert-local-subject-field<CN>}, Issuer CN is {inbound-cert-local-issuer-field<CN>} - verified: {inbound-cert-verify-result}"
 
   blocks:
   - base-req: &base-req
