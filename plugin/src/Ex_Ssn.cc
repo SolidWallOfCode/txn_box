@@ -197,6 +197,148 @@ BufferWriter& Ex_inbound_protocol::format(BufferWriter &w, Spec const &spec, Con
   return bwformat(w, spec, tag);
 }
 /* ------------------------------------------------------------------------------------ */
+class Ex_inbound_cert_verify_result : public Extractor {
+  using self_type = Ex_inbound_cert_verify_result;
+  using super_type = Extractor;
+public:
+  static constexpr TextView NAME { "inbound-cert-verify-result"};
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  /// Extract the feature from the @a ctx.
+  Feature extract(Context& ctx, Spec const& spec) override;
+};
+
+Rv<ActiveType> Ex_inbound_cert_verify_result::validate(Config&, Extractor::Spec&, TextView const&) {
+  return {INTEGER};
+}
+
+Feature Ex_inbound_cert_verify_result::extract(Context& ctx, const Spec&) {
+  return ctx._txn.ssn().ssl_context().verify_result();
+}
+
+/// Value for an object in the issuer section of the server certificate of an inbound session.
+/// Extractor argument is the name of the field.
+class Ex_inbound_cert_local_issuer_value : public StringExtractor {
+  using self_type = Ex_inbound_cert_local_issuer_value;
+  using super_type = StringExtractor;
+public:
+  static constexpr TextView NAME { "inbound-cert-local-issuer-field"};
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+};
+
+Rv<ActiveType> Ex_inbound_cert_local_issuer_value::validate(Config &, Spec &spec, const TextView &arg) {
+  if (arg.empty()) {
+    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+  }
+  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  if (NID_undef == nid) {
+    return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
+  }
+  // Sigh - abuse the memspan and use the size as the integer value.
+  spec._data = { nullptr, size_t(nid)};
+  return { STRING };
+}
+
+BufferWriter& Ex_inbound_cert_local_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  auto ssl_ctx = ctx._txn.ssn().ssl_context();
+  auto nid = spec._data.size();
+  return bwformat(w, spec, ssl_ctx.local_issuer_value(nid));
+}
+
+/// Value for an object in the subject section of the server certificate of an inbound session.
+/// Extractor argument is the name of the field.
+class Ex_inbound_cert_local_subject_value : public StringExtractor {
+  using self_type = Ex_inbound_cert_local_subject_value;
+  using super_type = StringExtractor;
+public:
+  static constexpr TextView NAME { "inbound-cert-local-subject-field"};
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+};
+
+Rv<ActiveType> Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextView &arg) {
+  if (arg.empty()) {
+    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+  }
+  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  if (NID_undef == nid) {
+    return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
+  }
+  // Sigh - abuse the memspan and use the size as the integer value.
+  spec._data = { nullptr, size_t(nid)};
+  return { STRING };
+}
+
+BufferWriter& Ex_inbound_cert_local_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  auto ssl_ctx = ctx._txn.ssn().ssl_context();
+  auto nid = spec._data.size();
+  return bwformat(w, spec, ssl_ctx.local_subject_value(nid));
+}
+
+/// Value for an object in the issuer section of the client certificate of an inbound session.
+/// Extractor argument is the name of the field.
+class Ex_inbound_cert_remote_issuer_value : public StringExtractor {
+  using self_type = Ex_inbound_cert_remote_issuer_value;
+  using super_type = StringExtractor;
+public:
+  static constexpr TextView NAME { "inbound-cert-remote-issuer-field"};
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+};
+
+Rv<ActiveType> Ex_inbound_cert_remote_issuer_value::validate(Config &, Spec &spec, const TextView &arg) {
+  if (arg.empty()) {
+    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+  }
+  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  if (NID_undef == nid) {
+    return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
+  }
+  // Sigh - abuse the memspan and use the size as the integer value.
+  spec._data = { nullptr, size_t(nid)};
+  return { STRING };
+}
+
+BufferWriter& Ex_inbound_cert_remote_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  auto ssl_ctx = ctx._txn.ssn().ssl_context();
+  auto nid = spec._data.size();
+  return bwformat(w, spec, ssl_ctx.remote_issuer_value(nid));
+}
+
+/// Value for an object in the subject section of the client certificate of an inbound session.
+/// Extractor argument is the name of the field.
+class Ex_inbound_cert_remote_subject_value : public StringExtractor {
+  using self_type = Ex_inbound_cert_remote_subject_value;
+  using super_type = StringExtractor;
+public:
+  static constexpr TextView NAME { "inbound-cert-remote-subject-field"};
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+protected:
+};
+
+Rv<ActiveType> Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &spec, const TextView &arg) {
+  if (arg.empty()) {
+    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+  }
+  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  if (NID_undef == nid) {
+    return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
+  }
+  // Sigh - abuse the memspan and use the size as the integer value.
+  spec._data = { nullptr, size_t(nid)};
+  return { STRING };
+}
+
+BufferWriter& Ex_inbound_cert_remote_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  auto ssl_ctx = ctx._txn.ssn().ssl_context();
+  auto nid = spec._data.size();
+  return bwformat(w, spec, ssl_ctx.remote_subject_value(nid));
+}
+/* ------------------------------------------------------------------------------------ */
 namespace {
 // Extractors aren't constructed, they are always named references to singletons.
 // These are the singletons.
@@ -208,6 +350,11 @@ Ex_inbound_addr_remote inbound_addr_remote;
 Ex_inbound_addr_local inbound_addr_local;
 Ex_has_inbound_protocol_prefix has_inbound_protocol_prefix;
 Ex_inbound_protocol_stack inbound_protocol_stack;
+Ex_inbound_cert_verify_result inbound_cert_verify_result;
+Ex_inbound_cert_local_issuer_value inbound_cert_local_issuer_value;
+Ex_inbound_cert_local_subject_value inbound_cert_local_subject_value;
+Ex_inbound_cert_remote_issuer_value inbound_cert_remote_issuer_value;
+Ex_inbound_cert_remote_subject_value inbound_cert_remote_subject_value;
 
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_inbound_txn_count::NAME, &inbound_txn_count);
@@ -217,6 +364,11 @@ Ex_inbound_protocol_stack inbound_protocol_stack;
   Extractor::define(Ex_inbound_protocol_stack::NAME, &inbound_protocol_stack);
   Extractor::define(Ex_inbound_addr_remote::NAME, &inbound_addr_remote);
   Extractor::define(Ex_inbound_addr_local::NAME, &inbound_addr_local);
+  Extractor::define(Ex_inbound_cert_verify_result::NAME, &inbound_cert_verify_result);
+  Extractor::define(Ex_inbound_cert_local_subject_value::NAME, &inbound_cert_local_subject_value);
+  Extractor::define(Ex_inbound_cert_local_issuer_value::NAME, &inbound_cert_local_issuer_value);
+  Extractor::define(Ex_inbound_cert_remote_subject_value::NAME, &inbound_cert_remote_subject_value);
+  Extractor::define(Ex_inbound_cert_remote_issuer_value::NAME, &inbound_cert_remote_issuer_value);
 
   return true;
 } ();

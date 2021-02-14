@@ -561,6 +561,14 @@ ts::String ts::HttpTxn::effective_url_get() const {
   return {s, size};
 }
 
+ts::SSLContext ts::HttpSsn::ssl_context() const {
+  if (_ssn) {
+    TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
+    return {reinterpret_cast<SSL *>(compat::vconn_ssl_get(ssl_vc, swoc::meta::CaseArg))};
+  }
+  return { nullptr };
+}
+
 TextView ts::HttpSsn::inbound_sni() const {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
@@ -816,6 +824,93 @@ TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::millis
   auto data = new TaskHandle::Data(std::move(task));
   TSContDataSet(contp, data);
   return { TSContScheduleEveryOnPool(contp, period.count(), TS_THREAD_POOL_TASK), contp };
+}
+/* ------------------------------------------------------------------------ */
+// --- OpenSSL support ---
+int Proxy::ssl_nid(swoc::TextView const& name) {
+  // Unfortunately the OpenSSL internals are done badly and use of a C-string is not just an
+  // interface issue, but built deeply into the NID table handling. Users of this interface should
+  // try to do the NID conversions at configuration load time, not transaction time.
+  char buff[name.size() + 1];
+  memcpy(buff, name.data(), name.size());
+  buff[name.size()] = 0;
+  if (auto nid = OBJ_sn2nid(buff) ; nid != NID_undef) {
+    return nid;
+  }
+  return OBJ_ln2nid(buff);
+}
+
+namespace {
+TextView ssl_value_for(X509_NAME* name, int nid) {
+  if (int loc = X509_NAME_get_index_by_NID(name, nid, -1) ; loc >= 0) {
+    if (auto entry = X509_NAME_get_entry(name, loc) ; entry != nullptr) {
+      if (auto value = X509_NAME_ENTRY_get_data(entry) ; value != nullptr) {
+        return { reinterpret_cast<char const*>(ASN1_STRING_get0_data(value)), size_t(ASN1_STRING_length(value)) };
+      }
+    }
+  }
+  return {};
+}
+
+} // namespace
+
+TextView SSLContext::sni() const {
+  if (_obj != nullptr) {
+    if (const char *sni = SSL_get_servername(_obj, TLSEXT_NAMETYPE_host_name); sni != nullptr) {
+      return {sni, strlen(sni)};
+    }
+  }
+  return {};
+}
+
+long SSLContext::verify_result() const {
+  if (_obj != nullptr) {
+    return SSL_get_verify_result(_obj);
+  }
+  return X509_V_ERR_INVALID_CALL;
+}
+
+TextView SSLContext::local_subject_value(int nid) const {
+  if (_obj != nullptr) {
+    if ( auto cert = SSL_get_certificate(_obj) ; cert != nullptr ) {
+      if (auto subject = X509_get_subject_name(cert) ; subject != nullptr) {
+        return ssl_value_for(subject, nid);
+      }
+    }
+  }
+  return {};
+}
+
+TextView SSLContext::local_issuer_value(int nid) const {
+  if (_obj != nullptr) {
+    if ( auto cert = SSL_get_certificate(_obj) ; cert != nullptr ) {
+      if (auto subject = X509_get_issuer_name(cert) ; subject != nullptr) {
+        return ssl_value_for(subject, nid);
+      }
+    }
+  }
+  return {};
+}
+TextView SSLContext::remote_subject_value(int nid) const {
+  if (_obj != nullptr) {
+    if ( auto cert = SSL_get_peer_certificate(_obj) ; cert != nullptr ) {
+      if (auto subject = X509_get_subject_name(cert) ; subject != nullptr) {
+        return ssl_value_for(subject, nid);
+      }
+    }
+  }
+  return {};
+}
+
+TextView SSLContext::remote_issuer_value(int nid) const {
+  if (_obj != nullptr) {
+    if ( auto cert = SSL_get_peer_certificate(_obj) ; cert != nullptr ) {
+      if (auto subject = X509_get_issuer_name(cert) ; subject != nullptr) {
+        return ssl_value_for(subject, nid);
+      }
+    }
+  }
+  return {};
 }
 /* ------------------------------------------------------------------------ */
 } // namespace ts

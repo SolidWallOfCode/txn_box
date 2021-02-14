@@ -29,6 +29,8 @@ extern std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
 namespace ts {
 
+class SSLContext;
+
 template < typename ... Args >
 void DebugMsg(swoc::TextView fmt, Args && ... args) {
   swoc::LocalBufferWriter<1024> w;
@@ -421,8 +423,16 @@ public:
   unsigned txn_count() const;
 
   /// Return the inbound SNI name, if any.
+  /// @internal This needs to be move to @c SSLContext.
   swoc::TextView inbound_sni() const;
 
+  /** Check for a specific tag in the protocol stack.
+   *
+   * @param tag Protocol tag.
+   * @return @c true if @a tag is present in the protocol stack.
+   *
+   * This is more efficient then obtaining the stack and then searching for @a tag.
+   */
   swoc::TextView proto_contains(swoc::TextView const& tag) const;
 
   /** Retrieve the protocol stack for @a this session in to @a tags.
@@ -440,6 +450,12 @@ public:
   swoc::IPEndpoint addr_remote() const;
   /// @return The local address of the session.
   swoc::IPEndpoint addr_local() const;
+
+  /** The SSL context for the session.
+   *
+   * @return An SSL context instance, which is valid iff the session is TLS.
+   */
+  SSLContext ssl_context() const;
 
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
@@ -634,8 +650,29 @@ protected:
 class Proxy {
   using self_type = Proxy; ///< Self reference type.
 public:
+  static int ssl_nid(swoc::TextView const& name);
 protected:
 };
+
+/// An SSL context for a session.
+class SSLContext {
+  using self_type = SSLContext;
+  struct ssl_st * _obj = nullptr;
+
+  friend class HttpSsn;
+public:
+  bool is_valid() const;
+  swoc::TextView sni() const;
+  swoc::TextView local_issuer_value(int nid) const;
+  swoc::TextView local_subject_value(int nid) const;
+  swoc::TextView remote_issuer_value(int nid) const;
+  swoc::TextView remote_subject_value(int nid) const;
+  long verify_result() const;
+protected:
+  SSLContext(ssl_st * obj) : _obj(obj) {}
+};
+
+inline bool SSLContext::is_valid() const { return _obj != nullptr; }
 
 // ----
 
