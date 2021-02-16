@@ -74,7 +74,8 @@ Modifiers
    Join features in to a string. The value is used as the separator between elements. If used on a
    scalar feature it will simply convert that feature to a string. If used on tuple it will convert
    each tuple element to a string and concentate the result, placing the separator between the
-   stirngs. Nested tuples are placed in brackets and the modifier recursively applied. NULL elements are discared, but empty string are retained.
+   strings. Nested tuples are placed in brackets and the modifier recursively applied. NULL elements are discared, but empty
+   strings are retained.
 
 .. modifier:: concat
    :arg: List of separator, string
@@ -84,22 +85,22 @@ Modifiers
    latter is appended to the active feature. The separator is appended first if the active feature
    does not already end with the separator. For example ::
 
-      [ pre-remap-path , { concat: [ "/" , "albums" ]]
+      [ pre-remap-path , { concat: [ "/" , "albums" ] } ]
 
    will add "albums" to the pre-remap path. If that path is "delain" the result is "delain/albums". If the path is "delain/" the result is still "delain/albums".
 
    A common use is to attach a query string to a URL while avoiding adding "?" if there is no query stirng. E.g. ::
 
-      [ "http://delain.nl/albums/{pre-remap-path}", { concat: [ "?" , pre-remap-query ] ]
+      [ "http://delain.nl/albums/{pre-remap-path}", { concat: [ "?" , pre-remap-query ] } ]
 
    which propagate the query string without creating a URL ending in "?". If there was no query
    string :ex:`pre-remap-query` will be the empty string and the modifier will not change the
    string.
 
    This can be used to append separated strings even on empty fields. For instance, to make sure the
-   list of rock bands contains "Delain", it would be ::
+   list of rock bands contains "Delain", it would be
 
-   .. literalinclude: ../../test/autest/gold_tests/basic/mod.replay.yaml
+   .. literalinclude:: ../../test/autest/gold_tests/basic/mod.replay.yaml
      :start-after: doc-concat-empty-<
      :end-before: doc-concat-empty->
 

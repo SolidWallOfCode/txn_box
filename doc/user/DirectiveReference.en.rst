@@ -268,8 +268,7 @@ Transaction
    Cause the proxy to reply to the user agent without connecting to an upstream. This must be
    invoked before a connection attempt is made to the upstream (post remap hook or earlier).
    :arg:`status` is required but :arg:`reason` and :arg:`body` are optional. If :arg:`body` is not
-   provided the standard :ref:`error response templates
-   <https://docs.trafficserver.apache.org/en/latest/admin-guide/monitoring/error-messages.en.html#html-messages-sent-to-clients>`
+   provided the standard `error response templates <https://docs.trafficserver.apache.org/en/latest/admin-guide/monitoring/error-messages.en.html#html-messages-sent-to-clients>`__
    are used.
 
 .. directive:: redirect
@@ -290,9 +289,9 @@ Transaction
    must be used before the upstream request is made (post remap hook or earlier).
 
    This could be done using :drtv:`proxy-reply` and :drtv:`when` but is a common enough case to
-   warrant a directive. ::
+   warrant a directive.
 
-   .. literalinclude: ../../test/autest/gold_tests/basic/redirect.replay.yaml
+   .. literalinclude:: ../../test/autest/gold_tests/basic/redirect.replay.yaml
       :start-after: doc-redirect-reply-form-<
       :end-before: doc-redirect-reply-form->
 

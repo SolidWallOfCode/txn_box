@@ -539,8 +539,8 @@ Session
 
    The result of verifying the inbound remote (client) certificate. Due to issues in the OpenSSL
    library this can be a bit odd. If the the inbound session is not TLS the result will be
-   ``X509_V_ERR_INVALID_CALL`` which as of this writing has the value 69 (:ref:`reference
-   <https://www.openssl.org/docs/man1.1.0/man1/verify.html>`). Otherwise, if no client certificate
+   ``X509_V_ERR_INVALID_CALL`` which as of this writing has the value 69 (:`reference
+   <https://www.openssl.org/docs/man1.1.0/man1/verify.html>`__). Otherwise, if no client certificate
    was provided and was not required the result is ``X509_V_OK`` which has the value 0. This lack
    can be detected indirectly by all of the certificate extractors returning empty strings.
 
@@ -591,7 +591,7 @@ Session
          - proxy-rsp-field<Connection>: "close"
 
 .. warning::
-   For ATS version different to 10, this will return `0` and the value should not be taken
+   For ATS versions before 10, this will return `0` and the value should not be taken
    into consideration to determine connection reuse.
 
 .. _ex-duration:
