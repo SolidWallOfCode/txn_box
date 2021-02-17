@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Required environment variables
+# PREFIX - used to set the common name.
+# DN - used to select a root or signed distinguished name. Must be "CA" or "Signed".
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+new_certs_dir = .
+
+[ req ]
+# Disable prompting so the commands use data from here!
+prompt = no
+distinguished_name = DN-${ENV::DN}
+
+[DN-Signed]
+CN = base.ex:role.${ENV::PREFIX}
+O = TxnBox
+C = S3
+ST = Amber
+L = Kolvir
+
+[DN-CA]
+CN = TxnBox CA ${ENV::PREFIX}
+O = TxnBox
+C = S3
+ST = Confusion
+L = Dazed

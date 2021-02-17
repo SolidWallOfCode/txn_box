@@ -72,6 +72,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     Create a base test object specialized for TxnBox testing.
 
     Args:
+        replay_path: Replay file for the PV server.
         config_path: (str) Path to the global configuration file for txn_box.so. If omitted only
             remap configuration is done. If it's 'Auto' then the replay path is used.
         config_key: (str) The --key parameter to pass into txn_box.so in the
@@ -85,6 +86,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     ts = self.MakeATSProcess("ts{}".format(suffix), command=command, enable_tls=enable_tls)
     self.Variables.TXNBOX_TS = ts
     self.Variables.TXNBOX_REPLAY_PATH = replay_path
+    self.Variables.TXNBOX_DEPENDENCIES = False
 
     # Put the txn_box.so into the sandbox.
     plugin_dir = ts.Env['PROXY_CONFIG_PLUGIN_PLUGIN_DIR']
@@ -128,9 +130,9 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     if remap == None and regex_map == None :
         ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(self.Variables.TXNBOX_SERVER.Variables.http_port))
 
-    return self
+    return ts
 
-def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
+def TxnBoxRun(self, text, replay_path=None, ssl_cert=None, suffix=None, verifier_client_args=""):
     """
     Set up a standard test run for TxnBox
 
@@ -151,22 +153,30 @@ def TxnBoxRun(self, text, replay_path=None, verifier_client_args=""):
               , 'http_ports' : [ ts.Variables.port ]
               }
 
+    if ssl_cert != None :
+        vc_args['ssl_cert'] = ssl_cert;
+
     try:
         vc_args['https_ports'] = [ ts.Variables.ssl_port ]
     except:
         pass # not an error if it's missing, just don't pass it.
-    pv_client = run.AddVerifierClientProcess("pv-client", replay_path, **vc_args)
+
+    vc_name="pv-client"
+    if suffix != None:
+        vc_name = "{}-{}".format(vc_name,suffix)
+
+    pv_client = run.AddVerifierClientProcess(vc_name, replay_path, **vc_args)
 
     run.Variables.CLIENT = pv_client
 
     pv_server = self.Variables.TXNBOX_SERVER
     run.Variables.SERVER = pv_server
 
-    pv_client.StartBefore(pv_server)
-    run.Processes.Default.StartBefore(pv_server)
-    run.Processes.Default.StartBefore(self.Variables.TXNBOX_DNS)
-    run.Processes.Default.StartBefore(ts)
-    run.Processes.Default.StartBefore(self.Variables.TXNBOX_DNS)
+    if not self.Variables.TXNBOX_DEPENDENCIES:
+        self.Variables.TXNBOX_DEPENDENCIES = True;
+        run.Processes.Default.StartBefore(pv_server)
+        run.Processes.Default.StartBefore(self.Variables.TXNBOX_DNS)
+        run.Processes.Default.StartBefore(ts)
 
     return run
 
