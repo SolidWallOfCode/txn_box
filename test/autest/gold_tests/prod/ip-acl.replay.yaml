@@ -11,17 +11,26 @@ meta:
           columns:
           - name: "access"
             type: "enum"
-            keys: [ "allow", "deny" ]
+            keys: [ "allow", "deny", "secure" ]
 
     - when: ua-req
       do:
       - with: [ ua-req-field<addr> , { as-ip-addr: }, { ip-space<acl>: ip-col<access> } ]
-        do:
-          debug: "Addr is {ua-req-field<addr>} value is {...}"
         select:
         - match: "deny"
           do:
           - proxy-reply: 403
+
+    remap:
+    - debug: "remap"
+    - with: [ua-req-field<addr>, { as-ip-addr: } , { ip-space<acl>: ip-col<access> } ]
+      do:
+      - debug: "Remap - checking {...}"
+      select:
+      - match: "secure"
+        do:
+        - debug: "secured"
+        - ua-req-path: "path/secure-text.html"
 
   blocks:
   - base-req: &base-req
@@ -83,4 +92,36 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 403
+
+  - all: { headers: { fields: [[ uuid, redirect-miss ]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/text.html"
+      headers:
+        fields:
+        - [ Host, docjj.ex ]
+        - [ addr, "172.19.2.3" ]
+    proxy-request:
+      <<: *base-req
+      url: [ [ path, { value: "path/text.html" , as: equal } ] ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, redirect-hit ]]}}
+    client-request:
+      <<: *base-req
+      url: "/path/text.html"
+      headers:
+        fields:
+        - [ Host, docjj.ex ]
+        - [ addr, "10.9.9.9" ]
+    proxy-request:
+      <<: *base-req
+      url: [ [ path, { value: "path/secure-text.html" , as: equal } ] ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
 

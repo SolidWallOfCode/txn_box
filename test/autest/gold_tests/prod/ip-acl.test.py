@@ -13,7 +13,9 @@ Test using IP spaces as ACLs.
 replay_file="ip-acl.replay.yaml"
 
 tr = Test.TxnBoxTestAndRun("IP ACL", replay_file, config_path='Auto', config_key='meta.txn-box.global'
-                , remap=[ ['http://base.ex/'] ]
+                , remap=[ ['http://base.ex/']
+                          , [ 'http://docjj.ex/' , 'http://docjj.ex', ['--key=meta.txn-box.remap', 'ip-acl.replay.yaml'] ]
+                          ]
                 , verifier_client_args="--verbose info"
                 )
 

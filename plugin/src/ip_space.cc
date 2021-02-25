@@ -751,20 +751,24 @@ ActiveType Mod_ip_space::result_type(const ActiveType &) const {
 
 Rv<Modifier::Handle> Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::Node key_value) {
   auto csi = Do_ip_space_define::cfg_info(cfg);
-  auto & map = csi->_map;
-  auto spot = map.find(arg);
-  if (spot == map.end()) {
-    return Error(R"("{}" at {} is not the name of a defined IP space.)", arg, node.Mark());
+  // Unfortunately supporting remap requires dynamic access.
+  if (csi) {
+    auto& map = csi->_map;
+    auto spot = map.find(arg);
+    if (spot == map.end()) {
+      return Error(R"("{}" at {} is not the name of a defined IP space.)", arg, node.Mark());
+    }
+    let scope(csi->_active, spot->second);
+    // Now parse the expression with the active IPSpace and row.
+    auto &&[expr, errata]{cfg.parse_expr(key_value)};
+    if (!errata.is_ok()) {
+      errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+      return std::move(errata);
+    }
+    return Handle(new self_type{std::move(expr), arg, static_cast<Do_ip_space_define*>(spot->second)});
   }
-  let scope(csi->_active, spot->second);
-  // Now parse the expression with the active IPSpace.
-  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
-  if (! errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
-    return std::move(errata);
-  }
-  return Handle(new self_type{std::move(expr), arg, static_cast<Do_ip_space_define*>(spot->second)});
-};
+  return {};
+}
 
 Rv<Feature> Mod_ip_space::operator()(Context& ctx, feature_type_for<IP_ADDR> addr) {
   // Set up local active state.
@@ -810,7 +814,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
     return Error(R"("{}" extractor requires an argument to specify the column.)", NAME);
   }
   auto csi = Do_ip_space_define::cfg_info(cfg);
-  if (! csi->_active) {
+  if (csi && ! csi->_active) {
     return Error(R"("{}" extractor can only be used with an active IP Space.)", NAME);
   }
 
