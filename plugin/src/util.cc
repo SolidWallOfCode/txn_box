@@ -9,6 +9,7 @@
 #include <chrono>
 
 #include <swoc/bwf_std.h>
+#include <swoc/bwf_ip.h>
 
 #include "txn_box/common.h"
 #include "txn_box/Context.h"

@@ -42,6 +42,13 @@ public:
   static const std::string GLOBAL_ROOT_KEY; ///< Root key for global configuration.
   static const std::string REMAP_ROOT_KEY; ///< Root key for remap configuration.
 
+  /** Active configuration state / scope support.
+   * This is transitory information used during configuration loading and is discarded after.
+   */
+  struct ActiveScope {
+
+  };
+
   /// Track the state of provided features.
   struct ActiveFeatureState {
     ActiveType _type; ///< Type of active feature.
@@ -384,11 +391,33 @@ public:
    */
   Directive::CfgStaticData const * drtv_info(swoc::TextView const& name) const;
 
+  /// @return Number of files loaded for this configuration.
   size_t file_count() const { return _cfg_file_count; }
 
+  /// @return The total amount of context storage reserved.
   size_t reserved_ctx_storage_size() const { return _ctx_storage_required; }
 
+  template < typename T > T* active_value(swoc::TextView const & name) {
+    return static_cast<T*>(_active_values[name]);
+  }
+
+  struct active_value_save {
+    void *& _value;
+    void * _saved;
+
+    active_value_save(void*& var, void* value) : _value(var), _saved(_value) {
+      _value = value;
+    }
+    ~active_value_save() {
+      _value = _saved;
+    }
+  };
+
+  active_value_save active_value_let(swoc::TextView const & name, void * value) {
+    return active_value_save(_active_values[name], value);
+  }
 protected:
+  /// As the top level directive, this needs special access.
   friend class When;
   friend class Context;
 
@@ -413,6 +442,12 @@ protected:
    * for the specific tracking without having to do value checks.
    */
   /// @{
+  using ActiveValues = std::unordered_map<swoc::TextView, void *, std::hash<std::string_view>>;
+  /// Active (scoped) values used by elements (primarily directives and modifiers).
+  /// Valid only during configuration load, not at run time.
+  ActiveValues _active_values;
+  swoc::MemArena _active_value_arena;
+
   ActiveFeatureState _active_feature; ///< Feature.
   ActiveCaptureState _active_capture; ///< Regular expression capture groups.
   /// #}
