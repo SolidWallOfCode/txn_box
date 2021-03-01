@@ -46,7 +46,7 @@ namespace {
 /// Column data type.
 enum class ColumnData {
   INVALID, ///< Invalid marker.
-  RANGE, ///< Special marker for range column (column 0)
+  ADDRESS, ///< Special marker for range column (column 0)
   STRING, ///< text.
   INTEGER, ///< integral value.
   ENUM, ///< enumeration.
@@ -613,7 +613,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
   self->_cols.emplace_back(Column{});
   self->_cols[0]._name = "range";
   self->_cols[0]._idx = 0;
-  self->_cols[0]._type = ColumnData::RANGE;
+  self->_cols[0]._type = ColumnData::ADDRESS;
   self->_col_names.define(self->_cols[0]._idx, self->_cols[0]._name);
 
   if (cols_node) {
@@ -874,25 +874,28 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
     if (idx == INVALID_IDX) {
       return Error(R"(Invalid column argument, "{}" in space {} is not recognized as an index or name.)", arg, drtv->_name);
     }
-    ActiveType result_type = NIL;
-    switch (drtv->_cols[info._idx]._type) {
-      default: break; // shouldn't happen.
-      case ColumnData::RANGE: result_type = {ActiveType::TupleOf(IP_ADDR)};
-        break;
-      case ColumnData::STRING: result_type = STRING;
-        break;
-      case ColumnData::INTEGER: result_type = INTEGER;
-        break;
-      case ColumnData::ENUM: result_type = STRING;
-        break;
-      case ColumnData::FLAGS: result_type = TUPLE;
-        break;
-    }
-    return result_type;
+    info._idx = idx;
+  } else {
+    info._arg = cfg.localize(arg);
+    info._idx = INVALID_IDX;
+    return {{STRING, INTEGER, IP_ADDR, TUPLE}};
   }
-  info._arg = cfg.localize(arg);
-  info._idx = INVALID_IDX;
-  return { {STRING, INTEGER, TUPLE} };
+
+  ActiveType result_type = NIL;
+  switch (drtv->_cols[info._idx]._type) {
+    default: break; // shouldn't happen.
+    case ColumnData::ADDRESS: result_type = IP_ADDR;
+      break;
+    case ColumnData::STRING: result_type = STRING;
+      break;
+    case ColumnData::INTEGER: result_type = INTEGER;
+      break;
+    case ColumnData::ENUM: result_type = STRING;
+      break;
+    case ColumnData::FLAGS: result_type = TUPLE;
+      break;
+  }
+  return result_type;
 }
 
 Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
@@ -907,14 +910,14 @@ Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
       auto data = col.data_in_row(ctx_ai->_row);
       switch (col._type) {
         default: break; // Shouldn't happen.
+        case ColumnData::ADDRESS: return {ctx_ai->_addr };
         case ColumnData::STRING:return FeatureView::Literal(data.rebind<TextView>()[0]);
         case ColumnData::INTEGER:return {data.rebind<feature_type_for<INTEGER>>()[0]};
         case ColumnData::ENUM:return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
         case ColumnData::FLAGS: {
-          auto t = ctx.alloc_span<feature_type_for<TUPLE>>(1)[0];
           auto bits = BitSpan(data);
           auto n_bits = bits.count();
-          t = ctx.alloc_span<Feature>(n_bits);
+          auto t = ctx.alloc_span<Feature>(n_bits);
           for (unsigned k = 0, t_idx = 0; k < col._tags.count(); ++k) {
             if (bits[k]) {
               t[t_idx++] = FeatureView::Literal(col._tags[k]);
