@@ -100,10 +100,10 @@ sessions:
       headers:
         fields:
         - [ Host, docjj.ex ]
-        - [ addr, "172.19.2.3" ]
+        - [ addr, "10.9.9.9" ]
     proxy-request:
       <<: *base-req
-      url: [ [ path, { value: "path/text.html" , as: equal } ] ]
+      url: [ [ path, { value: "/path/text.html" , as: equal } ] ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -116,10 +116,10 @@ sessions:
       headers:
         fields:
         - [ Host, docjj.ex ]
-        - [ addr, "10.9.9.9" ]
+        - [ addr, "172.19.2.3" ]
     proxy-request:
       <<: *base-req
-      url: [ [ path, { value: "path/secure-text.html" , as: equal } ] ]
+      url: [ [ path, { value: "/path/secure-text.html" , as: equal } ] ]
     server-response:
       <<: *base-rsp
     proxy-response:
