@@ -198,6 +198,11 @@ BufferWriter& ts::URL::write_loc(BufferWriter& w) const {
   return w;
 }
 
+auto ts::URL::loc_set(const swoc::TextView& loc) -> self_type & {
+
+  return *this;
+}
+
 TextView ts::URL::host() const {
   char const *text;
   int size;
@@ -423,7 +428,25 @@ bool ts::HttpRequest::port_set(in_port_t port) {
   return true;
 }
 
-swoc::TextView HttpRequest::method() const { int length;
+bool ts::HttpRequest::loc_set(swoc::TextView const &loc) {
+  bool force_host_p = true;
+
+  if (auto url{this->url()} ; !url.host().empty()) {
+    url.loc_set(loc);
+    force_host_p = false;
+  }
+
+  if ( auto field{this->field(HTTP_FIELD_HOST)} ;  field.is_valid()) {
+    field.assign(loc);
+  } else if (force_host_p) {
+    this->field_create(HTTP_FIELD_HOST).assign(loc);
+  }
+
+  return true;
+}
+
+swoc::TextView HttpRequest::method() const {
+  int length;
   char const *text;
   text = TSHttpHdrMethodGet(_buff, _loc, &length);
   return {text, static_cast<size_t>(length) };

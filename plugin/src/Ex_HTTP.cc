@@ -620,6 +620,56 @@ BufferWriter& Ex_proxy_req_query::format(BufferWriter &w, Spec const &spec, Cont
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Fragment.
+class Ex_ua_req_fragment : public Extractor {
+public:
+  static constexpr TextView NAME { "ua-req-fragment" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_ua_req_fragment::extract(Context &ctx, Spec const&) {
+  if ( auto hdr {ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      return FeatureView::Direct(url.fragment());
+    }
+  }
+  return NIL_FEATURE;
+}
+
+class Ex_pre_remap_fragment : public Extractor {
+public:
+  static constexpr TextView NAME { "pre-remap-fragment" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_pre_remap_fragment::extract(Context &ctx, Spec const&) {
+  if ( auto url {ctx._txn.pristine_url_get() } ; url.is_valid()) {
+    return FeatureView::Direct(url.fragment());
+  }
+  return NIL_FEATURE;
+}
+
+class Ex_proxy_req_fragment : public Extractor {
+public:
+  static constexpr TextView NAME { "proxy-req-fragment" };
+
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context & ctx, Spec const& spec) override;
+};
+
+Feature Ex_proxy_req_fragment::extract(Context &ctx, Spec const&) {
+  if ( auto hdr {ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    if ( ts::URL url { hdr.url() } ; url.is_valid()) {
+      return FeatureView::Direct(url.fragment());
+    }
+  }
+  return NIL_FEATURE;
+}
+/* ------------------------------------------------------------------------------------ */
 /// The network location in the URL.
 class Ex_ua_req_url_loc : public Extractor {
 public:
@@ -1159,6 +1209,10 @@ Ex_ua_req_query ua_req_query;
 Ex_proxy_req_query proxy_req_query;
 Ex_pre_remap_query pre_remap_query;
 
+Ex_ua_req_fragment ua_req_fragment;
+Ex_pre_remap_fragment pre_remap_fragment;
+Ex_proxy_req_fragment proxy_req_fragment;
+
 Ex_ua_req_url_host ua_req_url_host;
 Ex_proxy_req_url_host proxy_req_url_host;
 
@@ -1219,6 +1273,10 @@ Ex_outbound_txn_count outbound_txn_count;
   Extractor::define(Ex_ua_req_query::NAME, &ua_req_query);
   Extractor::define(Ex_pre_remap_query::NAME, &pre_remap_query);
   Extractor::define(Ex_proxy_req_query::NAME, &proxy_req_query);
+
+  Extractor::define(Ex_ua_req_fragment::NAME, &ua_req_fragment);
+  Extractor::define(Ex_pre_remap_fragment::NAME, &pre_remap_fragment);
+  Extractor::define(Ex_proxy_req_fragment::NAME, &proxy_req_fragment);
 
   Extractor::define(Ex_ua_req_url_loc::NAME, &ua_req_url_loc);
   Extractor::define(Ex_proxy_req_url_loc::NAME, &proxy_req_url_loc);
