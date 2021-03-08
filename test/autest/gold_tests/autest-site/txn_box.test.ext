@@ -130,6 +130,9 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     if remap == None and regex_map == None :
         ts.Disk.remap_config.AddLine('map / http://127.0.0.1:{0}'.format(self.Variables.TXNBOX_SERVER.Variables.http_port))
 
+    # Make this accessible to TxnBox via the TS process environment.
+    ts.Env['PV_HTTP_PORT'] = "{}".format(self.Variables.TXNBOX_SERVER.Variables.http_port)
+    ts.Env['PV_HTTPS_PORT'] = "{}".format(self.Variables.TXNBOX_SERVER.Variables.https_port)
     return ts
 
 def TxnBoxRun(self, text, replay_path=None, ssl_cert=None, suffix=None, verifier_client_args=""):

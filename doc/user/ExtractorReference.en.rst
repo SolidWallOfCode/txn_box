@@ -679,3 +679,9 @@ This is an ecletic collection of extractors that do not depend on transaction or
 
    Note statistic values are eventually consistent, there can be multiple second delays between
    incrementing a statistic with :drtv:`stat-update` and the value changing.
+
+.. extractor:: env
+   :arg: Variable name
+   :result: string
+
+   Extract the value of the named variable from the process environment.

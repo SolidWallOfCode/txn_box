@@ -24,8 +24,6 @@ meta:
     remap:
     - debug: "remap"
     - with: [ua-req-field<addr>, { as-ip-addr: } , { ip-space<acl>: ip-col<access> } ]
-      do:
-      - debug: "Remap - checking {...}"
       select:
       - match: "secure"
         do:

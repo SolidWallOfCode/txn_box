@@ -297,6 +297,37 @@ Rv<ActiveType>
 Ex_unmatched_group::validate(Config&, Extractor::Spec&, TextView const&) { return {STRING }; }
 
 /* ------------------------------------------------------------------------------------ */
+class Ex_env : public StringExtractor {
+  using self_type = Ex_env; ///< Self reference type.
+  using super_type = StringExtractor; ///< Parent type.
+public:
+  static constexpr TextView NAME = "env";
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+};
+
+Rv<ActiveType>
+Ex_env::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) {
+  auto span = cfg.alloc_span<TextView>(1);
+  spec._data = span;
+  TextView & value = span[0];
+  char c_arg[arg.size() + 1];
+  memcpy(c_arg, arg.data(), arg.size());
+  c_arg[arg.size()] = 0;
+  if ( auto txt = ::getenv(c_arg) ; txt != nullptr ) {
+    value = cfg.localize(txt);
+  } else {
+    value = "";
+  }
+
+  return { STRING };
+}
+
+BufferWriter& Ex_env::format(BufferWriter &w, Spec const &spec, Context &) {
+  return bwformat(w, spec, spec._data.rebind<TextView>()[0]);
+}
+
+/* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
   return bwformat(w, spec, _fg->extract(ctx, spec._ext));
 }
@@ -320,6 +351,7 @@ Ex_is_internal is_internal;
 Ex_txn_conf txn_conf;
 
 Ex_random random;
+Ex_env env;
 
 static constexpr TextView NANOSECONDS = "nanoseconds";
 Ex_duration<std::chrono::nanoseconds, &NANOSECONDS> nanoseconds;
@@ -358,6 +390,8 @@ Ex_unmatched_group unmatched_group;
   Extractor::define(HOURS, &hours);
   Extractor::define(DAYS, &days);
   Extractor::define(WEEKS, &weeks);
+
+  Extractor::define(Ex_env::NAME, &env);
 
   return true;
 } ();
