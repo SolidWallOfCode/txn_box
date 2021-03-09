@@ -92,23 +92,29 @@ public:
                           , swoc::TextView const& arg, YAML::Node key_value);
 
 protected:
-  TextView _name; ///< Stat name
+  TextView _name; ///< Stat name (internal)
+  TextView _prefix; ///< Prefix for stat name (external)
   int _value = 0; ///< Initial value.
   bool _persistent_p = false; ///< Make persistent.
 
-  static const std::string NAME_TAG;
-  static const std::string VALUE_TAG;
-  static const std::string PERSISTENT_TAG;
+  static inline const std::string NAME_TAG{"name"};
+  static inline const std::string VALUE_TAG{"value"};
+  static inline const std::string PERSISTENT_TAG{"persistent"};
+  static inline const std::string PREFIX_TAG{"prefix"};
 };
 
-const std::string Do_stat_define::KEY{"stat-define" };
-const std::string Do_stat_define::NAME_TAG{"name" };
-const std::string Do_stat_define::VALUE_TAG{"value" };
-const std::string Do_stat_define::PERSISTENT_TAG{"persistent" };
 const HookMask Do_stat_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
-Errata Do_stat_define::invoke(Context &) {
-  auto && [ idx, errata ] { ts::plugin_stat_define(_name, _value, _persistent_p)};
+Errata Do_stat_define::invoke(Context & ctx) {
+  auto buffer = ctx.transient_buffer(_name.size() + _prefix.size() + 1 + 1);
+  swoc::FixedBufferWriter w{buffer};
+  if (! _prefix.empty()) {
+    w.write(_prefix).write('.');
+  }
+  w.write(_name).write('\0');
+
+  auto && [ idx, errata ] { ts::plugin_stat_define(w.view(), _value, _persistent_p)};
+  ctx.discard_transient();
   return errata;
 }
 
@@ -131,9 +137,31 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const*, YA
   if (! name_expr.is_literal() || ! name_expr.result_type().can_satisfy(STRING)) {
     return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
   }
+  TextView name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr));
+  if (name.empty()) {
+    return Error("{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
+  }
 
+  self->_name = cfg.localize(name, Config::LOCAL_CSTR);
   drtv_node.remove(name_node);
-  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr))}, Config::LOCAL_CSTR);
+
+  // Prefix is optional - defaults to "plugin.txn_box"
+  auto prefix_node = key_value[PREFIX_TAG];
+  if (prefix_node) {
+    auto &&[prefix_expr, prefix_errata]{cfg.parse_expr(prefix_node)};
+    if (!prefix_errata.is_ok()) {
+      prefix_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+      return std::move(prefix_errata);
+    }
+    if (!prefix_expr.is_literal() || !prefix_expr.result_type().can_satisfy(STRING)) {
+      return Error("{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY, drtv_node.Mark());
+    }
+
+    self->_prefix = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(prefix_expr._expr))}, Config::LOCAL_CSTR);
+    drtv_node.remove(prefix_node);
+  } else {
+    self->_prefix = "plugin.txn_box"_tv;
+  }
 
   auto value_node = key_value[VALUE_TAG];
   if (value_node) {
