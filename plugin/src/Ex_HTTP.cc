@@ -581,12 +581,14 @@ Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
 }
 /* ------------------------------------------------------------------------------------ */
 // Query string.
-class Ex_ua_req_query : public Extractor {
+// These have the @c extract method because it can be done as a @c Direct
+// value and that's better than running through the formatting.
+class Ex_ua_req_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "ua-req-query" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_query::extract(Context &ctx, Spec const&) {
@@ -602,12 +604,12 @@ BufferWriter& Ex_ua_req_query::format(BufferWriter &w, Spec const &spec, Context
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
-class Ex_pre_remap_query : public Extractor {
+class Ex_pre_remap_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "pre-remap-query" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_pre_remap_query::extract(Context &ctx, Spec const&) {
@@ -621,12 +623,12 @@ BufferWriter& Ex_pre_remap_query::format(BufferWriter &w, Spec const &spec, Cont
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
-class Ex_proxy_req_query : public Extractor {
+class Ex_proxy_req_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "proxy-req-query" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_query::extract(Context &ctx, Spec const&) {
@@ -644,12 +646,14 @@ BufferWriter& Ex_proxy_req_query::format(BufferWriter &w, Spec const &spec, Cont
 
 /* ------------------------------------------------------------------------------------ */
 // Fragment.
-class Ex_ua_req_fragment : public Extractor {
+// These have the @c extract method because it can be done as a @c Direct
+// value and that's better than running through the formatting.
+class Ex_ua_req_fragment : public StringExtractor {
 public:
   static constexpr TextView NAME { "ua-req-fragment" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_ua_req_fragment::extract(Context &ctx, Spec const&) {
@@ -661,12 +665,16 @@ Feature Ex_ua_req_fragment::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-class Ex_pre_remap_fragment : public Extractor {
+BufferWriter& Ex_ua_req_fragment::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+class Ex_pre_remap_fragment : public StringExtractor {
 public:
   static constexpr TextView NAME { "pre-remap-fragment" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_pre_remap_fragment::extract(Context &ctx, Spec const&) {
@@ -676,12 +684,16 @@ Feature Ex_pre_remap_fragment::extract(Context &ctx, Spec const&) {
   return NIL_FEATURE;
 }
 
-class Ex_proxy_req_fragment : public Extractor {
+BufferWriter& Ex_pre_remap_fragment::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+class Ex_proxy_req_fragment : public StringExtractor {
 public:
   static constexpr TextView NAME { "proxy-req-fragment" };
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
+  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
 Feature Ex_proxy_req_fragment::extract(Context &ctx, Spec const&) {
@@ -692,6 +704,11 @@ Feature Ex_proxy_req_fragment::extract(Context &ctx, Spec const&) {
   }
   return NIL_FEATURE;
 }
+
+BufferWriter& Ex_proxy_req_fragment::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+  return bwformat(w, spec, this->extract(ctx, spec));
+}
+
 /* ------------------------------------------------------------------------------------ */
 /// The network location in the URL.
 class Ex_ua_req_url_loc : public StringExtractor {
