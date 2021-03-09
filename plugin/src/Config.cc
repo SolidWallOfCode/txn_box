@@ -386,6 +386,12 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
       return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
     }
     return Expr{FeatureView::Literal(this->localize(expr_node.Scalar()))};
+  } else if (0 == strcasecmp(expr_tag, DURATION_TAG)) {
+    if (!expr_node.IsScalar()) {
+      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
+    }
+    auto && [ dt, dt_errata] { Feature{expr_node.Scalar()}.as_duration() };
+    return { Expr(dt), std::move(dt_errata) };
   } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
     return Error(R"("{}" tag for extractor expression is not supported.)", expr_tag);
   }

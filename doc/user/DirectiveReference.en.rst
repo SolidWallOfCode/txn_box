@@ -377,6 +377,11 @@ Utility
    duration
       An optional value that specifies how often to check the file for changes. An implicit :mod:`as-duration` is applied to the value.
 
+   notify
+      A feature expression that must be a string. This generates an INFO level message using the
+      string in the diagnostic log when the content is reloaded. This is optional - if missing no
+      notification is done.
+
    One of ``path`` and ``text`` must be present. If both are present ``path`` takes precedence. The
    file contents are used if the file can be read, otherwise the value in ``text`` is used. If
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot

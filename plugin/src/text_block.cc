@@ -42,7 +42,7 @@ class Do_text_block_define : public Directive {
 protected:
   struct CfgInfo;
 public:
-  static const std::string KEY; ///< Directive name.
+  static inline const std::string KEY{"text-block-define"}; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   static constexpr Options OPTIONS { sizeof(CfgInfo*) };
@@ -86,6 +86,7 @@ protected:
   swoc::file::path _path; ///< Path to file (optional)
   std::optional<TextView> _text; ///< Default literal text (optional)
   feature_type_for<DURATION> _duration; ///< Time between update checks.
+  Expr _notify_expr; ///< Expression to use for notifications.
   std::atomic<Clock::duration> _last_check = Clock::now().time_since_epoch(); ///< Absolute time of the last alert.
   Clock::time_point _last_modified; ///< Last modified time of the file.
   std::shared_ptr<std::string> _content; ///< Content of the file.
@@ -93,10 +94,11 @@ protected:
   std::shared_mutex _content_mutex; ///< Lock for access @a content.
   ts::TaskHandle _task; ///< Handle for periodic checking task.
 
-  static const std::string NAME_TAG;
-  static const std::string PATH_TAG;
-  static const std::string TEXT_TAG;
-  static const std::string DURATION_TAG;
+  static inline const std::string NAME_TAG{"name"};
+  static inline const std::string PATH_TAG{"path"};
+  static inline const std::string TEXT_TAG{"text"};
+  static inline const std::string DURATION_TAG{"duration"};
+  static inline const std::string NOTIFY_TAG{"notify"};
 
   /// Map of names to text blocks.
   static Map* map(Directive::CfgStaticData const * rtti);
@@ -107,11 +109,6 @@ protected:
   friend Updater;
 };
 
-const std::string Do_text_block_define::KEY{"text-block-define" };
-const std::string Do_text_block_define::NAME_TAG{"name" };
-const std::string Do_text_block_define::PATH_TAG{"path" };
-const std::string Do_text_block_define::TEXT_TAG{"text" };
-const std::string Do_text_block_define::DURATION_TAG{"duration" };
 const HookMask Do_text_block_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
 Do_text_block_define::~Do_text_block_define() noexcept {
@@ -208,6 +205,16 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData cons
     self->_duration = dur_value;
   }
 
+  if (auto notify_node = key_value[NOTIFY_TAG] ; notify_node ) {
+    auto && [ n_expr, n_errata ] { cfg.parse_expr(notify_node)};
+    if (! n_errata.is_ok()) {
+      n_errata.info("While parsing {} key in {} directive at {}.", NOTIFY_TAG, KEY, drtv_node.Mark());
+      return std::move(n_errata);
+    }
+    drtv_node.remove(notify_node);
+    self->_notify_expr = std::move(n_expr);
+  }
+
   if (! self->_path.empty()) {
     std::error_code ec;
     auto content = swoc::file::load(self->_path, ec);
@@ -264,9 +271,19 @@ void Do_text_block_define::Updater::operator()() {
     auto content = std::make_shared<std::string>();
     *content = swoc::file::load(_block->_path, ec);
     if (!ec) { // swap in updated content.
-      std::unique_lock lock(_block->_content_mutex);
-      _block->_content = content;
-      _block->_last_modified = mtime;
+      {
+        std::unique_lock lock(_block->_content_mutex);
+        _block->_content = content;
+        _block->_last_modified = mtime;
+      }
+      if ( Expr & expr = _block->_notify_expr ; ! expr.empty()) {
+        Context ctx(cfg);
+        auto text{ctx.extract_view(_block->_notify_expr)};
+        auto msg = ctx.render_transient([&](BufferWriter& w){
+          w.write(Config::PLUGIN_TAG).write(": ").write(text);
+        });
+        TSNote("%.*s", int(msg.size()), msg.data());
+      }
       return;
     }
   }

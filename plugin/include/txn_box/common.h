@@ -78,7 +78,8 @@ public:
 };
 
 /// YAML tag type for literal (no feature extraction).
-static constexpr swoc::TextView LITERAL_TAG { "literal" };
+static constexpr swoc::TextView LITERAL_TAG { "!literal" };
+static constexpr swoc::TextView DURATION_TAG {"!duration"};
 
 // Self referential types, forward declared.
 struct Cons;
@@ -249,7 +250,7 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
 
   // Inherit variant constructors.
   using super_type::super_type;
-  
+
 
   /** The value type of @a this.
    *

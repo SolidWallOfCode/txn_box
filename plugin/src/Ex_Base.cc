@@ -303,6 +303,8 @@ class Ex_env : public StringExtractor {
 public:
   static constexpr TextView NAME = "env";
   Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
+  Feature extract(Config& ctx, Spec const& spec) override;
+  Feature extract(Context& ctx, Spec const& spec) override;
   BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
 };
 
@@ -320,7 +322,15 @@ Ex_env::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) {
     value = "";
   }
 
-  return { STRING };
+  return ActiveType{STRING}.mark_cfg_const();
+}
+
+Feature Ex_env::extract(Config&, const Spec& spec) {
+  return FeatureView::Literal(spec._data.rebind<TextView>()[0]);
+}
+
+Feature Ex_env::extract(Context&, const Spec& spec) {
+  return FeatureView::Literal(spec._data.rebind<TextView>()[0]);
 }
 
 BufferWriter& Ex_env::format(BufferWriter &w, Spec const &spec, Context &) {

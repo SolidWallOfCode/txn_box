@@ -73,7 +73,7 @@ class Do_stat_define : public Directive {
   using self_type = Do_stat_define; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
-  static const std::string KEY; ///< Directive name.
+  static inline const std::string KEY{"stat-define"}; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.

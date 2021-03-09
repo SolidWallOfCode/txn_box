@@ -114,8 +114,9 @@ public:
     return zret;
   }
 
-  bool is_literal() const { return _expr.index() == LITERAL; }
+  bool empty() const { return _expr.index() == NO_EXPR; }
   bool is_null() const { return _expr.index() == LITERAL && std::get<LITERAL>(_expr).value_type() == NIL;}
+  bool is_literal() const { return _expr.index() == LITERAL; }
 
   struct bwf_visitor {
     bwf_visitor(Context & ctx) : _ctx(ctx) {}
