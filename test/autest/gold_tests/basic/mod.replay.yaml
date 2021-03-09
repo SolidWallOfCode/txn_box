@@ -29,7 +29,8 @@ meta:
 sessions:
 - protocol: [ { name: ip, version : 4} ]
   transactions:
-  #
+
+  # Separator is dropped if the initial value is empty
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:
       <<: *base-req
@@ -46,6 +47,7 @@ sessions:
     proxy-response:
       <<: *base-rsp
 
+  # Separator is added if the field is not empty.
   - all: { headers: { fields: [[ uuid, 2 ]]}}
     client-request:
       <<: *base-req
@@ -58,6 +60,42 @@ sessions:
       headers:
         fields:
         - [ bands,   { value: "Nightwish,Delain", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  # Separator is not doubled
+  - all: { headers: { fields: [[ uuid, 3 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ bands, "Nightwish," ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Nightwish,Delain", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  # Check against existing separator not at the end.
+  - all: { headers: { fields: [[ uuid, 4 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ bands, "Nightwish,Within Temptation" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Nightwish,Within Temptation,Delain", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
