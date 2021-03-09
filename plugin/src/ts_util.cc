@@ -185,24 +185,6 @@ TextView ts::URL::scheme() const {
   return ""_tv;
 }
 
-BufferWriter& ts::URL::write_loc(BufferWriter& w) const {
-  auto host_name = this->host();
-  if (! host_name.empty()) {
-    auto port = this->port();
-    if (port == 0 || this->is_port_canonical()) {
-      w.write(host_name);
-    } else {
-      w.print("{}:{}", host_name, port);
-    }
-  }
-  return w;
-}
-
-auto ts::URL::loc_set(const swoc::TextView& loc) -> self_type & {
-
-  return *this;
-}
-
 TextView ts::URL::host() const {
   char const *text;
   int size;
@@ -321,20 +303,6 @@ BufferWriter& ts::HttpRequest::effective_url(BufferWriter& w) {
   return w;
 }
 
-BufferWriter& ts::HttpRequest::write_loc(BufferWriter& w) const {
-  // Try the URL first.
-  auto n = w.extent();
-  if (auto url{this->url()}; url.is_valid()) {
-    url.write_loc(w);
-  }
-  if (n == w.extent()) { // URL wrote nothing
-    if (auto field = this->field(HTTP_FIELD_HOST) ; field.is_valid()) {
-      w.write(field.value());
-    }
-  }
-  return w;
-}
-
 TextView ts::HttpRequest::host() const {
   auto url { this->url() };
   if (auto host = url.host() ; ! host.empty()) {
@@ -421,27 +389,14 @@ bool ts::HttpRequest::port_set(in_port_t port) {
     if (swoc::IPEndpoint::tokenize(text, &host_token, &port_token)) {
       size_t n = host_token.size() + 1 + std::numeric_limits<in_port_t>::max_digits10;
       swoc::FixedBufferWriter w{static_cast<char*>(alloca(n)), n};
-      w.print("{}:{}", host_token, port);
+      w.write(host_token);
+      if (port > 0) {
+        w.write(':');
+        bwformat(w, swoc::bwf::Spec::DEFAULT, port);
+      }
       field.assign(w.view());
     }
   }
-  return true;
-}
-
-bool ts::HttpRequest::loc_set(swoc::TextView const &loc) {
-  bool force_host_p = true;
-
-  if (auto url{this->url()} ; !url.host().empty()) {
-    url.loc_set(loc);
-    force_host_p = false;
-  }
-
-  if ( auto field{this->field(HTTP_FIELD_HOST)} ;  field.is_valid()) {
-    field.assign(loc);
-  } else if (force_host_p) {
-    this->field_create(HTTP_FIELD_HOST).assign(loc);
-  }
-
   return true;
 }
 

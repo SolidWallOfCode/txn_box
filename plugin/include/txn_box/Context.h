@@ -166,7 +166,7 @@ public:
    */
   swoc::MemSpan<char> transient_buffer();;
 
-  /** Get a transient buffer of a specific fize.
+  /** Get a transient buffer of a specific size.
    *
    * @param n The number of bytes.
    * @return A transient span of @a n bytes.

@@ -13,10 +13,10 @@
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
 
-#include "txn_box/Directive.h"
-#include "txn_box/Comparison.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
+#include "txn_box/Directive.h"
+#include "txn_box/Comparison.h"
 
 #include "txn_box/yaml_util.h"
 #include "txn_box/ts_util.h"
@@ -154,6 +154,7 @@ swoc::Rv<Directive::Handle> Do_proxy_req_url_host::load(Config& cfg, CfgStaticDa
 }
 
 /* ------------------------------------------------------------------------------------ */
+
 class Do_ua_req_url_port : public Directive {
   using super_type = Directive;
   using self_type = Do_ua_req_url_port;
@@ -193,9 +194,9 @@ Do_ua_req_url_port::Do_ua_req_url_port(Expr && expr) : _expr(std::move(expr)) {}
 Errata Do_ua_req_url_port::invoke(Context &ctx) {
   if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
-      auto value = ctx.extract(_expr);
-      if (auto port = std::get_if<IndexFor(INTEGER)>(&value); nullptr != port) {
-        url.port_set(*port);
+      auto port = ctx.extract(_expr).as_integer(-1);
+      if (0 < port && port < std::numeric_limits<in_port_t>::max()) {
+        url.port_set(port);
       }
     }
   }
@@ -255,9 +256,9 @@ Do_proxy_req_url_port::Do_proxy_req_url_port(Expr && expr) : _expr(std::move(exp
 Errata Do_proxy_req_url_port::invoke(Context &ctx) {
   if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     if (auto url{hdr.url()}; url.is_valid()) {
-      auto value = ctx.extract(_expr);
-      if (auto port = std::get_if<IndexFor(INTEGER)>(&value); nullptr != port) {
-        url.port_set(*port);
+      auto port = ctx.extract(_expr).as_integer(-1);
+      if (0 < port && port < std::numeric_limits<in_port_t>::max()) {
+        url.port_set(port);
       }
     }
   }
@@ -277,6 +278,220 @@ swoc::Rv<Directive::Handle> Do_proxy_req_url_port::load(Config& cfg, CfgStaticDa
 }
 
 /* ------------------------------------------------------------------------------------ */
+namespace {
+
+// @return @c true if @a loc is syntactically a valid location and break out the pieces.
+bool Loc_String_Parse(TextView const& loc, TextView & host_token, int & port) {
+  TextView port_token, rest;
+  if (swoc::IPEndpoint::tokenize(loc, &host_token, &port_token, &rest) && rest.size() == 0) {
+
+    if (port_token.empty()) {
+      port = 0;
+      return true;
+    }
+
+    if ( auto n = svtou(port_token, &rest) ; rest.size() == port_token.size() &&
+                                             0 < n && n <= std::numeric_limits<in_port_t>::max()
+    ) {
+      port = n;
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Set the location in a URL, accepting either a string or a tuple of <host, port>.
+void URL_Loc_Set(Context& ctx, Expr & expr, ts::URL & url) {
+  auto value = ctx.extract(expr);
+  TextView host_token;
+  int port = -1; // if still -1 after parsing, the parsing failed.
+  if (auto loc = std::get_if<IndexFor(STRING)>(&value); nullptr != loc) {
+    // split the string to get the pieces.
+    Loc_String_Parse(*loc, host_token, port);
+  } else if (auto t = std::get_if<IndexFor(TUPLE)>(&value) ; nullptr != t ) {
+    // Must be host name, then port.
+    if (t->size() > 0) {
+      if (auto & f0 = (*t)[0] ; f0.index() == IndexFor(STRING)) {
+        host_token = std::get<IndexFor(STRING)>(f0);
+        if (t->size() > 1) {
+          auto & f1 = (*t)[1];
+          if (is_empty(f1)) {
+            port = 0; // clear port.
+          } else {
+            port = f1.as_integer(-1); // try as integer, fail if not convertible.
+          }
+        }
+      }
+    }
+  }
+  if (0 <= port && port < std::numeric_limits<in_port_t>::max()) {
+    url.host_set(host_token);
+    url.port_set(port); // if @a port is 0 then it will be removed from the URL.
+  }
+}
+
+/// Set the location in the Host field and URL (if needed).
+void Req_Loc_Set(Context& ctx, Expr & expr, ts::HttpRequest & req) {
+  auto value = ctx.extract(expr);
+  TextView host_token;
+  int port = -1; // if still -1 after parsing, the parsing failed.
+  if ( auto loc = std::get_if<IndexFor(STRING)>(&value)
+     ; nullptr != loc && Loc_String_Parse(*loc, host_token, port)
+     ) {
+    req.field_obtain(ts::HTTP_FIELD_HOST).assign(*loc);
+  } else if (auto t = std::get_if<IndexFor(TUPLE)>(&value) ; nullptr != t ) {
+    if (t->size() > 0) { // host name, then port.
+      if (auto & f0 = (*t)[0] ; f0.index() == IndexFor(STRING)) {
+        host_token = std::get<IndexFor(STRING)>(f0);
+        if (t->size() > 1) {
+          auto & f1 = (*t)[1];
+          if (is_empty(f1)) {
+            port = 0; // clear port.
+          } else {
+            port = f1.as_integer(-1); // try as integer, fail if not convertible.
+          }
+        } else {
+          port = 0; // no port element, clear port.
+        }
+        auto buffer = ctx.transient_buffer(host_token.size() + 1 + std::numeric_limits<in_port_t>::digits10);
+        swoc::FixedBufferWriter w{buffer};
+        w.write(host_token);
+        if (port > 0) {
+          w.write(':');
+          bwformat(w, swoc::bwf::Spec::DEFAULT, port);
+        }
+        req.field_obtain(ts::HTTP_FIELD_HOST).assign(w.view());
+        ctx.discard_transient();
+      }
+    }
+  }
+
+  // If the field was set, set the URL to match if it has a host.
+  if (port >= 0) {
+    if (auto url{req.url()}; url.is_valid() && !url.host().empty()) {
+      url.host_set(host_token);
+      url.port_set(port);
+    }
+  }
+}
+
+} // namespace
+
+class Do_ua_req_url_loc : public Directive {
+  using super_type = Directive;
+  using self_type = Do_ua_req_url_loc;
+public:
+  static inline const std::string KEY = "ua-req-url-loc";
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_ua_req_url_loc(Expr && expr);
+
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  Expr _expr; ///< Feature expression.
+};
+
+const HookMask Do_ua_req_url_loc::HOOKS = MaskFor(Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP);
+
+Do_ua_req_url_loc::Do_ua_req_url_loc(Expr && expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_url_loc::invoke(Context &ctx) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+    if (auto url{hdr.url()}; url.is_valid()) {
+      URL_Loc_Set(ctx, _expr, url);
+    }
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_url_loc::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy({ STRING, TUPLE } )) {
+    return Error(R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
+// ---
+
+class Do_proxy_req_url_loc : public Directive {
+  using super_type = Directive;
+  using self_type = Do_proxy_req_url_loc;
+public:
+  static inline const std::string KEY = "proxy-req-url-loc";
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_proxy_req_url_loc(Expr && expr);
+
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  Expr _expr; ///< Feature expression.
+};
+
+const HookMask Do_proxy_req_url_loc::HOOKS = MaskFor(Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP);
+
+Do_proxy_req_url_loc::Do_proxy_req_url_loc(Expr && expr) : _expr(std::move(expr)) {}
+
+Errata Do_proxy_req_url_loc::invoke(Context &ctx) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
+    if (auto url{hdr.url()}; url.is_valid()) {
+      URL_Loc_Set(ctx, _expr, url);
+    }
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_url_loc::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy({ STRING, TUPLE } )) {
+    return Error(R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
+/* ------------------------------------------------------------------------------------ */
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
  */
@@ -284,7 +499,7 @@ class Do_ua_req_host : public Directive {
   using super_type = Directive; ///< Parent type.
   using self_type = Do_ua_req_host; ///< Self reference type.
 public:
-  static const std::string KEY; ///< Directive name.
+  static inline const std::string KEY { "ua-req-host" }; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   /** Construct with feature expression..
@@ -317,7 +532,6 @@ protected:
   Expr _expr; ///< Host feature.
 };
 
-const std::string Do_ua_req_host::KEY {"ua-req-host" };
 const HookMask Do_ua_req_host::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
 
 Do_ua_req_host::Do_ua_req_host(Expr &&expr) : _expr(std::move(expr)) {}
@@ -344,6 +558,141 @@ swoc::Rv<Directive::Handle> Do_ua_req_host::load(Config& cfg, CfgStaticData cons
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+/** Set the port for the user agent request.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_ua_req_port : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_port; ///< Self reference type.
+public:
+  static inline const std::string KEY { "ua-req-port" }; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_ua_req_port(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const HookMask Do_ua_req_port::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_port::Do_ua_req_port(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_port::invoke(Context &ctx) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+    auto value = ctx.extract(_expr);
+    if (auto port = value.as_integer(-1) ; port >= 0) {
+      hdr.port_set(port);
+    }
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_port::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(INTEGER)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+
+// ---
+
+/** Set the port for the proxy request.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_proxy_req_port : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_port; ///< Self reference type.
+public:
+  static inline const std::string KEY { "proxy-req-port" }; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_proxy_req_port(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const HookMask Do_proxy_req_port::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_proxy_req_port::Do_proxy_req_port(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_proxy_req_port::invoke(Context &ctx) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
+    auto value = ctx.extract(_expr);
+    if (auto port = value.as_integer(-1) ; port >= 0) {
+      hdr.port_set(port);
+    }
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_port::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy(INTEGER)) {
+    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+
+/* ------------------------------------------------------------------------------------ */
 /** Set the host for the request.
  * This updates both the URL and the "Host" field, if appropriate.
  */
@@ -351,7 +700,7 @@ class Do_proxy_req_host : public Directive {
   using super_type = Directive; ///< Parent type.
   using self_type = Do_proxy_req_host; ///< Self reference type.
 public:
-  static const std::string KEY; ///< Directive name.
+  static inline const std::string KEY {"proxy-req-host"}; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   /** Construct with feature extractor @a fmt.
@@ -384,7 +733,6 @@ protected:
   Expr _fmt; ///< Host feature.
 };
 
-const std::string Do_proxy_req_host::KEY {"proxy-req-host" };
 const HookMask Do_proxy_req_host::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Do_proxy_req_host::Do_proxy_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
@@ -407,6 +755,132 @@ swoc::Rv<Directive::Handle> Do_proxy_req_host::load(Config& cfg, CfgStaticData c
     return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return  Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the location for the user agent request.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_ua_req_loc : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_loc; ///< Self reference type.
+public:
+  static inline const std::string KEY {"ua-req-loc"}; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_ua_req_loc(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const HookMask Do_ua_req_loc::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_loc::Do_ua_req_loc(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_loc::invoke(Context &ctx) {
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+    Req_Loc_Set(ctx, _expr, hdr);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_loc::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy({ STRING , TUPLE })) {
+    return Error(R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the location for the proxy request.
+ * This updates both the URL and the "Host" field, if appropriate.
+ */
+class Do_proxy_req_loc : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_loc; ///< Self reference type.
+public:
+  static inline const std::string KEY {"proxy-req-loc"}; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature expression..
+   *
+   * @param expr Feature expression.
+   */
+  Do_proxy_req_loc(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const HookMask Do_proxy_req_loc::HOOKS {MaskFor({Hook::PREQ}) };
+
+Do_proxy_req_loc::Do_proxy_req_loc(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_proxy_req_loc::invoke(Context &ctx) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
+    Req_Loc_Set(ctx, _expr, hdr);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_loc::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (! expr.result_type().can_satisfy({ STRING , TUPLE })) {
+    return Error(R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+  }
+  return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
 /** Set the scheme for the inbound request.
@@ -940,6 +1414,72 @@ swoc::Rv<Directive::Handle> Do_ua_req_query::load(Config& cfg, CfgStaticData con
   return Handle(new self_type(std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+/** Set the fragment for the request.
+ */
+class Do_ua_req_fragment : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_ua_req_fragment; ///< Self reference type.
+public:
+  static inline const std::string KEY { "ua-req-fragment" }; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param expr Feature for host.
+   */
+  Do_ua_req_fragment(Expr && expr);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Host feature.
+};
+
+const HookMask Do_ua_req_fragment::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+
+Do_ua_req_fragment::Do_ua_req_fragment(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata Do_ua_req_fragment::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_expr))};
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+    hdr.url().fragment_set(text);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_ua_req_fragment::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (expr.is_null()) {
+    expr= Feature{FeatureView::Literal(""_tv)};
+  }
+  if (!expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
 /** Set the path for the request.
  */
 class Do_proxy_req_path : public Directive {
@@ -1057,6 +1597,69 @@ Errata Do_proxy_req_query::invoke(Context &ctx) {
 }
 
 swoc::Rv<Directive::Handle> Do_proxy_req_query::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  if (!expr.result_type().can_satisfy(STRING)) {
+    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+  }
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+/** Set the fragment for the request.
+ */
+class Do_proxy_req_fragment : public Directive {
+  using super_type = Directive; ///< Parent type.
+  using self_type = Do_proxy_req_fragment; ///< Self reference type.
+public:
+  static inline const std::string KEY { "proxy-req-fragment" }; ///< Directive name.
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  /** Construct with feature extractor @a fmt.
+   *
+   * @param fmt Feature for host.
+   */
+  Do_proxy_req_fragment(Expr && fmt);
+
+  /** Invoke directive.
+   *
+   * @param ctx Transaction context.
+   * @return Errors, if any.
+   */
+  Errata invoke(Context &ctx) override;
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _fmt; ///< Host feature.
+};
+
+const HookMask Do_proxy_req_fragment::HOOKS {MaskFor({ Hook::PREQ}) };
+
+Do_proxy_req_fragment::Do_proxy_req_fragment(Expr &&fmt) : _fmt(std::move(fmt)) {}
+
+Errata Do_proxy_req_fragment::invoke(Context &ctx) {
+  TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
+  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+    hdr.url().fragment_set(text);
+  }
+  return {};
+}
+
+swoc::Rv<Directive::Handle> Do_proxy_req_fragment::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto && [ expr, errata ] { cfg.parse_expr(key_value) };
   if (! errata.is_ok()) {
     errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
@@ -2750,21 +3353,28 @@ namespace {
   Config::define<Do_ua_req_url>("ua-url-host"_tv); // alias
   Config::define<Do_ua_req_url_host>();
   Config::define<Do_ua_req_url_port>();
+  Config::define<Do_ua_req_url_loc>();
   Config::define<Do_ua_req_scheme>();
   Config::define<Do_ua_req_host>();
+  Config::define<Do_ua_req_port>();
+  Config::define<Do_ua_req_loc>();
   Config::define<Do_ua_req_path>();
   Config::define<Do_ua_req_query>();
+  Config::define<Do_ua_req_fragment>();
 
   Config::define<Do_proxy_req_field>();
   Config::define<Do_proxy_req_url>();
   Config::define<Do_proxy_req_url_host>();
-  Config::define<Do_proxy_req_url_port>();
   Config::define<Do_proxy_req_url_host>("proxy-url-host"); // alias
+  Config::define<Do_proxy_req_url_port>();
+  Config::define<Do_proxy_req_url_loc>();
   Config::define<Do_proxy_req_host>();
+  Config::define<Do_proxy_req_port>();
+  Config::define<Do_proxy_req_loc>();
   Config::define<Do_proxy_req_scheme>();
   Config::define<Do_proxy_req_path>();
   Config::define<Do_proxy_req_query>();
-
+  Config::define<Do_proxy_req_fragment>();
 
   Config::define<Do_upstream_rsp_field>();
   Config::define<Do_upstream_rsp_status>();

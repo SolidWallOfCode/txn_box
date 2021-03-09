@@ -157,13 +157,6 @@ public:
    */
   swoc::BufferWriter& write_full(swoc::BufferWriter& w) const;
 
-  /** Write the network location of the URL to @a w.
-   *
-   * @param w Output buffer.
-   * @return @a w
-   */
-  swoc::BufferWriter& write_loc(swoc::BufferWriter& w) const;
-
   /** Get the network location
    *
    * @return A tuple of [ host, port ].
@@ -190,13 +183,6 @@ public:
    * @return @a this
    */
   self_type& scheme_set(swoc::TextView const& scheme);
-
-  /** Set the location for the URL.
-   *
-   * @param loc Network location (host[:port])
-   * @return @a this
-   */
-  self_type& loc_set(swoc::TextView const& loc);
 
   /** Set the host in the URL.
    *
@@ -361,15 +347,6 @@ public:
 
   swoc::TextView method() const;
 
-  /** Write the request network location to @a w.
-   *
-   * @param w Output buffer
-   * @return @a w
-   *
-   * The network location is pulled from the URL if present, otherwise from the @c Host field.
-   */
-  swoc::BufferWriter& write_loc(swoc::BufferWriter& w) const;
-
   swoc::TextView host() const;
 
   in_port_t port() const;
@@ -408,15 +385,6 @@ public:
    * This updates the URL and @c Host field as needed, making as few changes as possible.
    */
   bool port_set(in_port_t port);
-
-  /** Set the location.
-   *
-   * @param loc The location.
-   * @return If the loc was updated.
-   *
-   * This updates the URL and @c Host field as needed, making as few changes as possible.
-   */
-  bool loc_set(swoc::TextView const& loc);
 };
 
 class HttpResponse : public HttpHeader {
