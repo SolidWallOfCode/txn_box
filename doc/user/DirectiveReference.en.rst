@@ -94,11 +94,23 @@ User Agent Request
    Set the port for the request. This updates the URL and ``Host`` field as needed. This has no
    effect on the host.
 
-.. directive:: ua-url-port
+.. directive:: ua-req-url-port
    :value: integer
 
    Set the port in the user agent request to :arg:`value`. This has no effect on the host in the
    URL nor the ``Host`` field.
+
+.. directive:: ua-req-loc
+   :value: string, tuple
+
+   Set the location for the request. This is the host and optional port specifier as a single string or
+   as a tuple of a string (the host) and an integer (the port).
+
+.. directive:: ua-req-url-loc
+   :value: string, tuple
+
+   Set the location for the URL. This is the host and optional port specifier as a single string or
+   as a tuple of a string (the host) and an integer (the port).
 
 .. directive:: ua-req-path
    :value: string
@@ -109,6 +121,11 @@ User Agent Request
    :value: string
 
    Sets the query string for the user agent request.
+
+.. directive:: ua-req-fragment
+   :value: string
+
+   Set the fragment of the URL. If :arg:`string` is empty or ``NULL`` the fragment is removed.
 
 .. directive:: ua-req-field
    :arg: name
@@ -143,10 +160,39 @@ Proxy Request
    Set the host in the URL for the proxy request to :arg:`value`. This has no effect on the
    port nor on the ``Host`` field.
 
+.. directive:: proxy-req-port
+   :value: integer
+
+   Set the port for the request. This updates the URL and ``Host`` field as needed. This has no
+   effect on the host.
+
+.. directive:: proxy-req-url-port
+   :value: integer
+
+   Set the port in the user agent request to :arg:`value`. This has no effect on the host in the
+   URL nor the ``Host`` field.
+
+.. directive:: proxy-req-loc
+   :value: string, tuple
+
+   Set the location for the request. This is the host and optional port specifier as a single string or
+   as a tuple of a string (the host) and an integer (the port).
+
+.. directive:: proxy-req-url-loc
+   :value: string, tuple
+
+   Set the location for the URL. This is the host and optional port specifier as a single string or
+   as a tuple of a string (the host) and an integer (the port).
+
 .. directive:: proxy-req-query
    :value: string
 
    Sets the query string for the proxy request.
+
+.. directive:: proxy-req-fragment
+   :value: string
+
+   Set the fragment of the URL. If :arg:`string` is empty or ``NULL`` the fragment is removed.
 
 .. directive:: proxy-req-field
    :arg: name
@@ -342,7 +388,12 @@ Utility
    statistics to integers.
 
    name
-      Name of the statistic.
+      Name of the statistic. This is used internally to specify the statistic.
+
+   prefix
+      Prefix for external name of the statistic. This is optional. The default is "plugin.txn_box".
+      This creates the name used for external access by prepending it with a dot separator to
+      :arg:`name`.
 
    value
       Initial value. This is optional. If not present the value zero is used.
@@ -350,6 +401,17 @@ Utility
    persistent
       Whether the statistic is persistent, the value must be a boolean. This is optional. If not
       present the statistic is not persistent.
+
+   Because of the default value for :arg:`prefix`, a stat named "delain" is accessed via external
+   utilities as "plugin.txn_box.delain". This is consistent with recommended practice but can be
+   overridden if necessary.
+
+   During configuration load, if the statistic already exists it is not recreated nor the value
+   reset. It is not possible to destroy an existing statistic during a reload. Removal of a
+   statistic requires a full restart.
+
+   Finally, note statistics have multiple seconds of lag and are therefore only eventually
+   consistent even when using the extractor :ex:`stat`.
 
 .. directive:: stat-update
    :arg: *name*

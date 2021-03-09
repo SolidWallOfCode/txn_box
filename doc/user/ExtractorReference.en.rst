@@ -70,12 +70,12 @@ request. Therefore there are extactors which work on the request as a whole, con
 URL and the ``Host`` field, and others that always use the URL.
 
 Beyond this, the port is optional and this presents some problems. One is a result of the ATS plugin
-API which makes it impossible to distinguish between "delain.nl" and "delain.nl:80". Both port 80
-and port 443 are treated specially, the former for scheme "HTTP" and the latter for "HTTPS". I
-intend to add that at some point but currently it cannot be done. The result is it is difficult to
-impossible to properly set these values in a configuration language such as |TxB| has and even if
-possible would be rather painful to do repeatedly. Therefore |TxB| has the concept of "location"
-which corresponds to the host and port (the HTTP specification calls this the `authority
+API which makes it impossible to distinguish between "http://delain.nl" and "http://delain.nl:80".
+Both port 80 and port 443 are treated specially, the former for scheme "HTTP" and the latter for
+"HTTPS". I intend to add that at some point but currently it cannot be done. The result is it is
+difficult to impossible to properly set these values in a configuration language such as |TxB| has
+and even if possible would be rather painful to do repeatedly. Therefore |TxB| has the concept of
+"location" which corresponds to the host and port (the HTTP specification calls this the `authority
 <https://tools.ietf.org/html/rfc3986#section-3.2>`__ but everyone thought using the term was a
 terrible idea). This makes it easy to access the host, the port, or both. This is more important
 when interacting with directives to set those values. Here is a chart to illustrate the three terms
@@ -101,7 +101,7 @@ Given the URL "http://delain.nl/pix", the path is "pix", not "/pix". The existen
 implied by the existence of the path. There is, unfortunately, no way to distinguish a missing from
 an empty path. E.g. "http://delain.nl" and "http://delain.nl/" are not distinguishable by looking at
 the value from a path extractor, both will yield an empty string. This matters less than it appears
-because both ATS and the upstream will treat them indentically. Note this applies only to the slash
+because both ATS and the upstream will treat them identically. Note this applies only to the slash
 separating the "authority" / "location" from the path. The path for the URLs
 "http://delain.nl/pix/charlotte" and "http://delain.nl/pix/charlotte/" are distinguishable.
 
@@ -157,17 +157,17 @@ User Agent Request
 .. txb:extractor:: ua-req-path
    :result: string
 
-   The path of the URL in the request. This does not include a leading slash.
+   The path of the URL in the user agent request. This does not include a leading slash.
 
 .. extractor:: ua-req-query
    :result: string
 
-   The query string for the user agent request.
+   The query string for the user agent request if present, an empty string if not.
 
-.. extractor:: ua-req-url-loc
+.. extractor:: ua-req-fragment
    :result: string
 
-   The location for the request URL, consisting of the host and the optional port.
+   The fragment of the URL in the user agent request if present, an empty string if not.
 
 .. extractor:: ua-req-url-host
    :result: string
@@ -178,6 +178,11 @@ User Agent Request
    :result: integer
 
    The port for the user agent request URL.
+
+.. extractor:: ua-req-url-loc
+   :result: string
+
+   The location for the user agent request URL, consisting of the host and the optional port.
 
 .. extractor:: ua-req-field
    :result: NULL, string, string list
@@ -234,6 +239,11 @@ Pre-Remap
    :result: string
 
       The query string for the pre-remap user agent request URL.
+
+.. extractor:: pre-remap-fragment
+   :result: string
+
+   The fragment of the URL in the pre-remap user agent request if present, an empty string if not.
 
 .. _ex-rewrite-rule-urls:
 
@@ -354,12 +364,12 @@ Proxy Request
 .. extractor:: proxy-req-query
    :result: string
 
-   The query string in the request URL.
+   The query string in the proxy request.
 
-.. extractor:: proxy-req-url-loc
+.. extractor:: proxy-req-fragment
    :result: string
 
-   The network location in the request URL.
+   The fragment of the URL in the proxy request if present, an empty string if not.
 
 .. extractor:: proxy-req-url-host
    :result: string
@@ -370,6 +380,11 @@ Proxy Request
    :result: integer
 
    The port in the request URL.
+
+.. extractor:: proxy-req-url-loc
+   :result: string
+
+   The location in the URL if present, an empty string if not.
 
 .. extractor:: proxy-req-field
    :result: NULL, string, string list
