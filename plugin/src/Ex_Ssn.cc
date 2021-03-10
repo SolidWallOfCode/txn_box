@@ -231,7 +231,7 @@ Rv<ActiveType> Ex_inbound_cert_local_issuer_value::validate(Config &, Spec &spec
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
   }
-  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
@@ -262,7 +262,7 @@ Rv<ActiveType> Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spe
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
   }
-  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }
@@ -293,7 +293,7 @@ Rv<ActiveType> Ex_inbound_cert_remote_issuer_value::validate(Config &, Spec &spe
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
   }
-  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
@@ -324,7 +324,7 @@ Rv<ActiveType> Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &sp
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
   }
-  intptr_t nid = ts::Proxy::ssl_nid(arg);
+  intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }

@@ -659,17 +659,6 @@ protected:
   static void config_string_record(swoc::Errata& errata, swoc::TextView name);
 };
 
-/** The Traffic Server proxy.
- *
- */
-class Proxy {
-  using self_type = Proxy; ///< Self reference type.
-public:
-  static int ssl_nid(swoc::TextView const& name);
-
-protected:
-};
-
 /// An SSL context for a session.
 class SSLContext {
   using self_type = SSLContext;
@@ -680,6 +669,7 @@ class SSLContext {
 public:
   bool is_valid() const;
 
+  /// @return The SNI name.
   swoc::TextView sni() const;
 
   swoc::TextView local_issuer_value(int nid) const;
@@ -690,6 +680,7 @@ public:
 
   swoc::TextView remote_subject_value(int nid) const;
 
+  /// @return The result of certificate verification.
   long verify_result() const;
 
 protected:
@@ -700,6 +691,18 @@ inline bool SSLContext::is_valid() const { return _obj != nullptr; }
 
 // ----
 
+/** Get the SSL certificate name identifier.
+ *
+ * @param name Name to look up.
+ * @return The SSL NID if found, @c NID_undef if not.
+ */
+int ssl_nid(swoc::TextView const& name);
+
+/** Get the stat index.
+ *
+ * @param name Stat name.
+ * @return Index of the stat or negative if not found.
+ */
 int plugin_stat_index(swoc::TextView const& name);
 
 int plugin_stat_value(int idx);

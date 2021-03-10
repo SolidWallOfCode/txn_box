@@ -805,7 +805,7 @@ TaskHandle PerformAsTaskEvery(std::function<void ()> &&task, std::chrono::millis
 }
 /* ------------------------------------------------------------------------ */
 // --- OpenSSL support ---
-int Proxy::ssl_nid(swoc::TextView const& name) {
+int ssl_nid(swoc::TextView const& name) {
   // Unfortunately the OpenSSL internals are done badly and use of a C-string is not just an
   // interface issue, but built deeply into the NID table handling. Users of this interface should
   // try to do the NID conversions at configuration load time, not transaction time.
