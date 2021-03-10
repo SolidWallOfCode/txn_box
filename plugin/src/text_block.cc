@@ -282,7 +282,12 @@ void Do_text_block_define::Updater::operator()() {
         auto msg = ctx.render_transient([&](BufferWriter& w){
           w.write(Config::PLUGIN_TAG).write(": ").write(text);
         });
+        // Note - convert this to templates.
+        #if TS_VERSION_MAJOR < 10
+        TSError("%.*s", int(msg.size()), msg.data());
+        #else
         TSNote("%.*s", int(msg.size()), msg.data());
+        #endif
       }
       return;
     }
