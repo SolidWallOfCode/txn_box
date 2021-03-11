@@ -89,10 +89,7 @@ vconn_ssl_get(TSVConn vc, swoc::meta::CaseTag<1>) -> decltype(TSVConnSslConnecti
 
 // ---
 // Txn / Ssn args were changed for ATS 10. Prefer the new API.
-// Because SFINAE happens after trying to compile a template, and deprecated isn't a real compiler
-// failure, need to do this for a clean compile in versions of ATS that only deprecate the old stuff.
-//#pragma GCC diagnostic push
-//#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 // First a meta-template to provide a compile time constant on whether TSUserArg are available.
 template < typename A, typename = void> struct has_TS_USER_ARGS : public std::false_type {};
 template < typename A > struct has_TS_USER_ARGS<A, std::void_t<decltype(TSUserArgGet(nullptr, eraser<A>(0)))>> : public std::true_type {};
@@ -153,9 +150,17 @@ get_outbound_txn_count(T const &txn, swoc::meta::CaseTag<1>) -> decltype(TSHttpT
   return TSHttpTxnServerSsnTransactionCount(txn);
 }
 
-//#pragma GCC diagnostic pop
+// ---
 
-} // namespace detail
+template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<0>) -> decltype(text.size(), text.data(), std::declval<void>()){
+  TSError("%.*s", int(text.size()), text.data());
+}
+
+template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSNote("empty"), text.size(), text.data(), std::declval<void>()) {
+  TSNote("%.*s", int(text.size()), text.data());
+}
+
+} // namespace compat
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -890,7 +895,11 @@ TextView SSLContext::remote_issuer_value(int nid) const {
   }
   return {};
 }
-/* ------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------ */
+void Note(TextView const& text) {
+  compat::diag_note(text, swoc::meta::CaseArg);
+}
+/* ------------------------------------------------------------------------------------ */
 } // namespace ts
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {

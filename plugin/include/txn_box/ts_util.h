@@ -711,6 +711,8 @@ void plugin_stat_update(int idx, intmax_t value);
 
 swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool persistent_p);
 
+void Note(swoc::TextView const& text);
+
 // ----
 
 struct TaskHandle {
@@ -811,7 +813,6 @@ inline HttpTxn::operator TSHttpTxn() const { return _txn; }
 inline HttpSsn HttpTxn::ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; }
 
 inline unsigned HttpSsn::txn_count() const { return TSHttpSsnTransactionCount(_ssn); };
-
 
 const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
 const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
