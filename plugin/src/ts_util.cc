@@ -156,7 +156,7 @@ template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<0>) ->
   TSError("%.*s", int(text.size()), text.data());
 }
 
-template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSNote("empty"), text.size(), text.data(), std::declval<void>()) {
+template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSNote("%.*s", int(text.size()), text.data()), std::declval<void>()) {
   TSNote("%.*s", int(text.size()), text.data());
 }
 
