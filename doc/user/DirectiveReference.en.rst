@@ -387,6 +387,15 @@ Utility
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot
    be read.
 
+.. directive:: note
+
+   Generate a "NOTE" level log entry. The value of the directive is used as the entry text.
+
+   .. note::
+
+      On version of Traffic Server before 10 this will generate an "ERROR" log entry because the
+      plugin API does not support other log levels.
+
 .. directive:: stat-define
 
    Define a plugin statistic, which can be externally accessed. Currently |TS| limits plugin
