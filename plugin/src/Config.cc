@@ -748,7 +748,21 @@ Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int
       }
     }
   }
+  // Done with the files - clear them out.
   _cfg_file_count = _cfg_files.size();
   _cfg_files.clear();
   return {};
+}
+
+Config::ActiveFeatureScope Config::feature_scope(ActiveType const& ex_type) {
+  ActiveFeatureScope scope(*this);
+  _active_feature._ref_p = false;
+  _active_feature._type = ex_type;
+  return scope;
+}
+
+Config::ActiveFeatureScope::~ActiveFeatureScope() {
+  if (_cfg) {
+    _cfg->_active_feature = _state;
+  }
 }

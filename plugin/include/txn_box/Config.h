@@ -24,9 +24,6 @@
 #include "txn_box/Directive.h"
 #include "txn_box/yaml_util.h"
 
-using TSCont = struct tsapi_cont *;
-using TSHttpTxn = struct tsapi_httptxn *;
-
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
 class Config {
@@ -41,13 +38,6 @@ public:
 
   static const std::string GLOBAL_ROOT_KEY; ///< Root key for global configuration.
   static const std::string REMAP_ROOT_KEY; ///< Root key for remap configuration.
-
-  /** Active configuration state / scope support.
-   * This is transitory information used during configuration loading and is discarded after.
-   */
-  struct ActiveScope {
-
-  };
 
   /// Track the state of provided features.
   struct ActiveFeatureState {
@@ -73,19 +63,10 @@ public:
     ActiveFeatureScope(self_type const& that) = delete;
     self_type & operator = (self_type const& that) = delete;
 
-    ~ActiveFeatureScope() {
-      if (_cfg) {
-        _cfg->_active_feature = _state;
-      }
-    }
+    ~ActiveFeatureScope();
   };
   friend ActiveFeatureScope;
-  ActiveFeatureScope feature_scope(ActiveType const& ex_type) {
-    ActiveFeatureScope scope(*this);
-    _active_feature._ref_p = false;
-    _active_feature._type = ex_type;
-    return scope;
-  }
+  ActiveFeatureScope feature_scope(ActiveType const& ex_type);
 
   /// Track the state of the active capture groups.
   struct ActiveCaptureState {
