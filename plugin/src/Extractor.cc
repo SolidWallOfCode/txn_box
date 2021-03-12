@@ -288,25 +288,29 @@ Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
 }
 
 Feature FeatureGroup::extract(Context& ctx, index_type idx) {
+  auto * cache = (_ctx_state_span.n > 0) ? &ctx.storage_for(_ctx_state_span).rebind<State>()[0]._features : nullptr;
+  Feature *cached_feature = nullptr;
   auto& info = _expr_info[idx];
-  // Get the reserved storage for the @c State instance.
-  State& state = ctx.storage_for(_ctx_state_span).rebind<State>()[0];
-  Feature * cached = (info._exf_idx == INVALID_IDX ? nullptr : &state._features[info._exf_idx]);
-  // If already extracted, return.
-  // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
-  if (cached && ( cached->index() != IndexFor(GENERIC) || std::get<IndexFor(GENERIC)>(*cached) != nullptr)) {
-    return *cached;
+  // Get the reserved storage for the @c State instance, if any.
+  if (cache && info._exf_idx != INVALID_IDX) {
+    cached_feature = &(*cache)[info._exf_idx];
+    // If already extracted, return.
+    // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
+    if (cached_feature->index() != IndexFor(GENERIC) || std::get<IndexFor(GENERIC)>(*cached_feature) != nullptr) {
+      return *cached_feature;
+    }
   }
+
   // Extract precursors.
   for (index_type edge_idx : info._edge) {
     ExprInfo& precursor = _expr_info[edge_idx];
-    if (state._features[precursor._exf_idx].index() == IndexFor(NIL)) {
+    if ((*cache)[precursor._exf_idx].index() == IndexFor(NIL)) {
       this->extract(ctx, edge_idx);
     }
   }
   auto f = ctx.extract(info._expr);
-  if (cached) {
-    *cached = f;
+  if (cached_feature) {
+    *cached_feature = f;
   }
   return f;
 }

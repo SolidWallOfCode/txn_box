@@ -72,27 +72,38 @@ public:
   static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
                           , swoc::TextView const& arg, YAML::Node key_value);
 
+  /** Create config level shared data.
+   *
+   * @param cfg Configuration.
+   * @param rtti Static configuration data
+   * @return
+   */
   static Errata cfg_init(Config& cfg, CfgStaticData const* rtti);
 
 protected:
   using Map = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
   using MapHandle = std::unique_ptr<Map>;
 
+  /// Config level data for all text blocks.
   struct CfgInfo {
-    MapHandle _map;
+    MapHandle _map; ///< Map of names to specific text block definitions.
   };
 
   TextView _name; ///< Block name.
   swoc::file::path _path; ///< Path to file (optional)
   std::optional<TextView> _text; ///< Default literal text (optional)
   feature_type_for<DURATION> _duration; ///< Time between update checks.
-  Expr _notify_expr; ///< Expression to use for notifications.
   std::atomic<Clock::duration> _last_check = Clock::now().time_since_epoch(); ///< Absolute time of the last alert.
   Clock::time_point _last_modified; ///< Last modified time of the file.
   std::shared_ptr<std::string> _content; ///< Content of the file.
   int _line_no = 0; ///< For debugging name conflicts.
   std::shared_mutex _content_mutex; ///< Lock for access @a content.
   ts::TaskHandle _task; ///< Handle for periodic checking task.
+
+  FeatureGroup _fg;
+  using index_type = FeatureGroup::index_type;
+  static auto constexpr INVALID_IDX = FeatureGroup::INVALID_IDX;
+  index_type _notify_idx;
 
   static inline const std::string NAME_TAG{"name"};
   static inline const std::string PATH_TAG{"path"};
@@ -132,88 +143,64 @@ Errata Do_text_block_define::invoke(Context &ctx) {
 Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
   auto self = new self_type();
   Handle handle(self);
+  auto & fg = self->_fg;
   self->_line_no = drtv_node.Mark().line;
 
+  auto errata = self->_fg.load(cfg, key_value,
+                               {
+    { NAME_TAG, FeatureGroup::REQUIRED },
+    { PATH_TAG },
+    { TEXT_TAG },
+    { DURATION_TAG},
+    { NOTIFY_TAG }
+                               });
+
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return errata;
+  }
+  auto idx = fg.index_of(NAME_TAG);
+
   // Must have a NAME, and either TEXT or PATH. DURATION is optional, but must be a duration if present.
-
-  auto name_node = key_value[NAME_TAG];
-  if (!name_node) {
-    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
-  }
-  auto &&[name_expr, name_errata] { cfg.parse_expr(name_node) };
-  if (! name_errata.is_ok()) {
-    name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-    return std::move(name_errata);
-  }
+  auto & name_expr { fg[idx]._expr };
   if (! name_expr.is_literal() || ! name_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
+    return Error("{} value for {} directive at {} must be a literal string.", NAME_TAG, KEY, drtv_node.Mark());
   }
-  drtv_node.remove(name_node);
-  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr))});
+  self->_name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr));
 
-  auto path_node = key_value[PATH_TAG];
-  if (path_node) {
-    auto &&[path_expr, path_errata]{cfg.parse_expr(path_node)};
-    if (!path_errata.is_ok()) {
-      path_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-      return std::move(path_errata);
-    }
+  if ( auto path_idx = fg.index_of(PATH_TAG) ; path_idx != INVALID_IDX) {
+    auto & path_expr = fg[path_idx]._expr;
     if (! path_expr.is_literal() || ! path_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY, drtv_node.Mark());
+      return Error("{} value for {} directive at {} must be a literal string.", PATH_TAG, KEY, drtv_node.Mark());
     }
-    drtv_node.remove(path_node);
-    self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._expr));
-    ts::make_absolute(self->_path);
+    self->_path = cfg.localize(ts::make_absolute(std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._expr))).view().data(), Config::LOCAL_CSTR);
   }
 
-  auto text_node = key_value[TEXT_TAG];
-  if (text_node) {
-    auto &&[text_expr, text_errata]{cfg.parse_expr(text_node)};
-    if (!text_errata.is_ok()) {
-      text_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-      return std::move(text_errata);
-    }
+  if ( auto text_idx = fg.index_of(TEXT_TAG) ; text_idx != INVALID_IDX) {
+    auto & text_expr = fg[text_idx]._expr;
     if (! text_expr.is_literal() || ! text_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", TEXT_TAG, text_node.Mark(), KEY, drtv_node.Mark());
+      return Error("{} value for {} directive at {} must be a literal string.", TEXT_TAG, KEY, drtv_node.Mark());
     }
-    drtv_node.remove(text_node); // ugly, need to fix the overall API.
-    self->_text = cfg.localize(TextView{
-        std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr))});
+    self->_text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr));
   }
 
   if (! self->_text.has_value() && self->_path.empty()) {
     return Error("{} directive at {} must have a {} or a {} key.", KEY, drtv_node.Mark(), PATH_TAG, TEXT_TAG);
   }
 
-  auto dur_node = key_value[DURATION_TAG];
-  if (dur_node) {
-    auto &&[dur_expr, dur_errata] = cfg.parse_expr(dur_node);
-    if (! dur_errata.is_ok()) {
-      dur_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
-      return std::move(dur_errata);
-    }
+  if (auto dur_idx = fg.index_of(DURATION_TAG) ; dur_idx != INVALID_IDX) {
+    auto & dur_expr = fg[dur_idx]._expr;
     if (! dur_expr.is_literal()) {
-      return Error("{} value at {} for {} directive at {} must be a literal duration."
-                   , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
+      return Error("{} value for {} directive at {} must be a literal duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }
     auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._expr).as_duration()};
     if (! dur_value_errata.is_ok()) {
-      return Error("{} value at {} for {} directive at {} is not a valid duration."
-                   , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
+      return Error("{} value for {} directive at {} is not a valid duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }
-    drtv_node.remove(dur_node);
     self->_duration = dur_value;
   }
 
-  if (auto notify_node = key_value[NOTIFY_TAG] ; notify_node ) {
-    auto && [ n_expr, n_errata ] { cfg.parse_expr(notify_node)};
-    if (! n_errata.is_ok()) {
-      n_errata.info("While parsing {} key in {} directive at {}.", NOTIFY_TAG, KEY, drtv_node.Mark());
-      return std::move(n_errata);
-    }
-    drtv_node.remove(notify_node);
-    self->_notify_expr = std::move(n_expr);
-  }
+  self->_notify_idx = fg.index_of(NOTIFY_TAG);
 
   if (! self->_path.empty()) {
     std::error_code ec;
@@ -276,9 +263,9 @@ void Do_text_block_define::Updater::operator()() {
         _block->_content = content;
         _block->_last_modified = mtime;
       }
-      if ( Expr & expr = _block->_notify_expr ; ! expr.empty()) {
+      if ( Expr & expr = _block->_fg[_block->_notify_idx]._expr ; ! expr.empty()) {
         Context ctx(cfg);
-        auto text{ctx.extract_view(_block->_notify_expr)};
+        auto text{ctx.extract_view(expr)};
         auto msg = ctx.render_transient([&](BufferWriter& w){
           w.write(Config::PLUGIN_TAG).write(": ").write(text);
         });

@@ -281,6 +281,8 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     }
 
     if (!literal.empty()) {
+      // At some point this should be moved later, so that if it's singleton or a config time
+      // value it can be consolidated in a single view without doubling up.
       literal_spec._ext = this->localize(literal, LOCAL_CSTR);
       specs.push_back(literal_spec);
     }
@@ -307,7 +309,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
       return Expr{specs[0], single_vt};
     } else if (specs[0]._type == Extractor::Spec::LITERAL_TYPE) {
       FeatureView f { specs[0]._ext };
-      f._literal_p = true;
+      f._literal_p = true; // because it was localized when parsed from the composite.
       f._cstr_p = true;
       return Expr{f};
     }
