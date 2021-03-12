@@ -65,10 +65,13 @@ protected:
     Names _names; ///< Map of internal names to full names.
   };
 
-  /// @return The name table.
-  static Names& names(Config& cfg);
-  /// @return The name table.
-  static Names& names(Directive::CfgStaticData const * rtti);
+  /** Get the full stat name.
+   *
+   * @param cfg Configuration instance.
+   * @param name Stat name in configuration.
+   * @return The full name of the stat if defined, or a localized copy if not.
+   */
+  static TextView expand_and_localize(Config& cfg, TextView const& name);
 
   TextView _name; ///< Stat name (internal)
   TextView _full_name; ///< Fullname including prefix.
@@ -83,12 +86,15 @@ protected:
 
 const HookMask Do_stat_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
-auto Do_stat_define::names(Directive::CfgStaticData const * rtti) -> Names& {
-  return rtti->_cfg_store.rebind<CfgInfo*>()[0]->_names;
-}
-
-auto Do_stat_define::names(Config& cfg) -> Names& {
-  return names(cfg.drtv_info(KEY));
+TextView Do_stat_define::expand_and_localize(Config& cfg, TextView const& name) {
+  auto rtti = cfg.drtv_info(KEY);
+  if (rtti->_count > 0) {
+    Names& names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
+    if (auto spot = names.find(name); spot != names.end()) {
+      return spot->second;
+    }
+  }
+  return cfg.localize(name);
 }
 
 Errata Do_stat_define::cfg_init(Config &cfg, CfgStaticData const* rtti) {
@@ -160,7 +166,8 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
     self->_full_name = TextView{w.view()}.remove_suffix(1); // drop terminal null.
     self->_name = self->_full_name.suffix(name.size());
   }
-  self->names(rtti).insert({self->_name, self->_full_name});
+  Names& names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
+  names.insert({self->_name, self->_full_name});
   drtv_node.remove(name_node);
 
   auto value_node = key_value[VALUE_TAG];
@@ -196,33 +203,28 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
 /// Statistic information.
 /// The name is used when it can't be resolved during configuration loading.
 struct Stat {
+  static constexpr int UNRESOLVED = -1;
+  static constexpr int INVALID = -2;
   TextView _name; ///< Statistic name.
-  int _idx = -1; ///< Statistic index.
+  int _idx = UNRESOLVED; ///< Statistic index.
 
   Stat(Config& cfg, TextView const& name) {
     this->assign(cfg, name);
   }
 
   Stat& assign(Config& cfg, TextView name) {
-    bool localized_p = false;
-    auto & names = Do_stat_define::names(cfg);
-    if (auto spot = names.find(name) ; spot != names.end()) {
-      name = spot->second;
-      localized_p = true; // names in the table are localized.
-    }
+    _name = Do_stat_define::expand_and_localize(cfg, name);
 
-    _idx = ts::plugin_stat_index(name);
-    if (_idx < 0) {
-      _name = localized_p ? name :cfg.localize(name, Config::LOCAL_CSTR);
-    }
+    _idx = ts::plugin_stat_index(_name);
+    _idx = _idx < 0 ? UNRESOLVED : _idx; // normalize.
     return *this;
   }
 
   int index () {
-    if (_idx < 0 && !_name.empty()) {
+    if (_idx == UNRESOLVED) {
       _idx = ts::plugin_stat_index(_name);
       if (_idx < 0) { // On a lookup failure, give up and prevent future lookups.
-        _name.clear();
+        _idx = INVALID;
       }
     }
     return _idx;
