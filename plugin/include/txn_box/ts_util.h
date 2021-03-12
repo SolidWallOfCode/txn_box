@@ -711,6 +711,12 @@ void plugin_stat_update(int idx, intmax_t value);
 
 swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool persistent_p);
 
+/** Generate a NOTE log entry.
+ *
+ * @param text Text of the NOTE.
+ *
+ * @note Earlier versions of ATS will generate ERROR because NOTE
+ */
 void Note(swoc::TextView const& text);
 
 // ----

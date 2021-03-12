@@ -339,11 +339,11 @@ BufferWriter& Ex_env::format(BufferWriter &w, Spec const &spec, Context &) {
 
 /* ------------------------------------------------------------------------------------ */
 BufferWriter& Ex_this::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, _fg->extract(ctx, spec._ext));
+  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 Feature Ex_this::extract(class Context & ctx, Extractor::Spec const & spec) {
-  return _fg->extract(ctx, spec._ext);
+  return _fg ? _fg->extract(ctx, spec._ext) : NIL_FEATURE;
 }
 
 swoc::Rv<ActiveType> Ex_this::validate(Config& cfg, Extractor::Spec&, TextView const&) { return cfg.active_type(); }
