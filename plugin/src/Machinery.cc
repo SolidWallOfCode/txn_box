@@ -2494,7 +2494,7 @@ protected:
   Errata fixup(Context &ctx);
 };
 
-const HookMask Do_proxy_reply::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_reply::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP} ) };
 
 Errata Do_proxy_reply::cfg_init(Config& cfg, CfgStaticData const * rtti) {
   auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
