@@ -263,11 +263,12 @@ void Do_text_block_define::Updater::operator()() {
         _block->_content = content;
         _block->_last_modified = mtime;
       }
-      if ( Expr & expr = _block->_fg[_block->_notify_idx]._expr ; ! expr.empty()) {
+      if ( _block->_notify_idx != FeatureGroup::INVALID_IDX) {
         Context ctx(cfg);
-        auto text{ctx.extract_view(expr)};
+        _block->_fg.pre_extract(ctx);
+        auto text{_block->_fg.extract(ctx, _block->_notify_idx)};
         auto msg = ctx.render_transient([&](BufferWriter& w){
-          w.write(Config::PLUGIN_TAG).write(": ").write(text);
+          w.print("{}:{}", Config::PLUGIN_TAG, text);
         });
         ts::Note(msg);
       }
