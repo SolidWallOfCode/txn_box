@@ -2879,6 +2879,42 @@ Rv<Directive::Handle> Do_debug::load(Config& cfg, CfgStaticData const*, YAML::No
 }
 
 /* ------------------------------------------------------------------------------------ */
+/// Log an Error message.
+class Do_error : public Directive {
+  using self_type = Do_error;
+  using super_type = Directive;
+public:
+  static inline const std::string KEY{"error"};
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _msg;
+
+  Do_error(Expr && msg);
+};
+
+const HookMask Do_error::HOOKS {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+
+Do_error::Do_error(Expr &&msg) : _msg(std::move(msg)) {}
+
+Errata Do_error::invoke(Context &ctx) {
+  TextView msg = ctx.extract_view(_msg);
+  ts::Log_Error(msg);
+  return {};
+}
+
+Rv<Directive::Handle> Do_error::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value);
+  if (! msg_errata.is_ok()) {
+    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return { {}, std::move(msg_errata)};
+  }
+  return { Handle{new self_type{std::move(msg_fmt)}}};
+}
+
 /// Log an notify message.
 class Do_note : public Directive {
   using self_type = Do_note;
@@ -2902,7 +2938,7 @@ Do_note::Do_note(Expr &&msg) : _msg(std::move(msg)) {}
 
 Errata Do_note::invoke(Context &ctx) {
   TextView msg = ctx.extract_view(_msg);
-  ts::Note(msg);
+  ts::Log_Note(msg);
   return {};
 }
 
@@ -2938,7 +2974,7 @@ Do_warning::Do_warning(Expr &&msg) : _msg(std::move(msg)) {}
 
 Errata Do_warning::invoke(Context &ctx) {
   TextView msg = ctx.extract_view(_msg);
-  ts::Warning(msg);
+  ts::Log_Warning(msg);
   return {};
 }
 
@@ -3469,6 +3505,7 @@ namespace {
   Config::define<Do_debug>();
   Config::define<Do_note>();
   Config::define<Do_warning>();
+  Config::define<Do_error>();
   Config::define<Do_var>();
 
   Config::define<Do_apply_remap_rule>();

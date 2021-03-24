@@ -387,11 +387,15 @@ Utility
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot
    be read.
 
+.. directive:: error
+
+   Generate a "ERROR" level log entry. The value of the directive is used as the entry text.
+
 .. directive:: warning
 
    Generate a "WARNING" level log entry. The value of the directive is used as the entry text.
 
-   .. warning::
+   .. note::
 
       On versions of Traffic Server before 10 this will generate an "ERROR" log entry because the
       plugin API does not support other log levels.

@@ -717,7 +717,7 @@ swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool per
  *
  * @note Earlier versions of ATS will generate ERROR because NOTE
  */
-void Note(swoc::TextView const& text);
+void Log_Note(swoc::TextView const& text);
 
 /** Generate a WARNING log entry.
  *
@@ -725,7 +725,13 @@ void Note(swoc::TextView const& text);
  *
  * @warning Earlier versions of ATS will generate ERROR because WARNING
  */
-void Warning(swoc::TextView const& text);
+void Log_Warning(swoc::TextView const& text);
+
+/** Generate a Error log entry.
+ *
+ * @param text Text of the message.
+ */
+void Log_Error(swoc::TextView const& text);
 // ----
 
 struct TaskHandle {

@@ -152,20 +152,24 @@ get_outbound_txn_count(T const &txn, swoc::meta::CaseTag<1>) -> decltype(TSHttpT
 
 // ---
 
+// g++ 8 compatibility - it thinks a literal string is part of the template signature for no apparent reason.
+// But declaring this and using the variable fixes it.
+constexpr char const * diag_fmt = "%.*s";
+
 template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<0>) -> decltype(text.size(), text.data(), std::declval<void>()){
-  TSError("%.*s", int(text.size()), text.data());
+  TSError(diag_fmt, int(text.size()), text.data());
 }
 
-template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSNote("%.*s", int(text.size()), text.data()), std::declval<void>()) {
-  TSNote("%.*s", int(text.size()), text.data());
+template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSNote(diag_fmt, int(text.size()), text.data()), std::declval<void>()) {
+  TSNote(diag_fmt, int(text.size()), text.data());
 }
 
 template < typename T > auto diag_warning(T const& text, swoc::meta::CaseTag<0>) -> decltype(text.size(), text.data(), std::declval<void>()){
-  TSError("%.*s", int(text.size()), text.data());
+  TSError(diag_fmt, int(text.size()), text.data());
 }
 
-template < typename T > auto diag_warning(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSWarning("%.*s", int(text.size()), text.data()), std::declval<void>()) {
-  TSWarning("%.*s", int(text.size()), text.data());
+template < typename T > auto diag_warning(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSWarning(diag_fmt, int(text.size()), text.data()), std::declval<void>()) {
+  TSWarning(diag_fmt, int(text.size()), text.data());
 }
 
 } // namespace compat
@@ -904,8 +908,16 @@ TextView SSLContext::remote_issuer_value(int nid) const {
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-void Note(TextView const& text) {
+void Log_Note(TextView const& text) {
   compat::diag_note(text, swoc::meta::CaseArg);
+}
+
+void Log_Warning(TextView const& text) {
+  compat::diag_warning(text, swoc::meta::CaseArg);
+}
+
+void Log_Error(TextView const& text) {
+  TSError(compat::diag_fmt, int(text.size()), text.data());
 }
 /* ------------------------------------------------------------------------------------ */
 } // namespace ts

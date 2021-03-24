@@ -270,7 +270,7 @@ void Do_text_block_define::Updater::operator()() {
         auto msg = ctx.render_transient([&](BufferWriter& w){
           w.print("{}:{}", Config::PLUGIN_TAG, text);
         });
-        ts::Note(msg);
+        ts::Log_Note(msg);
       }
       return;
     }
