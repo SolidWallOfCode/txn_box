@@ -160,6 +160,14 @@ template < typename T > auto diag_note(T const& text, swoc::meta::CaseTag<1>) ->
   TSNote("%.*s", int(text.size()), text.data());
 }
 
+template < typename T > auto diag_warning(T const& text, swoc::meta::CaseTag<0>) -> decltype(text.size(), text.data(), std::declval<void>()){
+  TSError("%.*s", int(text.size()), text.data());
+}
+
+template < typename T > auto diag_warning(T const& text, swoc::meta::CaseTag<1>) -> decltype(TSWarning("%.*s", int(text.size()), text.data()), std::declval<void>()) {
+  TSWarning("%.*s", int(text.size()), text.data());
+}
+
 } // namespace compat
 
 /* ------------------------------------------------------------------------------------ */

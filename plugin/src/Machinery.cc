@@ -2915,6 +2915,42 @@ Rv<Directive::Handle> Do_note::load(Config& cfg, CfgStaticData const*, YAML::Nod
   return { Handle{new self_type{std::move(msg_fmt)}}};
 }
 
+/// Log an warning message.
+class Do_warning : public Directive {
+  using self_type = Do_warning;
+  using super_type = Directive;
+public:
+  static inline const std::string KEY{"warning"};
+  static const HookMask HOOKS; ///< Valid hooks for directive.
+
+  Errata invoke(Context & ctx) override;
+  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+protected:
+  Expr _msg;
+
+  Do_warning(Expr && msg);
+};
+
+const HookMask Do_warning::HOOKS {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+
+Do_warning::Do_warning(Expr &&msg) : _msg(std::move(msg)) {}
+
+Errata Do_warning::invoke(Context &ctx) {
+  TextView msg = ctx.extract_view(_msg);
+  ts::Warning(msg);
+  return {};
+}
+
+Rv<Directive::Handle> Do_warning::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+  auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value);
+  if (! msg_errata.is_ok()) {
+    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return { {}, std::move(msg_errata)};
+  }
+  return { Handle{new self_type{std::move(msg_fmt)}}};
+}
+
 /* ------------------------------------------------------------------------------------ */
 /// Set the cache key.
 class Do_cache_key : public Directive {
@@ -3432,6 +3468,7 @@ namespace {
   Config::define<Do_proxy_reply>();
   Config::define<Do_debug>();
   Config::define<Do_note>();
+  Config::define<Do_warning>();
   Config::define<Do_var>();
 
   Config::define<Do_apply_remap_rule>();
