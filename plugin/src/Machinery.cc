@@ -2566,7 +2566,7 @@ Errata Do_proxy_reply::load_status() {
   FeatureGroup::ExprInfo & info = _fg[_status_idx];
 
   if (info._expr.is_literal()) {
-    auto && [ status , errata ] { std::get<Feature>(info._expr._expr).as_integer(-1) };
+    auto && [ status , errata ] { std::get<Feature>(info._expr._raw).as_integer(-1) };
     if (! errata.is_ok()) {
       errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
       return std::move(errata);
@@ -2770,7 +2770,7 @@ Errata Do_redirect::load_status() {
   FeatureGroup::ExprInfo & info = _fg[_status_idx];
 
   if (info._expr.is_literal()) {
-    auto && [ status , errata ] { std::get<Feature>(info._expr._expr).as_integer(DEFAULT_STATUS) };
+    auto && [ status , errata ] { std::get<Feature>(info._expr._raw).as_integer(DEFAULT_STATUS) };
     _status = status;
     if (! errata.is_ok()) {
       errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);

@@ -166,14 +166,14 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData cons
   if (! name_expr.is_literal() || ! name_expr.result_type().can_satisfy(STRING)) {
     return Error("{} value for {} directive at {} must be a literal string.", NAME_TAG, KEY, drtv_node.Mark());
   }
-  self->_name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr));
+  self->_name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
 
   if ( auto path_idx = fg.index_of(PATH_TAG) ; path_idx != INVALID_IDX) {
     auto & path_expr = fg[path_idx]._expr;
     if (! path_expr.is_literal() || ! path_expr.result_type().can_satisfy(STRING)) {
       return Error("{} value for {} directive at {} must be a literal string.", PATH_TAG, KEY, drtv_node.Mark());
     }
-    self->_path = cfg.localize(ts::make_absolute(std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._expr))).view().data(), Config::LOCAL_CSTR);
+    self->_path = cfg.localize(ts::make_absolute(std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._raw))).view().data(), Config::LOCAL_CSTR);
   }
 
   if ( auto text_idx = fg.index_of(TEXT_TAG) ; text_idx != INVALID_IDX) {
@@ -181,7 +181,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData cons
     if (! text_expr.is_literal() || ! text_expr.result_type().can_satisfy(STRING)) {
       return Error("{} value for {} directive at {} must be a literal string.", TEXT_TAG, KEY, drtv_node.Mark());
     }
-    self->_text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._expr));
+    self->_text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._raw));
   }
 
   if (! self->_text.has_value() && self->_path.empty()) {
@@ -193,7 +193,7 @@ Rv<Directive::Handle> Do_text_block_define::load(Config& cfg, CfgStaticData cons
     if (! dur_expr.is_literal()) {
       return Error("{} value for {} directive at {} must be a literal duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }
-    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._expr).as_duration()};
+    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._raw).as_duration()};
     if (! dur_value_errata.is_ok()) {
       return Error("{} value for {} directive at {} is not a valid duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }

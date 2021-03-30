@@ -132,7 +132,7 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       return Error("{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY, drtv_node.Mark());
     }
 
-    prefix = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(prefix_expr._expr));
+    prefix = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(prefix_expr._raw));
     drtv_node.remove(prefix_node);
   } else {
     prefix = "plugin.txn_box"_tv; // default if not explicitly set.
@@ -152,7 +152,7 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
   if (! name_expr.is_literal() || ! name_expr.result_type().can_satisfy(STRING)) {
     return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
   }
-  TextView name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr));
+  TextView name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
   if (name.empty()) {
     return Error("{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
   }
@@ -181,7 +181,7 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       return Error("{} value at {} for {} directive at {} must be a literal integer.", VALUE_TAG, value_node.Mark(), KEY, drtv_node.Mark());
     }
     drtv_node.remove(value_node);
-    self->_value = std::get<IndexFor(INTEGER)>(std::get<Expr::LITERAL>(value_expr._expr));
+    self->_value = std::get<IndexFor(INTEGER)>(std::get<Expr::LITERAL>(value_expr._raw));
   }
 
   auto persistent_node = key_value[PERSISTENT_TAG];
@@ -195,7 +195,7 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       return Error("{} value at {} for {} directive at {} must be a literal string.", PERSISTENT_TAG, persistent_node.Mark(), KEY, drtv_node.Mark());
     }
     drtv_node.remove(persistent_node); // ugly, need to fix the overall API.
-    self->_persistent_p = std::get<IndexFor(BOOLEAN)>(std::get<Expr::LITERAL>(persistent_expr._expr));
+    self->_persistent_p = std::get<IndexFor(BOOLEAN)>(std::get<Expr::LITERAL>(persistent_expr._raw));
   }
   return handle;
 }

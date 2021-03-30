@@ -481,7 +481,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
     if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
       return Error("{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG, node.Mark());
     }
-    col._name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr));
+    col._name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
   }
 
   auto type_node = node[TYPE_TAG];
@@ -496,7 +496,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
   if (!type_expr.is_literal() || !type_expr.result_type().can_satisfy(STRING)) {
     return Error("{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG, node.Mark());
   }
-  auto text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(type_expr._expr));
+  auto text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(type_expr._raw));
   col._type= Column::TypeNames[text];
   if (col._type == ColumnData::INVALID) {
     return Error(R"(Type "{}" at {] is not valid - must be one of {:s}.)", text, type_node.Mark(), Column::TypeNames);
@@ -521,7 +521,7 @@ Errata Do_ip_space_define::define_column(Config & cfg, YAML::Node node) {
         return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, tags_node.Mark(), COLUMNS_TAG, node.Mark());
       }
       col._tags.set_default(INVALID_TAG);
-      Feature lit = std::get<Expr::LITERAL>(tags_expr._expr);
+      Feature lit = std::get<Expr::LITERAL>(tags_expr._raw);
       if (ValueTypeOf(lit) == TUPLE) {
         for ( auto f : std::get<IndexFor(TUPLE)>(lit)) {
           if (ValueTypeOf(f) != STRING) {
@@ -569,7 +569,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
     return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
   }
   drtv_node.remove(name_node);
-  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._expr))});
+  self->_name = cfg.localize(TextView{std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw))});
 
   auto path_node = key_value[PATH_TAG];
   if (! path_node) {
@@ -585,7 +585,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
     return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY, drtv_node.Mark());
   }
   drtv_node.remove(path_node);
-  self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._expr));
+  self->_path = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._raw));
   ts::make_absolute(self->_path);
 
   auto dur_node = key_value[DURATION_TAG];
@@ -598,7 +598,7 @@ Rv<Directive::Handle> Do_ip_space_define::load(Config& cfg, CfgStaticData const*
     if (! dur_expr.is_literal()) {
       return Error("{} value at {} for {} directive at {} must be a literal duration.", DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());
     }
-    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._expr).as_duration()};
+    auto && [ dur_value, dur_value_errata ] { std::get<Expr::LITERAL>(dur_expr._raw).as_duration()};
     if (! dur_value_errata.is_ok()) {
       return Error("{} value at {} for {} directive at {} is not a valid duration."
                    , DURATION_TAG, dur_node.Mark(), KEY, drtv_node.Mark());

@@ -317,7 +317,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
   }
   // Multiple specifiers, check for overall properties.
   Expr expr;
-  auto & cexpr = expr._expr.emplace<Expr::COMPOSITE>();
+  auto & cexpr = expr._raw.emplace<Expr::COMPOSITE>();
   cexpr._specs = std::move(specs);
   for ( auto const& s : specs ) {
     expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
@@ -440,11 +440,11 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
     FeatureTuple t = this->alloc_span<Feature>(xa.size());
     unsigned idx = 0;
     for ( auto & f : t) {
-      f = std::get<Expr::LITERAL>(xa[idx++]._expr);
+      f = std::get<Expr::LITERAL>(xa[idx++]._raw);
     }
-    expr._expr = t;
+    expr._raw = t;
   } else {
-    auto& list = expr._expr.emplace<Expr::LIST>();
+    auto& list = expr._raw.emplace<Expr::LIST>();
     list._types = l_types;
     list._exprs = std::move(xa);
   }

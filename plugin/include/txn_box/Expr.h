@@ -57,7 +57,7 @@ public:
 
   using Raw = std::variant<std::monostate, Feature, Direct, Composite, List>;
   /// Concrete types for a specific expression.
-  Raw _expr;
+  Raw _raw;
   /// Enumerations for type indices.
   enum {
     /// No value, uninitialized.
@@ -90,12 +90,12 @@ public:
    *
    * The constructed instance will always be the literal @a f.
    */
-  Expr(Feature const& f) : _expr(f) {}
-  Expr(Direct && d) : _expr(std::move(d)) {}
-  Expr(Composite && comp) : _expr(std::move(comp)) {}
+  Expr(Feature const& f) : _raw(f) {}
+  Expr(Direct && d) : _raw(std::move(d)) {}
+  Expr(Composite && comp) : _raw(std::move(comp)) {}
 
   Expr(Spec const& spec, ActiveType t) {
-    _expr.emplace<DIRECT>(spec, t);
+    _raw.emplace<DIRECT>(spec, t);
     _max_arg_idx = spec._idx;
   }
 
@@ -107,16 +107,16 @@ public:
       ActiveType operator () (Composite const&) { return STRING; }
       ActiveType operator () (List const& l) { return ActiveType{ActiveType::TupleOf(l._types.base_types())}; }
     };
-    ActiveType zret = std::visit(Visitor{}, _expr);
+    ActiveType zret = std::visit(Visitor{}, _raw);
     for ( auto const& mod : _mods) {
       zret = mod->result_type(zret);
     }
     return zret;
   }
 
-  bool empty() const { return _expr.index() == NO_EXPR; }
-  bool is_null() const { return _expr.index() == LITERAL && std::get<LITERAL>(_expr).value_type() == NIL;}
-  bool is_literal() const { return _expr.index() == LITERAL; }
+  bool empty() const { return _raw.index() == NO_EXPR; }
+  bool is_null() const { return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL;}
+  bool is_literal() const { return _raw.index() == LITERAL; }
 
   struct bwf_visitor {
     bwf_visitor(Context & ctx) : _ctx(ctx) {}

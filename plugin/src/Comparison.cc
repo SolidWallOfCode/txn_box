@@ -716,7 +716,7 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::List & l) {
     if (! elt.result_type().can_satisfy(STRING)) {
       return Error(R"("{}" literal must be a string.)", KEY);
     }
-    std::visit(ev, elt._expr);
+    std::visit(ev, elt._raw);
   }
   return Handle { rxm };
 }
@@ -737,7 +737,7 @@ Rv<Comparison::Handle> Cmp_Rxp::load(Config &cfg, YAML::Node const& cmp_node, Te
 
   Rxp::Options rxp_opt;
   rxp_opt.f.nc = options.f.nc;
-  return std::visit(expr_visitor{cfg, rxp_opt}, expr._expr);
+  return std::visit(expr_visitor{cfg, rxp_opt}, expr._raw);
 }
 
 Cmp_RxpSingle::Cmp_RxpSingle(Expr && expr, Rxp::Options opt) : _rxp(std::move(expr)), _opt(opt) {

@@ -116,7 +116,7 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
     // For list, it's a list of nested @c Expr instances, so visit those as this one was visited.
     Errata operator() (Expr::List & l){
       for ( auto & expr : l._exprs) {
-        auto errata = std::visit(*this, expr._expr);
+        auto errata = std::visit(*this, expr._raw);
         if (! errata.is_ok()) {
           return errata;
         }
@@ -127,7 +127,7 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
 
   auto && [ expr, errata ] { cfg.parse_expr(node) };
   if (errata.is_ok()) {
-    errata = std::visit(v, expr._expr); // update "this" extractor references.
+    errata = std::visit(v, expr._raw); // update "this" extractor references.
     if (errata.is_ok()) {
       return std::move(expr);
     }

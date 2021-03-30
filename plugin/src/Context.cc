@@ -168,7 +168,7 @@ Feature Expr::bwf_visitor::operator()(List const & list) {
 }
 
 Feature Context::extract(Expr const &expr) {
-  auto value = std::visit(Expr::bwf_visitor(*this), expr._expr);
+  auto value = std::visit(Expr::bwf_visitor(*this), expr._raw);
   for ( auto const& mod : expr._mods) {
     value = (*mod)(*this, value);
   }
