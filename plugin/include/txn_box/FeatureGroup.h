@@ -48,17 +48,20 @@ public:
   struct ExprInfo {
     Expr _expr; ///< The feature expression.
     swoc::TextView _name; ///< Key name.
-    swoc::MemSpan<index_type> _edge; ///< Indices of immediate reference dependencies.
     /// Extracted feature index. For each referenced key, a slot is allocated for caching the
-    /// extracted feature use. If a key isn't referenced, this is invalid.
+    /// extracted feature use. @c INVALID_IDX indicates the feature isn't a dependency target
+    /// and is therefore not cached.
     index_type _exf_idx = INVALID_IDX;
   };
 
   /** Store invocation state for extracting features.
    *
+   * Cached features for an extraction. No need to explicitly store dependencies, only keys which
+   * are targets of a dependency. Each dependency target gets an index in this array and its value
+   * is cached there as needed.
    */
   struct State {
-    swoc::MemSpan<Feature> _features;
+    swoc::MemSpan<Feature> _features; ///< Cached features from expression evaluation.
   };
 
   ~FeatureGroup();
@@ -176,17 +179,6 @@ protected:
       index_type _edge_count = 0; ///< # of immediate dependent references.
       index_type _exf_idx = INVALID_IDX; ///< Index of extracted feature cache.
       int8_t _mark = NONE; ///< Ordering search march.
-
-      /// Cross reference (dependency graph edge)
-      /// @note THIS IS NOT PART OF THE NODE VALUE!
-      /// This is in effect a member of a parallel array and is connected to the node info via
-      /// the @a ref_idx and @a _ref_count members. It is a happy circumstance that the number of
-      /// elements for this array happens to be just one less than required for the node array, so
-      /// it can be overloaded without having to pass in a separate array. This abuses the fact
-      /// that a POset can be modeled as a directed acyclic graph, which on N nodes has at most
-      /// N-1 edges. It is the edges that are stored here, therefore at most N-1 elements are
-      /// required.
-      index_type _edge = 0;
     };
 
     /// External provided array used to track the keys.
@@ -224,10 +216,6 @@ protected:
     /// If @a name is not in the array, an element is allocated and set to @a name.
     Info * obtain(swoc::TextView const& name);
   };
-
-  /// Immediate dependencies of the references.
-  /// A representation of the edges in the dependency graph.
-  swoc::MemSpan<index_type> _edge;
 
   index_type _ref_count = 0; ///< Number of edge targets.
 

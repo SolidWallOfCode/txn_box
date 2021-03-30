@@ -191,7 +191,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   }
 
   // Time to get the expressions and walk the references. Need to finalize the range before calling
-  // @c load_key as that can modify @a tracking._count. Also must avoid calling this on keys that
+  // @c load_key as that can modify @a tracking_count. Also must avoid calling this on keys that
   // are explicit but not required - need to fail on missing keys iff they're referenced, which is
   // checked by @c load_key. The presence of required keys has already been verified.
   for ( auto info = tracking_info, limit = info + tracking._count ; info < limit ; ++info ) {
@@ -205,12 +205,8 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   _expr_info = cfg.alloc_span<ExprInfo>(tracking._count);
   _expr_info.apply([](ExprInfo & info) { new (&info) ExprInfo; });
 
-  // If there are dependency edges, copy those over.
-  if (tracking._edge_count) {
-    _edge = cfg.alloc_span<unsigned short>(tracking._edge_count);
-    for (unsigned short idx = 0; idx < tracking._edge_count; ++idx) {
-      _edge[idx] = tracking._info[idx]._edge;
-    }
+  // If there are dependencies, allocate state to hold cached values.
+  if (_ref_count > 0) {
     _ctx_state_span = cfg.reserve_ctx_storage(sizeof(State));
   }
 
@@ -221,9 +217,6 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     dst._name = src._name;
     dst._expr = std::move(src._expr);
     dst._exf_idx = src._exf_idx;
-    if (src._edge_count) {
-      dst._edge.assign(&_edge[src._edge_idx], src._edge_count);
-    }
   }
 
   return {};
@@ -288,7 +281,9 @@ Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
 }
 
 Feature FeatureGroup::extract(Context& ctx, index_type idx) {
-  auto * cache = (_ctx_state_span.n > 0) ? &ctx.storage_for(_ctx_state_span).rebind<State>()[0]._features : nullptr;
+  // Only cache if there are dependencies (i.e. there are dependency edges).
+  // Note dependencies on literals are not tracked, as there's no benefit to caching them.
+  auto * cache = _ref_count ? &ctx.storage_for(_ctx_state_span).rebind<State>()[0]._features : nullptr;
   Feature *cached_feature = nullptr;
   auto& info = _expr_info[idx];
   // Get the reserved storage for the @c State instance, if any.
@@ -301,13 +296,6 @@ Feature FeatureGroup::extract(Context& ctx, index_type idx) {
     }
   }
 
-  // Extract precursors.
-  for (index_type edge_idx : info._edge) {
-    ExprInfo& precursor = _expr_info[edge_idx];
-    if ((*cache)[precursor._exf_idx].index() == IndexFor(NIL)) {
-      this->extract(ctx, edge_idx);
-    }
-  }
   auto f = ctx.extract(info._expr);
   if (cached_feature) {
     *cached_feature = f;
@@ -316,7 +304,7 @@ Feature FeatureGroup::extract(Context& ctx, index_type idx) {
 }
 
 auto FeatureGroup::pre_extract(Context & ctx) -> void {
-  if (_ref_count > 0) {
+  if (_ref_count > 0) { // there are actual dependencies.
     static constexpr Generic *not_a_feature = nullptr;
     // Get the reserved storage for the @c State instance.
     State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
