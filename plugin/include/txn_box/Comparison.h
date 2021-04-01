@@ -57,6 +57,7 @@ public:
   /// Context state updates are done through the @c Context argument.
   /// @{
   virtual bool operator()(Context&, std::monostate) const { return false; }
+  virtual bool operator()(Context&, nil_value) const { return false; }
   virtual bool operator()(Context&, feature_type_for<STRING> const&) const { return false; }
   virtual bool operator()(Context&, feature_type_for<INTEGER>) const { return false; }
   virtual bool operator()(Context&, feature_type_for<BOOLEAN>) const { return false; }

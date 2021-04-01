@@ -122,7 +122,8 @@ public:
 /// - @c FeatureTypelist
 /// - @c Feature::value_type
 enum ValueType : int8_t {
-  NIL = 0, ///< Explicitly no data.
+  NO_VALUE = 0, ///< No value, uninitialized
+  NIL, ///< Config level no data.
   STRING, ///< View of a string.
   INTEGER, ///< Integer.
   BOOLEAN, ///< Boolean.
@@ -135,6 +136,9 @@ enum ValueType : int8_t {
   GENERIC, ///< Extended type.
 };
 
+/// Empty struct to represent a NIL / NULL runtime value.
+struct nil_value {};
+
 class ActiveType; // Forward declare
 
 namespace std {
@@ -145,6 +149,7 @@ template <> struct tuple_size<ValueType> : public std::integral_constant<size_t,
 /// Type list of feature types.
 using FeatureTypeList = swoc::meta::type_list<
       std::monostate
+    , nil_value
     , FeatureView
     , intmax_t
     , bool
@@ -159,7 +164,8 @@ using FeatureTypeList = swoc::meta::type_list<
 
 /// Variant index to feature type.
 constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue {
-    NIL
+  NO_VALUE
+   , NIL
    , STRING
    , INTEGER
    , BOOLEAN
@@ -370,7 +376,7 @@ template < typename F > static constexpr ValueType value_type_of = ValueType(ind
 
 /// Nil value feature.
 /// @internal Default constructor doesn't work in the Intel compiler, must be explicit.
-static constexpr Feature NIL_FEATURE{};
+static constexpr Feature NIL_FEATURE{nil_value{}};
 
 /** Standard cons cell.
  *
@@ -803,12 +809,13 @@ template < typename T > let<T>::~let() { _var = _value; }
 
 // BufferWriter support.
 namespace swoc {
-BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, std::monostate);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple const& t);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, feature_type_for<DURATION> const& d);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, feature_type_for<NO_VALUE>);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, feature_type_for<NIL>);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, ValueType type);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, FeatureTuple const& t);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, Feature const &feature);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, ValueMask const &mask);
+BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, feature_type_for<DURATION> const& d);
 //BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ActiveType const& type);
 }
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
