@@ -411,31 +411,26 @@ MemSpan<void> Context::overflow_storage_for(const ReservedSpan& span) {
   return item->_storage;
 }
 
-swoc::MemSpan<char> Context::transient_buffer() {
+swoc::MemSpan<char> Context::transient_buffer(size_t required) {
   this->commit_transient();
-  auto span { _arena->remnant().rebind<char>() };
-  _transient = span.size();
+  auto span { _arena->require(required).remnant().rebind<char>() };
+  _transient = TRANSIENT_ACTIVE;
   return span;
-}
-
-swoc::MemSpan<char> Context::transient_buffer(size_t n) {
-  this->commit_transient();
-  auto span { _arena->require(n).remnant().rebind<char>() };
-  _transient = span.size();
-  return span;
-}
-
-Context::self_type& Context::commit_transient() {
-  if (_transient) {
-    _arena->alloc(_transient);
-    _transient = 0;
-  }
-  return *this;
 }
 
 Context::self_type& Context::transient_require(size_t n) {
   this->commit_transient();
   _arena->require(n);
+  return *this;
+}
+
+Context::self_type& Context::commit_transient() {
+  if (_transient == TRANSIENT_ACTIVE) {
+    throw std::logic_error("Recursive use of transient buffer in context");
+  } else if (_transient) {
+    _arena->alloc(_transient);
+    _transient = 0;
+  }
   return *this;
 }
 

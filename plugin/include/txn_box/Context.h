@@ -160,22 +160,15 @@ public:
 
   /** Get the transient buffer.
    *
+   * @param required Amount of buffer required - optional.
    * @return The transient buffer.
    *
    * Any previous transient buffer is committed and the entire arena remnant is returned.
+   * @a required is beneficial if a reasonable upper limit can be determined.
    */
-  swoc::MemSpan<char> transient_buffer();;
+  swoc::MemSpan<char> transient_buffer(size_t required = 0);
 
-  /** Get a transient buffer of a specific size.
-   *
-   * @param n The number of bytes.
-   * @return A transient span of @a n bytes.
-   *
-   * Any previous transient buffer is committed. The arena remnant is resized as needed to provide
-   * @a n bytes of storage.
-   */
-  swoc::MemSpan<char> transient_buffer(size_t n);
-
+  # if 0
   /** Get a transient span of a specific type.
    *
    * @tparam T Element type.
@@ -187,13 +180,17 @@ public:
    */
   template < typename T > swoc::MemSpan<T> transient_span(unsigned count);
 
-  /** Commit the current transient buffer.
+  # endif
+
+  /** Finalize a transient value.
    *
+   * @param n Size of the value.
    * @return @a this
    *
-   * If there is a transient buffer, it is committed.
+   * This is used to indicate the transient buffer is no longer active but contains a value. If
+   * the transient buffer is used the object will be committed.
    */
-  self_type & commit_transient();
+  self_type & transient_finalize(size_t n);
 
   /** Discard the current transient buffer.
    *
@@ -203,17 +200,18 @@ public:
    * in cases where the transient buffer is used only locally, otherwise it will be committed the
    * next time a transient buffer is requested.
    */
-  self_type & discard_transient();
+  self_type & transient_discard();
 
-  template < typename F > FeatureView render_transient(F const& f) {
-    swoc::FixedBufferWriter w{ this->transient_buffer()};
-    f(w);
-    if (w.error()) {
-      w.assign(this->discard_transient().transient_buffer(w.extent()));
-      f(w);
-    }
-    return w.view();
-  }
+
+  /** Commit the current transient buffer.
+   *
+   * @return @a this
+   *
+   * If there is a transient buffer, it is committed.
+   */
+  self_type & commit_transient();
+
+  template < typename F > FeatureView render_transient(F const& f);
 
 #if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
   /// Access the internal memory arena as a memory resource.
@@ -478,6 +476,7 @@ protected:
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
 
   size_t _transient = 0; ///< Current amount of reserved / temporary space in the arena.
+  static constexpr decltype(_transient) TRANSIENT_ACTIVE = std::numeric_limits<decltype(_transient)>::max();
 
   // HTTP header objects for the transaction.
   ts::HttpRequest _ua_req; ///< Client request header.
@@ -490,9 +489,6 @@ protected:
 
   /// Directive shared storage.
   swoc::MemSpan<void> _ctx_store;
-
-  /// Invoke the callbacks for the current hook.
-  swoc::Errata invoke_callbacks();
 
   /// Active regex capture data.
   pcre2_match_data * _rxp_active = nullptr;
@@ -540,7 +536,13 @@ protected:
   /// Flag for continuing invoking directives.
   bool _terminal_p = false;
 
+  /// Invoke the callbacks for the current hook.
+  swoc::Errata invoke_callbacks();
+
   swoc::MemSpan<void> overflow_storage_for(ReservedSpan const& span);
+
+  /// Used for generating transient feature expression values.
+  std::optional<swoc::FixedBufferWriter> _transient_writer;
 
   /** Entry point from TS via plugin API.
    *
@@ -603,18 +605,44 @@ inline void Context::clear_cache() {
   _proxy_rsp.clear();
 }
 
-template<typename T>
-swoc::MemSpan<T> Context::transient_span(unsigned int count) {
-  if (_transient) {
-    _arena->alloc(_transient);
-  }
-  _transient = count * sizeof(T);
-  return _arena->require(_transient).remnant().rebind<T>().prefix(count);
+inline auto Context::transient_finalize(size_t n) -> self_type & {
+  _transient = n;
+  return *this;
 }
 
-inline Context::self_type& Context::discard_transient() {
+inline Context::self_type& Context::transient_discard() {
   _transient = 0;
   return *this;
+}
+
+template<typename F>
+FeatureView Context::render_transient(F const& f) {
+  size_t base = 0; // rendered size.
+  bool outer_p = false; // outermost / top level render.
+  // Tricksy - if there's no extant writer, then this is the outer most render and needs to both
+  // create the writer and clean it up. Also, the outer is responsible for finalizing the
+  // transient buffer used.
+  if (! _transient_writer.has_value()) {
+    _transient_writer.template emplace(this->transient_buffer());
+    outer_p = true;
+  } else {
+    base = _transient_writer->extent();
+  }
+  // Do the two phase writing - on error, outer is responsible for retrying.
+  f(*_transient_writer);
+  auto n = _transient_writer->extent();
+  if (_transient_writer->error() && outer_p) {
+    _transient_writer->assign(this->transient_discard().transient_require(n).transient_buffer());
+    f(*_transient_writer);
+    n = _transient_writer->extent();
+  }
+  auto v = _transient_writer->view();
+  v.remove_prefix(base);
+  if (outer_p) {
+    this->transient_finalize(n);
+    _transient_writer.reset();
+  }
+  return v;
 }
 
 template<typename T, typename... Args> T *Context::make(Args&& ... args) {

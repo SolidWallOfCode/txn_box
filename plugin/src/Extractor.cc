@@ -70,7 +70,7 @@ FeatureGroup::index_type FeatureGroup::index_of(swoc::TextView const &name) {
   return spot == _expr_info.end() ? INVALID_IDX : spot - _expr_info.begin();
 }
 
-Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node const &node) {
+Errata FeatureGroup::load_expr(Config & cfg, Tracking& tracking, Tracking::Info * info, YAML::Node const &node) {
   /* A bit tricky, but not unduly so. The goal is to traverse all of the specifiers in the
    * expression and convert generic "this" extractors to the "this" extractor for @a this
    * feature group instance. This struct is required by the visitation rules of @c std::variant.
@@ -82,6 +82,7 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
     FeatureGroup & _fg;
     Config & _cfg;
     Tracking & _tracking;
+    bool _dependent_p = false;
 
     /// Update @a spec as needed to have the correct "this" extractor.
     Errata load_spec(Extractor::Spec& spec) {
@@ -89,9 +90,18 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
         auto && [ tinfo, errata ] = _fg.load_key(_cfg, _tracking, spec._ext);
         if (errata.is_ok()) {
           spec._exf = &_fg._ex_this;
-          // If not already marked as a reference target, do so.
-          if (tinfo->_exf_idx == INVALID_IDX) {
-            tinfo->_exf_idx = _fg._ref_count++;
+          // Don't track if the target is a literal - no runtime extraction needed.
+          if (!tinfo->_expr.is_literal()) {
+            _dependent_p = true;
+            // If not already marked as a reference target mark it.
+            if (tinfo->_exf_idx == INVALID_IDX) {
+              tinfo->_exf_idx = _fg._ref_count++;
+              // This marking happens after the depth first dependency chain has been explored
+              // therefore all dependencies for this target are already in the @a _order_idx
+              // elements, and therefore it is time to add this one.
+              _tracking._info[tinfo->_exf_idx]._order_idx = tinfo - _tracking._info.data();
+            }
+            // Invariant - @a _dependent_p is true => @a _ref_count is non-zero.
           }
         }
         return errata;
@@ -126,13 +136,12 @@ Rv<Expr> FeatureGroup::load_expr(Config & cfg, Tracking& tracking, YAML::Node co
   } v(*this, cfg, tracking);
 
   auto && [ expr, errata ] { cfg.parse_expr(node) };
+  info->_expr = std::move(expr);
   if (errata.is_ok()) {
-    errata = std::visit(v, expr._raw); // update "this" extractor references.
-    if (errata.is_ok()) {
-      return std::move(expr);
-    }
+    errata = std::visit(v, info->_expr._raw); // update "this" extractor references.
+    info->_dependent_p = v._dependent_p;
   }
-  return { std::move(errata) };
+  return errata;
 }
 
 auto FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &tracking, swoc::TextView name)
@@ -155,15 +164,14 @@ auto FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &tracking, swoc:
   if (tinfo->_mark == IN_PLAY) {
     return Error(R"(Circular dependency for key "{}" at {}.)", name, tracking._node.Mark());
   }
-
   tinfo->_mark = IN_PLAY;
-  auto && [ expr, errata ] { this->load_expr(cfg, tracking, n) };
+
+  Errata errata { this->load_expr(cfg, tracking, tinfo, n) };
   if (! errata.is_ok()) {
     errata.info(R"(While loading extraction format for key "{}" at {}.)", name, tracking._node.Mark());
-    return std::move(errata);
+    return errata;
   }
 
-  tinfo->_expr = std::move(expr);
   tinfo->_mark = DONE;
   return tinfo;
 }
@@ -206,8 +214,13 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
   _expr_info.apply([](ExprInfo & info) { new (&info) ExprInfo; });
 
   // If there are dependencies, allocate state to hold cached values.
+  // If any key was marked dependent, then @a _ref_count > 0.
   if (_ref_count > 0) {
     _ctx_state_span = cfg.reserve_ctx_storage(sizeof(State));
+    _ordering = cfg.alloc_span<index_type>(_ref_count);
+    for ( index_type idx = 0 ; idx < _ref_count ; ++idx ) {
+      _ordering[idx] = tracking._info[idx]._order_idx;
+    }
   }
 
   // Persist the keys by copying persistent data from the tracking data to config allocated space.
@@ -217,6 +230,7 @@ Errata FeatureGroup::load(Config & cfg, YAML::Node const& node, std::initializer
     dst._name = src._name;
     dst._expr = std::move(src._expr);
     dst._exf_idx = src._exf_idx;
+    dst._dependent_p = src._dependent_p;
   }
 
   return {};
@@ -281,38 +295,27 @@ Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
 }
 
 Feature FeatureGroup::extract(Context& ctx, index_type idx) {
-  // Only cache if there are dependencies (i.e. there are dependency edges).
-  // Note dependencies on literals are not tracked, as there's no benefit to caching them.
-  auto * cache = _ref_count ? &ctx.storage_for(_ctx_state_span).rebind<State>()[0]._features : nullptr;
-  Feature *cached_feature = nullptr;
   auto& info = _expr_info[idx];
-  // Get the reserved storage for the @c State instance, if any.
-  if (cache && info._exf_idx != INVALID_IDX) {
-    cached_feature = &(*cache)[info._exf_idx];
-    // If already extracted, return.
-    // Ugly - need to improve this. Use GENERIC type with a nullport to indicate not a feature.
-    if (cached_feature->index() != IndexFor(GENERIC) || std::get<IndexFor(GENERIC)>(*cached_feature) != nullptr) {
-      return *cached_feature;
+  if (info._dependent_p) {
+    // State is always allocated if there are any dependents.
+    State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
+    if (state._features.empty()) {  // no dependent has yet been extracted so extract all targets.
+      // Allocate target cache.
+      state._features = ctx.alloc_span<Feature>(_ref_count);
+      // Extract targets.
+      for (index_type target_idx : _ordering) {
+        auto& target { _expr_info[target_idx] };
+        state._features[target._exf_idx] = ctx.extract(target._expr);
+      }
     }
   }
 
-  auto f = ctx.extract(info._expr);
-  if (cached_feature) {
-    *cached_feature = f;
+  if (info._exf_idx != INVALID_IDX) {
+    State& state = ctx.storage_for(_ctx_state_span).rebind<State>()[0];
+    return state._features[info._exf_idx];
   }
-  return f;
-}
 
-auto FeatureGroup::pre_extract(Context & ctx) -> void {
-  if (_ref_count > 0) { // there are actual dependencies.
-    static constexpr Generic *not_a_feature = nullptr;
-    // Get the reserved storage for the @c State instance.
-    State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
-    // Allocate the precursor feature array.
-    state._features = ctx.alloc_span<Feature>(_ref_count);
-    // Initialize to a known invalid state to prevent multiple extractions.
-    state._features.apply([](Feature& f) { new(&f) Feature(not_a_feature); });
-  }
+  return ctx.extract(info._expr);
 }
 
 FeatureGroup::~FeatureGroup() {

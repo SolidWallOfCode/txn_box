@@ -265,10 +265,9 @@ void Do_text_block_define::Updater::operator()() {
       }
       if ( _block->_notify_idx != FeatureGroup::INVALID_IDX) {
         Context ctx(cfg);
-        _block->_fg.pre_extract(ctx);
         auto text{_block->_fg.extract(ctx, _block->_notify_idx)};
         auto msg = ctx.render_transient([&](BufferWriter& w){
-          w.print("{}:{}", Config::PLUGIN_TAG, text);
+          w.print("[{}] {}", Config::PLUGIN_TAG, text);
         });
         ts::Log_Note(msg);
       }

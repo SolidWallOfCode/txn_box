@@ -49,16 +49,19 @@ public:
     Expr _expr; ///< The feature expression.
     swoc::TextView _name; ///< Key name.
     /// Extracted feature index. For each referenced key, a slot is allocated for caching the
-    /// extracted feature use. @c INVALID_IDX indicates the feature isn't a dependency target
+    /// extracted feature. @c INVALID_IDX indicates the feature isn't a dependency target
     /// and is therefore not cached.
     index_type _exf_idx = INVALID_IDX;
+    bool _dependent_p = false; ///< Is expression dependent on another key in the group?
   };
 
   /** Store invocation state for extracting features.
    *
-   * Cached features for an extraction. No need to explicitly store dependencies, only keys which
-   * are targets of a dependency. Each dependency target gets an index in this array and its value
-   * is cached there as needed.
+   * Features which are dependency targets are stored here per transaction / context. The goal is
+   * to
+   * - prevent extracting the feature multiple times
+   * - avoid nested extractions, so that when any feature in the group is extracted any
+   *   dependencies have already been extracted and are available as literals.
    */
   struct State {
     swoc::MemSpan<Feature> _features; ///< Cached features from expression evaluation.
@@ -138,14 +141,6 @@ public:
    */
   Feature extract(Context& ctx, index_type idx);
 
-  /** Initialize @a this for extraction.
-   *
-   * @param state Extraction state.
-   *
-   * Must be called just before extracting features in the group.
-   */
-  void pre_extract(Context & ctx);
-
 protected:
   static constexpr uint8_t DONE = 1; ///< All dependencies computed.
   static constexpr uint8_t IN_PLAY = 2; ///< Dependencies currently being computed.
@@ -171,14 +166,13 @@ protected:
   struct Tracking {
 
     /// Per tracked item information.
-    /// Vector data is kept as indices so it is stable over vector resizes.
-    struct Info {
-      swoc::TextView _name; ///< Name.
-      Expr _expr; ///< Expression for item.
-      index_type _edge_idx; ///< Index in reference dependency vector, start.
-      index_type _edge_count = 0; ///< # of immediate dependent references.
-      index_type _exf_idx = INVALID_IDX; ///< Index of extracted feature cache.
+    struct Info : public ExprInfo {
       int8_t _mark = NONE; ///< Ordering search march.
+
+      /// This is not part of the base data, but is really a parallel array that contains a
+      /// linear ordering of the target dependencies. Only keys that are targets are in this
+      /// array, and the values are the index in the overall @a info array.
+      index_type _order_idx = INVALID_IDX;
     };
 
     /// External provided array used to track the keys.
@@ -186,15 +180,10 @@ protected:
     /// upper bound of the amount of elements needed.
     swoc::MemSpan<Info> _info;
 
-    YAML::Node const& _node; ///< Node containing the keys.
-
-    /// The number of valid elements in the array.
+    /// The number of valid elements in the @a _info array.
     index_type _count = 0;
 
-    /// Number of single value features that need feature data.
-    index_type _feature_count = 0;
-
-    index_type _edge_count = 0; ///< number of edges (direct dependencies) stored in @a _info
+    YAML::Node const& _node; ///< Node containing the keys.
 
     /** Construct a wrapper on a tracking array.
      *
@@ -219,8 +208,8 @@ protected:
 
   index_type _ref_count = 0; ///< Number of edge targets.
 
-  /// Storage for keys to extract.
-  swoc::MemSpan<ExprInfo> _expr_info;
+  swoc::MemSpan<ExprInfo> _expr_info; ///< Info for the key expression by key.
+  swoc::MemSpan<index_type> _ordering; ///< Extraction ordering for dependency targets.
 
   /// Context storage to store a @c State instance across feature extraction.
   ReservedSpan _ctx_state_span;
@@ -231,11 +220,12 @@ protected:
   /** Load an extractor format.
    *
    * @param cfg Configuration state.
-   * @param tracking Tracking info.
+   * @param tracking Overall tracking info.
+   * @param info Tracking info for @a node.
    * @param node Node that has the expression as a value.
-   * @return The parsed expression.
+   * @return Errors, if any.
    */
-  swoc::Rv<Expr> load_expr(Config & cfg, Tracking & tracking, YAML::Node const& node);
+  swoc::Errata load_expr(Config & cfg, Tracking & tracking, Tracking::Info * info, YAML::Node const& node);
 
   /** Load the format at key @a name from the tracking node.
    *

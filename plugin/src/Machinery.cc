@@ -361,7 +361,7 @@ void Req_Loc_Set(Context& ctx, Expr & expr, ts::HttpRequest & req) {
           bwformat(w, swoc::bwf::Spec::DEFAULT, port);
         }
         req.field_obtain(ts::HTTP_FIELD_HOST).assign(w.view());
-        ctx.discard_transient();
+        ctx.transient_discard();
       }
     }
   }
@@ -2513,9 +2513,6 @@ Errata Do_proxy_reply::invoke(Context& ctx) {
   // hasn't been set either, so need to do that.
   bool need_hook_p = false;
 
-  // Warm up the FeatureGroup.
-  _fg.pre_extract(ctx);
-
   // Finalize the location and stash it in context storage.
   if (_reason_idx != FeatureGroup::INVALID_IDX) {
     Feature reason = _fg.extract(ctx, _reason_idx);
@@ -2701,9 +2698,6 @@ Errata Do_redirect::invoke(Context& ctx) {
   // If the Location view is empty, it hasn't been set and therefore the clean up hook
   // hasn't been set either, so need to do that.
   bool need_hook_p = ctx_info->_location.empty();
-
-  // Warm up the FeatureGroup.
-  _fg.pre_extract(ctx);
 
   // Finalize the location and stash it in context storage.
   Feature location = _fg.extract(ctx, _location_idx);
