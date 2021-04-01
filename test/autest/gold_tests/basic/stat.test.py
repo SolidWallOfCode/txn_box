@@ -28,13 +28,13 @@ ts.Disk.records_config.update({
 
 probe_r = tr.Variables.TEST.AddTestRun()
 probe_r.DelayStart = 20
-probe_r.Processes.Default.Command = "traffic_ctl metric get stat-1"
+probe_r.Processes.Default.Command = "traffic_ctl metric get plugin.txn_box.stat-1"
 probe_r.Processes.Default.Env = ts.Env
 probe_r.Processes.Default.ReturnCode = 0
 probe_r.Processes.Default.Streams.stdout = Testers.ContainsExpression("stat-1 3", "Checking stat-1 value")
 
 probe_r = tr.Variables.TEST.AddTestRun()
-probe_r.Processes.Default.Command = "traffic_ctl metric get stat-2"
+probe_r.Processes.Default.Command = "traffic_ctl metric get plugin.test.stat-2"
 probe_r.Processes.Default.Env = ts.Env
 probe_r.Processes.Default.ReturnCode = 0
 probe_r.Processes.Default.Streams.stdout = Testers.ContainsExpression("stat-2 105", "Checking stat-2 value")

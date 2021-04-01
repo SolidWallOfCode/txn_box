@@ -10,7 +10,8 @@ meta:
         - prefix: "delain/"
         do:
         - redirect: "http://bravo.ex/{*}"
-    # Otherwise use original path, and preserve the query string if present.
+    # This is the obsolete and ugly way to deal with the query string - don't use in production.
+    # Use original path, and preserve the query string if present.
     - var<query>: "?{pre-remap-query}"
     - with: pre-remap-query
       select:

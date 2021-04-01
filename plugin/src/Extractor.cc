@@ -293,9 +293,11 @@ Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
 
 Feature FeatureGroup::extract(Context& ctx, index_type idx) {
   auto& info = _expr_info[idx];
-  if (info._dependent_p) { // State is always allocated if there are any dependents.
+  if (info._dependent_p || info._exf_idx != INVALID_IDX) {
+    // State is always allocated if there are any dependents. Need to fill the cache if this is
+    // a key that's either dependent or one of the dependency targets.
     State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
-    if (state._features.empty()) {  // no dependent has yet been extracted so extract all targets.
+    if (state._features.empty()) {  // no target has yet been extracted, do it now.
       // Allocate target cache.
       state._features = ctx.alloc_span<Feature>(_ref_count);
       // Extract targets.

@@ -10,6 +10,7 @@ meta:
       - stat-define:
           name: "stat-2"
           value: 100
+          prefix: "plugin.test"
 
     - when: ua-req
       do:
