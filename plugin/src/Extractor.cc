@@ -288,16 +288,12 @@ Errata FeatureGroup::load_as_tuple( Config &cfg, YAML::Node const &node
 
 Feature FeatureGroup::extract(Context& ctx, swoc::TextView const& name) {
   auto idx = this->index_of(name);
-  if (idx == INVALID_IDX) {
-    return {};
-  }
-  return this->extract(ctx, idx);
+  return idx == INVALID_IDX ? NIL_FEATURE : this->extract(ctx, idx);
 }
 
 Feature FeatureGroup::extract(Context& ctx, index_type idx) {
   auto& info = _expr_info[idx];
-  if (info._dependent_p) {
-    // State is always allocated if there are any dependents.
+  if (info._dependent_p) { // State is always allocated if there are any dependents.
     State& state = ctx.initialized_storage_for<State>(_ctx_state_span)[0];
     if (state._features.empty()) {  // no dependent has yet been extracted so extract all targets.
       // Allocate target cache.
@@ -310,7 +306,7 @@ Feature FeatureGroup::extract(Context& ctx, index_type idx) {
     }
   }
 
-  if (info._exf_idx != INVALID_IDX) {
+  if (info._exf_idx != INVALID_IDX) { // it's a target so it's in the cache - fetch it.
     State& state = ctx.storage_for(_ctx_state_span).rebind<State>()[0];
     return state._features[info._exf_idx];
   }
