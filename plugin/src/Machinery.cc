@@ -5,14 +5,12 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-#include "txn_box/common.h"
-
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
-#include <swoc/ArenaWriter.h>
 #include <swoc/BufferWriter.h>
 #include <swoc/bwf_base.h>
 
+#include "txn_box/common.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
 #include "txn_box/Directive.h"
@@ -42,7 +40,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_url_host(Expr && expr);
+  explicit Do_ua_req_url_host(Expr && expr);
 
   Errata invoke(Context &ctx) override;
 
@@ -3330,7 +3328,7 @@ swoc::Rv<Directive::Handle> Do_with::load(Config& cfg, CfgStaticData const*, YAM
     return std::move(errata);
   }
 
-  self_type * self = new self_type;
+  auto * self = new self_type;
   Handle handle(self); // for return, and cleanup in case of error.
   self->_expr = std::move(expr);
   auto f_scope = cfg.feature_scope(self->_expr.result_type());

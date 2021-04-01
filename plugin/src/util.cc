@@ -134,7 +134,7 @@ UnitParser<E>::UnitParser(UnitParser::unit_type&& units, bool unit_required_p) n
 
 template < typename E >
 auto UnitParser<E>::unit_required(bool flag) -> self_type & {
-  _unit_required_p = false;
+  _unit_required_p = flag;
   return *this;
 }
 
@@ -351,7 +351,9 @@ bool operator == (Feature const& lhs, Feature const& rhs) {
     return false;
   }
   switch (lidx) {
-    case IndexFor(NIL): return true;
+    case IndexFor(NO_VALUE):
+    case IndexFor(NIL):
+      return true;
     case IndexFor(BOOLEAN):
       return std::get<IndexFor(BOOLEAN)>(lhs) == std::get<IndexFor(BOOLEAN)>(rhs);
     case IndexFor(INTEGER):
@@ -405,7 +407,11 @@ bool operator <= (Feature const& lhs, Feature const& rhs) {
 }
 /* ------------------------------------------------------------------------------------ */
 namespace swoc {
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, std::monostate) {
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, feature_type_for<NO_VALUE>) {
+  return w.write("!NO_VALUE");
+}
+
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, feature_type_for<NIL>) {
   return w.write("NULL");
 }
 

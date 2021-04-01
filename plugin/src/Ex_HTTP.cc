@@ -1008,7 +1008,7 @@ Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
       }
     }
   }
-  return {};
+  return NIL_FEATURE;
 };
 
 BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ctx) {
