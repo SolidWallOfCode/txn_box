@@ -13,6 +13,7 @@ env.AppendUnique(
 files = [
     "unit_test_main.cc",
     "test_txn_box.cc",
+    "test_accl_utils.cc",
 ]
 env.UnitTest(
     "tests",
