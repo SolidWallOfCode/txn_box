@@ -58,4 +58,6 @@ include/swoc
 /_sdk
 /_unit_tests
 /test/autest/_sandbox/
+/test/autest/Pipfile
+/test/autest/test-env-check.sh
 Pipfile.lock
