@@ -700,3 +700,29 @@ This is an ecletic collection of extractors that do not depend on transaction or
    :result: string
 
    Extract the value of the named variable from the process environment.
+
+.. extractor:: tcp-info
+   :arg: Field name
+   :result: integer
+
+   Extracts a field value from the `tcp_info <https://man7.org/linux/man-pages/man7/tcp.7.html>`__
+   data available on some operating systems. If not available, ``NULL`` is returned.
+
+   The currently supported fields are
+
+   rtt
+      Round trip time.
+
+   rto
+      Retransmission timeout.
+
+   retrans
+      Retransmits.
+
+   snd-cwnd
+      Outbound congestion window.
+
+   .. note:
+
+      These fields are poorly documented, the general recommendation being "read the kernel code"
+      which seems a bit terse. Use with caution.
