@@ -23,7 +23,7 @@ class Comparison;
 template <class T> class reversed_view;
 
 ///
-/// @brief PATRICIA algorithm implementation using binary trees.
+/// @brief PATRICA algorithm implementation using binary trees.
 ///        This Data Structure allows to search for N key in exactly N nodes, providing a log(N) bit
 ///        comparision with a single full key comparision per search. The key(or view) is stored in the node,
 ///        nodes are traversed according to the bits of the key, this implementation does NOT uses the key
@@ -389,7 +389,7 @@ template <typename View> class reversed_view
 {
   /// haven't test more than this types.
   static_assert(swoc::meta::is_any_of<View, std::string, std::string_view, swoc::TextView>::value, "Type not supported");
-  // TODO: remove ^^ once is_any_of_v is available. 
+  // TODO: remove ^^ once is_any_of_v is available.
   // static_assert(swoc::meta::is_any_of_v<View, std::string, std::string_view, swoc::TextView>, "Type not supported");
 
 public:
@@ -432,7 +432,7 @@ public:
   private:
     typename View::reverse_iterator _iter;
   };
-  
+
   reversed_view() noexcept = default;
 
   explicit reversed_view(View view) noexcept : _view(view) {}
@@ -475,7 +475,7 @@ public:
   template <typename T> friend std::ostream &operator<<(std::ostream &os, reversed_view<T> const &v);
   template <typename T> friend bool operator==(reversed_view<T> const &lhs, reversed_view<T> const &rhs);
 
-  // To be removed. POC for testing purposes. 
+  // To be removed. POC for testing purposes.
   View
   get_view() const noexcept
   {
