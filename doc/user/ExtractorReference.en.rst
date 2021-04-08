@@ -701,7 +701,7 @@ This is an ecletic collection of extractors that do not depend on transaction or
 
    Extract the value of the named variable from the process environment.
 
-.. extractor:: tcp-info
+.. extractor:: inbound-tcp-info
    :arg: Field name
    :result: integer
 

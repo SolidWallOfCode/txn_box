@@ -44,18 +44,15 @@ namespace {
 // All of this is for OS compatibility - it enables the code to compile and run regardless of
 // whether tcp_info is available. If it is not, the NULL value is returned by the extractors.
 
-// Determine if a specific type has been declared.
-template < typename A, typename = void> struct has_type : public std::false_type {};
-template < typename A > struct has_type<A, std::void_t<decltype(sizeof(A))>> : public std::true_type {};
+// Determine the size of the tcp_info struct - calculate as 0 if there is no such type declared.
+template < typename A, typename = void> struct type_size : public std::integral_constant<size_t, 0> {};
+template < typename A > struct type_size<A, std::void_t<decltype(sizeof(A))>> : public std::integral_constant<size_t, sizeof(A)> {};
+
+// Used for storage sizing and existence flag.
+constexpr size_t tcp_info_size = type_size<struct tcp_info>::value;
 
 // Need specialized support for retrans because the name is not consistent. This prefers
 // @a tcpi_retrans if available, and falls back to @a __tcpi_retrans
-template<typename T>
-auto
-field_retrans(T const& info, swoc::meta::CaseTag<0>) -> int32_t {
-  return 0;
-}
-
 template<typename T>
 auto
 field_retrans(T const& info, swoc::meta::CaseTag<1>) -> decltype(info.__tcpi_retrans) {
@@ -77,7 +74,7 @@ class Ex_tcp_info : public Extractor {
   using self_type = Ex_tcp_info; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
-  static constexpr TextView NAME{"tcp-info"};
+  static constexpr TextView NAME{"inbound-tcp-info"};
 
   /// Usage validation.
   Rv<ActiveType> validate(Config& cfg, Spec& spec, TextView const& arg) override;
@@ -94,10 +91,21 @@ protected:
     RETRANS
   };
 
-  // Compat - necessary because constexpr if still requires the excluded code to compile and
-  // using undeclared types will break.
-  template < typename> static auto value(ts::HttpTxn const&, Field, swoc::meta::CaseTag<0>) -> intmax_t { return 0; };
-  template < typename tcp_info> static auto value(ts::HttpTxn const& txn, Field field, swoc::meta::CaseTag<1>) -> std::enable_if_t<has_type<tcp_info>::value, intmax_t>;
+  // OS Compatibility - necessary because constexpr if still requires the excluded code to compile
+  // and using undeclared types will break.
+  template < typename> static auto value(Context &, Field, swoc::meta::CaseTag<0>) -> intmax_t { return 0; };
+  template < typename tcp_info> static auto value(Context & ctx, Field field, swoc::meta::CaseTag<1>) -> std::enable_if_t<(type_size<tcp_info>::value > 0), intmax_t>;
+
+  /// Data stored per context if needed.
+  struct CtxInfo {
+    Hook hook = Hook::INVALID; ///< Hook for which the data is valid.
+    bool valid_p = false; ///< Successfully loaded data - avoid repeated fails if not working.
+    /// cached tcp_info data.
+    alignas(int32_t) std::array<std::byte, tcp_info_size> info;
+  };
+
+  /// Reserved storage per context.
+  static inline ReservedSpan _ctx_storage;
 
   // Conversion between names and enumerations.
   inline static const swoc::Lexicon<Field> _field_lexicon {{
@@ -109,7 +117,7 @@ protected:
                                                            }, NONE};
 };
 
-Rv<ActiveType> Ex_tcp_info::validate(Config &, Spec &spec, const TextView &arg) {
+Rv<ActiveType> Ex_tcp_info::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the field.)", NAME);
   }
@@ -120,34 +128,47 @@ Rv<ActiveType> Ex_tcp_info::validate(Config &, Spec &spec, const TextView &arg) 
   // Ugly - need to store the enum, and it's not worth allocating some chunk of config to do that
   // instead of just stashing it in the span size.
   spec._data = MemSpan<void>{ nullptr, size_t(field) };
+
+  // Extractor has been used
+  // => reserve needed context storage if tcp_info available and no storage reserved.
+  if (tcp_info_size > 0 && _ctx_storage.n == 0) {
+    _ctx_storage = cfg.reserve_ctx_storage(sizeof(CtxInfo));
+  }
   return { { NIL, INTEGER} }; // Result can be an integer or NULL (NIL).
 }
 
 Feature Ex_tcp_info::extract(Context &ctx, const Spec &spec) {
-  if constexpr(! has_type<struct tcp_info>::value) { // No tcp_info is available.
+  if constexpr(tcp_info_size == 0) { // No tcp_info is available.
     return NIL_FEATURE;
   }
   if (ctx._txn.is_internal()) {  // Internal requests do not have TCP Info
     return NIL_FEATURE;
   }
 
-  return self_type::template value<struct tcp_info>(ctx._txn, Field(spec._data.size()), swoc::meta::CaseArg);
+  return self_type::template value<struct tcp_info>(ctx, Field(spec._data.size()), swoc::meta::CaseArg);
 }
 
 template<typename tcp_info>
-auto Ex_tcp_info::value(ts::HttpTxn const& txn, Ex_tcp_info::Field field
-                        , swoc::meta::CaseTag<1>) -> std::enable_if_t<has_type<tcp_info>::value, intmax_t> {
-  auto fd = txn.inbound_fd();
+auto Ex_tcp_info::value(Context & ctx, Ex_tcp_info::Field field
+                        , swoc::meta::CaseTag<1>) -> std::enable_if_t<(type_size<tcp_info>::value > 0), intmax_t> {
+  auto fd = ctx._txn.inbound_fd();
   if (fd >= 0) {
-    tcp_info info;
-    socklen_t info_len = sizeof(info);
-    if (0 == ::getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &info_len) && info_len > 0) {
+    auto& ctx_info = ctx.template initialized_storage_for<CtxInfo>(_ctx_storage)[0];
+    // cached tcp_info is only valid for the same hook - reload if stale.
+    if (ctx_info.hook != ctx._cur_hook) {
+      socklen_t info_len = ctx_info.info.size();
+      ctx_info.valid_p = (0 == ::getsockopt(fd, IPPROTO_TCP, TCP_INFO, ctx_info.info.data(), &info_len) && info_len > 0);
+      ctx_info.hook = ctx._cur_hook;
+    }
+
+    if (ctx_info.valid_p) { // data is loaded and fresh
+      auto info = reinterpret_cast<tcp_info *>(ctx_info.info.data());
       switch (field) {
         case NONE: return 0;
-        case RTT: return info.tcpi_rtt;
-        case RTO: return info.tcpi_rto;
-        case SND_CWND: return info.tcpi_snd_cwnd;
-        case RETRANS: return field_retrans(info, swoc::meta::CaseArg);
+        case RTT: return info->tcpi_rtt;
+        case RTO: return info->tcpi_rto;
+        case SND_CWND: return info->tcpi_snd_cwnd;
+        case RETRANS: return field_retrans(*info, swoc::meta::CaseArg);
       }
     }
   }
