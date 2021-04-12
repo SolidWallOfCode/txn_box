@@ -489,7 +489,7 @@ inline auto ActiveType::operator|=(TupleOf const& tt) -> self_type & {
   return *this;
 }
 
-/** Create a @c FeatureMask containing a single @a type.
+/** Create a @c ValueMask containing a single @a type.
  *
  * @param type Type to put in the mask.
  * @return A mask with only @a type set.
@@ -509,6 +509,21 @@ inline ValueMask MaskFor(ValueType type) {
   mask[IndexFor(type)] = true;
   return mask;
 }
+
+/** Create a @c ValueMask for a list of value types.
+ *
+ * @tparam P Argument types.
+ * @param parms Value type enumeration values.
+ * @return A mask
+ *
+ * This is enabled only if all types in @a P are @c ValueType.
+ */
+template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<ValueType, P>...>, ValueMask> {
+  ValueMask mask;
+  ( (mask[IndexFor(parms)] = true) ,  ...);
+  return mask;
+}
+
 
 /** Create a @c FeatureMask containing @a types.
  *
@@ -684,12 +699,6 @@ template <> struct MaskTypeFor<ValueType> { using type = ValueMask; };
 
 template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<Hook, P>...>, HookMask> {
   HookMask mask;
-  ( (mask[IndexFor(parms)] = true) ,  ...);
-  return mask;
-}
-
-template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<ValueType, P>...>, ValueMask> {
-  ValueMask mask;
   ( (mask[IndexFor(parms)] = true) ,  ...);
   return mask;
 }

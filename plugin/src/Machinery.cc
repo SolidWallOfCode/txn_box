@@ -666,7 +666,7 @@ protected:
   Expr _expr; ///< Host feature.
 };
 
-const HookMask Do_proxy_req_port::HOOKS {MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP}) };
+const HookMask Do_proxy_req_port::HOOKS {MaskFor(Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP) };
 
 Do_proxy_req_port::Do_proxy_req_port(Expr &&expr) : _expr(std::move(expr)) {}
 
@@ -701,7 +701,7 @@ class Do_proxy_req_host : public Directive {
   using self_type = Do_proxy_req_host; ///< Self reference type.
 public:
   static inline const std::string KEY {"proxy-req-host"}; ///< Directive name.
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const HookMask HOOKS {MaskFor(Hook::PREQ)}; ///< Valid hooks for directive.
 
   /** Construct with feature extractor @a fmt.
    *
@@ -732,8 +732,6 @@ public:
 protected:
   Expr _fmt; ///< Host feature.
 };
-
-const HookMask Do_proxy_req_host::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Do_proxy_req_host::Do_proxy_req_host(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
@@ -2621,8 +2619,8 @@ class Do_redirect : public Directive {
     ReservedSpan _ctx_span; ///< Reserved span for @c CtxInfo.
   };
 
-  /// Per context information.
-  /// This is what is stored in the span @c CfgInfo::_ctx_span
+  /// Per context information, used for fix up on proxy response hook.
+  /// -- doc Do_redirect::CtxInfo
   struct CtxInfo {
     TextView _location; ///< Redirect target location.
     TextView _reason; ///< Status text.
@@ -2680,7 +2678,7 @@ protected:
   Errata fixup(Context &ctx);
 };
 
-const HookMask Do_redirect::HOOKS { MaskFor({Hook::PRE_REMAP, Hook::REMAP}) };
+const HookMask Do_redirect::HOOKS { MaskFor(Hook::PRE_REMAP, Hook::REMAP) };
 
 Errata Do_redirect::cfg_init(Config& cfg, CfgStaticData const * rtti) {
   auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
@@ -2690,6 +2688,7 @@ Errata Do_redirect::cfg_init(Config& cfg, CfgStaticData const * rtti) {
   cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
   return {};
 }
+// -- doc Do_redirect::cfg_init
 
 Errata Do_redirect::invoke(Context& ctx) {
   auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
@@ -2911,39 +2910,57 @@ Rv<Directive::Handle> Do_error::load(Config& cfg, CfgStaticData const*, YAML::No
 
 /// Log an notify message.
 class Do_note : public Directive {
-  using self_type = Do_note;
-  using super_type = Directive;
+  using self_type = Do_note; ///< Self reference type.
+  using super_type = Directive; ///< Super type.
 public:
-  static inline const std::string KEY{"note"};
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const std::string KEY{"note"}; ///< Name of directive.
+  /// Valid hooks for this directive.
+  static inline const HookMask HOOKS{MaskFor( Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ
+                                            , Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP
+                                            , Hook::POST_REMAP, Hook::REMAP )};
 
+  /// Runtime invocation.
   Errata invoke(Context & ctx) override;
-  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value);
+
+  /// Load from configuration.
+  static Rv<Handle> load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node
+                        , swoc::TextView const& name, swoc::TextView const& arg
+                        , YAML::Node key_value);
 
 protected:
-  Expr _msg;
+  Expr _msg; ///< Message to log.
 
+  /** Constructor.
+   *
+   * @param msg Parsed feature expression for message.
+   */
   Do_note(Expr && msg);
 };
-
-const HookMask Do_note::HOOKS {MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP, Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP }) };
+// -- doc end Do_note
 
 Do_note::Do_note(Expr &&msg) : _msg(std::move(msg)) {}
 
+// -- doc note::invoke
 Errata Do_note::invoke(Context &ctx) {
   TextView msg = ctx.extract_view(_msg);
   ts::Log_Note(msg);
   return {};
 }
+// -- doc note::invoke
 
-Rv<Directive::Handle> Do_note::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+// -- doc note::load
+Rv<Directive::Handle> Do_note::load( Config& cfg, CfgStaticData const*, YAML::Node drtv_node
+                                   , swoc::TextView const&, swoc::TextView const&
+                                   , YAML::Node key_value) {
   auto && [ msg_fmt, msg_errata ] = cfg.parse_expr(key_value);
   if (! msg_errata.is_ok()) {
-    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
-    return { {}, std::move(msg_errata)};
+    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)"
+                    , key_value.Mark(), KEY, drtv_node.Mark());
+    return std::move(msg_errata);
   }
-  return { Handle{new self_type{std::move(msg_fmt)}}};
+  return Handle{new self_type{std::move(msg_fmt)}};
 }
+// -- doc note::load
 
 /// Log an warning message.
 class Do_warning : public Directive {
