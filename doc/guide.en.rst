@@ -14,12 +14,81 @@ Usage Guide
 
 This section focuses on tasks rather than mechanism, to illustrate how to use the mechanisms.
 
+Basic Tips
+**********
+
+Based on production deployment experience, there are a few general items to keep in mind.
+
+How to "do" it
+==============
+
+Except for top level :drtv:`when` directives for global configuration, all directives are grouped
+under a :code:`do` keyword in some object. This makes the most important context for a directive
+which :code:`do` contains it and transitively which object contains that :code:`do`. It is that
+object that will determine whether the nested directives are invoked.
+
+For example to invoke directives conditionally, a comparison is used. The comparison contains a
+:code:`do` and the directives attached to that are invoked if the comparison succeeds. Because of
+YAML structuring this is very sensitive to indentation. Consider this example from actual production
+use.
+
+The goal is to shift traffic unless the query string contains the "qx" key. The original attempt was
+
+.. code-block:: yaml
+   :emphasize-lines: 1, 2, 5
+
+   with: pre-remap-query
+   select:
+   -  none-of:
+      -  contains: "qx="
+   do:
+   -  ua-req-host: "beta.service.ex"
+
+This didn't work because the :code:`do` was in the wrong location. Because YAML nodes are order
+independent this is identical to
+
+.. code-block:: yaml
+   :emphasize-lines: 1, 2, 4
+
+   with: pre-remap-query
+   do:
+   -  ua-req-host: "beta.service.ex"
+   select:
+   -  none-of:
+      -  contains: "qx="
+
+Now the problem is clear - the traffic shifting is always done and the comparison has no directives.
+The correct configuration is
+
+.. code-block:: yaml
+   :emphasize-lines: 3,5
+
+   with: pre-remap-query
+   select:
+   -  none-of:
+      -  contains: "qx="
+      do:
+      -  ua-req-host: "beta.service.ex"
+
+The key rule here is to line up the :code:`do` with the containing object that should trigger the
+directives. In this case it is the comparison :cmp:`none-of` because the traffic should be shifted
+if that matches (i.e. :cmp:`contains` does *not* match). Therefore the :code:`do` should line up
+with :code:`none-of` so it is triggered by :code:`none-of`. In the erroneous case the :code:`do`
+lined up with :code:`with` and so was triggered by that :code:`with`. This is a bit clearer in the
+example because the configuration isn't deeply nested. In production the difference between 5 levels
+of indentation and 6 is not always so obvious.
+
+.. rubric:: Summary
+
+Always line up :code:`do` with the directive or comparison that should trigger the directives
+in the :code:`do`.
+
 Working with HTTP fields
 ************************
 
 A main use of |TxB| is to manipulate the fields in the HTTP header. There are a variety of
-directives and extractors, classifie primarily by which HTTP message is to be modifed or examined If
-a particular directive or extractor is not allowed on a hook, that indicates it's not useful. For
+directives and extractors, classified primarily by which HTTP message is to be modified or examined
+If a particular directive or extractor is not allowed on a hook, that indicates it's not useful. For
 instance, there is no use in changing anything in the client request during the "send proxy
 response" hook, as it would have no observable effect. Conversely the proxy response can't be
 changed during the "read client request" hook because the proxy response doesn't exist.
@@ -30,7 +99,7 @@ The four prefixes used are
 ua-req        User agent request (inbound to proxy)
 proxy-req     Proxy request (outbound from proxy)
 upstream-rsp  Upstream response (inbound to proxy)
-proxy-rsp     Proxy response (outound from proxy)
+proxy-rsp     Proxy response (outbound from proxy)
 ============= =======================================
 
 The field related directives and extractors require an argument, which is the name of the HTTP
@@ -52,7 +121,7 @@ For a connection that had an SNI of "delain.nl" from the address 10.12.97.156, t
 sent to the upstream would have "TLS-Source: delain.nl@10.12.97.256".
 
 Consider the case where various requests get remapped to the same upstream host name, but the upstream
-needs the value of the "Host" field from the original request. This could by copyng the ``Host`` field
+needs the value of the "Host" field from the original request. This could by copying the ``Host`` field
 to the ``Org-Host`` field - ::
 
    proxy-req-field<Org-Host>: ua-req-field<Host>
@@ -76,8 +145,8 @@ Because the input is YAML, the previous example could also be written in long ha
    - proxy-req-field<Accept-Encoding>
    - else: "identity"
 
-From the |TxB| point of full, these are indistinguishable. In both cases the feature expresion is
-a list of an unquoted string and an object, the first treated as an extactor and the second as
+From the |TxB| point of view, these are indistinguishable. In both cases the feature expression is
+a list of an unquoted string and an object, the first treated as an extractor and the second as
 modifier. Further note the extractor being the same field as the directive is happenstance - it
 could be any field, or any extractor or feature expression. This is how values can be easily copied
 between fields.
@@ -137,7 +206,7 @@ To later set the field "X-Best-Band" to the value of that variable ::
    proxy-req-field<X-Best-Band>: var<Best-Band>
 
 Note variables are not fields in the HTTP transaction, they are entirely an internal feature of
-|TxB|. In the preceeding example, there is only a relationship between the variable "Best-Band" and
+|TxB|. In the preceding example, there is only a relationship between the variable "Best-Band" and
 the proxy request field "X-Best-Band" because of the explicit assignment. If either is changed
 later, the other is not [#]_. Each transaction starts with no variables set, variables do not carry
 over from one transaction to any other.
@@ -152,7 +221,7 @@ host name in a variable is easy ::
 
    when: ua-req
    do:
-      var<pristine-host>: uareq-host
+      var<pristine-host>: ua-req-host
 
 A specific use case for this is handling cross site scripting fields, where these should be set
 unless the original request was to the static image server at "images.txnbox", which may have been
