@@ -14,6 +14,73 @@ Usage Guide
 
 This section focuses on tasks rather than mechanism, to illustrate how to use the mechanisms.
 
+Basic Tips
+**********
+
+Based on production deployment experience, there are a few general items to keep in mind.
+
+How to "do" it
+==============
+
+Except for top level :drtv:`when` directives for global configuration, all directives are grouped
+under a :code:`do` keyword in some object. This makes the most important context for a directive
+which :code:`do` contains it and transitively which object contains that :code:`do`. It is that
+object that will determine whether the nested directives are invoked.
+
+For example to invoke directives conditionally, a comparison is used. The comparison contains a
+:code:`do` and the directives attached to that are invoked if the comparison succeeds. Because of
+YAML structuring this is very sensitive to indentation. Consider this example from actual production
+use.
+
+The goal is to shift traffic unless the query string contains the "qx" key. The original attempt was
+
+.. code-block:: yaml
+   :emphasize-lines: 1, 2, 5
+
+   with: pre-remap-query
+   select:
+   -  none-of:
+      -  contains: "qx="
+   do:
+   -  ua-req-host: "beta.service.ex"
+
+This didn't work because the :code:`do` was in the wrong location. Because YAML nodes are order
+independent this is identical to
+
+.. code-block:: yaml
+   :emphasize-lines: 1, 2, 4
+
+   with: pre-remap-query
+   do:
+   -  ua-req-host: "beta.service.ex"
+   select:
+   -  none-of:
+      -  contains: "qx="
+
+Now the problem is clear - the traffic shifting is always done and the comparison has no directives.
+The correct configuration is
+
+.. code-block:: yaml
+   :emphasize-lines: 3,5
+
+   with: pre-remap-query
+   select:
+   -  none-of:
+      -  contains: "qx="
+      do:
+      -  ua-req-host: "beta.service.ex"
+
+The key rule here is to line up the :code:`do` with the containing object that should trigger the
+directives. In this case it is the comparison :cmp:`none-of` because the traffic should be shifted
+if that matches (i.e. :cmp:`contains` does *not* match). Therefore the :code:`do` should line up
+with :code:`none-of` so it is triggered by :code:`none-of`. In the erroneous case the :code:`do`
+lined up with :code:`with` and so was triggered by that :code:`with`.
+
+.. rubric:: Summary
+
+Always line up :code:`do` with the directive or comparison that should trigger the directives
+in the :code:`do`.
+
 Working with HTTP fields
 ************************
 
