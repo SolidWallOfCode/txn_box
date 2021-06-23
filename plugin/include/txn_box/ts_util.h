@@ -635,6 +635,12 @@ public:
    */
   int outbound_txn_count() const;
 
+  /** The file descriptor for the inbound connection.
+   *
+   * @return The file descriptor, or a negative value if not available.
+   */
+  int inbound_fd() const;
+
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 

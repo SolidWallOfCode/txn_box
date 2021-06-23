@@ -25,6 +25,7 @@ add_library(plugin SHARED
 
 	src/Ex_HTTP.cc
 	src/Ex_Ssn.cc
+	src/ex_tcp_info.cc
 	src/ip_space.cc
 	src/stats.cc
 	src/text_block.cc
