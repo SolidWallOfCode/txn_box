@@ -236,14 +236,16 @@ template < typename L, typename T, typename R > using EnableForTypes = std::enab
  */
 template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
+using Sonar = FeatureTypeList::template apply<std::variant>;
+
 /** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
  * All of these are small and fixed size, any external storage (e.g. the text for a full)
  * is stored separately.
  *
- * @internal This is needed to deal with self-reference in the underlying variant. Some nested
- * types need to refer to @c Feature but the variant itself can't be forward declared. Instead
- * this struct is and is then used as an empty wrapper on the actual variant.
+ * @internal This is needed to deal with self-reference in the underlying variant. Some nested types
+ * need to refer to @c Feature but the variant itself can't be forward declared. Instead this struct
+ * is declared as an empty wrapper on the actual variant which can be forward declared.
  */
 struct Feature : public FeatureTypeList::template apply<std::variant> {
   using self_type = Feature; ///< Self reference type.
@@ -816,12 +818,11 @@ BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, FeatureTuple cons
 BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, Feature const &feature);
 BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, ValueMask const &mask);
 BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, feature_type_for<DURATION> const& d);
-//BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ActiveType const& type);
 }
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
 swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);
 
-namespace std { namespace chrono {
+namespace std::chrono {
 using days = duration<hours::rep, ratio<86400>>;
 using weeks = duration<hours::rep, ratio<86400*7>>;
-}} // namespace std::chrono
+} // namespace std::chrono

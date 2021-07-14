@@ -164,7 +164,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_url_port(Expr && expr);
+  explicit Do_ua_req_url_port(Expr && expr);
 
   Errata invoke(Context &ctx) override;
 
@@ -226,7 +226,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_proxy_req_url_port(Expr && expr);
+  explicit Do_proxy_req_url_port(Expr && expr);
 
   Errata invoke(Context &ctx) override;
 
@@ -386,7 +386,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_url_loc(Expr && expr);
+  explicit Do_ua_req_url_loc(Expr && expr);
 
   Errata invoke(Context &ctx) override;
 
@@ -444,7 +444,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_proxy_req_url_loc(Expr && expr);
+  explicit Do_proxy_req_url_loc(Expr && expr);
 
   Errata invoke(Context &ctx) override;
 
@@ -504,7 +504,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_host(Expr && expr);
+  explicit Do_ua_req_host(Expr && expr);
 
   /** Invoke directive.
    *
@@ -570,7 +570,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_port(Expr && expr);
+  explicit Do_ua_req_port(Expr && expr);
 
   /** Invoke directive.
    *
@@ -638,7 +638,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_proxy_req_port(Expr && expr);
+  explicit Do_proxy_req_port(Expr && expr);
 
   /** Invoke directive.
    *
@@ -705,7 +705,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_proxy_req_host(Expr && fmt);
+  explicit Do_proxy_req_host(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -767,7 +767,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_ua_req_loc(Expr && expr);
+  explicit Do_ua_req_loc(Expr && expr);
 
   /** Invoke directive.
    *
@@ -830,7 +830,7 @@ public:
    *
    * @param expr Feature expression.
    */
-  Do_proxy_req_loc(Expr && expr);
+  explicit Do_proxy_req_loc(Expr && expr);
 
   /** Invoke directive.
    *
@@ -892,7 +892,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_ua_req_scheme(Expr && fmt);
+  explicit Do_ua_req_scheme(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -956,7 +956,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_ua_req_url(Expr && expr);
+  explicit Do_ua_req_url(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1020,7 +1020,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_proxy_req_scheme(Expr && fmt);
+  explicit Do_proxy_req_scheme(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -1084,7 +1084,7 @@ public:
    *
    * @param expr Feature expression for the URL.
    */
-  Do_proxy_req_url(Expr && expr);
+  explicit Do_proxy_req_url(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1145,7 +1145,7 @@ public:
    *
    * @param expr Feature expression for the URL.
    */
-  Do_did_remap(Expr && expr);
+  explicit Do_did_remap(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1290,7 +1290,7 @@ public:
    *
    * @param expr Feature for host.
    */
-  Do_ua_req_path(Expr && expr);
+  explicit Do_ua_req_path(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1356,7 +1356,7 @@ public:
    *
    * @param expr Feature for host.
    */
-  Do_ua_req_query(Expr && expr);
+  explicit Do_ua_req_query(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1423,7 +1423,7 @@ public:
    *
    * @param expr Feature for host.
    */
-  Do_ua_req_fragment(Expr && expr);
+  explicit Do_ua_req_fragment(Expr && expr);
 
   /** Invoke directive.
    *
@@ -1489,7 +1489,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_proxy_req_path(Expr && fmt);
+  explicit Do_proxy_req_path(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -1553,7 +1553,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_proxy_req_query(Expr && fmt);
+  explicit Do_proxy_req_query(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -1617,7 +1617,7 @@ public:
    *
    * @param fmt Feature for host.
    */
-  Do_proxy_req_fragment(Expr && fmt);
+  explicit Do_proxy_req_fragment(Expr && fmt);
 
   /** Invoke directive.
    *
@@ -1692,16 +1692,13 @@ protected:
    */
   static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& name, YAML::Node key_value);
 
-  using super_type::invoke;
-  /** Invoke the directive.
+  /** Invoke the directive on an HTTP header.
    *
    * @param ctx Runtime context.
-   * @param hdr HTTP header containing the field.
+   * @param hdr HTTP header.
    * @return Errors, if any.
    */
-  Errata invoke(Context& ctx, ts::HttpHeader && hdr);
-
-  void apply(Context& ctx, ts::HttpHeader & hdr, TextView const& name);
+  Errata invoke_on_hdr(Context& ctx, ts::HttpHeader && hdr);
 
   /** Get the directive name (key).
    *
@@ -1779,7 +1776,7 @@ protected:
 
     // Other types, convert to string
     template<typename T> auto operator()(T&& t) -> EnableForFeatureTypes<T, void> {
-      this->assign(_ctx.template render_transient([&](BufferWriter & w) { bwformat(w, bwf::Spec::DEFAULT, t); }));
+      this->assign(_ctx.template render_transient([&t](BufferWriter & w) { bwformat(w, bwf::Spec::DEFAULT, t); }));
       this->clear_dups();
     }
   };
@@ -1788,15 +1785,10 @@ protected:
 
 FieldDirective::FieldDirective(TextView const &name, Expr &&expr) : _name(name), _expr(std::move(expr)) {}
 
-void FieldDirective::apply(Context & ctx, ts::HttpHeader & hdr, TextView const& name) {
-  auto value{ctx.extract(_expr)};
-  std::visit(Apply{ctx, hdr, name}, value);
-}
-
-Errata FieldDirective::invoke(Context & ctx, ts::HttpHeader && hdr) {
+Errata FieldDirective::invoke_on_hdr(Context& ctx, ts::HttpHeader&& hdr) {
   if (hdr.is_valid()) {
-    ts::HttpField field;
-    this->apply(ctx, hdr, _name);
+    auto value{ctx.extract(this->_expr)};
+    std::visit(Apply(ctx, hdr, _name), value);
     return {};
   }
   return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
@@ -1830,6 +1822,7 @@ public:
   static const std::string KEY; ///< Directive key.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
+  using super_type::invoke;
   Errata invoke(Context & ctx) override;
 
   /** Load from YAML node.
@@ -1854,7 +1847,7 @@ const std::string Do_ua_req_field::KEY {"ua-req-field" };
 const HookMask Do_ua_req_field::HOOKS {MaskFor({ Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP }) };
 
 Errata Do_ua_req_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.ua_req_hdr());
+  return this->invoke_on_hdr(ctx, ctx.ua_req_hdr());
 }
 
 Rv<Directive::Handle> Do_ua_req_field::load(Config& cfg, CfgStaticData const*, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1893,7 +1886,7 @@ const std::string Do_proxy_req_field::KEY {"proxy-req-field" };
 const HookMask Do_proxy_req_field::HOOKS {MaskFor({ Hook::PREQ }) };
 
 Errata Do_proxy_req_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.proxy_req_hdr());
+  return this->invoke_on_hdr(ctx, ctx.proxy_req_hdr());
 }
 
 Rv<Directive::Handle> Do_proxy_req_field::load(Config& cfg, CfgStaticData const*, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1932,7 +1925,7 @@ const std::string Do_proxy_rsp_field::KEY {"proxy-rsp-field" };
 const HookMask Do_proxy_rsp_field::HOOKS {MaskFor(Hook::PRSP) };
 
 Errata Do_proxy_rsp_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.proxy_rsp_hdr());
+  return this->invoke_on_hdr(ctx, ctx.proxy_rsp_hdr());
 }
 
 Rv<Directive::Handle> Do_proxy_rsp_field::load(Config& cfg, CfgStaticData const*, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -1971,7 +1964,7 @@ const std::string Do_upstream_rsp_field::KEY {"upstream-rsp-field" };
 const HookMask Do_upstream_rsp_field::HOOKS {MaskFor(Hook::URSP) };
 
 Errata Do_upstream_rsp_field::invoke(Context &ctx) {
-  return this->super_type::invoke(ctx, ctx.upstream_rsp_hdr());
+  return this->invoke_on_hdr(ctx, ctx.upstream_rsp_hdr());
 }
 
 Rv<Directive::Handle> Do_upstream_rsp_field::load(Config& cfg, CfgStaticData const*, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
@@ -3119,7 +3112,7 @@ class Do_upstream_addr : public Directive {
   using self_type = Do_upstream_addr; ///< Self reference type.
   using super_type = Directive; ///< Parent type.
 public:
-  static const std::string KEY; ///< Directive name.
+  static inline const std::string KEY{"upstream-addr"}; ///< Directive name.
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
   Errata invoke(Context & ctx) override; ///< Runtime activation.
@@ -3144,7 +3137,6 @@ protected:
   Do_upstream_addr(Expr && expr) : _expr(std::move(expr)) {}
 };
 
-const std::string Do_upstream_addr::KEY { "upstream-addr" };
 const HookMask Do_upstream_addr::HOOKS { MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PREQ}) };
 
 Errata Do_upstream_addr::invoke(Context &ctx) {

@@ -7,9 +7,9 @@ ts_ver = Version(env.subst(Component("trafficserver").DelaySubst("$PART_VERSION"
 
 DependsOn([
     Component("openssl"),
-    Component("trafficserver", version_range='7.*-*'),
+    Component("libswoc", version_range='1.2.17-*'),
     Component("libswoc.static", version_range='1.2.17-*'),
-    Component("libyaml-cpp"),
+    Component("trafficserver", version_range='7.*-*'),
 ])
 
 if ts_ver < Version("9"):
@@ -17,7 +17,7 @@ if ts_ver < Version("9"):
 
 files = Pattern(src_dir="src",includes=["*.cc"]).files()
 env.Append(CPPPATH="include")
-env.AppendUnique(CXXFLAGS=['-std=c++17'])
+env.AppendUnique(CPPFLAGS=['-std=c++17'])
 env.Append(LIBS = [ 'pcre2-8' ])
 out = env.SharedLibrary("txn_box", files, SHLIBPREFIX='')
 env.InstallLib(out)
