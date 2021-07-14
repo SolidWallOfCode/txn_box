@@ -21,5 +21,5 @@ ts = r.Variables.TS
 ts.Setup.Copy("static_file.txt", ts.Variables.CONFIGDIR)
 ts.Disk.records_config.update({
     'proxy.config.diags.debug.enabled': 1
-    , 'proxy.config.diags.debug.tags' : 'txn_box'
+    , 'proxy.config.diags.debug.tags' : 'txn_box|http'
 })
