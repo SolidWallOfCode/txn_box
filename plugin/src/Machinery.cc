@@ -1971,6 +1971,149 @@ Rv<Directive::Handle> Do_upstream_rsp_field::load(Config& cfg, CfgStaticData con
   return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
 }
 /* ------------------------------------------------------------------------------------ */
+class QueryValueDirective : public Directive {
+  using self_type = QueryValueDirective;
+  using super_type = Directive;
+public:
+  TextView _name; ///< Query value key name.
+  Expr _expr; ///< Replacement value.
+
+  /** Base constructor.
+   *
+   * @param name Name of the field.
+   * @param expr Value to assign to the field.
+   */
+  QueryValueDirective(TextView const& name, Expr && expr);
+
+  /** Load from configuration.
+   *
+   * @param cfg Configuration.
+   * @param maker Subclass maker.
+   * @param key Name of the key identifying the directive.
+   * @param name Field name (directive argumnet).
+   * @param key_value  Value of the node for @a key.
+   * @return An instance of the directive for @a key, or errors.
+   */
+  static Rv<Handle> load(Config& cfg, std::function<Handle (TextView const& name, Expr && fmt)> const& maker, TextView const& key, TextView const& arg, YAML::Node key_value);
+
+  /** Invoke the directive on a URL.
+   *
+   * @param ctx Runtime context.
+   * @param url URL.
+   * @return Errors, if any.
+   */
+  Errata invoke_on_url(Context& ctx, ts::URL && url);
+
+protected:
+  /** Get the directive name (key).
+   *
+   * @return The directive key.
+   *
+   * Used by subclasses to provide the key for diagnostics.
+   */
+  virtual swoc::TextView key() const = 0;
+
+};
+
+QueryValueDirective::QueryValueDirective(TextView const& name, Expr && expr) : _name(name), _expr(std::move(expr)) {}
+
+auto QueryValueDirective::load(Config& cfg
+                              , std::function<Handle(const TextView&, Expr&&)> const& maker
+                              , TextView const& key
+                              , TextView const& arg
+                              , YAML::Node key_value
+                              ) -> Rv<Handle> {
+  auto && [ expr, errata ] { cfg.parse_expr(key_value) };
+  if (! errata.is_ok()) {
+    errata.info(R"(While parsing value for "{}".)", key);
+    return std::move(errata);
+  }
+
+  auto expr_type = expr.result_type();
+  if (! expr_type.has_value()) {
+    return Error(R"(Directive "{}" must have a value.)", key);
+  }
+  return maker(cfg.localize(arg), std::move(expr));
+}
+
+Errata QueryValueDirective::invoke_on_url(Context& ctx, ts::URL && url) {
+  if (url.is_valid()) {
+    auto nv { ctx.extract(_expr)};
+    bool nv_is_str_p = (nv.value_type() == STRING);
+    auto qs = url.query();
+    if (qs.empty()) {
+      if (nv_is_str_p) {
+        qs = ctx.render_transient([&](BufferWriter&w){ w.print("{}={}", _name, std::get<STRING>(nv));});
+        url.query_set(qs);
+        ctx.transient_discard();
+      }
+    } else {
+      auto value = ts::query_value_for(qs, _name, true);
+      if (value.data() == nullptr) { // not found at all.
+        if (nv_is_str_p) {
+          auto str = ctx.render_transient([&](BufferWriter&w) {
+            w.print("{}&{}={}", qs, _name, std::get<STRING>(nv));
+          });
+          url.query_set(str);
+          ctx.transient_discard();
+        }
+      } else {
+        // Prefix is the part before the value, less the name and if there is a value,
+        // the '=' separator.
+        TextView prefix = qs.prefix_at(value.data() - _name.size());
+        if (value.size()) { prefix.remove_suffix(1); }
+        // Suffix is the part after the value.
+        TextView suffix = qs.suffix_at(value.end()-1);
+        TextView str;
+        if (nv_is_str_p) {
+          // If a replacement, the separators on either side should be correct.
+          str = ctx.render_transient([&](BufferWriter&w) {
+            w.print("{}{}={}{}", prefix, _name, std::get<STRING>(nv), suffix);
+          });
+        } else {
+          // Need to cleanup potential doubled separators.
+          if ((prefix.ends_with('&') || prefix.ends_with(';')) &&
+             (suffix.starts_with('&') || suffix.starts_with(';'))) {
+            suffix.remove_prefix(1);
+          }
+          str = ctx.render_transient([&](BufferWriter&w) {
+            w.print("{}{}", prefix, suffix);
+          });
+        }
+        url.query_set(str);
+        ctx.transient_discard();
+      }
+    }
+  }
+  return Error("Failed to update query value {} because the URL could not be found.", _name);
+}
+
+class Do_ua_req_query_value : public QueryValueDirective {
+  using self_type = Do_ua_req_query_value;
+  using super_type = QueryValueDirective;
+public:
+  static inline const std::string KEY { "ua-req-query-value" }; ///< Directive key.
+  static inline const HookMask HOOKS { MaskFor(Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP)}; ///< Valid hooks for directive.
+
+  using super_type::invoke;
+  Errata invoke(Context & ctx) override;
+
+  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
+                          , swoc::TextView const& arg, YAML::Node key_value);
+protected:
+  using super_type::super_type; // Inherit super_type constructors.
+  TextView key() const override { return KEY; }
+};
+
+Errata Do_ua_req_query_value::invoke(Context &ctx) {
+  return this->invoke_on_url(ctx, ctx.ua_req_hdr().url());
+}
+
+Rv<Directive::Handle> Do_ua_req_query_value::load(Config& cfg, CfgStaticData const*, YAML::Node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
+  return super_type::load(cfg, [](TextView const& name, Expr && fmt) -> Handle { return Handle(new self_type(name, std::move(fmt))); }, KEY, arg, key_value);
+}
+
+/* ------------------------------------------------------------------------------------ */
 /// Set upstream response status code.
 class Do_upstream_rsp_status : public Directive {
   using self_type = Do_upstream_rsp_status; ///< Self reference type.
@@ -3470,6 +3613,7 @@ namespace {
   Config::define<Do_ua_req_loc>();
   Config::define<Do_ua_req_path>();
   Config::define<Do_ua_req_query>();
+  Config::define<Do_ua_req_query_value>();
   Config::define<Do_ua_req_fragment>();
 
   Config::define<Do_proxy_req_field>();

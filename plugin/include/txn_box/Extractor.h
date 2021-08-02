@@ -43,7 +43,17 @@ public:
     /// Extractor used in the spec, if any.
     Extractor * _exf = nullptr;
     /// Config storage for extractor, if needed.
-    swoc::MemSpan<void> _data;
+    /// No member should be larger than a string view or span nor have any state.
+    /// Extractors are required to know what type was stored and retrieve it without addtional
+    /// type information.
+    union union_type {
+      uintmax_t u;
+      swoc::MemSpan<void> span;
+      swoc::TextView text;
+
+      union_type() { span = decltype(span){}; } // provide copy constructor for Spec constructors.
+      union_type(union_type const& that) { span = that.span; } // provide copy constructor for Spec constructors.
+    } _data;
   };
 
   virtual ~Extractor() = default;

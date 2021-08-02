@@ -860,7 +860,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   }
 
   auto span = cfg.allocate_cfg_storage(sizeof(Info)).rebind<Info>();
-  spec._data = span;
+  spec._data.span = span;
   Info & info = span[0];
   auto drtv = mod_info->_drtv;
   // Always do the column conversion if it's an integer - that won't change at runtime.
@@ -900,7 +900,7 @@ Rv<ActiveType> Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
 
 Feature Ex_ip_col::extract(Context &ctx, const Spec &spec) {
   // Get all the pieces needed.
-  auto info = spec._data.rebind<Info>().data(); // Extractor local storage.
+  auto info = spec._data.span.rebind<Info>().data(); // Extractor local storage.
   CtxActiveInfo * ctx_ai = Do_ip_space_define::ctx_active_info(ctx);
   auto drtv = ctx_ai->_drtv; // Needed for column information.
   auto idx = (info->_idx != INVALID_IDX ? info->_idx : drtv->col_idx(info->_arg));

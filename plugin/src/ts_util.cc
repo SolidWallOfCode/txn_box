@@ -908,6 +908,17 @@ TextView SSLContext::remote_issuer_value(int nid) const {
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
+TextView query_value_for(TextView query_str, TextView search_key, bool caseless_p) {
+  while (query_str) {
+    auto token = query_str.take_prefix_at("&;"_tv);
+    auto key = token.take_prefix_at('=');
+    if ((!caseless_p && key == search_key) || (caseless_p && 0 == strcasecmp(key, search_key))){
+      return token;
+    }
+  }
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
 void Log_Note(TextView const& text) {
   compat::diag_note(text, swoc::meta::CaseArg);
 }

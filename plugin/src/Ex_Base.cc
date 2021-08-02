@@ -41,13 +41,13 @@ public:
 
 Rv<ActiveType> Ex_var::validate(class Config & cfg, struct Extractor::Spec & spec, const class swoc::TextView & arg) {
   auto name = cfg.alloc_span<feature_type_for<STRING>>(1);
-  spec._data = name.rebind<void>();
+  spec._data.span = name.rebind<void>();
   name[0] = cfg.localize(arg);
   return ActiveType::any_type();
 }
 
 Feature Ex_var::extract(Context &ctx, Spec const& spec) {
-  return ctx.load_txn_var(spec._data.rebind<feature_type_for<STRING>>()[0]);
+  return ctx.load_txn_var(spec._data.span.rebind<feature_type_for<STRING>>()[0]);
 }
 
 BufferWriter& Ex_var::format(BufferWriter &w, Spec const &spec, Context &ctx) {
@@ -97,13 +97,13 @@ protected:
 thread_local std::mt19937 Ex_random::_engine(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
 Feature Ex_random::extract(Context &, Extractor::Spec const& spec) {
-  auto values = spec._data.rebind<feature_type_for<INTEGER>>();
+  auto values = spec._data.span.rebind<feature_type_for<INTEGER>>();
   return std::uniform_int_distribution{values[0], values[1]}(_engine);
 };
 
 Rv<ActiveType> Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto values = cfg.alloc_span<feature_type_for<INTEGER>>(2);
-  spec._data = values; // remember where the storage is.
+  spec._data.span = values; // remember where the storage is.
   feature_type_for<INTEGER> min = 0, max = 99; // temporaries for parsing output.
   // Config storage for parsed output.
   values[0] = min;
@@ -155,11 +155,11 @@ public:
 };
 
 template < typename T, const TextView* KEY > Feature Ex_duration<T,KEY>::extract(Context &, Extractor::Spec const& spec) {
-  return spec._data.rebind<ftype>()[0];
+  return spec._data.span.rebind<ftype>()[0];
 }
 
 template < typename T, const TextView* KEY > Feature Ex_duration<T,KEY>::extract(Config &, Extractor::Spec const& spec) {
-  return spec._data.rebind<ftype>()[0];
+  return spec._data.span.rebind<ftype>()[0];
 }
 
 template < typename T, const TextView* KEY > BufferWriter& Ex_duration<T,KEY>::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
@@ -168,7 +168,7 @@ template < typename T, const TextView* KEY > BufferWriter& Ex_duration<T,KEY>::f
 
 template < typename T, const TextView* KEY> Rv<ActiveType> Ex_duration<T,KEY>::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg) {
   auto span = cfg.alloc_span<ftype>(1);
-  spec._data = span.rebind<void>(); // remember where the storage is.
+  spec._data.span = span; // remember where the storage is.
 
   if (! arg) {
     return Error(R"("{}" extractor requires an integer argument.)", NAME);
@@ -217,7 +217,7 @@ Rv<ActiveType> Ex_txn_conf::validate(Config &cfg, Spec &spec, const TextView &ar
   }
   auto ptr = cfg.alloc_span<store_type>(1);
   ptr[0] = var;
-  spec._data = ptr.rebind<void>(); // remember where the pointer is.
+  spec._data.span = ptr.rebind<void>(); // remember where the pointer is.
   ValueType vt = NIL;
   switch(var->type()) {
     case TS_RECORDDATATYPE_INT : vt = INTEGER;
@@ -233,7 +233,7 @@ Rv<ActiveType> Ex_txn_conf::validate(Config &cfg, Spec &spec, const TextView &ar
 
 Feature Ex_txn_conf::extract(Context &ctx, const Extractor::Spec &spec) {
   Feature zret;
-  auto var = spec._data.rebind<store_type>()[0];
+  auto var = spec._data.span.rebind<store_type>()[0];
   auto && [ value , errata ] = ctx._txn.override_fetch(*var);
   if (errata.is_ok()) {
     switch (value.index()) {
@@ -311,7 +311,7 @@ public:
 Rv<ActiveType>
 Ex_env::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) {
   auto span = cfg.alloc_span<TextView>(1);
-  spec._data = span;
+  spec._data.span = span;
   TextView & value = span[0];
   char c_arg[arg.size() + 1];
   memcpy(c_arg, arg.data(), arg.size());
@@ -326,15 +326,15 @@ Ex_env::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) {
 }
 
 Feature Ex_env::extract(Config&, const Spec& spec) {
-  return FeatureView::Literal(spec._data.rebind<TextView>()[0]);
+  return FeatureView::Literal(spec._data.span.rebind<TextView>()[0]);
 }
 
 Feature Ex_env::extract(Context&, const Spec& spec) {
-  return FeatureView::Literal(spec._data.rebind<TextView>()[0]);
+  return FeatureView::Literal(spec._data.span.rebind<TextView>()[0]);
 }
 
 BufferWriter& Ex_env::format(BufferWriter &w, Spec const &spec, Context &) {
-  return bwformat(w, spec, spec._data.rebind<TextView>()[0]);
+  return bwformat(w, spec, spec._data.span.rebind<TextView>()[0]);
 }
 
 /* ------------------------------------------------------------------------------------ */
