@@ -7,6 +7,8 @@ meta:
       - ua-req-field<Q>: ua-req-query-value<delain>
       two:
       - ua-req-query-value<Delain>: "best"
+      three:
+      - ua-req-query-value<Delain>: NULL
 
   blocks:
   - base-req: &base-req
@@ -216,6 +218,193 @@ sessions:
       <<: *base-req
       url:
       - [ query, { value: "Delain=best", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Remove single value.
+  - all: { headers: { fields: [[ uuid, delete-one ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?delain=ok"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { as: absent } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Update first of two
+  - all: { headers: { fields: [[ uuid, update-first-two ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?delain=ok&nightwish=good"
+      headers:
+        fields:
+        - [ Host, two.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "Delain=best&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Delete first of two
+  - all: { headers: { fields: [[ uuid, delete-first-two ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?delain=ok&nightwish=good"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Update last of two
+  - all: { headers: { fields: [[ uuid, update-last-two ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?nightwish=good&delain=ok"
+      headers:
+        fields:
+        - [ Host, two.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "nightwish=good&Delain=best", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Delete last of two
+  - all: { headers: { fields: [[ uuid, delete-last-two ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?nightwish=good&delain=ok"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Update last of four
+  - all: { headers: { fields: [[ uuid, update-last-four ]]}}
+    client-request:
+      <<: *base-req
+      headers:
+      url: "/page.html?xandria=nice&leah=cool&nightwish=good&delain=ok"
+        fields:
+        - [ Host, two.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&leah=cool&nightwish=good&Delain=best", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Delete last of four
+  - all: { headers: { fields: [[ uuid, delete-last-four ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?xandria=nice&leah=cool&nightwish=good&delain=ok"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&leah=cool&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Update first of four
+  - all: { headers: { fields: [[ uuid, update-first-four ]]}}
+    client-request:
+      <<: *base-req
+      headers:
+      url: "/page.html?delain=ok&xandria=nice&leah=cool&nightwish=good"
+        fields:
+        - [ Host, two.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "Delain=best&xandria=nice&leah=cool&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Delete first of four
+  - all: { headers: { fields: [[ uuid, delete-first-four ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?delain=ok&xandria=nice&leah=cool&nightwish=good"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&leah=cool&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Update middle of four
+  - all: { headers: { fields: [[ uuid, update-middle-four ]]}}
+    client-request:
+      <<: *base-req
+      headers:
+      url: "/page.html?xandria=nice&delain=ok&leah=cool&nightwish=good"
+        fields:
+        - [ Host, two.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&Delain=best&leah=cool&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Delete middle of four
+  - all: { headers: { fields: [[ uuid, delete-middle-four ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?xandria=nice&delain=ok&leah=cool&nightwish=good"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&leah=cool&nightwish=good", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:

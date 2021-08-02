@@ -15,6 +15,7 @@ replay_file="query.replay.yaml"
 tr = Test.TxnBoxTestAndRun("Query", replay_file
                 , remap=[ [ 'http://one.ex',  ( '--key=meta.txn-box.remap.one', replay_file) ]
                         , [ 'http://two.ex',  ( '--key=meta.txn-box.remap.two', replay_file) ]
+                        , [ 'http://three.ex',  ( '--key=meta.txn-box.remap.three', replay_file) ]
                         , [ 'http://unmatched.ex/' ]
                         ]
                 , verifier_client_args="--verbose info"
