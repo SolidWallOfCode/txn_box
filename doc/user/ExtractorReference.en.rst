@@ -164,6 +164,14 @@ User Agent Request
 
    The query string for the user agent request if present, an empty string if not.
 
+.. extractor:: ua-req-query-value
+   :result: string
+   :arg: Query parameter key.
+
+   The value for a specific query parameter, identified by key. This assumes the standard format for
+   a query string, key / value pairs (joined by '=') separated by '&' or ';'. The key comparison
+   is case insensitive. ``NIL`` is returned if the key is not found.
+
 .. extractor:: ua-req-fragment
    :result: string
 
@@ -239,6 +247,14 @@ Pre-Remap
    :result: string
 
       The query string for the pre-remap user agent request URL.
+
+.. extractor:: pre-remap-query-value
+   :result: string
+   :arg: Query parameter key.
+
+   The value for a specific query parameter, identified by key. This assumes the standard format for
+   a query string, key / value pairs (joined by '=') separated by '&' or ';'. The key comparison
+   is case insensitive. ``NIL`` is returned if the key is not found.
 
 .. extractor:: pre-remap-fragment
    :result: string
@@ -365,6 +381,14 @@ Proxy Request
    :result: string
 
    The query string in the proxy request.
+
+.. extractor:: proxy-req-query-value
+   :result: string
+   :arg: Query parameter key.
+
+   The value for a specific query parameter, identified by key. This assumes the standard format for
+   a query string, key / value pairs (joined by '=') separated by '&' or ';'. The key comparison
+   is case insensitive. ``NIL`` is returned if the key is not found.
 
 .. extractor:: proxy-req-fragment
    :result: string

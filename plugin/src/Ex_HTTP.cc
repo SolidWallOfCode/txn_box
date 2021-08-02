@@ -583,6 +583,47 @@ Feature Ex_proxy_req_path::extract(Context &ctx, Spec const&) {
 // Query string.
 // These have the @c extract method because it can be done as a @c Direct
 // value and that's better than running through the formatting.
+
+class QueryValueExtractor : public Extractor {
+public:
+  Rv<ActiveType> validate(Config& cfg, Spec& spec, TextView const& arg) override;
+
+  Feature extract(Context& ctx, Spec const& spec) override;
+
+protected:
+  TextView _arg;
+
+  /// @return The key (name) for the extractor.
+  virtual TextView const& key() const = 0;
+  /// @return The appropriate query string.
+  virtual TextView query_string(Context& ctx) const = 0;
+};
+
+Rv<ActiveType> QueryValueExtractor::validate(Config& cfg, Spec& spec, const TextView& arg) {
+  if (arg.empty()) {
+    return Error("Extractor \"{}\" requires a key name argument.", this->key());
+  }
+  spec._data.text = cfg.localize(arg);
+  return ActiveType{NIL, STRING};
+}
+
+Feature QueryValueExtractor::extract(Context& ctx, const Spec& spec) {
+  auto qs = this->query_string(ctx);
+  if (qs.empty()) {
+    return NIL_FEATURE;
+  }
+  auto value = ts::query_value_for(qs, spec._data.text, true); // case insensitive
+  if (value.data() == nullptr) {
+    return NIL_FEATURE; // key not present.
+  }
+  if (value.size() == 0) {
+    return FeatureView::Literal("");
+  }
+  return FeatureView::Direct(value);
+}
+
+// --
+
 class Ex_ua_req_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "ua-req-query" };
@@ -604,6 +645,27 @@ BufferWriter& Ex_ua_req_query::format(BufferWriter &w, Spec const &spec, Context
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
+class Ex_ua_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "ua-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_ua_req_query_value::key() const { return NAME; }
+
+TextView Ex_ua_req_query_value::query_string(Context& ctx) const {
+  if (auto hdr { ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    if (ts::URL url { hdr.url() } ; url.is_valid()) {
+      return url.query();
+    }
+  }
+  return {};
+}
+
+// --
+
 class Ex_pre_remap_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "pre-remap-query" };
@@ -622,6 +684,25 @@ Feature Ex_pre_remap_query::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_pre_remap_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
+
+class Ex_pre_remap_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "pre-remap-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_pre_remap_req_query_value::key() const { return NAME; }
+
+TextView Ex_pre_remap_req_query_value::query_string(Context& ctx) const {
+  if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
+    return url.query();
+  }
+  return {};
+}
+
+// --
 
 class Ex_proxy_req_query : public StringExtractor {
 public:
@@ -642,6 +723,25 @@ Feature Ex_proxy_req_query::extract(Context &ctx, Spec const&) {
 
 BufferWriter& Ex_proxy_req_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+class Ex_proxy_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "proxy-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_proxy_req_query_value::key() const { return NAME; }
+
+TextView Ex_proxy_req_query_value::query_string(Context& ctx) const {
+  if (auto hdr { ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    if (ts::URL url { hdr.url() } ; url.is_valid()) {
+      return url.query();
+    }
+  }
+  return {};
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -943,21 +1043,8 @@ BufferWriter& Ex_remap_replacement_port::format(BufferWriter &w, Spec const &spe
 /* ------------------------------------------------------------------------------------ */
 class ExHttpField : public Extractor {
 public:
-  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override {
-    auto span = cfg.alloc_span<Data>(1);
-    spec._data = span;
-    auto & data = span[0];
-    data.opt.all = 0;
-    data._arg = cfg.localize(arg);
-    if (0 == strcasecmp(spec._ext, "by-field"_tv)) {
-      data.opt.f.by_field = true;
-    } else if (0 == strcasecmp(spec._ext, "by-value"_tv)) {
-      data.opt.f.by_value = true;
-    }
-    return ActiveType{ NIL, STRING, ActiveType::TupleOf(STRING) };
-  }
+  Rv<ActiveType> validate(Config & cfg, Spec & spec, TextView const& arg) override;
 
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
   Feature extract(Context & ctx, Spec const& spec) override;
 
 protected:
@@ -985,8 +1072,22 @@ protected:
   virtual ts::HttpHeader hdr(Context & ctx) const = 0;
 };
 
+Rv<ActiveType> ExHttpField::validate(Config& cfg, Extractor::Spec& spec, TextView const& arg) {
+  auto span = cfg.alloc_span<Data>(1);
+  spec._data.span = span;
+  auto & data = span[0];
+  data.opt.all = 0;
+  data._arg = cfg.localize(arg);
+  if (0 == strcasecmp(spec._ext, "by-field"_tv)) {
+    data.opt.f.by_field = true;
+  } else if (0 == strcasecmp(spec._ext, "by-value"_tv)) {
+    data.opt.f.by_value = true;
+  }
+  return ActiveType{ NIL, STRING, ActiveType::TupleOf(STRING) };
+}
+
 Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
-  Data & data = spec._data.rebind<Data>()[0];
+  Data & data = spec._data.span.rebind<Data>()[0];
   if (data.opt.f.by_field) {
     return NIL_FEATURE;
   } else if (data.opt.f.by_value) {
@@ -1010,10 +1111,6 @@ Feature ExHttpField::extract(Context &ctx, const Spec &spec) {
   }
   return NIL_FEATURE;
 };
-
-BufferWriter& ExHttpField::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 
 // -----
 class Ex_ua_req_field : public ExHttpField {
@@ -1231,6 +1328,8 @@ Ex_proxy_rsp_status_reason proxy_rsp_status_reason;
 Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
 Ex_outbound_txn_count outbound_txn_count;
 
+Ex_ua_req_query_value ua_req_query_value;
+
 [[maybe_unused]] bool INITIALIZED = [] () -> bool {
   Extractor::define(Ex_ua_req_method::NAME, &ua_req_method);
   Extractor::define(Ex_proxy_req_method::NAME, &proxy_req_method);
@@ -1265,6 +1364,10 @@ Ex_outbound_txn_count outbound_txn_count;
   Extractor::define(Ex_ua_req_query::NAME, &ua_req_query);
   Extractor::define(Ex_pre_remap_query::NAME, &pre_remap_query);
   Extractor::define(Ex_proxy_req_query::NAME, &proxy_req_query);
+
+  Extractor::define(Ex_ua_req_query_value::NAME, &ua_req_query_value);
+  Extractor::define(Ex_pre_remap_req_query_value::NAME, &ua_req_query_value);
+  Extractor::define(Ex_proxy_req_query_value::NAME, &ua_req_query_value);
 
   Extractor::define(Ex_ua_req_fragment::NAME, &ua_req_fragment);
   Extractor::define(Ex_pre_remap_fragment::NAME, &pre_remap_fragment);

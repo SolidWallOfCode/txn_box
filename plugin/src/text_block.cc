@@ -301,12 +301,12 @@ Rv<ActiveType> Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &
   }
   auto view = cfg.alloc_span<TextView>(1);
   view[0] = cfg.localize(TextView{arg});
-  spec._data = view.rebind<void>();
+  spec._data.span = view.rebind<void>();
   return { STRING };
 }
 
 Feature Ex_text_block::extract(Context &ctx, const Spec &spec) {
-  auto arg = spec._data.rebind<TextView>()[0];
+  auto arg = spec._data.span.rebind<TextView>()[0];
   if ( auto rtti = ctx.cfg().drtv_info(Do_text_block_define::KEY) ; nullptr != rtti ) {
     // If there's file content, get a shared pointer to it to preserve the full until
     // the end of the transaction.

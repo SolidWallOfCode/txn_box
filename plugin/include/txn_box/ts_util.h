@@ -848,6 +848,15 @@ const swoc::TextView URL_SCHEME_HTTP { TS_URL_SCHEME_HTTP, static_cast<size_t>(T
 const swoc::TextView URL_SCHEME_HTTPS { TS_URL_SCHEME_HTTPS, static_cast<size_t>(TS_URL_LEN_HTTPS) };
 
 extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
+
+/** Search a query string for the value for a specific @a key.
+ *
+ * @param query_str Query string to search.
+ * @param search_key Key to find.
+ * @param caseless_p Match key caseinsensitive?
+ * @return
+ */
+extern swoc::TextView query_value_for(swoc::TextView query_str, swoc::TextView search_key, bool caseless_p = false);
 }; // namespace ts
 
 namespace swoc {

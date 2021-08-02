@@ -122,13 +122,12 @@ Rv<ActiveType> Ex_has_inbound_protocol_prefix::validate(Config& cfg, Extractor::
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
-  auto local = cfg.localize(arg, Config::LOCAL_CSTR);
-  spec._data = MemSpan<char>(const_cast<char*>(local.data()), local.size());
+  spec._data.text = cfg.localize(arg, Config::LOCAL_CSTR);
   return {BOOLEAN};
 }
 
 auto Ex_has_inbound_protocol_prefix::extract(Context &ctx, Spec const& spec) -> Feature {
-  return { ! ctx._txn.ssn().proto_contains(spec._data.view()).empty() };
+  return { ! ctx._txn.ssn().proto_contains(spec._data.text).empty() };
 }
 
 BufferWriter& Ex_has_inbound_protocol_prefix::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx) {
@@ -187,13 +186,12 @@ Rv<ActiveType> Ex_inbound_protocol::validate(Config &cfg, Spec &spec, const Text
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
-  auto local = cfg.localize(arg, Config::LOCAL_CSTR);
-  spec._data = swoc::MemSpan<char>(const_cast<char*>(local.data()), local.size());
+  spec._data.text = cfg.localize(arg, Config::LOCAL_CSTR);
   return { STRING };
 }
 
 BufferWriter& Ex_inbound_protocol::format(BufferWriter &w, Spec const &spec, Context &ctx) {
-  auto tag = ctx._txn.ssn().proto_contains(spec._data.view());
+  auto tag = ctx._txn.ssn().proto_contains(spec._data.text);
   return bwformat(w, spec, tag);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -235,14 +233,13 @@ Rv<ActiveType> Ex_inbound_cert_local_issuer_value::validate(Config &, Spec &spec
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
-  // Sigh - abuse the memspan and use the size as the integer value.
-  spec._data = { nullptr, size_t(nid)};
+  spec._data.u = nid;
   return { STRING };
 }
 
 BufferWriter& Ex_inbound_cert_local_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   auto ssl_ctx = ctx._txn.ssn().ssl_context();
-  auto nid = spec._data.size();
+  auto nid = spec._data.u;
   return bwformat(w, spec, ssl_ctx.local_issuer_value(nid));
 }
 
@@ -266,14 +263,13 @@ Rv<ActiveType> Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spe
   if (NID_undef == nid) {
     return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }
-  // Sigh - abuse the memspan and use the size as the integer value.
-  spec._data = { nullptr, size_t(nid)};
+  spec._data.u = nid;
   return { STRING };
 }
 
 BufferWriter& Ex_inbound_cert_local_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   auto ssl_ctx = ctx._txn.ssn().ssl_context();
-  auto nid = spec._data.size();
+  auto nid = spec._data.u;
   return bwformat(w, spec, ssl_ctx.local_subject_value(nid));
 }
 
@@ -298,13 +294,13 @@ Rv<ActiveType> Ex_inbound_cert_remote_issuer_value::validate(Config &, Spec &spe
     return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
   // Sigh - abuse the memspan and use the size as the integer value.
-  spec._data = { nullptr, size_t(nid)};
+  spec._data.u = nid;
   return { STRING };
 }
 
 BufferWriter& Ex_inbound_cert_remote_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   auto ssl_ctx = ctx._txn.ssn().ssl_context();
-  auto nid = spec._data.size();
+  auto nid = spec._data.u;
   return bwformat(w, spec, ssl_ctx.remote_issuer_value(nid));
 }
 
@@ -329,13 +325,13 @@ Rv<ActiveType> Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &sp
     return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }
   // Sigh - abuse the memspan and use the size as the integer value.
-  spec._data = { nullptr, size_t(nid)};
+  spec._data.u = nid;
   return { STRING };
 }
 
 BufferWriter& Ex_inbound_cert_remote_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   auto ssl_ctx = ctx._txn.ssn().ssl_context();
-  auto nid = spec._data.size();
+  auto nid = spec._data.u;
   return bwformat(w, spec, ssl_ctx.remote_subject_value(nid));
 }
 /* ------------------------------------------------------------------------------------ */

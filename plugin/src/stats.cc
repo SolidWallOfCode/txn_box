@@ -319,13 +319,13 @@ Rv<ActiveType> Ex_stat::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the statistic.)", NAME);
   }
-  spec._data = cfg.alloc_span<Stat>(1); // allocate and stash.
-  spec._data.rebind<Stat>()[0].assign(cfg, arg);
+  spec._data.span = cfg.alloc_span<Stat>(1); // allocate and stash.
+  spec._data.span.rebind<Stat>()[0].assign(cfg, arg);
   return { INTEGER };
 }
 
 Feature Ex_stat::extract(Context &, const Spec &spec) {
-  return spec._data.rebind<Stat>()[0].value();
+  return spec._data.span.rebind<Stat>()[0].value();
 }
 
 BufferWriter& Ex_stat::format(BufferWriter &w, Spec const &spec, Context &ctx) {
