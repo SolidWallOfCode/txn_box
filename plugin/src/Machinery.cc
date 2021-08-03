@@ -2060,25 +2060,26 @@ Errata QueryValueDirective::invoke_on_url(Context& ctx, ts::URL && url) {
       } else {
         // Prefix is the part before the value, less the name and if there is a value,
         // the '=' separator.
-        TextView prefix = qs.prefix_at(value.data() - _name.size());
+        TextView prefix { qs.data(), value.data() - _name.size()};
         if (value.size()) { prefix.remove_suffix(1); }
         // Suffix is the part after the value.
-        TextView suffix = qs.suffix_at(value.end()-1);
+        TextView suffix { value.end(), qs.end() };
         TextView str;
         if (nv_is_str_p) {
-          // If a replacement, the separators on either side should be correct.
+          // If replacement, the separators on either side should be correct.
           str = ctx.render_transient([&](BufferWriter&w) {
             w.print("{}{}={}{}", prefix, _name, std::get<STRING>(nv), suffix);
           });
         } else {
-          // Need to cleanup potential doubled separators.
-          if ((prefix.ends_with('&') || prefix.ends_with(';')) &&
-             (suffix.starts_with('&') || suffix.starts_with(';'))) {
-            suffix.remove_prefix(1);
+          prefix.rtrim("&;"_tv);
+          suffix.ltrim("&;"_tv);
+          if (suffix.empty()) {
+            str = prefix;
+          } else if (prefix.empty()) {
+            str = suffix;
+          } else { // neither is empty.
+            str = ctx.render_transient([&](BufferWriter&w) {w.print("{}&{}", prefix, suffix);});
           }
-          str = ctx.render_transient([&](BufferWriter&w) {
-            w.print("{}{}", prefix, suffix);
-          });
         }
         url.query_set(str);
         ctx.transient_discard();

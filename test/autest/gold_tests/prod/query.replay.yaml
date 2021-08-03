@@ -241,7 +241,7 @@ sessions:
       status: 200
 
   # Update first of two
-  - all: { headers: { fields: [[ uuid, update-first-two ]]}}
+  - all: { headers: { fields: [[ uuid, update-first-of-two ]]}}
     client-request:
       <<: *base-req
       url: "/page.html?delain=ok&nightwish=good"
@@ -258,7 +258,7 @@ sessions:
       status: 200
 
   # Delete first of two
-  - all: { headers: { fields: [[ uuid, delete-first-two ]]}}
+  - all: { headers: { fields: [[ uuid, delete-first-of-two ]]}}
     client-request:
       <<: *base-req
       url: "/page.html?delain=ok&nightwish=good"
@@ -312,8 +312,8 @@ sessions:
   - all: { headers: { fields: [[ uuid, update-last-four ]]}}
     client-request:
       <<: *base-req
-      headers:
       url: "/page.html?xandria=nice&leah=cool&nightwish=good&delain=ok"
+      headers:
         fields:
         - [ Host, two.ex ]
     proxy-request:
@@ -346,8 +346,8 @@ sessions:
   - all: { headers: { fields: [[ uuid, update-first-four ]]}}
     client-request:
       <<: *base-req
-      headers:
       url: "/page.html?delain=ok&xandria=nice&leah=cool&nightwish=good"
+      headers:
         fields:
         - [ Host, two.ex ]
     proxy-request:
@@ -380,8 +380,8 @@ sessions:
   - all: { headers: { fields: [[ uuid, update-middle-four ]]}}
     client-request:
       <<: *base-req
-      headers:
       url: "/page.html?xandria=nice&delain=ok&leah=cool&nightwish=good"
+      headers:
         fields:
         - [ Host, two.ex ]
     proxy-request:
