@@ -622,24 +622,7 @@ Feature QueryValueExtractor::extract(Context& ctx, const Spec& spec) {
   return FeatureView::Direct(value);
 }
 
-class Ex_ua_req_query_value : public QueryValueExtractor {
-public:
-  static constexpr TextView NAME { "ua-req-query-value" };
-protected:
-  TextView const& key() const override;
-  TextView query_string(Context& ctx) const override;
-};
-
-TextView const& Ex_ua_req_query_value::key() const { return NAME; }
-
-TextView Ex_ua_req_query_value::query_string(Context& ctx) const {
-  if (auto hdr { ctx.ua_req_hdr() } ; hdr.is_valid()) {
-    if (ts::URL url { hdr.url() } ; url.is_valid()) {
-      return url.query();
-    }
-  }
-  return {};
-}
+// --
 
 class Ex_ua_req_query : public StringExtractor {
 public:
@@ -662,6 +645,27 @@ BufferWriter& Ex_ua_req_query::format(BufferWriter &w, Spec const &spec, Context
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
+class Ex_ua_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "ua-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_ua_req_query_value::key() const { return NAME; }
+
+TextView Ex_ua_req_query_value::query_string(Context& ctx) const {
+  if (auto hdr { ctx.ua_req_hdr() } ; hdr.is_valid()) {
+    if (ts::URL url { hdr.url() } ; url.is_valid()) {
+      return url.query();
+    }
+  }
+  return {};
+}
+
+// --
+
 class Ex_pre_remap_query : public StringExtractor {
 public:
   static constexpr TextView NAME { "pre-remap-query" };
@@ -680,6 +684,25 @@ Feature Ex_pre_remap_query::extract(Context &ctx, Spec const&) {
 BufferWriter& Ex_pre_remap_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
 }
+
+class Ex_pre_remap_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "pre-remap-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_pre_remap_req_query_value::key() const { return NAME; }
+
+TextView Ex_pre_remap_req_query_value::query_string(Context& ctx) const {
+  if ( ts::URL url { ctx._txn.pristine_url_get() } ; url.is_valid()) {
+    return url.query();
+  }
+  return {};
+}
+
+// --
 
 class Ex_proxy_req_query : public StringExtractor {
 public:
@@ -700,6 +723,25 @@ Feature Ex_proxy_req_query::extract(Context &ctx, Spec const&) {
 
 BufferWriter& Ex_proxy_req_query::format(BufferWriter &w, Spec const &spec, Context &ctx) {
   return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+class Ex_proxy_req_query_value : public QueryValueExtractor {
+public:
+  static constexpr TextView NAME { "proxy-req-query-value" };
+protected:
+  TextView const& key() const override;
+  TextView query_string(Context& ctx) const override;
+};
+
+TextView const& Ex_proxy_req_query_value::key() const { return NAME; }
+
+TextView Ex_proxy_req_query_value::query_string(Context& ctx) const {
+  if (auto hdr { ctx.proxy_req_hdr() } ; hdr.is_valid()) {
+    if (ts::URL url { hdr.url() } ; url.is_valid()) {
+      return url.query();
+    }
+  }
+  return {};
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1323,6 +1365,10 @@ Ex_ua_req_query_value ua_req_query_value;
   Extractor::define(Ex_pre_remap_query::NAME, &pre_remap_query);
   Extractor::define(Ex_proxy_req_query::NAME, &proxy_req_query);
 
+  Extractor::define(Ex_ua_req_query_value::NAME, &ua_req_query_value);
+  Extractor::define(Ex_pre_remap_req_query_value::NAME, &ua_req_query_value);
+  Extractor::define(Ex_proxy_req_query_value::NAME, &ua_req_query_value);
+
   Extractor::define(Ex_ua_req_fragment::NAME, &ua_req_fragment);
   Extractor::define(Ex_pre_remap_fragment::NAME, &pre_remap_fragment);
   Extractor::define(Ex_proxy_req_fragment::NAME, &proxy_req_fragment);
@@ -1363,8 +1409,6 @@ Ex_ua_req_query_value ua_req_query_value;
   Extractor::define(Ex_proxy_req_field::NAME, &proxy_req_field);
   Extractor::define(Ex_proxy_rsp_field::NAME, &proxy_rsp_field);
   Extractor::define(Ex_upstream_rsp_field::NAME, &upstream_rsp_field);
-
-  Extractor::define(Ex_ua_req_query_value::NAME, &ua_req_query_value);
 
   return true;
 } ();
