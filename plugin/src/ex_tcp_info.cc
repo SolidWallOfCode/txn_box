@@ -127,7 +127,7 @@ Rv<ActiveType> Ex_tcp_info::validate(Config &cfg, Spec &spec, const TextView &ar
   }
   // Ugly - need to store the enum, and it's not worth allocating some chunk of config to do that
   // instead of just stashing it in the span size.
-  spec._data = MemSpan<void>{ nullptr, size_t(field) };
+  spec._data.u = size_t(field);
 
   // Extractor has been used
   // => reserve needed context storage if tcp_info available and no storage reserved.
@@ -145,7 +145,7 @@ Feature Ex_tcp_info::extract(Context &ctx, const Spec &spec) {
     return NIL_FEATURE;
   }
 
-  return self_type::template value<struct tcp_info>(ctx, Field(spec._data.size()), swoc::meta::CaseArg);
+  return self_type::template value<struct tcp_info>(ctx, Field(spec._data.u), swoc::meta::CaseArg);
 }
 
 template<typename tcp_info>
