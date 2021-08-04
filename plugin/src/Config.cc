@@ -38,78 +38,80 @@ static constexpr char ARG_PREFIX = '<';
 static constexpr char ARG_SUFFIX = '>';
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<Hook> HookName {{
-                                {Hook::POST_LOAD, {"post-load"}}
-                              , {Hook::TXN_START, {"txn-open"}}
-                              , {Hook::CREQ, {"ua-req", "creq"}}
-                              , {Hook::PREQ, {"proxy-req", "preq"}}
-                              , {Hook::URSP, {"upstream-rsp", "ursp"}}
-                              , {Hook::PRSP, {"proxy-rsp", "prsp"}}
-                              , {Hook::PRE_REMAP, {"pre-remap"}}
-                              , {Hook::POST_REMAP, {"post-remap"}}
-                              , {Hook::TXN_CLOSE, {"txn-close"}}
-                              , {Hook::REMAP, {"remap"}}
-                              , {Hook::MSG, {"msg"}}
-                              }};
+swoc::Lexicon<Hook> HookName{{{Hook::POST_LOAD, {"post-load"}},
+                              {Hook::TXN_START, {"txn-open"}},
+                              {Hook::CREQ, {"ua-req", "creq"}},
+                              {Hook::PREQ, {"proxy-req", "preq"}},
+                              {Hook::URSP, {"upstream-rsp", "ursp"}},
+                              {Hook::PRSP, {"proxy-rsp", "prsp"}},
+                              {Hook::PRE_REMAP, {"pre-remap"}},
+                              {Hook::POST_REMAP, {"post-remap"}},
+                              {Hook::TXN_CLOSE, {"txn-close"}},
+                              {Hook::REMAP, {"remap"}},
+                              {Hook::MSG, {"msg"}}}};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
-BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, Hook hook) {
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, Hook hook)
+{
   if (spec.has_numeric_type()) {
     return bwformat(w, spec, IndexFor(hook));
   }
   return bwformat(w, spec, HookName[hook]);
 }
 
-namespace {
-[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+namespace
+{
+[[maybe_unused]] bool INITIALIZED = []() -> bool {
   HookName.set_default(Hook::INVALID);
 
-  TS_Hook[IndexFor(Hook::TXN_START)] = TS_HTTP_TXN_START_HOOK;
-  TS_Hook[IndexFor(Hook::CREQ)] = TS_HTTP_READ_REQUEST_HDR_HOOK;
-  TS_Hook[IndexFor(Hook::PREQ)] = TS_HTTP_SEND_REQUEST_HDR_HOOK;
-  TS_Hook[IndexFor(Hook::URSP)] = TS_HTTP_READ_RESPONSE_HDR_HOOK;
-  TS_Hook[IndexFor(Hook::PRSP)] = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
-  TS_Hook[IndexFor(Hook::PRE_REMAP)] = TS_HTTP_PRE_REMAP_HOOK;
+  TS_Hook[IndexFor(Hook::TXN_START)]  = TS_HTTP_TXN_START_HOOK;
+  TS_Hook[IndexFor(Hook::CREQ)]       = TS_HTTP_READ_REQUEST_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PREQ)]       = TS_HTTP_SEND_REQUEST_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::URSP)]       = TS_HTTP_READ_RESPONSE_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PRSP)]       = TS_HTTP_SEND_RESPONSE_HDR_HOOK;
+  TS_Hook[IndexFor(Hook::PRE_REMAP)]  = TS_HTTP_PRE_REMAP_HOOK;
   TS_Hook[IndexFor(Hook::POST_REMAP)] = TS_HTTP_POST_REMAP_HOOK;
-  TS_Hook[IndexFor(Hook::TXN_CLOSE)] = TS_HTTP_TXN_CLOSE_HOOK;
+  TS_Hook[IndexFor(Hook::TXN_CLOSE)]  = TS_HTTP_TXN_CLOSE_HOOK;
 
   return true;
-} ();
+}();
 }; // namespace
 
-swoc::Lexicon<ValueType> const ValueTypeNames {{
-                                                   { ValueType::NIL, "nil" }
-                                                   , { ValueType::STRING, "string"}
-                                                   , { ValueType::INTEGER, "integer"}
-                                                   , { ValueType::BOOLEAN, "boolean"}
-                                                   , { ValueType::FLOAT, "float"}
-                                                   , { ValueType::IP_ADDR, "IP address"}
-                                                   , { ValueType::DURATION, "duration"}
-                                                   , { ValueType::TIMEPOINT, "time point"}
-                                                   , { ValueType::CONS, "cons" }
-                                                   , { ValueType::TUPLE, "tuple" }
-                                                   , { ValueType::GENERIC, "generic"}
-                                               }};
+swoc::Lexicon<ValueType> const ValueTypeNames{{{ValueType::NIL, "nil"},
+                                               {ValueType::STRING, "string"},
+                                               {ValueType::INTEGER, "integer"},
+                                               {ValueType::BOOLEAN, "boolean"},
+                                               {ValueType::FLOAT, "float"},
+                                               {ValueType::IP_ADDR, "IP address"},
+                                               {ValueType::DURATION, "duration"},
+                                               {ValueType::TIMEPOINT, "time point"},
+                                               {ValueType::CONS, "cons"},
+                                               {ValueType::TUPLE, "tuple"},
+                                               {ValueType::GENERIC, "generic"}}};
 
 // --------------------------------------------------------------------------
-Config::~Config() {
+Config::~Config()
+{
   // Invoke all the finalizers to do additional cleanup.
-  for ( auto && f : _finalizers ) {
+  for (auto &&f : _finalizers) {
     f._f(f._ptr);
     std::destroy_at(&f._f); // clean up the cleaner too, just in case.
   }
 }
 
-template < typename F > struct on_scope_exit {
+template <typename F> struct on_scope_exit {
   F _f;
   explicit on_scope_exit(F &&f) : _f(std::move(f)) {}
   ~on_scope_exit() { _f(); }
 };
 
-swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
+swoc::Rv<swoc::TextView>
+parse_arg(TextView &key)
+{
   TextView arg{key};
-  TextView name { arg.take_prefix_at(ARG_PREFIX) };
+  TextView name{arg.take_prefix_at(ARG_PREFIX)};
   if (name.size() == key.size()) { // no arg prefix, it's just the name.
     return {};
   }
@@ -121,18 +123,21 @@ swoc::Rv<swoc::TextView> parse_arg(TextView& key) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-Config::Config() : _arena(_cfg_storage_required + 2048) {
+Config::Config() : _arena(_cfg_storage_required + 2048)
+{
   _cfg_store = _arena.alloc(_cfg_storage_required);
   // Set up the run time type information for the directives.
   _drtv_info = this->alloc_span<Directive::CfgStaticData>(_factory.size());
-  for ( auto const& [ name, factory_info ] : _factory ) {
-    auto & di = _drtv_info[factory_info._idx];
+  for (auto const &[name, factory_info] : _factory) {
+    auto &di = _drtv_info[factory_info._idx];
     new (&di) Directive::CfgStaticData;
     di._static = &factory_info;
   }
 }
 
-swoc::MemSpan<void> Config::allocate_cfg_storage(size_t n, size_t align) {
+swoc::MemSpan<void>
+Config::allocate_cfg_storage(size_t n, size_t align)
+{
   if (align == 1) {
     return _arena.alloc(n);
   }
@@ -156,30 +161,36 @@ swoc::MemSpan<void> Config::allocate_cfg_storage(size_t n, size_t align) {
   }
 }
 
-ReservedSpan Config::reserve_ctx_storage(size_t n) {
+ReservedSpan
+Config::reserve_ctx_storage(size_t n)
+{
   using Align = swoc::Scalar<8>;
   // Pre-block to store status of the reserved memory.
   _ctx_storage_required += Align(swoc::round_up(sizeof(Context::ReservedStatus)));
   // The actual reservation.
-  ReservedSpan span { _ctx_storage_required , n };
+  ReservedSpan span{_ctx_storage_required, n};
   _ctx_storage_required += Align(swoc::round_up(n));
   return span;
 }
 
-Config::self_type &Config::localize(Feature &feature) {
-  std::visit([&](auto & t) { this->localize(t); }, static_cast<Feature::variant_type&>(feature));
+Config::self_type &
+Config::localize(Feature &feature)
+{
+  std::visit([&](auto &t) { this->localize(t); }, static_cast<Feature::variant_type &>(feature));
   return *this;
 }
 
-std::string_view & Config::localize(std::string_view & text, LocalOpt opt) {
+std::string_view &
+Config::localize(std::string_view &text, LocalOpt opt)
+{
   if (text.size()) {
     if (LOCAL_CSTR == opt) {
       auto span{_arena.alloc(text.size() + 1).rebind<char>()};
       memcpy(span, text);
       span[text.size()] = 0;
-      text = span.subspan(0, text.size()).view();
+      text              = span.subspan(0, text.size()).view();
     } else {
-      auto span{_arena.alloc(text.size() ).rebind<char>()};
+      auto span{_arena.alloc(text.size()).rebind<char>()};
       memcpy(span, text);
       text = span.view();
     }
@@ -187,34 +198,38 @@ std::string_view & Config::localize(std::string_view & text, LocalOpt opt) {
   return text;
 };
 
-Rv<ActiveType> Config::validate(Extractor::Spec &spec) {
+Rv<ActiveType>
+Config::validate(Extractor::Spec &spec)
+{
   if (spec._name.empty()) {
     return Error(R"(Extractor name required but not found.)");
   }
 
   if (spec._idx < 0) {
     auto name = TextView{spec._name};
-    auto && [ arg, arg_errata ] { parse_arg(name) };
+    auto &&[arg, arg_errata]{parse_arg(name)};
     if (!arg_errata.is_ok()) {
       return std::move(arg_errata);
     }
 
     if (auto ex{Extractor::find(name)}; nullptr != ex) {
-      spec._exf = ex;
+      spec._exf  = ex;
       spec._name = this->localize(name);
-      spec._ext = this->localize(spec._ext);
-      auto && [ vt, errata ] { ex->validate(*this, spec, arg) };
-      if (! errata.is_ok()) {
+      spec._ext  = this->localize(spec._ext);
+      auto &&[vt, errata]{ex->validate(*this, spec, arg)};
+      if (!errata.is_ok()) {
         return std::move(errata);
       }
       return vt;
     }
     return Error(R"(Extractor "{}" not found.)", name);
   }
-  return { STRING }; // non-negative index => capture group => always a string
+  return {STRING}; // non-negative index => capture group => always a string
 }
 
-Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
+Rv<Expr>
+Config::parse_unquoted_expr(swoc::TextView const &text)
+{
   // Integer?
   TextView parsed;
   auto n = swoc::svtoi(text, &parsed);
@@ -246,21 +261,23 @@ Rv<Expr> Config::parse_unquoted_expr(swoc::TextView const& text) {
   if (!valid_p) {
     return Error(R"(Invalid syntax for extractor "{}" - not a valid specifier.)", text);
   }
-  auto && [ vt, errata ] = this->validate(spec);
-  if (! errata.is_ok()) {
+  auto &&[vt, errata] = this->validate(spec);
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
 
   if (vt.is_cfg_const()) {
-    return Expr{ spec._exf->extract(*this, spec)};
+    return Expr{spec._exf->extract(*this, spec)};
   }
 
   return Expr{spec, vt};
 }
 
-Rv<Expr> Config::parse_composite_expr(TextView const& text) {
+Rv<Expr>
+Config::parse_composite_expr(TextView const &text)
+{
   ActiveType single_vt;
-  auto parser { swoc::bwf::Format::bind(text) };
+  auto parser{swoc::bwf::Format::bind(text)};
   std::vector<Extractor::Spec> specs;
   // Used to handle literals in @a format_string. Can't be const because it must be updated
   // for each literal.
@@ -274,7 +291,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     bool spec_p = false;
     try {
       spec_p = parser(literal, spec);
-    } catch (std::exception const& exp) {
+    } catch (std::exception const &exp) {
       return Error("Invalid syntax - {}", exp.what());
     } catch (...) {
       return Error("Invalid syntax.");
@@ -291,7 +308,7 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
       if (spec._idx >= 0) {
         specs.push_back(spec);
       } else {
-        auto && [vt, errata] = this->validate(spec);
+        auto &&[vt, errata] = this->validate(spec);
         if (errata.is_ok()) {
           single_vt = vt; // Save for singleton case.
           specs.push_back(spec);
@@ -308,27 +325,29 @@ Rv<Expr> Config::parse_composite_expr(TextView const& text) {
     if (specs[0]._exf) {
       return Expr{specs[0], single_vt};
     } else if (specs[0]._type == Extractor::Spec::LITERAL_TYPE) {
-      FeatureView f { specs[0]._ext };
+      FeatureView f{specs[0]._ext};
       f._literal_p = true; // because it was localized when parsed from the composite.
-      f._cstr_p = true;
+      f._cstr_p    = true;
       return Expr{f};
     }
     // else it's an indexed specifier, treat as a composite.
   }
   // Multiple specifiers, check for overall properties.
   Expr expr;
-  auto & cexpr = expr._raw.emplace<Expr::COMPOSITE>();
+  auto &cexpr  = expr._raw.emplace<Expr::COMPOSITE>();
   cexpr._specs = std::move(specs);
-  for ( auto const& s : specs ) {
+  for (auto const &s : specs) {
     expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
   }
 
   return expr;
 }
 
-Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
+Rv<Expr>
+Config::parse_scalar_expr(YAML::Node node)
+{
   Rv<Expr> zret;
-  TextView text { node.Scalar() };
+  TextView text{node.Scalar()};
   if (node.IsNull()) {
     return Expr{};
   } else if (node.Tag() == "?"_tv) { // unquoted, must be extractor.
@@ -338,30 +357,33 @@ Rv<Expr> Config::parse_scalar_expr(YAML::Node node) {
   }
 
   if (zret.is_ok()) {
-    auto & expr = zret.result();
+    auto &expr = zret.result();
     if (expr._max_arg_idx >= 0) {
       if (_active_capture._count == 0) {
         return Error(R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
       } else if (expr._max_arg_idx >= int(_active_capture._count)) {
-        return Error(R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)"
-            , expr._max_arg_idx, node.Mark(), _active_capture._count-1, _active_capture._line);
+        return Error(
+          R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)",
+          expr._max_arg_idx, node.Mark(), _active_capture._count - 1, _active_capture._line);
       }
     }
   }
   return zret;
 }
 
-Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
-  auto && [ expr, expr_errata ] { this->parse_expr(node[0])};
-  if (! expr_errata.is_ok()) {
+Rv<Expr>
+Config::parse_expr_with_mods(YAML::Node node)
+{
+  auto &&[expr, expr_errata]{this->parse_expr(node[0])};
+  if (!expr_errata.is_ok()) {
     expr_errata.info("While processing the expression at {}.", node.Mark());
     return std::move(expr_errata);
   }
-  auto scope { this->feature_scope(expr.result_type()) };
-  for ( unsigned idx = 1 ; idx < node.size() ; ++idx ) {
-    auto child { node[idx] };
-    auto && [ mod, mod_errata ] {Modifier::load(*this, child, expr.result_type()) };
-    if (! mod_errata.is_ok()) {
+  auto scope{this->feature_scope(expr.result_type())};
+  for (unsigned idx = 1; idx < node.size(); ++idx) {
+    auto child{node[idx]};
+    auto &&[mod, mod_errata]{Modifier::load(*this, child, expr.result_type())};
+    if (!mod_errata.is_ok()) {
       mod_errata.info(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
       return std::move(mod_errata);
     }
@@ -372,7 +394,9 @@ Rv<Expr> Config::parse_expr_with_mods(YAML::Node node) {
   return std::move(expr);
 }
 
-Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
+Rv<Expr>
+Config::parse_expr(YAML::Node expr_node)
+{
   std::string_view expr_tag(expr_node.Tag());
 
   // This is the base entry method, so it needs to handle all cases, although most of them
@@ -385,15 +409,17 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   // If explicitly marked a literal, then no further processing should be done.
   if (0 == strcasecmp(expr_tag, LITERAL_TAG)) {
     if (!expr_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
+      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
+                   expr_node.Mark());
     }
     return Expr{FeatureView::Literal(this->localize(expr_node.Scalar()))};
   } else if (0 == strcasecmp(expr_tag, DURATION_TAG)) {
     if (!expr_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG, expr_node.Mark());
+      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
+                   expr_node.Mark());
     }
-    auto && [ dt, dt_errata] { Feature{expr_node.Scalar()}.as_duration() };
-    return { Expr(dt), std::move(dt_errata) };
+    auto &&[dt, dt_errata]{Feature{expr_node.Scalar()}.as_duration()};
+    return {Expr(dt), std::move(dt_errata)};
   } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
     return Error(R"("{}" tag for extractor expression is not supported.)", expr_tag);
   }
@@ -401,7 +427,7 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   if (expr_node.IsScalar()) {
     return this->parse_scalar_expr(expr_node);
   }
-  if (! expr_node.IsSequence()) {
+  if (!expr_node.IsSequence()) {
     return Error("Feature expression is not properly structured.");
   }
 
@@ -422,14 +448,14 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   bool literal_p = true; // Is the entire sequence literal?
   std::vector<Expr> xa;
   xa.reserve(expr_node.size());
-  for ( auto const& child : expr_node ) {
-    auto && [ expr , errata ] { this->parse_expr(child) };
-    if (! errata.is_ok()) {
+  for (auto const &child : expr_node) {
+    auto &&[expr, errata]{this->parse_expr(child)};
+    if (!errata.is_ok()) {
       errata.info("While parsing feature expression list at {}.", expr_node.Mark());
       return std::move(errata);
     }
     l_types |= expr.result_type().base_types();
-    if (! expr.is_literal()) {
+    if (!expr.is_literal()) {
       literal_p = false;
     }
     xa.emplace_back(std::move(expr));
@@ -438,25 +464,26 @@ Rv<Expr> Config::parse_expr(YAML::Node expr_node) {
   Expr expr;
   if (literal_p) {
     FeatureTuple t = this->alloc_span<Feature>(xa.size());
-    unsigned idx = 0;
-    for ( auto & f : t) {
+    unsigned idx   = 0;
+    for (auto &f : t) {
       f = std::get<Expr::LITERAL>(xa[idx++]._raw);
     }
     expr._raw = t;
   } else {
-    auto& list = expr._raw.emplace<Expr::LIST>();
+    auto &list  = expr._raw.emplace<Expr::LIST>();
     list._types = l_types;
     list._exprs = std::move(xa);
   }
   return expr;
 }
 
-Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
+Rv<Directive::Handle>
+Config::load_directive(YAML::Node const &drtv_node)
 {
   YAML::Node key_node;
-  for ( auto const&  [ key_name, key_value ] : drtv_node ) {
-    TextView name { key_name.Scalar() };
-    auto && [ arg, arg_errata ] { parse_arg(name) };
+  for (auto const &[key_name, key_value] : drtv_node) {
+    TextView name{key_name.Scalar()};
+    auto &&[arg, arg_errata]{parse_arg(name)};
     if (!arg_errata.is_ok()) {
       return std::move(arg_errata);
     }
@@ -469,11 +496,11 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to directives. First key that is in the factory determines the directive type.
     // If none of the keys are in the factory, that's an error and is reported after the loop.
-    if ( auto spot { _factory.find(name) } ; spot != _factory.end()) {
-      auto & info = spot->second;
-      auto rtti = &_drtv_info[info._idx];
+    if (auto spot{_factory.find(name)}; spot != _factory.end()) {
+      auto &info = spot->second;
+      auto rtti  = &_drtv_info[info._idx];
 
-      if (! info._hook_mask[IndexFor(this->current_hook())]) {
+      if (!info._hook_mask[IndexFor(this->current_hook())]) {
         return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
       }
 
@@ -486,8 +513,8 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
       }
       ++(rtti->_count);
 
-      auto && [ drtv, drtv_errata ] { info._load_cb(*this, rtti, drtv_node, name, arg, key_value) };
-      if (! drtv_errata.is_ok()) {
+      auto &&[drtv, drtv_errata]{info._load_cb(*this, rtti, drtv_node, name, arg, key_value)};
+      if (!drtv_errata.is_ok()) {
         drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
         return std::move(drtv_errata);
       }
@@ -499,15 +526,17 @@ Rv<Directive::Handle> Config::load_directive(YAML::Node const& drtv_node)
   return Error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark());
 }
 
-Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
+Rv<Directive::Handle>
+Config::parse_directive(YAML::Node const &drtv_node)
+{
   if (drtv_node.IsMap()) {
     return this->load_directive(drtv_node);
   } else if (drtv_node.IsSequence()) {
     Errata zret;
-    auto list { new DirectiveList };
+    auto list{new DirectiveList};
     Directive::Handle drtv_list{list};
     for (auto child : drtv_node) {
-      auto && [handle, errata] {this->load_directive(child)};
+      auto &&[handle, errata]{this->load_directive(child)};
       if (errata.is_ok()) {
         list->push_back(std::move(handle));
       } else {
@@ -522,13 +551,15 @@ Rv<Directive::Handle> Config::parse_directive(YAML::Node const& drtv_node) {
   return Error(R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
 }
 
-Errata Config::load_top_level_directive(YAML::Node drtv_node) {
+Errata
+Config::load_top_level_directive(YAML::Node drtv_node)
+{
   if (drtv_node.IsMap()) {
-    YAML::Node key_node { drtv_node[When::KEY] };
+    YAML::Node key_node{drtv_node[When::KEY]};
     if (key_node) {
-      auto &&[handle, errata] {When::load(*this, this->drtv_info(When::KEY), drtv_node, When::KEY, {}, key_node)};
+      auto &&[handle, errata]{When::load(*this, this->drtv_info(When::KEY), drtv_node, When::KEY, {}, key_node)};
       if (errata.is_ok()) {
-        auto when = static_cast<When*>(handle.get());
+        auto when = static_cast<When *>(handle.get());
         // Steal the directive out of the When.
         _roots[IndexFor(when->_hook)].emplace_back(std::move(when->_directive));
         if (Hook::POST_LOAD != _hook) { // post load hooks don't count.
@@ -546,7 +577,9 @@ Errata Config::load_top_level_directive(YAML::Node drtv_node) {
   return {};
 }
 
-Errata Config::load_remap_directive(YAML::Node drtv_node) {
+Errata
+Config::load_remap_directive(YAML::Node drtv_node)
+{
   if (drtv_node.IsMap()) {
     auto &&[drtv, errata]{this->parse_directive(drtv_node)};
     if (errata.is_ok()) {
@@ -563,13 +596,15 @@ Errata Config::load_remap_directive(YAML::Node drtv_node) {
   return {};
 }
 
-Errata Config::parse_yaml(YAML::Node root, TextView path) {
-  static constexpr TextView ROOT_PATH { "." };
+Errata
+Config::parse_yaml(YAML::Node root, TextView path)
+{
+  static constexpr TextView ROOT_PATH{"."};
   // Walk the key path and find the target. If the path is the special marker for ROOT_PATH
   // do not walk at all.
-  for ( auto p = (path == ROOT_PATH ? TextView{} : path) ; p ; ) {
-    auto key { p.take_prefix_at('.') };
-    if ( auto node { root[key] } ; node ) {
+  for (auto p = (path == ROOT_PATH ? TextView{} : path); p;) {
+    auto key{p.take_prefix_at('.')};
+    if (auto node{root[key]}; node) {
       root.reset(node);
     } else {
       return Error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
@@ -580,15 +615,15 @@ Errata Config::parse_yaml(YAML::Node root, TextView path) {
 
   // Special case remap loading.
   auto drtv_loader = &self_type::load_top_level_directive; // global loader.
-  if (_hook == Hook::REMAP) { // loading only remap directives.
+  if (_hook == Hook::REMAP) {                              // loading only remap directives.
     drtv_loader = &self_type::load_remap_directive;
   }
 
   if (root.IsSequence()) {
-    for ( auto child : root ) {
+    for (auto child : root) {
       errata.note((this->*drtv_loader)(child));
     }
-    if (! errata.is_ok()) {
+    if (!errata.is_ok()) {
       errata.info(R"(While loading list of top level directives for "{}" at {}.)", path, root.Mark());
     }
   } else if (root.IsMap()) {
@@ -598,27 +633,34 @@ Errata Config::parse_yaml(YAML::Node root, TextView path) {
   return errata;
 };
 
-Errata Config::define(swoc::TextView name, HookMask const& hooks, Directive::Options const& options, Directive::InstanceLoader && worker, Directive::CfgInitializer && cfg_init_cb) {
-  auto & info { _factory[name] };
-  info._idx = _factory.size() - 1;
+Errata
+Config::define(swoc::TextView name, HookMask const &hooks, Directive::Options const &options, Directive::InstanceLoader &&worker,
+               Directive::CfgInitializer &&cfg_init_cb)
+{
+  auto &info{_factory[name]};
+  info._idx       = _factory.size() - 1;
   info._hook_mask = hooks;
   if (options._cfg_store_required > 0) {
     info._cfg_reserve = options._cfg_store_required;
     self_type::_cfg_storage_required += swoc::Scalar<8>(swoc::round_up(info._cfg_reserve));
   }
-  info._load_cb = std::move(worker);
+  info._load_cb     = std::move(worker);
   info._cfg_init_cb = std::move(cfg_init_cb);
   return {};
 }
 
-Directive::CfgStaticData const* Config::drtv_info(swoc::TextView const& name) const {
+Directive::CfgStaticData const *
+Config::drtv_info(swoc::TextView const &name) const
+{
   auto spot = _factory.find(name);
   return spot == _factory.end() ? nullptr : &_drtv_info[spot->second._idx];
 }
 
 /* ------------------------------------------------------------------------------------ */
-Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key, YamlCache * cache) {
-  if (auto spot = _cfg_files.find(cfg_path) ; spot != _cfg_files.end()) {
+Errata
+Config::load_file(swoc::file::path const &cfg_path, TextView cfg_key, YamlCache *cache)
+{
+  if (auto spot = _cfg_files.find(cfg_path); spot != _cfg_files.end()) {
     if (spot->second.has_cfg_key(cfg_key)) {
       ts::DebugMsg(R"(Skipping "{}":{} - already loaded)", cfg_path, cfg_key);
       return {};
@@ -626,14 +668,14 @@ Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key, Yam
       spot->second.add_cfg_key(cfg_key);
     }
   } else { // not found - put it in the table.
-    auto [ iter, flag ] = _cfg_files.emplace(FileInfoMap::value_type{cfg_path, {}});
+    auto [iter, flag] = _cfg_files.emplace(FileInfoMap::value_type{cfg_path, {}});
     iter->second.add_cfg_key(cfg_key);
   }
 
   YAML::Node root;
   // Try loading and parsing the file.
   if (cache) {
-    if ( auto cache_spot = cache->find(cfg_path) ; cache_spot != cache->end()) {
+    if (auto cache_spot = cache->find(cfg_path); cache_spot != cache->end()) {
       root = cache_spot->second;
     }
   }
@@ -660,18 +702,20 @@ Errata Config::load_file(swoc::file::path const& cfg_path, TextView cfg_key, Yam
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCache * cache) {
+Errata
+Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCache *cache)
+{
   int flags = 0;
   glob_t files;
-  auto err_f = [](char const*, int) -> int { return 0; };
+  auto err_f                   = [](char const *, int) -> int { return 0; };
   swoc::file::path abs_pattern = ts::make_absolute(pattern);
-  int result = glob(abs_pattern.c_str(), flags, err_f, &files);
+  int result                   = glob(abs_pattern.c_str(), flags, err_f, &files);
   if (result == GLOB_NOMATCH) {
     return Warning(R"(The pattern "{}" did not match any files.)", abs_pattern);
   }
-  for ( size_t idx = 0 ; idx < files.gl_pathc ; ++idx) {
+  for (size_t idx = 0; idx < files.gl_pathc; ++idx) {
     auto errata = this->load_file(swoc::file::path(files.gl_pathv[idx]), cfg_key, cache);
-    if (! errata.is_ok()) {
+    if (!errata.is_ok()) {
       errata.info(R"(While processing pattern "{}".)", pattern);
       return errata;
     }
@@ -680,23 +724,27 @@ Errata Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCach
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-Errata Config::load_cli_args(Handle handle, const std::vector<std::string> &args, int arg_idx, YamlCache * cache) {
+Errata
+Config::load_cli_args(Handle handle, const std::vector<std::string> &args, int arg_idx, YamlCache *cache)
+{
   using argv_type = char const *; // Overall clearer in context of pointers to pointers.
-  std::unique_ptr<argv_type[]> buff { new argv_type[args.size()] };
-  swoc::MemSpan<argv_type> argv{ buff.get(), args.size() };
+  std::unique_ptr<argv_type[]> buff{new argv_type[args.size()]};
+  swoc::MemSpan<argv_type> argv{buff.get(), args.size()};
   int idx = 0;
-  for ( auto const& arg : args ) {
+  for (auto const &arg : args) {
     argv[idx++] = arg.c_str();
   }
   return this->load_cli_args(handle, argv, arg_idx, cache);
 }
 
-Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int arg_idx, YamlCache * cache) {
-  static constexpr TextView KEY_OPT = "key";
+Errata
+Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_idx, YamlCache *cache)
+{
+  static constexpr TextView KEY_OPT    = "key";
   static constexpr TextView CONFIG_OPT = "config"; // An archaism for BC - take out someday.
 
-  TextView cfg_key { _hook == Hook::REMAP ? REMAP_ROOT_KEY : GLOBAL_ROOT_KEY };
-  for (unsigned idx = arg_idx ; idx < argv.count() ; ++idx ) {
+  TextView cfg_key{_hook == Hook::REMAP ? REMAP_ROOT_KEY : GLOBAL_ROOT_KEY};
+  for (unsigned idx = arg_idx; idx < argv.count(); ++idx) {
     TextView arg{std::string_view(argv[idx])};
     if (arg.empty()) {
       continue;
@@ -708,9 +756,9 @@ Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int
       }
 
       TextView value;
-      if (auto prefix = arg.prefix_at('=') ; ! prefix.empty() ) {
+      if (auto prefix = arg.prefix_at('='); !prefix.empty()) {
         value = arg.substr(prefix.size() + 1);
-        arg = prefix;
+        arg   = prefix;
       } else if (++idx >= argv.count()) {
         return Error("Arg {} is an option '{}' that requires a value but none was found.", idx, arg);
       } else {
@@ -737,12 +785,12 @@ Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int
 
   // Config loaded, run the post load directives and enable them to break the load by reporting
   // errors.
-  auto& post_load_directives = this->hook_directives(Hook::POST_LOAD);
+  auto &post_load_directives = this->hook_directives(Hook::POST_LOAD);
   if (post_load_directives.size() > 0) {
     std::unique_ptr<Context> ctx{new Context(handle)};
-    for (auto&& drtv : post_load_directives) {
+    for (auto &&drtv : post_load_directives) {
       auto errata = drtv->invoke(*ctx);
-      if (! errata.is_ok()) {
+      if (!errata.is_ok()) {
         errata.info("While processing post-load directives.");
         return errata;
       }
@@ -754,14 +802,17 @@ Errata Config::load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int
   return {};
 }
 
-Config::ActiveFeatureScope Config::feature_scope(ActiveType const& ex_type) {
+Config::ActiveFeatureScope
+Config::feature_scope(ActiveType const &ex_type)
+{
   ActiveFeatureScope scope(*this);
   _active_feature._ref_p = false;
-  _active_feature._type = ex_type;
+  _active_feature._type  = ex_type;
   return scope;
 }
 
-Config::ActiveFeatureScope::~ActiveFeatureScope() {
+Config::ActiveFeatureScope::~ActiveFeatureScope()
+{
   if (_cfg) {
     _cfg->_active_feature = _state;
   }

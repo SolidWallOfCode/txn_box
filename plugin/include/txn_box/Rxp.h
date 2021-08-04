@@ -23,20 +23,25 @@
  * block and it seems silly to have a handle to what is effectively a handle. Aggregrating classes
  * can deal with it the same way as a @c std::unique_ptr.
  */
-class Rxp {
+class Rxp
+{
   using self_type = Rxp; ///< Self reference type.
   /// Cleanup for compiled regular expressions.
   struct PCRE_Deleter {
-    void operator()(pcre2_code* ptr) { pcre2_code_free(ptr); }
+    void
+    operator()(pcre2_code *ptr)
+    {
+      pcre2_code_free(ptr);
+    }
   };
   /// Handle for compiled regular expression.
   using RxpHandle = std::unique_ptr<pcre2_code, PCRE_Deleter>;
 
 public:
-  Rxp() = default;
-  Rxp(self_type const&) = delete;
-  Rxp(self_type && that) : _rxp(std::move(that._rxp)) {}
-  self_type & operator = (self_type const&) = delete;
+  Rxp()                  = default;
+  Rxp(self_type const &) = delete;
+  Rxp(self_type &&that) : _rxp(std::move(that._rxp)) {}
+  self_type &operator=(self_type const &) = delete;
 
   /** Apply the regular expression.
    *
@@ -48,7 +53,7 @@ public:
    *
    * @see capture_count
    */
-  int operator()(swoc::TextView text, pcre2_match_data* match) const;
+  int operator()(swoc::TextView text, pcre2_match_data *match) const;
 
   /// @return The number of capture groups in the expression.
   size_t capture_count() const;
@@ -67,11 +72,11 @@ public:
    * @param options Compile time options.
    * @return An instance if successful, errors if not.
    */
-  static swoc::Rv<self_type> parse(swoc::TextView const& str, Options const& options);
+  static swoc::Rv<self_type> parse(swoc::TextView const &str, Options const &options);
 
 protected:
   RxpHandle _rxp; /// Compiled regular expression.
 
   /// Internal constructor used by @a parse.
-  Rxp(pcre2_code* rxp) : _rxp(rxp) {}
+  Rxp(pcre2_code *rxp) : _rxp(rxp) {}
 };

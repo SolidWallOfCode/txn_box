@@ -23,7 +23,8 @@
 class Context;
 
 /// Base class for directives.
-class Directive {
+class Directive
+{
   using self_type = Directive; ///< Self reference type.
   friend Config;
   friend Context;
@@ -44,7 +45,9 @@ public:
    * @param key_node Child of @a drtv_node that contains the key used to match the functor.
    * @return A new instance of the appropriate directive, or errors on failure.
    */
-  using InstanceLoader = std::function<swoc::Rv<Directive::Handle> (Config& cfg, CfgStaticData const * rtti, YAML::Node drtv_node, swoc::TextView const& name, swoc::TextView const& arg, YAML::Node key_value)>;
+  using InstanceLoader =
+    std::function<swoc::Rv<Directive::Handle>(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node,
+                                              swoc::TextView const &name, swoc::TextView const &arg, YAML::Node key_value)>;
 
   /** Functor to do config level initialization.
    *
@@ -56,16 +59,16 @@ public:
    * in the configuration. The most common use is if the directive needs space in a @c Context -
    * that space must be reserved during the invocation of this functor.
    */
-  using CfgInitializer = std::function<swoc::Errata (Config& cfg, CfgStaticData const* rtti)>;
+  using CfgInitializer = std::function<swoc::Errata(Config &cfg, CfgStaticData const *rtti)>;
 
   /** Information about a directive type.
    * This is stored in the directive factory.
    */
   struct FactoryInfo {
-    unsigned _idx; ///< Index for doing config time type info lookup.
-    HookMask _hook_mask; ///< Valid hooks for this directive.
-    size_t _cfg_reserve; ///< Reserved storage in configuration.
-    Directive::InstanceLoader _load_cb; ///< Functor to load the directive from YAML data.
+    unsigned _idx;                          ///< Index for doing config time type info lookup.
+    HookMask _hook_mask;                    ///< Valid hooks for this directive.
+    size_t _cfg_reserve;                    ///< Reserved storage in configuration.
+    Directive::InstanceLoader _load_cb;     ///< Functor to load the directive from YAML data.
     Directive::CfgInitializer _cfg_init_cb; ///< Configuration init callback.
   };
 
@@ -74,8 +77,8 @@ public:
    * provide the equivalent of run time type information. Instances are stored in the @c Config.
    */
   struct CfgStaticData {
-    FactoryInfo const * _static; ///< Related static information.
-    unsigned _count = 0; ///< Number of instances.
+    FactoryInfo const *_static;     ///< Related static information.
+    unsigned _count = 0;            ///< Number of instances.
     swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
   };
 
@@ -85,7 +88,7 @@ public:
     // In turn, that means a default constructor which disables aggregate construction. Sigh.
     constexpr Options() : _cfg_store_required(0) {}
     constexpr Options(size_t storage) : _cfg_store_required(storage) {}
-    size_t _cfg_store_required ; ///< Reserved per configuration storage.
+    size_t _cfg_store_required; ///< Reserved per configuration storage.
   };
 
   /// Provide a default so the templated method works as expected.
@@ -109,22 +112,27 @@ public:
    *
    * This exists so the templated @c Config::define works as expected, and does nothing.
    */
-  static swoc::Errata cfg_init(Config&, CfgStaticData const*) { return {}; }
+  static swoc::Errata
+  cfg_init(Config &, CfgStaticData const *)
+  {
+    return {};
+  }
 
 protected:
-  CfgStaticData const* _rtti = nullptr; ///< Run time (per Config) information.
+  CfgStaticData const *_rtti = nullptr; ///< Run time (per Config) information.
 };
 
 /** An ordered list of directives.
  *
  * This has no action of its own, it contains a list of other directives which are performed.
  */
-class DirectiveList : public Directive {
-  using self_type = DirectiveList; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
+class DirectiveList : public Directive
+{
+  using self_type  = DirectiveList; ///< Self reference type.
+  using super_type = Directive;     ///< Parent type.
 
 public:
-  self_type & push_back(Handle && d);
+  self_type &push_back(Handle &&d);
 
   /** Invoke the directive.
    *
@@ -141,9 +149,11 @@ protected:
 
 /// @c when directive - control which hook on which the configuration is handled.
 // @c when is special and needs to be globally visible.
-class When : public Directive {
+class When : public Directive
+{
   using super_type = Directive;
-  using self_type = When;
+  using self_type  = When;
+
 public:
   static const std::string KEY;
   static const HookMask HOOKS; ///< Valid hooks for directive.
@@ -162,11 +172,11 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static swoc::Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
+  static swoc::Rv<Handle> load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &name,
+                               swoc::TextView const &arg, YAML::Node key_value);
 
 protected:
-  Hook _hook { Hook::INVALID };
+  Hook _hook{Hook::INVALID};
   Handle _directive; /// Directive to invoke in the specified hook.
 
   /** Construct from hook and a directive.
@@ -174,7 +184,7 @@ protected:
    * @param hook_idx The hook on which @a directive is invoked.
    * @param directive Directive to invoke.
    */
-  When(Hook hook_idx, Directive::Handle && directive);
+  When(Hook hook_idx, Directive::Handle &&directive);
 
   // Because @c When is handle in a special manner for configurations, it must be able to reach in.
   friend Config;
@@ -186,9 +196,10 @@ protected:
  * it is used when the directive is omitted (e.g. an empty @c do key).
  */
 
-class NilDirective : public Directive {
-  using self_type = NilDirective; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
+class NilDirective : public Directive
+{
+  using self_type  = NilDirective; ///< Self reference type.
+  using super_type = Directive;    ///< Parent type.
 
 public:
   /** Invoke the directive.
@@ -198,19 +209,22 @@ public:
    *
    * All information needed for the invocation of the directive is accessible from the @a ctx.
    */
-  swoc::Errata invoke(Context &ctx) override;;
+  swoc::Errata invoke(Context &ctx) override;
+  ;
+
 protected:
 };
 
-class LambdaDirective : public Directive {
-  using self_type = LambdaDirective; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
+class LambdaDirective : public Directive
+{
+  using self_type  = LambdaDirective; ///< Self reference type.
+  using super_type = Directive;       ///< Parent type.
 
 public:
-  using Lambda = std::function<swoc::Errata (Context&)>;
+  using Lambda = std::function<swoc::Errata(Context &)>;
   /// Construct with function @a f.
   /// When the directive is invoked, it in turn invokes @a f.
-  LambdaDirective(Lambda && f);
+  LambdaDirective(Lambda &&f);
 
   /** Invoke the directive.
    *
@@ -220,14 +234,22 @@ public:
    * All information needed for the invocation of the directive is accessible from the @a ctx.
    */
   swoc::Errata invoke(Context &ctx) override;
+
 protected:
   /// Function to invoke.
   Lambda _f;
 };
 
-inline Hook When::get_hook() const { return _hook; }
+inline Hook
+When::get_hook() const
+{
+  return _hook;
+}
 
-inline swoc::Errata LambdaDirective::invoke(Context &ctx) { return _f(ctx); }
+inline swoc::Errata
+LambdaDirective::invoke(Context &ctx)
+{
+  return _f(ctx);
+}
 
 inline LambdaDirective::LambdaDirective(std::function<swoc::Errata(Context &)> &&f) : _f(std::move(f)) {}
-

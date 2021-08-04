@@ -21,8 +21,10 @@
 /** Base class for comparisons.
  *
  */
-class Comparison {
+class Comparison
+{
   using self_type = Comparison;
+
 public:
   /// Handle type for local instances.
   using Handle = std::unique_ptr<self_type>;
@@ -35,7 +37,8 @@ public:
    * @param arg Argument, if any.
    * @param value_node The value node for the @a key.
    */
-  using Loader = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node const& cmp_node, swoc::TextView const& key, swoc::TextView const& arg, YAML::Node const& value_node)>;
+  using Loader = std::function<swoc::Rv<Handle>(Config &cfg, YAML::Node const &cmp_node, swoc::TextView const &key,
+                                                swoc::TextView const &arg, YAML::Node const &value_node)>;
 
   // Factory that maps from names to assemblers.
   using Factory = std::unordered_map<swoc::TextView, std::tuple<Loader, ActiveType>, std::hash<std::string_view>>;
@@ -56,18 +59,62 @@ public:
   /// Subclasses (specific comparisons) should override these as appropriate for its supported types.
   /// Context state updates are done through the @c Context argument.
   /// @{
-  virtual bool operator()(Context&, std::monostate) const { return false; }
-  virtual bool operator()(Context&, nil_value) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<STRING> const&) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<INTEGER>) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<BOOLEAN>) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<FLOAT>) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<IP_ADDR> const&) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<DURATION>) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<TIMEPOINT>) const { return false; }
-  virtual bool operator()(Context&, Cons const*) const { return false; }
-  virtual bool operator()(Context&, feature_type_for<TUPLE> const&) const { return false; }
-  virtual bool operator()(Context&, Generic const*) const;
+  virtual bool
+  operator()(Context &, std::monostate) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, nil_value) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<STRING> const &) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<INTEGER>) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<BOOLEAN>) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<FLOAT>) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<IP_ADDR> const &) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<DURATION>) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<TIMEPOINT>) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, Cons const *) const
+  {
+    return false;
+  }
+  virtual bool
+  operator()(Context &, feature_type_for<TUPLE> const &) const
+  {
+    return false;
+  }
+  virtual bool operator()(Context &, Generic const *) const;
   /// @}
 
   /** External comparison entry.
@@ -80,8 +127,10 @@ public:
    * comparison is limited to a few or a single feature type, it is better to overload the
    * type specific comparisons.
    */
-  virtual bool operator()(Context& ctx, Feature const& feature) const {
-    auto visitor = [&](auto && value) { return (*this)(ctx, value); };
+  virtual bool
+  operator()(Context &ctx, Feature const &feature) const
+  {
+    auto visitor = [&](auto &&value) { return (*this)(ctx, value); };
     return std::visit(visitor, feature);
   }
 
@@ -100,7 +149,7 @@ public:
    *
    * @see accelerate
    */
-  virtual void can_accelerate(Accelerator::Counters& counters) const;
+  virtual void can_accelerate(Accelerator::Counters &counters) const;
 
   /** String acceleration.
    *
@@ -114,7 +163,7 @@ public:
    *
    * @see can_accelerate
    */
-  virtual void accelerate(StringAccelerator* str_accel) const;
+  virtual void accelerate(StringAccelerator *str_accel) const;
 
   /** Define a comparison.
    *
@@ -123,7 +172,7 @@ public:
    * @param worker Assembler to construct instance from configuration node.
    * @return A handle to a constructed instance on success, errors on failure.
    */
-  static swoc::Errata define(swoc::TextView name, ActiveType const& types, Loader && worker);
+  static swoc::Errata define(swoc::TextView name, ActiveType const &types, Loader &&worker);
 
   /** Load a comparison from a YAML @a node.
    *
@@ -131,22 +180,25 @@ public:
    * @param node Node with comparison config.
    * @return A constructed instance or errors on failure.
    */
-  static swoc::Rv<Handle> load(Config & cfg, YAML::Node node);
+  static swoc::Rv<Handle> load(Config &cfg, YAML::Node node);
 
 protected:
   /// The assemblers.
   static Factory _factory;
 };
 
-class ComparisonGroupBase {
+class ComparisonGroupBase
+{
   using self_type = ComparisonGroupBase;
-  using Errata = swoc::Errata;
+  using Errata    = swoc::Errata;
+
 public:
   virtual ~ComparisonGroupBase() = default;
-  virtual Errata load(Config& cfg, YAML::Node node);
+  virtual Errata load(Config &cfg, YAML::Node node);
+
 protected:
-  virtual Errata load_case(Config& cfg, YAML::Node node) = 0;
-  swoc::Rv<Comparison::Handle> load_cmp(Config& cfg, YAML::Node node);
+  virtual Errata load_case(Config &cfg, YAML::Node node) = 0;
+  swoc::Rv<Comparison::Handle> load_cmp(Config &cfg, YAML::Node node);
 };
 
 /** Container for an ordered list of Comparisons.
@@ -157,17 +209,19 @@ protected:
  * therefore each @c Comparison will be stored in a wrapper class @a W which holds the
  * ancillary data.
  */
-template < typename W > class ComparisonGroup : protected ComparisonGroupBase {
-  using self_type = ComparisonGroup;
+template <typename W> class ComparisonGroup : protected ComparisonGroupBase
+{
+  using self_type  = ComparisonGroup;
   using super_type = ComparisonGroupBase;
 
   using container = std::vector<W>;
 
   using Errata = swoc::Errata;
+
 public:
   using value_type = W; ///< Export template parameter.
 
-  using iterator = typename container::iterator;
+  using iterator       = typename container::iterator;
   using const_iterator = typename container::const_iterator;
 
   ComparisonGroup() = default;
@@ -181,7 +235,7 @@ public:
    * @a node can be an object, in which case it is treated as a list of length 1 containing that
    * object. Otherwise @a node must be a list of objects.
    */
-  Errata load(Config& cfg, YAML::Node node) override;
+  Errata load(Config &cfg, YAML::Node node) override;
 
   /** Invoke the comparisons.
    *
@@ -189,14 +243,30 @@ public:
    * @param feature Active feature to compare.
    * @return The iterator for the successful comparison, or the end iterator if none succeeded.
    */
-  iterator operator()(Context& ctx, Feature const& feature);
+  iterator operator()(Context &ctx, Feature const &feature);
 
   /// @return The location of the first comparison.
-  iterator begin() { return _cmps. begin(); }
+  iterator
+  begin()
+  {
+    return _cmps.begin();
+  }
   /// @return Location past the last comparison.
-  iterator end() { return _cmps.end(); }
-  const_iterator begin() const { return _cmps.begin(); }
-  const_iterator end() const { return _cmps.end(); }
+  iterator
+  end()
+  {
+    return _cmps.end();
+  }
+  const_iterator
+  begin() const
+  {
+    return _cmps.begin();
+  }
+  const_iterator
+  end() const
+  {
+    return _cmps.end();
+  }
 
 protected:
   /// The comparisons.
@@ -208,17 +278,23 @@ protected:
    * @param node Value node containing the case.
    * @return Errors, if any.
    */
-  Errata load_case(Config& cfg, YAML::Node node) override;
+  Errata load_case(Config &cfg, YAML::Node node) override;
 };
 
-template < typename W > auto ComparisonGroup<W>::load(Config &cfg, YAML::Node node) -> Errata {
+template <typename W>
+auto
+ComparisonGroup<W>::load(Config &cfg, YAML::Node node) -> Errata
+{
   if (node.IsSequence()) {
     _cmps.reserve(node.size());
   }
   return this->super_type::load(cfg, node);
 }
 
-template < typename W > auto ComparisonGroup<W>::load_case(Config &cfg, YAML::Node node) -> Errata {
+template <typename W>
+auto
+ComparisonGroup<W>::load_case(Config &cfg, YAML::Node node) -> Errata
+{
   W w;
   if (auto errata = w.pre_load(cfg, node); !errata.is_ok()) {
     return errata;
@@ -238,9 +314,11 @@ template < typename W > auto ComparisonGroup<W>::load_case(Config &cfg, YAML::No
   return {};
 }
 
-template<typename W>
-auto ComparisonGroup<W>::operator()(Context& ctx, Feature const& feature) -> iterator {
-  for ( auto spot = _cmps.begin() , limit = _cmps.end() ; spot != limit ; ++spot ) {
+template <typename W>
+auto
+ComparisonGroup<W>::operator()(Context &ctx, Feature const &feature) -> iterator
+{
+  for (auto spot = _cmps.begin(), limit = _cmps.end(); spot != limit; ++spot) {
     if ((*spot)(ctx, feature)) {
       return spot;
     }

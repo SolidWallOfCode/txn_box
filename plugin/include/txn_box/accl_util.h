@@ -161,12 +161,11 @@ get_bit(Key const &key, int position)
   }
   typename Key::const_pointer ptr = &*std::begin(key);
   assert(ptr != nullptr);
-  int const byte_number           = position / 8;
-  int const position_in_byte      = position - (byte_number * 8);
-  auto byte                       = get_byte<Key>(ptr, byte_number);
+  int const byte_number      = position / 8;
+  int const position_in_byte = position - (byte_number * 8);
+  auto byte                  = get_byte<Key>(ptr, byte_number);
   return ((byte) >> (7 - position_in_byte)) & 1;
 }
-
 
 template <typename Key>
 static auto
@@ -399,7 +398,11 @@ public:
   // Define our own iterator which show a reverse view of the original.
   struct iterator {
     explicit iterator(typename View::reverse_iterator iter) : _iter(iter) {}
-    const typename View::value_type &operator*() const { return *_iter; }
+    const typename View::value_type &
+    operator*() const
+    {
+      return *_iter;
+    }
 
     // TODO: Work on some operator to provide a better api (operator+, operator+=, etc)
     iterator &
@@ -437,7 +440,7 @@ public:
 
   explicit reversed_view(View view) noexcept : _view(view) {}
   bool
-  operator==(View const& v) const noexcept
+  operator==(View const &v) const noexcept
   {
     return v == _view;
   }
@@ -513,8 +516,8 @@ operator==(reversed_view<View> const &lhs, reversed_view<View> const &rhs)
 class string_tree_map
 {
 public:
-  using value_type = swoc::TextView;
-  using key_type   = swoc::TextView;
+  using value_type  = swoc::TextView;
+  using key_type    = swoc::TextView;
   using search_type = std::vector<std::pair<key_type, value_type>>;
 
   bool

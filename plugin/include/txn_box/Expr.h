@@ -16,29 +16,32 @@
 #include "txn_box/Extractor.h"
 
 /// Parsed feature expression.
-class Expr {
-  using self_type = Expr; ///< Self reference type.
-  using Spec = Extractor::Spec; ///< Import for convenience.
+class Expr
+{
+  using self_type = Expr;            ///< Self reference type.
+  using Spec      = Extractor::Spec; ///< Import for convenience.
 public:
   /// Output generator for BWF on an expression.
-  class bwf_ex {
+  class bwf_ex
+  {
   public:
     /// Construct with specifier sequence.
-    bwf_ex(std::vector<Spec> const& specs) : _specs(specs), _iter(specs.begin()) {}
+    bwf_ex(std::vector<Spec> const &specs) : _specs(specs), _iter(specs.begin()) {}
 
     /// Validity check.
     explicit operator bool() const { return _iter != _specs.end(); }
     ///
-    bool operator()(std::string_view& literal, Spec & spec);
+    bool operator()(std::string_view &literal, Spec &spec);
+
   protected:
-    std::vector<Spec> const& _specs; ///< Specifiers in format.
+    std::vector<Spec> const &_specs;         ///< Specifiers in format.
     std::vector<Spec>::const_iterator _iter; ///< Current specifier.
   };
 
   /// Single extractor that generates a direct value.
   struct Direct {
-    Direct(Spec const& spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
-    Spec _spec; ///< Specifier with extractor.
+    Direct(Spec const &spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
+    Spec _spec;                       ///< Specifier with extractor.
     ActiveType _result_type = STRING; ///< Type of full, default is a string.
   };
 
@@ -78,11 +81,11 @@ public:
   /// Post extraction modifiers.
   std::vector<Modifier::Handle> _mods;
 
-  Expr() = default;
-  Expr(self_type const& that) = delete;
-  Expr(self_type && that) = default;
-  self_type & operator = (self_type const& that) = delete;
-  self_type & operator = (self_type && that) = default;
+  Expr()                      = default;
+  Expr(self_type const &that) = delete;
+  Expr(self_type &&that)      = default;
+  self_type &operator=(self_type const &that) = delete;
+  self_type &operator=(self_type &&that) = default;
 
   /** Construct from a Feature.
    *
@@ -90,43 +93,90 @@ public:
    *
    * The constructed instance will always be the literal @a f.
    */
-  Expr(Feature const& f) : _raw(f) {}
-  Expr(Direct && d) : _raw(std::move(d)) {}
-  Expr(Composite && comp) : _raw(std::move(comp)) {}
+  Expr(Feature const &f) : _raw(f) {}
+  Expr(Direct &&d) : _raw(std::move(d)) {}
+  Expr(Composite &&comp) : _raw(std::move(comp)) {}
 
-  Expr(Spec const& spec, ActiveType t) {
+  Expr(Spec const &spec, ActiveType t)
+  {
     _raw.emplace<DIRECT>(spec, t);
     _max_arg_idx = spec._idx;
   }
 
-  ActiveType result_type() const {
+  ActiveType
+  result_type() const
+  {
     struct Visitor {
-      ActiveType operator () (std::monostate const&) { return {}; }
-      ActiveType operator () (Feature const& f) { return f.active_type(); }
-      ActiveType operator () (Direct const& d) { return d._result_type; }
-      ActiveType operator () (Composite const&) { return STRING; }
-      ActiveType operator () (List const& l) { return ActiveType{ActiveType::TupleOf(l._types.base_types())}; }
+      ActiveType
+      operator()(std::monostate const &)
+      {
+        return {};
+      }
+      ActiveType
+      operator()(Feature const &f)
+      {
+        return f.active_type();
+      }
+      ActiveType
+      operator()(Direct const &d)
+      {
+        return d._result_type;
+      }
+      ActiveType
+      operator()(Composite const &)
+      {
+        return STRING;
+      }
+      ActiveType
+      operator()(List const &l)
+      {
+        return ActiveType{ActiveType::TupleOf(l._types.base_types())};
+      }
     };
     ActiveType zret = std::visit(Visitor{}, _raw);
-    for ( auto const& mod : _mods) {
+    for (auto const &mod : _mods) {
       zret = mod->result_type(zret);
     }
     return zret;
   }
 
-  bool empty() const { return _raw.index() == NO_EXPR; }
-  bool is_null() const { return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL;}
-  bool is_literal() const { return _raw.index() == LITERAL; }
+  bool
+  empty() const
+  {
+    return _raw.index() == NO_EXPR;
+  }
+  bool
+  is_null() const
+  {
+    return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL;
+  }
+  bool
+  is_literal() const
+  {
+    return _raw.index() == LITERAL;
+  }
 
   struct bwf_visitor {
-    bwf_visitor(Context & ctx) : _ctx(ctx) {}
+    bwf_visitor(Context &ctx) : _ctx(ctx) {}
 
-    Feature operator () (std::monostate const&) { return NIL_FEATURE; }
-    Feature operator () (Feature const& f) { return f; }
-    Feature operator () (Direct const& d) { return d._spec._exf->extract(_ctx, d._spec); }
-    Feature operator () (Composite const& comp);
-    Feature operator () (List const& list);
+    Feature
+    operator()(std::monostate const &)
+    {
+      return NIL_FEATURE;
+    }
+    Feature
+    operator()(Feature const &f)
+    {
+      return f;
+    }
+    Feature
+    operator()(Direct const &d)
+    {
+      return d._spec._exf->extract(_ctx, d._spec);
+    }
+    Feature operator()(Composite const &comp);
+    Feature operator()(List const &list);
 
-    Context& _ctx;
+    Context &_ctx;
   };
 };

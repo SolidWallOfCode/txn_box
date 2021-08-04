@@ -24,26 +24,36 @@ using swoc::Rv;
 
 Comparison::Factory Comparison::_factory;
 
-unsigned Comparison::rxp_group_count() const { return 0; }
+unsigned
+Comparison::rxp_group_count() const
+{
+  return 0;
+}
 
-Errata Comparison::define(swoc::TextView name, ActiveType const& types, Comparison::Loader &&worker) {
+Errata
+Comparison::define(swoc::TextView name, ActiveType const &types, Comparison::Loader &&worker)
+{
   _factory[name] = std::make_tuple(std::move(worker), types);
   return {};
 }
 
-bool Comparison::operator()(Context &ctx, Generic const* g) const {
-  Feature f { g->extract() };
+bool
+Comparison::operator()(Context &ctx, Generic const *g) const
+{
+  Feature f{g->extract()};
   return IndexFor(GENERIC) == f.index() ? false : (*this)(ctx, f);
 }
 
-Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
-  if (! node.IsMap()) {
+Rv<Comparison::Handle>
+Comparison::load(Config &cfg, YAML::Node node)
+{
+  if (!node.IsMap()) {
     return Error("Comparison at {} is not an object.", node.Mark());
   }
 
-  for ( auto const& [ key_node, value_node ] : node ) {
-    TextView key { key_node.Scalar() };
-    auto && [ arg, arg_errata ] { parse_arg(key) };
+  for (auto const &[key_node, value_node] : node) {
+    TextView key{key_node.Scalar()};
+    auto &&[arg, arg_errata]{parse_arg(key)};
     if (!arg_errata.is_ok()) {
       return std::move(arg_errata);
     }
@@ -52,9 +62,9 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
     }
     // See if this is in the factory. It's not an error if it's not, to enable adding extra
     // keys to comparison. First key that is in the factory determines the comparison type.
-    if ( auto spot { _factory.find(key) } ; spot != _factory.end()) {
+    if (auto spot{_factory.find(key)}; spot != _factory.end()) {
       auto &&[loader, types] = spot->second;
-      if (! cfg.active_type().can_satisfy(types)) {
+      if (!cfg.active_type().can_satisfy(types)) {
         return Error(R"(Comparison "{}" at {} is not valid for active feature.)", key, node.Mark());
       }
 
@@ -69,44 +79,56 @@ Rv<Comparison::Handle> Comparison::load(Config & cfg, YAML::Node node) {
   return Error(R"(No valid comparison key in object at {}.)", node.Mark());
 }
 
-void Comparison::can_accelerate(Accelerator::Counters&) const {}
+void
+Comparison::can_accelerate(Accelerator::Counters &) const
+{
+}
 
-void Comparison::accelerate(StringAccelerator *) const {}
+void
+Comparison::accelerate(StringAccelerator *) const
+{
+}
 /* ------------------------------------------------------------------------------------ */
-class Cmp_otherwise: public Comparison {
-  using self_type = Cmp_otherwise; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_otherwise : public Comparison
+{
+  using self_type  = Cmp_otherwise; ///< Self reference type.
+  using super_type = Comparison;    ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
 
 protected:
   Cmp_otherwise() = default;
 };
 
-const std::string Cmp_otherwise::KEY {"otherwise" };
-const ValueMask Cmp_otherwise::TYPES {ValueMask{}.set()};
+const std::string Cmp_otherwise::KEY{"otherwise"};
+const ValueMask Cmp_otherwise::TYPES{ValueMask{}.set()};
 
-bool Cmp_otherwise::operator() (Context&, Feature const&) const {
+bool
+Cmp_otherwise::operator()(Context &, Feature const &) const
+{
   return true;
 }
-Rv<Comparison::Handle> Cmp_otherwise::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
-  return { Handle{new self_type}, {} };
+Rv<Comparison::Handle>
+Cmp_otherwise::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
 }
 /* ------------------------------------------------------------------------------------ */
 /** Utility base class for comparisons that are based on literal string matching.
  * This is @b not intended to be used as a comparison itself.
  */
-class Cmp_String: public Comparison {
-  using self_type = Cmp_String; ///< Self reference type.
+class Cmp_String : public Comparison
+{
+  using self_type  = Cmp_String; ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
-  static constexpr TextView NO_CASE_OPT { "nc" };
+  static constexpr TextView NO_CASE_OPT{"nc"};
 
 protected:
   union Options {
@@ -120,7 +142,9 @@ protected:
   static Rv<Options> parse_options(TextView options);
 };
 
-Rv<Cmp_String::Options> Cmp_String::parse_options(TextView options) {
+Rv<Cmp_String::Options>
+Cmp_String::parse_options(TextView options)
+{
   Options zret;
   while (options) {
     auto token = options.take_prefix_at(',');
@@ -137,14 +161,15 @@ Rv<Cmp_String::Options> Cmp_String::parse_options(TextView options) {
 // Specialized subclasses for the various options.
 
 /// Base case for literal string comparisons.
-class Cmp_LiteralString : public Cmp_String {
+class Cmp_LiteralString : public Cmp_String
+{
 public:
-  static constexpr TextView MATCH_KEY { "match" };
-  static constexpr TextView CONTAIN_KEY { "contains" };
-  static constexpr TextView PREFIX_KEY { "prefix" };
-  static constexpr TextView SUFFIX_KEY { "suffix" };
-  static constexpr TextView TLD_KEY { "tld" };
-  static constexpr TextView PATH_KEY { "path" };
+  static constexpr TextView MATCH_KEY{"match"};
+  static constexpr TextView CONTAIN_KEY{"contains"};
+  static constexpr TextView PREFIX_KEY{"prefix"};
+  static constexpr TextView SUFFIX_KEY{"suffix"};
+  static constexpr TextView TLD_KEY{"tld"};
+  static constexpr TextView PATH_KEY{"path"};
 
   /// Mark for @c STRING support only.
   static const ActiveType TYPES;
@@ -157,7 +182,7 @@ public:
    *
    * External API - required as a @c Comparison.
    */
-  bool operator() (Context& ctx, feature_type_for<STRING> const& text) const override;
+  bool operator()(Context &ctx, feature_type_for<STRING> const &text) const override;
 
   /** Instantiate an instance from YAML configuration.
    *
@@ -168,12 +193,12 @@ public:
    * @param value_node Value node for for @a key.
    * @return An instance or errors on failure.
    */
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
 
 protected:
   Expr _expr; ///< To be compared to active feature.
 
-  Cmp_LiteralString(Expr && expr);
+  Cmp_LiteralString(Expr &&expr);
 
   /** Specialized comparison.
    *
@@ -186,27 +211,49 @@ protected:
    * to the specialized subclass. @a text is the extracted text, @a active is the value passed
    * in at run time to check.
    */
-  virtual bool operator()(Context & ctx, TextView const& text, TextView active) const = 0;
+  virtual bool operator()(Context &ctx, TextView const &text, TextView active) const = 0;
 
   struct expr_validator {
-    bool operator () (std::monostate const&) { return false; }
-    bool operator () (Feature const& f) { return ValueTypeOf(f) == STRING; }
-    bool operator () (Expr::Direct const& d) { return d._result_type.can_satisfy(STRING); }
-    bool operator () (Expr::Composite const&) { return true; }
-    bool operator () (Expr::List const& list) { return list._types.can_satisfy(STRING); }
+    bool
+    operator()(std::monostate const &)
+    {
+      return false;
+    }
+    bool
+    operator()(Feature const &f)
+    {
+      return ValueTypeOf(f) == STRING;
+    }
+    bool
+    operator()(Expr::Direct const &d)
+    {
+      return d._result_type.can_satisfy(STRING);
+    }
+    bool
+    operator()(Expr::Composite const &)
+    {
+      return true;
+    }
+    bool
+    operator()(Expr::List const &list)
+    {
+      return list._types.can_satisfy(STRING);
+    }
   };
 };
 
 const ActiveType Cmp_LiteralString::TYPES{STRING, ActiveType::TupleOf(STRING)};
 
-Cmp_LiteralString::Cmp_LiteralString(Expr && expr) : _expr(std::move(expr)) {}
+Cmp_LiteralString::Cmp_LiteralString(Expr &&expr) : _expr(std::move(expr)) {}
 
-bool Cmp_LiteralString::operator()(Context &ctx, feature_type_for<STRING> const& feature) const {
-  Feature f { ctx.extract(_expr)};
-  if (auto view = std::get_if<IndexFor(STRING)>(&f) ; nullptr != view) {
+bool
+Cmp_LiteralString::operator()(Context &ctx, feature_type_for<STRING> const &feature) const
+{
+  Feature f{ctx.extract(_expr)};
+  if (auto view = std::get_if<IndexFor(STRING)>(&f); nullptr != view) {
     return (*this)(ctx, *view, feature);
-  } else if ( auto t = std::get_if<IndexFor(TUPLE)>(&f) ; nullptr != t) {
-    return std::any_of(t->begin(), t->end(), [&](Feature & f) -> bool {
+  } else if (auto t = std::get_if<IndexFor(TUPLE)>(&f); nullptr != t) {
+    return std::any_of(t->begin(), t->end(), [&](Feature &f) -> bool {
       auto view = std::get_if<IndexFor(STRING)>(&f);
       return view && (*this)(ctx, *view, feature);
     });
@@ -215,17 +262,20 @@ bool Cmp_LiteralString::operator()(Context &ctx, feature_type_for<STRING> const&
 }
 
 /// Match entire string.
-class Cmp_MatchStd : public Cmp_LiteralString {
+class Cmp_MatchStd : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_MatchStd;
+  using self_type  = Cmp_MatchStd;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_MatchStd::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (text == active) {
     ctx.set_literal_capture(active);
     ctx._remainder.clear();
@@ -235,18 +285,21 @@ bool Cmp_MatchStd::operator()(Context& ctx, TextView const& text, TextView activ
 }
 
 /// Match entire string, ignoring case
-class Cmp_MatchNC : public Cmp_LiteralString {
+class Cmp_MatchNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_MatchNC;
+  using self_type  = Cmp_MatchNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active) const {
-  if (0 == strcasecmp(text,active)) {
+bool
+Cmp_MatchNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
+  if (0 == strcasecmp(text, active)) {
     ctx.set_literal_capture(active);
     ctx._remainder.clear();
     return true;
@@ -255,17 +308,20 @@ bool Cmp_MatchNC::operator()(Context& ctx, TextView const& text, TextView active
 }
 
 /// Compare the active feature to a string suffix.
-class Cmp_Suffix : public Cmp_LiteralString {
+class Cmp_Suffix : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_Suffix;
+  using self_type  = Cmp_Suffix;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_Suffix::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.ends_with(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
     ctx._remainder = active.remove_suffix(text.size());
@@ -275,17 +331,20 @@ bool Cmp_Suffix::operator()(Context& ctx, TextView const& text, TextView active)
 }
 
 /// Compare without case the active feature to a string suffix.
-class Cmp_SuffixNC : public Cmp_LiteralString {
+class Cmp_SuffixNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_SuffixNC;
+  using self_type  = Cmp_SuffixNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_SuffixNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.ends_with_nocase(text)) {
     ctx.set_literal_capture(active.suffix(text.size()));
     ctx._remainder = active.remove_suffix(text.size());
@@ -294,17 +353,20 @@ bool Cmp_SuffixNC::operator()(Context& ctx, TextView const& text, TextView activ
   return false;
 }
 
-class Cmp_Prefix : public Cmp_LiteralString {
+class Cmp_Prefix : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_Prefix;
+  using self_type  = Cmp_Prefix;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_Prefix::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.starts_with(text)) {
     ctx.set_literal_capture(active.prefix(text.size()));
     ctx._remainder = active.remove_prefix(text.size());
@@ -313,17 +375,20 @@ bool Cmp_Prefix::operator()(Context& ctx, TextView const& text, TextView active)
   return false;
 }
 
-class Cmp_PrefixNC : public Cmp_LiteralString {
+class Cmp_PrefixNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_PrefixNC;
+  using self_type  = Cmp_PrefixNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_PrefixNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.starts_with_nocase(text)) {
     ctx.set_literal_capture(active.prefix(text.size()));
     ctx._remainder = active.remove_prefix(text.size());
@@ -332,19 +397,22 @@ bool Cmp_PrefixNC::operator()(Context& ctx, TextView const& text, TextView activ
   return false;
 }
 
-class Cmp_Contains : public Cmp_LiteralString {
+class Cmp_Contains : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_Contains;
+  using self_type  = Cmp_Contains;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView active) const {
-  if (auto idx = active.find(text) ; idx != TextView::npos) {
-    #if 0
+bool
+Cmp_Contains::operator()(Context &ctx, TextView const &text, TextView active) const
+{
+  if (auto idx = active.find(text); idx != TextView::npos) {
+#if 0
     if (ctx._update_remainder_p) {
       auto n = active.size() - text.size();
       auto span = ctx._arena->alloc(n).rebind<char>();
@@ -352,30 +420,33 @@ bool Cmp_Contains::operator()(Context& ctx, TextView const& text, TextView activ
       memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
       ctx.set_literal_capture(span.view());
     }
-    #else
+#else
     ctx._remainder.clear();
-    #endif
+#endif
     return true;
   }
   return false;
 }
 
-class Cmp_ContainsNC : public Cmp_LiteralString {
+class Cmp_ContainsNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_ContainsNC;
+  using self_type  = Cmp_ContainsNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_ContainsNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (text.size() <= active.size()) {
-    auto spot = std::search(active.begin(), active.end(), text.begin(), text.end()
-                            , [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
+    auto spot = std::search(active.begin(), active.end(), text.begin(), text.end(),
+                            [](char lhs, char rhs) { return tolower(lhs) == tolower(rhs); });
     if (spot != active.end()) {
-      #if 0
+#if 0
       if (ctx._update_remainder_p) {
         size_t idx = spot - active.begin();
         auto n = active.size() - text.size();
@@ -384,26 +455,29 @@ bool Cmp_ContainsNC::operator()(Context& ctx, TextView const& text, TextView act
         memcpy(span.data() + idx, active.suffix(idx).data(), active.size() - (idx + text.size()));
         ctx.set_literal_capture(span.view());
       }
-      #else
+#else
       ctx._remainder.clear();
-      #endif
+#endif
       return true;
     }
   }
   return false;
 }
 
-class Cmp_TLD : public Cmp_LiteralString {
+class Cmp_TLD : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_TLD;
+  using self_type  = Cmp_TLD;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_TLD::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.ends_with(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
     auto capture = active.suffix(text.size() + 1);
     ctx.set_literal_capture(capture);
@@ -413,17 +487,20 @@ bool Cmp_TLD::operator()(Context& ctx, TextView const& text, TextView active) co
   return false;
 }
 
-class Cmp_TLDNC : public Cmp_LiteralString {
+class Cmp_TLDNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_TLDNC;
+  using self_type  = Cmp_TLDNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_TLDNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.ends_with_nocase(text) && (text.size() == active.size() || active[active.size() - text.size() - 1] == '.')) {
     auto capture = active.suffix(text.size() + 1);
     ctx.set_literal_capture(capture);
@@ -435,17 +512,20 @@ bool Cmp_TLDNC::operator()(Context& ctx, TextView const& text, TextView active) 
 
 // ---
 
-class Cmp_Path : public Cmp_LiteralString {
+class Cmp_Path : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_Path;
+  using self_type  = Cmp_Path;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_Path::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_Path::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   auto target = text;
   target.rtrim('/'); // Not reliable to do at load, since not always a config time constant.
   if (active.starts_with(target)) {
@@ -460,17 +540,20 @@ bool Cmp_Path::operator()(Context& ctx, TextView const& text, TextView active) c
   return false;
 }
 
-class Cmp_PathNC : public Cmp_LiteralString {
+class Cmp_PathNC : public Cmp_LiteralString
+{
 protected:
-  using self_type = Cmp_PathNC;
+  using self_type  = Cmp_PathNC;
   using super_type = Cmp_LiteralString;
   using super_type::super_type;
-  bool operator() (Context & ctx, TextView const& text, TextView active) const override;
+  bool operator()(Context &ctx, TextView const &text, TextView active) const override;
 
   friend super_type;
 };
 
-bool Cmp_PathNC::operator()(Context& ctx, TextView const& text, TextView active) const {
+bool
+Cmp_PathNC::operator()(Context &ctx, TextView const &text, TextView active) const
+{
   if (active.starts_with_nocase(text)) {
     auto rest = active.substr(text.size());
     if (rest.empty() || rest == "/"_tv) {
@@ -485,7 +568,9 @@ bool Cmp_PathNC::operator()(Context& ctx, TextView const& text, TextView active)
 
 // ---
 
-Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+Rv<Comparison::Handle>
+Cmp_LiteralString::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+{
   auto &&[expr, errata]{cfg.parse_expr(value_node)};
 
   if (!errata.is_ok()) {
@@ -493,56 +578,45 @@ Rv<Comparison::Handle> Cmp_LiteralString::load(Config &cfg, YAML::Node const& cm
     return std::move(errata);
   }
 
-  auto && [ options, opt_errata ] { parse_options(arg) };
-  if (! opt_errata.is_ok()) {
+  auto &&[options, opt_errata]{parse_options(arg)};
+  if (!opt_errata.is_ok()) {
     opt_errata.info(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
     return std::move(opt_errata);
   }
 
   auto expr_type = expr.result_type();
-  if (! expr_type.can_satisfy(TYPES)) {
-    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)"
-                 , expr_type, key, cmp_node.Mark());
+  if (!expr_type.can_satisfy(TYPES)) {
+    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)", expr_type, key, cmp_node.Mark());
   }
 
   if (MATCH_KEY == key) {
-    return options.f.nc
-    ? Handle { new Cmp_MatchNC(std::move(expr)) }
-    : Handle { new Cmp_MatchStd(std::move(expr)) };
+    return options.f.nc ? Handle{new Cmp_MatchNC(std::move(expr))} : Handle{new Cmp_MatchStd(std::move(expr))};
   } else if (PREFIX_KEY == key) {
-    return options.f.nc
-      ? Handle{new Cmp_PrefixNC(std::move(expr))}
-      : Handle{new Cmp_Prefix(std::move(expr))};
+    return options.f.nc ? Handle{new Cmp_PrefixNC(std::move(expr))} : Handle{new Cmp_Prefix(std::move(expr))};
   } else if (SUFFIX_KEY == key) {
-    return options.f.nc
-      ? Handle{new Cmp_SuffixNC(std::move(expr))}
-      : Handle{new Cmp_Suffix(std::move(expr))};
+    return options.f.nc ? Handle{new Cmp_SuffixNC(std::move(expr))} : Handle{new Cmp_Suffix(std::move(expr))};
   } else if (CONTAIN_KEY == key) {
-    return options.f.nc
-    ? Handle(new Cmp_Contains(std::move(expr)))
-    : Handle(new Cmp_ContainsNC(std::move(expr)));
+    return options.f.nc ? Handle(new Cmp_Contains(std::move(expr))) : Handle(new Cmp_ContainsNC(std::move(expr)));
   } else if (TLD_KEY == key) {
-    return options.f.nc
-           ? Handle(new Cmp_TLDNC(std::move(expr)))
-           : Handle(new Cmp_TLD(std::move(expr)));
+    return options.f.nc ? Handle(new Cmp_TLDNC(std::move(expr))) : Handle(new Cmp_TLD(std::move(expr)));
   } else if (PATH_KEY == key) {
-    return options.f.nc
-           ? Handle(new Cmp_PathNC(std::move(expr)))
-           : Handle(new Cmp_Path(std::move(expr)));
+    return options.f.nc ? Handle(new Cmp_PathNC(std::move(expr))) : Handle(new Cmp_Path(std::move(expr)));
   }
 
   return Error(R"(Internal error, unrecognized key "{}".)", key);
 }
 /* ------------------------------------------------------------------------------------ */
-class Cmp_Rxp : public Cmp_String {
-  using self_type = Cmp_Rxp; ///< Self reference type.
+class Cmp_Rxp : public Cmp_String
+{
+  using self_type  = Cmp_Rxp;    ///< Self reference type.
   using super_type = Cmp_String; ///< Super type.
 
 public:
-  static constexpr TextView KEY { "rxp" }; ///< YAML key.
-  static const ActiveType TYPES; ///< Valid comparison types.
+  static constexpr TextView KEY{"rxp"}; ///< YAML key.
+  static const ActiveType TYPES;        ///< Valid comparison types.
 
-  static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Comparison::Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg,
+                                     YAML::Node value_node);
 
 protected:
   /// Static value - a literal or a dynamic regular expression.
@@ -557,15 +631,15 @@ protected:
      * @param cfg Configuration being loaded.
      * @param opt Options from directive arguments.
      */
-    expr_visitor(Config & cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
+    expr_visitor(Config &cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
 
-    Rv<Handle> operator() (std::monostate);
-    Rv<Handle> operator() (Feature & f);
-    Rv<Handle> operator() (Expr::List & l);
-    Rv<Handle> operator() (Expr::Direct & d);
-    Rv<Handle> operator() (Expr::Composite & comp);
+    Rv<Handle> operator()(std::monostate);
+    Rv<Handle> operator()(Feature &f);
+    Rv<Handle> operator()(Expr::List &l);
+    Rv<Handle> operator()(Expr::Direct &d);
+    Rv<Handle> operator()(Expr::Composite &comp);
 
-    Config & _cfg; ///< Configuration being loaded.
+    Config &_cfg;          ///< Configuration being loaded.
     Rxp::Options _rxp_opt; ///< Any options from directive arguments.
   };
 
@@ -581,7 +655,7 @@ protected:
      * @param rxp Compiled regular expression.
      * @return @c true on success, @c false otherwise.
      */
-    bool operator() (Rxp const& rxp);
+    bool operator()(Rxp const &rxp);
     /** Compile the @a expr into a regular expression.
      *
      * @param expr Feature expression.
@@ -590,68 +664,80 @@ protected:
      * @internal This compiles the feature from @a expr and then invokes the @c Rxp overload to do
      * the match.
      */
-    bool operator() (Expr const& expr);
+    bool operator()(Expr const &expr);
 
-    Context & _ctx; ///< Configuration context.
+    Context &_ctx;         ///< Configuration context.
     Rxp::Options _rxp_opt; ///< Options for the regex.
-    TextView _src; ///< regex text.
+    TextView _src;         ///< regex text.
   };
 };
 
-class Cmp_RxpSingle : public Cmp_Rxp {
-  using self_type = Cmp_RxpSingle;
+class Cmp_RxpSingle : public Cmp_Rxp
+{
+  using self_type  = Cmp_RxpSingle;
   using super_type = Cmp_Rxp;
+
 public:
-  Cmp_RxpSingle(Expr && expr, Rxp::Options);
-  Cmp_RxpSingle(Rxp && rxp);
+  Cmp_RxpSingle(Expr &&expr, Rxp::Options);
+  Cmp_RxpSingle(Rxp &&rxp);
+
 protected:
-  bool operator()(Context &ctx, feature_type_for<STRING> const& active) const override;
+  bool operator()(Context &ctx, feature_type_for<STRING> const &active) const override;
 
   Item _rxp;
   Rxp::Options _opt;
 };
 
-class Cmp_RxpList : public Cmp_Rxp {
-  using self_type = Cmp_RxpList;
+class Cmp_RxpList : public Cmp_Rxp
+{
+  using self_type  = Cmp_RxpList;
   using super_type = Cmp_Rxp;
   friend super_type;
+
 public:
   Cmp_RxpList(Rxp::Options opt) : _opt(opt) {}
+
 protected:
   struct expr_visitor {
-    Errata operator() (Feature & f);
-    Errata operator() (Expr::List &) {
+    Errata operator()(Feature &f);
+    Errata
+    operator()(Expr::List &)
+    {
       return Error("Invalid type");
     }
-    Errata operator() (Expr::Direct & d) {
+    Errata
+    operator()(Expr::Direct &d)
+    {
       _rxp.emplace_back(Expr{std::move(d)});
       return {};
     }
-    Errata operator() (Expr::Composite & comp) {
+    Errata
+    operator()(Expr::Composite &comp)
+    {
       _rxp.emplace_back(Expr{std::move(comp)});
       return {};
     }
-    Errata operator() (std::monostate) {
-      return Error("Invalid type");
-    }
+    Errata operator()(std::monostate) { return Error("Invalid type"); }
 
     Rxp::Options _rxp_opt;
     std::vector<Item> &_rxp;
   };
 
-  bool operator()(Context &ctx, FeatureView const& active) const override;
+  bool operator()(Context &ctx, FeatureView const &active) const override;
 
   std::vector<Item> _rxp;
   Rxp::Options _opt;
 };
 
-Errata Cmp_RxpList::expr_visitor::operator()(Feature& f) {
+Errata
+Cmp_RxpList::expr_visitor::operator()(Feature &f)
+{
   if (IndexFor(STRING) != f.index()) {
     return Error(R"("{}" literal must be a string.)", KEY);
   }
 
-  auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
-  if (! rxp_errata.is_ok()) {
+  auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
+  if (!rxp_errata.is_ok()) {
     rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
@@ -659,9 +745,11 @@ Errata Cmp_RxpList::expr_visitor::operator()(Feature& f) {
   return {};
 }
 
-const ActiveType Cmp_Rxp::TYPES {STRING, ActiveType::TupleOf(STRING)};
+const ActiveType Cmp_Rxp::TYPES{STRING, ActiveType::TupleOf(STRING)};
 
-bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
+bool
+Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp)
+{
   auto result = rxp(_src, _ctx.rxp_working_match_data());
   if (result > 0) {
     _ctx.rxp_commit_match(_src);
@@ -671,9 +759,11 @@ bool Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp) {
   return false;
 }
 
-bool Cmp_Rxp::rxp_visitor::operator() (Expr const& expr) {
+bool
+Cmp_Rxp::rxp_visitor::operator()(Expr const &expr)
+{
   auto f = _ctx.extract(expr);
-  if (auto text = std::get_if<IndexFor(STRING)>(&f) ; text != nullptr ) {
+  if (auto text = std::get_if<IndexFor(STRING)>(&f); text != nullptr) {
     auto &&[rxp, rxp_errata]{Rxp::parse(*text, _rxp_opt)};
     if (rxp_errata.is_ok()) {
       _ctx.rxp_match_require(rxp.capture_count());
@@ -683,13 +773,15 @@ bool Cmp_Rxp::rxp_visitor::operator() (Expr const& expr) {
   return false;
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Feature & f) {
+Rv<Comparison::Handle>
+Cmp_Rxp::expr_visitor::operator()(Feature &f)
+{
   if (IndexFor(STRING) != f.index()) {
     return Error(R"("{}" literal must be a string.)", KEY);
   }
 
-  auto && [ rxp, rxp_errata] { Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt) };
-  if (! rxp_errata.is_ok()) {
+  auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
+  if (!rxp_errata.is_ok()) {
     rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
@@ -697,31 +789,40 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Feature & f) {
   return Handle(new Cmp_RxpSingle(std::move(rxp)));
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (std::monostate) {
+Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator()(std::monostate)
+{
   return Error(R"(Literal must be a string)");
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Direct & d) {
+Rv<Comparison::Handle>
+Cmp_Rxp::expr_visitor::operator()(Expr::Direct &d)
+{
   return Handle(new Cmp_RxpSingle(Expr{std::move(d)}, _rxp_opt));
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::Composite & comp) {
+Rv<Comparison::Handle>
+Cmp_Rxp::expr_visitor::operator()(Expr::Composite &comp)
+{
   return Handle(new Cmp_RxpSingle(Expr{std::move(comp)}, _rxp_opt));
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator() (Expr::List & l) {
+Rv<Comparison::Handle>
+Cmp_Rxp::expr_visitor::operator()(Expr::List &l)
+{
   auto rxm = new Cmp_RxpList{_rxp_opt};
-  Cmp_RxpList::expr_visitor ev {_rxp_opt, rxm->_rxp};
-  for ( Expr & elt : l._exprs) {
-    if (! elt.result_type().can_satisfy(STRING)) {
+  Cmp_RxpList::expr_visitor ev{_rxp_opt, rxm->_rxp};
+  for (Expr &elt : l._exprs) {
+    if (!elt.result_type().can_satisfy(STRING)) {
       return Error(R"("{}" literal must be a string.)", KEY);
     }
     std::visit(ev, elt._raw);
   }
-  return Handle { rxm };
+  return Handle{rxm};
 }
 
-Rv<Comparison::Handle> Cmp_Rxp::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+Rv<Comparison::Handle>
+Cmp_Rxp::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+{
   auto &&[expr, errata]{cfg.parse_expr(value_node)};
 
   if (!errata.is_ok()) {
@@ -740,165 +841,185 @@ Rv<Comparison::Handle> Cmp_Rxp::load(Config &cfg, YAML::Node const& cmp_node, Te
   return std::visit(expr_visitor{cfg, rxp_opt}, expr._raw);
 }
 
-Cmp_RxpSingle::Cmp_RxpSingle(Expr && expr, Rxp::Options opt) : _rxp(std::move(expr)), _opt(opt) {
-}
+Cmp_RxpSingle::Cmp_RxpSingle(Expr &&expr, Rxp::Options opt) : _rxp(std::move(expr)), _opt(opt) {}
 
-Cmp_RxpSingle::Cmp_RxpSingle(Rxp && rxp) : _rxp(std::move(rxp)) {
-}
+Cmp_RxpSingle::Cmp_RxpSingle(Rxp &&rxp) : _rxp(std::move(rxp)) {}
 
-bool Cmp_RxpSingle::operator()(Context & ctx, FeatureView const& active) const {
+bool
+Cmp_RxpSingle::operator()(Context &ctx, FeatureView const &active) const
+{
   return std::visit(rxp_visitor{ctx, _opt, active}, _rxp);
 }
 
-bool Cmp_RxpList::operator()(Context &ctx, FeatureView const&) const {
-  return std::any_of(_rxp.begin(), _rxp.end(), [&](Item const&item) {
-    return std::visit(rxp_visitor{ctx, _opt, {}}, item);
-  });
+bool
+Cmp_RxpList::operator()(Context &ctx, FeatureView const &) const
+{
+  return std::any_of(_rxp.begin(), _rxp.end(), [&](Item const &item) { return std::visit(rxp_visitor{ctx, _opt, {}}, item); });
 }
 
 /* ------------------------------------------------------------------------------------ */
 /** Compare a boolean value.
  * Check if a value is true.
  */
-class Cmp_is_true: public Comparison {
-  using self_type = Cmp_is_true; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_is_true : public Comparison
+{
+  using self_type  = Cmp_is_true; ///< Self reference type.
+  using super_type = Comparison;  ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator()(Context& ctx, Feature const& feature) const;
+  bool operator()(Context &ctx, Feature const &feature) const;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
 
 protected:
   Cmp_is_true() = default;
 };
 
-const std::string Cmp_is_true::KEY {"is-true" };
-const ValueMask Cmp_is_true::TYPES {MaskFor( STRING, BOOLEAN, INTEGER ) };
+const std::string Cmp_is_true::KEY{"is-true"};
+const ValueMask Cmp_is_true::TYPES{MaskFor(STRING, BOOLEAN, INTEGER)};
 
-bool Cmp_is_true::operator()(Context &, Feature const& feature) const {
+bool
+Cmp_is_true::operator()(Context &, Feature const &feature) const
+{
   return feature.as_bool();
 }
 
-Rv<Comparison::Handle> Cmp_is_true::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
-  return { Handle{new self_type}, {} };
+Rv<Comparison::Handle>
+Cmp_is_true::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
 }
 
 /** Compare a boolean value.
  * Check if a value is false.
  */
-class Cmp_is_false: public Comparison {
-  using self_type = Cmp_is_false; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_is_false : public Comparison
+{
+  using self_type  = Cmp_is_false; ///< Self reference type.
+  using super_type = Comparison;   ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator()(Context& ctx, Feature const& feature) const;
+  bool operator()(Context &ctx, Feature const &feature) const;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
 
 protected:
   Cmp_is_false() = default;
 };
 
-const std::string Cmp_is_false::KEY {"is-false" };
-const ValueMask Cmp_is_false::TYPES {MaskFor({ STRING, BOOLEAN, INTEGER }) };
+const std::string Cmp_is_false::KEY{"is-false"};
+const ValueMask Cmp_is_false::TYPES{MaskFor({STRING, BOOLEAN, INTEGER})};
 
-bool Cmp_is_false::operator()(Context &, Feature const& feature) const {
+bool
+Cmp_is_false::operator()(Context &, Feature const &feature) const
+{
   return !feature.as_bool();
 }
 
-Rv<Comparison::Handle> Cmp_is_false::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
-  return { Handle{new self_type}, {} };
+Rv<Comparison::Handle>
+Cmp_is_false::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
 }
 
 /* ------------------------------------------------------------------------------------ */
 /** Check for NULL value.
  */
-class Cmp_is_null: public Comparison {
-  using self_type = Cmp_is_null; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_is_null : public Comparison
+{
+  using self_type  = Cmp_is_null; ///< Self reference type.
+  using super_type = Comparison;  ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, feature_type_for<NIL>) const override;
+  bool operator()(Context &ctx, feature_type_for<NIL>) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
 
 protected:
   Cmp_is_null() = default;
 };
 
-const std::string Cmp_is_null::KEY {"is-null" };
-const ValueMask Cmp_is_null::TYPES {MaskFor(NIL) };
+const std::string Cmp_is_null::KEY{"is-null"};
+const ValueMask Cmp_is_null::TYPES{MaskFor(NIL)};
 
-bool Cmp_is_null::operator()(Context &, feature_type_for<NIL>) const {
+bool
+Cmp_is_null::operator()(Context &, feature_type_for<NIL>) const
+{
   return true;
 }
 
-Rv<Comparison::Handle> Cmp_is_null::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
-  return { Handle{new self_type}, {} };
+Rv<Comparison::Handle>
+Cmp_is_null::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
 }
 /* ------------------------------------------------------------------------------------ */
 /** Check for empty (NULL or empty string)
  */
-class Cmp_is_empty: public Comparison {
-  using self_type = Cmp_is_empty; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_is_empty : public Comparison
+{
+  using self_type  = Cmp_is_empty; ///< Self reference type.
+  using super_type = Comparison;   ///< Parent type.
 public:
   static const std::string KEY; ///< Comparison name.
   static const ValueMask TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, feature_type_for<NIL>) const override;
-  bool operator() (Context& ctx, feature_type_for<STRING> const& s) const override;
-  bool operator() (Context& ctx, feature_type_for<TUPLE> const& s) const override;
+  bool operator()(Context &ctx, feature_type_for<NIL>) const override;
+  bool operator()(Context &ctx, feature_type_for<STRING> const &s) const override;
+  bool operator()(Context &ctx, feature_type_for<TUPLE> const &s) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node);
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
 
 protected:
   Cmp_is_empty() = default;
 };
 
-const std::string Cmp_is_empty::KEY {"is-empty" };
-const ValueMask Cmp_is_empty::TYPES {MaskFor({ NIL , STRING, TUPLE }) };
+const std::string Cmp_is_empty::KEY{"is-empty"};
+const ValueMask Cmp_is_empty::TYPES{MaskFor({NIL, STRING, TUPLE})};
 
-bool Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const {
+bool
+Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const
+{
   return true;
 }
 
-bool Cmp_is_empty::operator()(Context &, feature_type_for<STRING> const& s) const {
+bool
+Cmp_is_empty::operator()(Context &, feature_type_for<STRING> const &s) const
+{
   return s.empty();
 }
 
-bool Cmp_is_empty::operator()(Context &, feature_type_for<TUPLE> const& t) const {
+bool
+Cmp_is_empty::operator()(Context &, feature_type_for<TUPLE> const &t) const
+{
   return t.count() == 0;
 }
 
-Rv<Comparison::Handle> Cmp_is_empty::load(Config &, YAML::Node const&, TextView const&, TextView const&, YAML::Node) {
-  return { Handle{new self_type}, {} };
+Rv<Comparison::Handle>
+Cmp_is_empty::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
 }
 /* ------------------------------------------------------------------------------------ */
 /// Common elements for all binary integer comparisons.
 /// @internal Verify the base comparison operators for @c Feature support these types.
 struct Base_Binary_Cmp : public Comparison {
-  using self_type = Base_Binary_Cmp; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+  using self_type  = Base_Binary_Cmp; ///< Self reference type.
+  using super_type = Comparison;      ///< Parent type.
 public:
   /// Supported types.
-  using Cmp_Types = swoc::meta::type_list
-      < feature_type_for<INTEGER>
-      , feature_type_for<BOOLEAN>
-      , feature_type_for<IP_ADDR>
-      , feature_type_for<DURATION>
-      >;
+  using Cmp_Types = swoc::meta::type_list<feature_type_for<INTEGER>, feature_type_for<BOOLEAN>, feature_type_for<IP_ADDR>,
+                                          feature_type_for<DURATION>>;
 
   static inline const ActiveType TYPES = Cmp_Types::apply<ValueMaskFor>::value; ///< Mask for supported types.
 
@@ -912,24 +1033,27 @@ public:
    * @param value_node Value node for for @a key.
    * @return An instance or errors on failure.
    */
-  template < typename T >
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  template <typename T>
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
 
 protected:
   Expr _expr;
 
-  Base_Binary_Cmp(Expr && expr) : _expr(std::move(expr)) {}
+  Base_Binary_Cmp(Expr &&expr) : _expr(std::move(expr)) {}
 };
 
-template < typename T >
-Rv<Comparison::Handle> Base_Binary_Cmp::load(Config& cfg, YAML::Node const&, TextView const& key, TextView const&, YAML::Node value_node) {
-  auto && [ expr, errata ] = cfg.parse_expr(value_node);
+template <typename T>
+Rv<Comparison::Handle>
+Base_Binary_Cmp::load(Config &cfg, YAML::Node const &, TextView const &key, TextView const &, YAML::Node value_node)
+{
+  auto &&[expr, errata] = cfg.parse_expr(value_node);
   if (!errata.is_ok()) {
     return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", key, value_node.Mark()));
   }
   auto expr_type = expr.result_type();
-  if (! expr_type.can_satisfy(TYPES)) {
-    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(), TYPES);
+  if (!expr_type.can_satisfy(TYPES)) {
+    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(),
+                 TYPES);
   }
   return Handle(new T(std::move(expr)));
 }
@@ -937,129 +1061,168 @@ Rv<Comparison::Handle> Base_Binary_Cmp::load(Config& cfg, YAML::Node const&, Tex
 // --- The concrete comparisons.
 
 struct Cmp_eq : public Base_Binary_Cmp {
-  using self_type = Cmp_eq; ///< Self reference type.
+  using self_type  = Cmp_eq;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "eq";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return f == ctx.extract(_expr); }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return f == ctx.extract(_expr);
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 struct Cmp_ne : public Base_Binary_Cmp {
-  using self_type = Cmp_ne; ///< Self reference type.
+  using self_type  = Cmp_ne;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "ne";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return f != ctx.extract(_expr); }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return f != ctx.extract(_expr);
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 struct Cmp_lt : public Base_Binary_Cmp {
-  using self_type = Cmp_lt; ///< Self reference type.
+  using self_type  = Cmp_lt;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "lt";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return f < ctx.extract(_expr); }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return f < ctx.extract(_expr);
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 struct Cmp_le : public Base_Binary_Cmp {
-  using self_type = Cmp_le; ///< Self reference type.
+  using self_type  = Cmp_le;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "le";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return f <= ctx.extract(_expr); }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return f <= ctx.extract(_expr);
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 struct Cmp_gt : public Base_Binary_Cmp {
-  using self_type = Cmp_gt; ///< Self reference type.
+  using self_type  = Cmp_gt;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "gt";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return ctx.extract(_expr) < f; }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return ctx.extract(_expr) < f;
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 struct Cmp_ge : public Base_Binary_Cmp {
-  using self_type = Cmp_ge; ///< Self reference type.
+  using self_type  = Cmp_ge;          ///< Self reference type.
   using super_type = Base_Binary_Cmp; ///< Parent type.
 public:
   static inline const std::string KEY = "ge";
   using super_type::super_type;
-  bool operator() (Context& ctx, Feature const& f) const override { return ctx.extract(_expr) <= f; }
-  static Rv<Handle> load(Config& cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node) {
+  bool
+  operator()(Context &ctx, Feature const &f) const override
+  {
+    return ctx.extract(_expr) <= f;
+  }
+  static Rv<Handle>
+  load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  {
     return super_type::load<self_type>(cfg, cmp_node, key, arg, value_node);
   }
 };
 
 // --- //
 /// Compare against a range.
-class Cmp_in: public Comparison {
-  using self_type = Cmp_in; ///< Self reference type.
+class Cmp_in : public Comparison
+{
+  using self_type  = Cmp_in;     ///< Self reference type.
   using super_type = Comparison; ///< Parent type.
 public:
-  static const std::string KEY; ///< Comparison name.
+  static const std::string KEY;  ///< Comparison name.
   static const ActiveType TYPES; ///< Supported types.
 
-  bool operator() (Context& ctx, feature_type_for<INTEGER> n) const override;
-  bool operator() (Context& ctx, feature_type_for<IP_ADDR> const& addr) const override;
+  bool operator()(Context &ctx, feature_type_for<INTEGER> n) const override;
+  bool operator()(Context &ctx, feature_type_for<IP_ADDR> const &addr) const override;
 
   /// Construct an instance from YAML configuration.
-  static Rv<Handle> load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
 
 protected:
   Expr _min;
   Expr _max;
 };
 
-const std::string Cmp_in::KEY { "in" };
-const ActiveType Cmp_in::TYPES { INTEGER, IP_ADDR };
+const std::string Cmp_in::KEY{"in"};
+const ActiveType Cmp_in::TYPES{INTEGER, IP_ADDR};
 
-bool Cmp_in::operator()(Context &ctx, feature_type_for<IP_ADDR> const& addr) const {
+bool
+Cmp_in::operator()(Context &ctx, feature_type_for<IP_ADDR> const &addr) const
+{
   auto lhs = ctx.extract(_min);
   auto rhs = ctx.extract(_max);
-  return (lhs.index() == rhs.index()) &&
-         (lhs.index() == IndexFor(IP_ADDR) )&&
-         (std::get<IndexFor(IP_ADDR)>(lhs) <= addr) &&
+  return (lhs.index() == rhs.index()) && (lhs.index() == IndexFor(IP_ADDR)) && (std::get<IndexFor(IP_ADDR)>(lhs) <= addr) &&
          (addr <= std::get<IndexFor(IP_ADDR)>(rhs));
 }
 
-bool Cmp_in::operator()(Context &ctx, feature_type_for<INTEGER> n) const {
+bool
+Cmp_in::operator()(Context &ctx, feature_type_for<INTEGER> n) const
+{
   auto lhs = ctx.extract(_min);
   auto rhs = ctx.extract(_max);
-  return (lhs.index() == rhs.index()) &&
-     (lhs.index() == IndexFor(INTEGER)) &&
-      (std::get<IndexFor(INTEGER)>(lhs) <= n) &&
-      (n <= std::get<IndexFor(INTEGER)>(rhs));
+  return (lhs.index() == rhs.index()) && (lhs.index() == IndexFor(INTEGER)) && (std::get<IndexFor(INTEGER)>(lhs) <= n) &&
+         (n <= std::get<IndexFor(INTEGER)>(rhs));
 }
 
-auto Cmp_in::load(Config&cfg, YAML::Node const&cmp_node, TextView const&, TextView const&, YAML::Node value_node) -> Rv<Handle> {
-auto self = new self_type;
+auto
+Cmp_in::load(Config &cfg, YAML::Node const &cmp_node, TextView const &, TextView const &, YAML::Node value_node) -> Rv<Handle>
+{
+  auto self = new self_type;
   Handle handle{self};
 
   if (value_node.IsScalar()) {
     // Check if it's a valid IP range - all done.
     swoc::IPRange ip_range;
     if (ip_range.load(value_node.Scalar())) {
-      if (! cfg.active_type().can_satisfy(IP_ADDR)) {
-        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-            , KEY, cmp_node.Mark(), IP_ADDR, cfg.active_type());
+      if (!cfg.active_type().can_satisfy(IP_ADDR)) {
+        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
+                     IP_ADDR, cfg.active_type());
       }
       self->_min = Feature{ip_range.min()};
       self->_max = Feature{ip_range.max()};
@@ -1068,24 +1231,30 @@ auto self = new self_type;
 
     // Need to parse and verify it's a range of integers.
     TextView max_text = value_node.Scalar();
-    auto min_text = max_text.take_prefix_at('-');
+    auto min_text     = max_text.take_prefix_at('-');
     TextView parsed;
 
     if (max_text.empty()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])", KEY, cmp_node.Mark());
+      return Error(
+        R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])",
+        KEY, cmp_node.Mark());
     }
     auto n_min = svtoi(min_text.trim_if(&isspace), &parsed);
     if (parsed.size() != min_text.size()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])", KEY, cmp_node.Mark(), min_text);
+      return Error(
+        R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])",
+        KEY, cmp_node.Mark(), min_text);
     }
     auto n_max = svtoi(max_text.trim_if(&isspace), &parsed);
     if (parsed.size() != max_text.size()) {
-      return Error(R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])", KEY, cmp_node.Mark(), max_text);
+      return Error(
+        R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])",
+        KEY, cmp_node.Mark(), max_text);
     }
 
-    if (! cfg.active_type().can_satisfy(INTEGER)) {
-      return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                   , KEY, cmp_node.Mark(), INTEGER, cfg.active_type());
+    if (!cfg.active_type().can_satisfy(INTEGER)) {
+      return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(), INTEGER,
+                   cfg.active_type());
     }
 
     self->_min = Feature(n_min);
@@ -1094,30 +1263,30 @@ auto self = new self_type;
   } else if (value_node.IsSequence()) {
     if (value_node.size() == 2) {
       auto &&[lhs, lhs_errata] = cfg.parse_expr(value_node[0]);
-      if (! lhs_errata.is_ok()) {
+      if (!lhs_errata.is_ok()) {
         return std::move(lhs_errata);
       }
       auto lhs_type = lhs.result_type();
 
       auto &&[rhs, rhs_errata] = cfg.parse_expr(value_node[1]);
-      if (! rhs_errata.is_ok()) {
+      if (!rhs_errata.is_ok()) {
         return std::move(rhs_errata);
       }
       auto rhs_type = rhs.result_type();
 
       if (lhs_type != rhs_type) {
-        return Error(R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)"
-            , KEY, cmp_node.Mark(), lhs_type, rhs_type);
+        return Error(R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)", KEY, cmp_node.Mark(), lhs_type,
+                     rhs_type);
       }
 
-      if (! lhs_type.can_satisfy(MaskFor({INTEGER, IP_ADDR}))) {
-        return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)"
-                     , KEY, cmp_node.Mark(), INTEGER, IP_ADDR, lhs_type);
+      if (!lhs_type.can_satisfy(MaskFor({INTEGER, IP_ADDR}))) {
+        return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)", KEY, cmp_node.Mark(), INTEGER, IP_ADDR,
+                     lhs_type);
       }
 
-      if (! cfg.active_type().can_satisfy(lhs_type)) {
-        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)"
-                     , KEY, cmp_node.Mark(), lhs_type, cfg.active_type());
+      if (!cfg.active_type().can_satisfy(lhs_type)) {
+        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
+                     lhs_type, cfg.active_type());
       }
       self->_min = std::move(lhs);
       self->_max = std::move(rhs);
@@ -1127,32 +1296,39 @@ auto self = new self_type;
     }
   }
 
-  return Error(R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)", KEY, cmp_node.Mark());
+  return Error(
+    R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)",
+    KEY, cmp_node.Mark());
 }
 /* ------------------------------------------------------------------------------------ */
-class ComboComparison : public Comparison {
-  using self_type = ComboComparison; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class ComboComparison : public Comparison
+{
+  using self_type  = ComboComparison; ///< Self reference type.
+  using super_type = Comparison;      ///< Parent type.
 public:
   static const ActiveType TYPES; ///< Supported types.
 
-  virtual TextView const& key() const = 0;
+  virtual TextView const &key() const = 0;
 
   /// Construct an instance from YAML configuration.
-  static Rv<std::vector<Handle>> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<std::vector<Handle>> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg,
+                                      YAML::Node value_node);
 
 protected:
   /// List of sub-comparisons.
   std::vector<Handle> _cmps;
 
-  ComboComparison(std::vector<Handle> && cmps) : _cmps(std::move(cmps)) {}
+  ComboComparison(std::vector<Handle> &&cmps) : _cmps(std::move(cmps)) {}
 
-  static Errata load_case(Config& cfg, std::vector<Handle> & cmps, YAML::Node node);
+  static Errata load_case(Config &cfg, std::vector<Handle> &cmps, YAML::Node node);
 };
 
-const ActiveType ComboComparison::TYPES { ActiveType::any_type() };
+const ActiveType ComboComparison::TYPES{ActiveType::any_type()};
 
-auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<std::vector<Handle>> {
+auto
+ComboComparison::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &, YAML::Node value_node)
+  -> Rv<std::vector<Handle>>
+{
   std::vector<Handle> cmps;
   if (value_node.IsMap()) {
     auto errata = self_type::load_case(cfg, cmps, value_node);
@@ -1161,9 +1337,9 @@ auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView con
     }
   } else if (value_node.IsSequence()) {
     cmps.reserve(cmp_node.size());
-    for ( auto child : value_node ) {
+    for (auto child : value_node) {
       auto errata = self_type::load_case(cfg, cmps, child);
-      if (! errata.is_ok()) {
+      if (!errata.is_ok()) {
         errata.info("While parsing {} comparison at {}.", key, cmp_node.Mark());
         return errata;
       }
@@ -1172,7 +1348,9 @@ auto ComboComparison::load(Config &cfg, YAML::Node const& cmp_node, TextView con
   return cmps;
 }
 
-Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::Node node) {
+Errata
+ComboComparison::load_case(Config &cfg, std::vector<Handle> &cmps, YAML::Node node)
+{
   auto &&[cmp_handle, cmp_errata]{Comparison::load(cfg, node)};
   if (!cmp_errata.is_ok()) {
     return std::move(cmp_errata);
@@ -1183,30 +1361,39 @@ Errata ComboComparison::load_case(Config&cfg, std::vector<Handle>& cmps, YAML::N
 
 // ---
 
-class Cmp_any_of : public ComboComparison {
-  using self_type = Cmp_any_of; ///< Self reference type.
+class Cmp_any_of : public ComboComparison
+{
+  using self_type  = Cmp_any_of;      ///< Self reference type.
   using super_type = ComboComparison; ///< Parent type.
 public:
   static constexpr TextView KEY = "any-of"; ///< Comparison name.
 
-  TextView const& key() const override { return KEY; }
+  TextView const &
+  key() const override
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
-  Cmp_any_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+  Cmp_any_of(std::vector<Handle> &&cmps) : super_type(std::move(cmps)) {}
 };
 
-bool Cmp_any_of::operator()(Context &ctx, Feature const& feature) const {
-  return std::any_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
-    return (*cmp)(ctx, feature);
-  });
+bool
+Cmp_any_of::operator()(Context &ctx, Feature const &feature) const
+{
+  return std::any_of(_cmps.begin(), _cmps.end(), [&](Handle const &cmp) -> bool { return (*cmp)(ctx, feature); });
 }
 
-auto Cmp_any_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
-  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
-  if (! errata.is_ok()) {
+auto
+Cmp_any_of::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  auto &&[cmps, errata] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
   return Handle{new self_type{std::move(cmps)}};
@@ -1214,30 +1401,39 @@ auto Cmp_any_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key,
 
 // ---
 
-class Cmp_all_of : public ComboComparison {
-  using self_type = Cmp_all_of; ///< Self reference type.
+class Cmp_all_of : public ComboComparison
+{
+  using self_type  = Cmp_all_of;      ///< Self reference type.
   using super_type = ComboComparison; ///< Parent type.
 public:
   static constexpr TextView KEY = "all-of"; ///< Comparison name.
 
-  TextView const& key() const override { return KEY; }
+  TextView const &
+  key() const override
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
-  Cmp_all_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+  Cmp_all_of(std::vector<Handle> &&cmps) : super_type(std::move(cmps)) {}
 };
 
-bool Cmp_all_of::operator()(Context &ctx, Feature const& feature) const {
-  return std::all_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
-    return (*cmp)(ctx, feature);
-  });
+bool
+Cmp_all_of::operator()(Context &ctx, Feature const &feature) const
+{
+  return std::all_of(_cmps.begin(), _cmps.end(), [&](Handle const &cmp) -> bool { return (*cmp)(ctx, feature); });
 }
 
-auto Cmp_all_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
-  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
-  if (! errata.is_ok()) {
+auto
+Cmp_all_of::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  auto &&[cmps, errata] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
   return Handle{new self_type{std::move(cmps)}};
@@ -1245,30 +1441,39 @@ auto Cmp_all_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key,
 
 // ---
 
-class Cmp_none_of : public ComboComparison {
-  using self_type = Cmp_none_of; ///< Self reference type.
+class Cmp_none_of : public ComboComparison
+{
+  using self_type  = Cmp_none_of;     ///< Self reference type.
   using super_type = ComboComparison; ///< Parent type.
 public:
   static constexpr TextView KEY = "none-of"; ///< Comparison name.
 
-  TextView const& key() const override { return KEY; }
+  TextView const &
+  key() const override
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
-  Cmp_none_of(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+  Cmp_none_of(std::vector<Handle> &&cmps) : super_type(std::move(cmps)) {}
 };
 
-bool Cmp_none_of::operator()(Context &ctx, Feature const& feature) const {
-  return std::none_of(_cmps.begin(), _cmps.end(), [&](Handle const& cmp) -> bool {
-    return (*cmp)(ctx, feature);
-  });
+bool
+Cmp_none_of::operator()(Context &ctx, Feature const &feature) const
+{
+  return std::none_of(_cmps.begin(), _cmps.end(), [&](Handle const &cmp) -> bool { return (*cmp)(ctx, feature); });
 }
 
-auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
-  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
-  if (! errata.is_ok()) {
+auto
+Cmp_none_of::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  auto &&[cmps, errata] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
   return Handle{new self_type{std::move(cmps)}};
@@ -1276,40 +1481,51 @@ auto Cmp_none_of::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key
 
 // ---
 
-class Cmp_for_all : public Comparison {
-  using self_type = Cmp_for_all; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_for_all : public Comparison
+{
+  using self_type  = Cmp_for_all; ///< Self reference type.
+  using super_type = Comparison;  ///< Parent type.
 public:
   static constexpr TextView KEY = "for-all"; ///< Comparison name.
-  static const ActiveType TYPES; ///< Supported types.
+  static const ActiveType TYPES;             ///< Supported types.
 
-  TextView const& key() const { return KEY; }
+  TextView const &
+  key() const
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
   Comparison::Handle _cmp;
-  explicit Cmp_for_all(Handle && cmp) : _cmp(std::move(cmp)) {}
+  explicit Cmp_for_all(Handle &&cmp) : _cmp(std::move(cmp)) {}
 };
 
-const ActiveType Cmp_for_all::TYPES { ActiveType::any_type() };
+const ActiveType Cmp_for_all::TYPES{ActiveType::any_type()};
 
-bool Cmp_for_all::operator()(Context &ctx, Feature const& feature) const {
+bool
+Cmp_for_all::operator()(Context &ctx, Feature const &feature) const
+{
   if (TUPLE != ValueTypeOf(feature)) {
     return (*_cmp)(ctx, feature);
   }
 
-  auto & t { std::get<TUPLE>(feature) };
-  return std::all_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+  auto &t{std::get<TUPLE>(feature)};
+  return std::all_of(t.begin(), t.end(), [&](Feature const &f) { return (*_cmp)(ctx, f); });
 }
 
-auto Cmp_for_all::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
-  if (! value_node.IsMap()) {
+auto
+Cmp_for_all::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  if (!value_node.IsMap()) {
     return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
-  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
-  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
+  auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
     errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
@@ -1319,40 +1535,51 @@ auto Cmp_for_all::load(Config &cfg, YAML::Node const& cmp_node, TextView const& 
 
 // ---
 
-class Cmp_for_any : public Comparison {
-  using self_type = Cmp_for_any; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_for_any : public Comparison
+{
+  using self_type  = Cmp_for_any; ///< Self reference type.
+  using super_type = Comparison;  ///< Parent type.
 public:
   static constexpr TextView KEY = "for-any"; ///< Comparison name.
-  static const ActiveType TYPES; ///< Supported types.
+  static const ActiveType TYPES;             ///< Supported types.
 
-  TextView const& key() const { return KEY; }
+  TextView const &
+  key() const
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
   Comparison::Handle _cmp;
-  explicit Cmp_for_any(Handle && cmp) : _cmp(std::move(cmp)) {}
+  explicit Cmp_for_any(Handle &&cmp) : _cmp(std::move(cmp)) {}
 };
 
-const ActiveType Cmp_for_any::TYPES { ActiveType::any_type() };
+const ActiveType Cmp_for_any::TYPES{ActiveType::any_type()};
 
-bool Cmp_for_any::operator()(Context &ctx, Feature const& feature) const {
+bool
+Cmp_for_any::operator()(Context &ctx, Feature const &feature) const
+{
   if (TUPLE != ValueTypeOf(feature)) {
     return (*_cmp)(ctx, feature);
   }
 
-  auto & t { std::get<TUPLE>(feature) };
-  return std::any_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+  auto &t{std::get<TUPLE>(feature)};
+  return std::any_of(t.begin(), t.end(), [&](Feature const &f) { return (*_cmp)(ctx, f); });
 }
 
-auto Cmp_for_any::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
-  if (! value_node.IsMap()) {
+auto
+Cmp_for_any::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  if (!value_node.IsMap()) {
     return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
-  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
-  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
+  auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
     errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
@@ -1362,40 +1589,51 @@ auto Cmp_for_any::load(Config &cfg, YAML::Node const& cmp_node, TextView const& 
 
 // ---
 
-class Cmp_for_none : public Comparison {
-  using self_type = Cmp_for_none; ///< Self reference type.
-  using super_type = Comparison; ///< Parent type.
+class Cmp_for_none : public Comparison
+{
+  using self_type  = Cmp_for_none; ///< Self reference type.
+  using super_type = Comparison;   ///< Parent type.
 public:
   static constexpr TextView KEY = "for-none"; ///< Comparison name.
-  static const ActiveType TYPES; ///< Supported types.
+  static const ActiveType TYPES;              ///< Supported types.
 
-  TextView const& key() const { return KEY; }
+  TextView const &
+  key() const
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
   Comparison::Handle _cmp;
-  explicit Cmp_for_none(Handle && cmp) : _cmp(std::move(cmp)) {}
+  explicit Cmp_for_none(Handle &&cmp) : _cmp(std::move(cmp)) {}
 };
 
-const ActiveType Cmp_for_none::TYPES { ActiveType::any_type() };
+const ActiveType Cmp_for_none::TYPES{ActiveType::any_type()};
 
-bool Cmp_for_none::operator()(Context &ctx, Feature const& feature) const {
+bool
+Cmp_for_none::operator()(Context &ctx, Feature const &feature) const
+{
   if (TUPLE != ValueTypeOf(feature)) {
     return (*_cmp)(ctx, feature);
   }
 
-  auto & t { std::get<TUPLE>(feature) };
-  return std::all_of(t.begin(), t.end(), [&](Feature const& f) { return (*_cmp)(ctx, f); });
+  auto &t{std::get<TUPLE>(feature)};
+  return std::all_of(t.begin(), t.end(), [&](Feature const &f) { return (*_cmp)(ctx, f); });
 }
 
-auto Cmp_for_none::load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const&, YAML::Node value_node) -> Rv<Handle> {
-  if (! value_node.IsMap()) {
+auto
+Cmp_for_none::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &, YAML::Node value_node)
+  -> Rv<Handle>
+{
+  if (!value_node.IsMap()) {
     return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
-  auto scope { cfg.feature_scope(cfg.active_type().tuple_types()) };
-  auto && [ cmp, errata ] = Comparison::load(cfg, value_node);
+  auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
+  auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
     errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
@@ -1406,22 +1644,30 @@ auto Cmp_for_none::load(Config &cfg, YAML::Node const& cmp_node, TextView const&
 // ---
 
 /// Compare the active feature as a tuple to a list of comparisons.
-class Cmp_as_tuple : public ComboComparison {
-  using self_type = Cmp_as_tuple; ///< Self reference type.
+class Cmp_as_tuple : public ComboComparison
+{
+  using self_type  = Cmp_as_tuple;    ///< Self reference type.
   using super_type = ComboComparison; ///< Parent type.
 public:
   static constexpr TextView KEY = "as-tuple"; ///< Comparison name.
 
-  TextView const& key() const override { return KEY; }
+  TextView const &
+  key() const override
+  {
+    return KEY;
+  }
 
-  bool operator()(Context& ctx, Feature const& feature) const override;
+  bool operator()(Context &ctx, Feature const &feature) const override;
 
-  static Rv<Handle> load(Config &cfg, YAML::Node const& cmp_node, TextView const& key, TextView const& arg, YAML::Node value_node);
+  static Rv<Handle> load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node);
+
 protected:
-  explicit Cmp_as_tuple(std::vector<Handle> && cmps) : super_type(std::move(cmps)) {}
+  explicit Cmp_as_tuple(std::vector<Handle> &&cmps) : super_type(std::move(cmps)) {}
 };
 
-bool Cmp_as_tuple::operator()(Context &ctx, Feature const& feature) const {
+bool
+Cmp_as_tuple::operator()(Context &ctx, Feature const &feature) const
+{
   if (_cmps.empty()) {
     return true;
   }
@@ -1431,13 +1677,13 @@ bool Cmp_as_tuple::operator()(Context &ctx, Feature const& feature) const {
     return (*_cmps[0])(ctx, feature);
   }
 
-  auto t = std::get<TUPLE>(feature);
+  auto t      = std::get<TUPLE>(feature);
   auto t_size = t.size();
   auto c_size = _cmps.size();
-  auto limit = std::min(t_size, c_size);
-  size_t idx = 0;
+  auto limit  = std::min(t_size, c_size);
+  size_t idx  = 0;
   while (idx < limit) {
-    if (! (*_cmps[idx])(ctx, t[idx])) {
+    if (!(*_cmps[idx])(ctx, t[idx])) {
       return false;
     }
     ++idx;
@@ -1445,12 +1691,15 @@ bool Cmp_as_tuple::operator()(Context &ctx, Feature const& feature) const {
   return true;
 }
 
-auto Cmp_as_tuple::load(Config&cfg, YAML::Node const&cmp_node, TextView const&key, TextView const&arg, YAML::Node value_node) -> Rv<Handle> {
+auto
+Cmp_as_tuple::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, TextView const &arg, YAML::Node value_node)
+  -> Rv<Handle>
+{
   auto ttype = cfg.active_type().tuple_types();
   ActiveType atype{ttype};
-  auto scope = cfg.feature_scope(ttype); // drop tuple, use nested type.
-  auto && [ cmps, errata ] = super_type::load(cfg, cmp_node, key, arg, value_node);
-  if (! errata.is_ok()) {
+  auto scope            = cfg.feature_scope(ttype); // drop tuple, use nested type.
+  auto &&[cmps, errata] = super_type::load(cfg, cmp_node, key, arg, value_node);
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
   return Handle{new self_type{std::move(cmps)}};
@@ -1458,15 +1707,17 @@ auto Cmp_as_tuple::load(Config&cfg, YAML::Node const&cmp_node, TextView const&ke
 
 // --- ComparisonGroup --- //
 
-Errata ComparisonGroupBase::load(Config& cfg, YAML::Node node) {
+Errata
+ComparisonGroupBase::load(Config &cfg, YAML::Node node)
+{
   if (node.IsMap()) {
-    auto errata { this->load_case(cfg, node)};
-    if (! errata.is_ok()) {
+    auto errata{this->load_case(cfg, node)};
+    if (!errata.is_ok()) {
       return errata;
     }
   } else if (node.IsSequence()) {
-    for ( auto child : node ) {
-      if (auto errata { this->load_case(cfg, child)} ; ! errata.is_ok()) {
+    for (auto child : node) {
+      if (auto errata{this->load_case(cfg, child)}; !errata.is_ok()) {
         return errata;
       }
     }
@@ -1476,9 +1727,11 @@ Errata ComparisonGroupBase::load(Config& cfg, YAML::Node node) {
   return {};
 }
 
-Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node node) {
-  auto && [handle, errata]{Comparison::load(cfg, node)};
-  if (! errata.is_ok()) {
+Rv<Comparison::Handle>
+ComparisonGroupBase::load_cmp(Config &cfg, YAML::Node node)
+{
+  auto &&[handle, errata]{Comparison::load(cfg, node)};
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
   return std::move(handle);
@@ -1486,8 +1739,9 @@ Rv<Comparison::Handle> ComparisonGroupBase::load_cmp(Config& cfg, YAML::Node nod
 
 // --- Initialization --- //
 
-namespace {
-[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+namespace
+{
+[[maybe_unused]] bool INITIALIZED = []() -> bool {
   Comparison::define(Cmp_otherwise::KEY, Cmp_otherwise::TYPES, Cmp_otherwise::load);
   Comparison::define(Cmp_is_true::KEY, Cmp_is_true::TYPES, Cmp_is_true::load);
   Comparison::define(Cmp_is_false::KEY, Cmp_is_false::TYPES, Cmp_is_false::load);
@@ -1522,6 +1776,6 @@ namespace {
   Comparison::define(Cmp_for_none::KEY, Cmp_for_none::TYPES, Cmp_for_none::load);
 
   return true;
-} ();
+}();
 
 } // namespace

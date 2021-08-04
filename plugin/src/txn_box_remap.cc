@@ -35,16 +35,18 @@ using namespace swoc::literals;
 /* ------------------------------------------------------------------------------------ */
 Config::YamlCache Remap_Cfg_Cache;
 /* ------------------------------------------------------------------------------------ */
-class RemapContext {
+class RemapContext
+{
   using self_type = RemapContext; ///< Self reference type.
 public:
   std::shared_ptr<Config> rule_cfg; ///< Configuration for a specific rule in @a r_cfg;
 };
 /* ------------------------------------------------------------------------------------ */
 TSReturnCode
-TSRemapInit(TSRemapInterface*, char* errbuff, int errbuff_size) {
+TSRemapInit(TSRemapInterface *, char *errbuff, int errbuff_size)
+{
   G.reserve_txn_arg();
-  if (! G._preload_errata.is_ok()) {
+  if (!G._preload_errata.is_ok()) {
     std::string err_str;
     swoc::bwprint(err_str, "{}: startup issues.\n{}", Config::PLUGIN_NAME, G._preload_errata);
     G._preload_errata.clear();
@@ -56,12 +58,15 @@ TSRemapInit(TSRemapInterface*, char* errbuff, int errbuff_size) {
 };
 
 #if TS_VERSION_MAJOR >= 8
-void TSRemapPostConfigReload(TSRemapReloadStatus) {
+void TSRemapPostConfigReload(TSRemapReloadStatus)
+{
   Remap_Cfg_Cache.clear();
 }
 #endif
 
-TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbuff, int errbuff_size) {
+TSReturnCode
+TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuff, int errbuff_size)
+{
   swoc::FixedBufferWriter w(errbuff, errbuff_size);
 
   if (argc < 3) {
@@ -70,12 +75,14 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   }
 
   auto cfg = std::make_shared<Config>();
-  swoc::MemSpan<char const *> rule_args{ swoc::MemSpan<char*>(argv, argc).rebind<char const *>() };
+  swoc::MemSpan<char const *> rule_args{swoc::MemSpan<char *>(argv, argc).rebind<char const *>()};
   cfg->mark_as_remap();
-  Errata errata = cfg->load_cli_args(cfg, rule_args, 2
+  Errata errata = cfg->load_cli_args(cfg, rule_args,
+                                     2
 #if TS_VERSION_MAJOR >= 8
-      // pre ATS 8 doesn't support remap reload callbacks, so the config cache can't be used.
-      , &Remap_Cfg_Cache
+                                     // pre ATS 8 doesn't support remap reload callbacks, so the config cache can't be used.
+                                     ,
+                                     &Remap_Cfg_Cache
 #endif
   );
 
@@ -87,12 +94,14 @@ TSReturnCode TSRemapNewInstance(int argc, char *argv[], void ** ih, char * errbu
   }
 
   G._remap_ctx_storage_required += cfg->reserved_ctx_storage_size();
-  *ih = new RemapContext { cfg };
+  *ih = new RemapContext{cfg};
   return TS_SUCCESS;
 }
 
-TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
-  auto r_ctx = static_cast<RemapContext*>(ih);
+TSRemapStatus
+TSRemapDoRemap(void *ih, TSHttpTxn txn, TSRemapRequestInfo *rri)
+{
+  auto r_ctx = static_cast<RemapContext *>(ih);
   // This is a hack because errors reported during TSRemapNewInstance are ignored
   // leaving broken instances around. Gah. Need to fix remap loading to actually
   // check for new instance errors.
@@ -100,7 +109,7 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
     return TSREMAP_NO_REMAP;
   }
 
-  Context * ctx = static_cast<Context*>(ts::HttpTxn(txn).arg(G.TxnArgIdx));
+  Context *ctx = static_cast<Context *>(ts::HttpTxn(txn).arg(G.TxnArgIdx));
   if (nullptr == ctx) {
     ctx = new Context({});
     ctx->enable_hooks(txn); // This sets G.TxnArgIdx
@@ -110,8 +119,10 @@ TSRemapStatus TSRemapDoRemap(void* ih, TSHttpTxn txn, TSRemapRequestInfo* rri) {
   return ctx->_remap_status;
 }
 
-void TSRemapDeleteInstance(void *ih) {
-  auto r_ctx = static_cast<RemapContext*>(ih);
+void
+TSRemapDeleteInstance(void *ih)
+{
+  auto r_ctx = static_cast<RemapContext *>(ih);
   if (r_ctx) {
     G._remap_ctx_storage_required -= r_ctx->rule_cfg->reserved_ctx_storage_size();
     delete r_ctx;
