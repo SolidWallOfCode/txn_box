@@ -14,7 +14,8 @@
 /** Handle a group of features that can cross reference.
  * Support a map or list of features as a group.
  */
-class FeatureGroup {
+class FeatureGroup
+{
   using self_type = FeatureGroup; ///< Self reference type.
 public:
   /// Index type for the various indices.
@@ -24,35 +25,36 @@ public:
 
   /// Initialization flags.
   enum Flag : int8_t {
-    NONE = -1, ///< No flags
-    REQUIRED = 0, ///< Key must exist and have a valid expression.
+    NONE     = -1, ///< No flags
+    REQUIRED = 0,  ///< Key must exist and have a valid expression.
   };
 
   /// Description of a key with a feature to extract.
   struct Descriptor {
     using self_type = Descriptor; ///< Self reference type.
-    swoc::TextView _name; ///< Key name
-    std::bitset<2> _flags; ///< Flags.
+    swoc::TextView _name;         ///< Key name
+    std::bitset<2> _flags;        ///< Flags.
 
     // Convenience constructors.
     /// Construct with only a name, no flags.
-    Descriptor(swoc::TextView const& name);
+    Descriptor(swoc::TextView const &name);
     /// Construct with a name and a single flag.
-    Descriptor(swoc::TextView const& name, Flag flag);;
+    Descriptor(swoc::TextView const &name, Flag flag);
+    ;
     /// Construct with a name and a list of flags.
-    Descriptor(swoc::TextView const& name, std::initializer_list<Flag> const& flags);
+    Descriptor(swoc::TextView const &name, std::initializer_list<Flag> const &flags);
   };
 
   /// Information about an expression.
   /// This is per configuration data.
   struct ExprInfo {
-    Expr _expr; ///< The feature expression.
+    Expr _expr;           ///< The feature expression.
     swoc::TextView _name; ///< Key name.
     /// Extracted feature index. For each referenced key, a slot is allocated for caching the
     /// extracted feature. @c INVALID_IDX indicates the feature isn't a dependency target
     /// and is therefore not cached.
     index_type _exf_idx = INVALID_IDX;
-    bool _dependent_p = false; ///< Is expression dependent on another key in the group?
+    bool _dependent_p   = false; ///< Is expression dependent on another key in the group?
   };
 
   /** Store invocation state for extracting features.
@@ -85,7 +87,7 @@ public:
    * not even clear what that would mean in practice - is the entire multi-value extracted? Obscure
    * enough I'll leave that for when a use case becomes known.
    */
-  swoc::Errata load(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
+  swoc::Errata load(Config &cfg, YAML::Node const &node, std::initializer_list<Descriptor> const &ex_keys);
 
   /** Load the expressions from @a node
    *
@@ -98,7 +100,7 @@ public:
    * The formats are extracted in order. If any format is @c REQUIRED then all preceding ones are
    * also required, even if not marked as such.
    */
-  swoc::Errata load_as_tuple(Config& cfg, YAML::Node const& node, std::initializer_list<Descriptor> const& ex_keys);
+  swoc::Errata load_as_tuple(Config &cfg, YAML::Node const &node, std::initializer_list<Descriptor> const &ex_keys);
 
   /** Load the expression from a scalar @a value.
    *
@@ -107,21 +109,21 @@ public:
    * @param name Name of the key to load.
    * @return Errors, if any.
    */
-  swoc::Errata load_as_scalar(Config& cfg, YAML::Node const& value, swoc::TextView const& name);
+  swoc::Errata load_as_scalar(Config &cfg, YAML::Node const &value, swoc::TextView const &name);
 
   /** Get the index of extraction information for @a name.
    *
    * @param name Name of the key.
    * @return The index for the extraction info for @a name or @c INVALID_IDX if not found.
    */
-  index_type index_of(swoc::TextView const& name);
+  index_type index_of(swoc::TextView const &name);
 
   /** Get the extraction information for @a idx.
    *
    * @param idx Key index.
    * @return The extraction information.
    */
-  ExprInfo & operator [] (index_type idx);
+  ExprInfo &operator[](index_type idx);
 
   /** Extract the feature.
    *
@@ -130,7 +132,7 @@ public:
    * @param name Name of the feature key.
    * @return The extracted data.
    */
-  Feature extract(Context& ctx, swoc::TextView const& name);
+  Feature extract(Context &ctx, swoc::TextView const &name);
 
   /** Extract the feature.
    *
@@ -139,10 +141,10 @@ public:
    * @param idx Index of the feature key.
    * @return The extracted data.
    */
-  Feature extract(Context& ctx, index_type idx);
+  Feature extract(Context &ctx, index_type idx);
 
 protected:
-  static constexpr uint8_t DONE = 1; ///< All dependencies computed.
+  static constexpr uint8_t DONE    = 1; ///< All dependencies computed.
   static constexpr uint8_t IN_PLAY = 2; ///< Dependencies currently being computed.
 
   /** Wrapper for tracking array.
@@ -164,7 +166,6 @@ protected:
    * @internal Move @c Config in here as well?
    */
   struct Tracking {
-
     /// Per tracked item information.
     struct Info : public ExprInfo {
       int8_t _mark = NONE; ///< Ordering search march.
@@ -183,7 +184,7 @@ protected:
     /// The number of valid elements in the @a _info array.
     index_type _count = 0;
 
-    YAML::Node const& _node; ///< Node containing the keys.
+    YAML::Node const &_node; ///< Node containing the keys.
 
     /** Construct a wrapper on a tracking array.
      *
@@ -191,24 +192,28 @@ protected:
      * @param info Array.
      * @param n # of elements in @a info.
      */
-    Tracking(YAML::Node const& node, Info * info, unsigned n) : _info(info, n), _node(node)  {}
+    Tracking(YAML::Node const &node, Info *info, unsigned n) : _info(info, n), _node(node) {}
 
     /// Allocate an entry and return a pointer to it.
-    Info * alloc() { return &_info[_count++]; }
+    Info *
+    alloc()
+    {
+      return &_info[_count++];
+    }
 
     /// Find the array element with @a name.
     /// @return A pointer to the element, or @c nullptr if not found.
-    Info * find(swoc::TextView const& name) const;
+    Info *find(swoc::TextView const &name) const;
 
     /// Obtain an array element for @a name.
     /// @return A pointer to the element.
     /// If @a name is not in the array, an element is allocated and set to @a name.
-    Info * obtain(swoc::TextView const& name);
+    Info *obtain(swoc::TextView const &name);
   };
 
   index_type _ref_count = 0; ///< Number of edge targets.
 
-  swoc::MemSpan<ExprInfo> _expr_info; ///< Info for the key expression by key.
+  swoc::MemSpan<ExprInfo> _expr_info;  ///< Info for the key expression by key.
   swoc::MemSpan<index_type> _ordering; ///< Extraction ordering for dependency targets.
 
   /// Context storage to store a @c State instance across feature extraction.
@@ -225,7 +230,7 @@ protected:
    * @param node Node that has the expression as a value.
    * @return Errors, if any.
    */
-  swoc::Errata load_expr(Config & cfg, Tracking & tracking, Tracking::Info * info, YAML::Node const& node);
+  swoc::Errata load_expr(Config &cfg, Tracking &tracking, Tracking::Info *info, YAML::Node const &node);
 
   /** Load the format at key @a name from the tracking node.
    *
@@ -237,20 +242,31 @@ protected:
    * The base node is contained in @a tracking. The key for @a name is selected and the
    * format there loaded.
    */
-  swoc::Rv<Tracking::Info*> load_key(Config & cfg, Tracking& tracking, swoc::TextView name);
-
+  swoc::Rv<Tracking::Info *> load_key(Config &cfg, Tracking &tracking, swoc::TextView name);
 };
 
 inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name) : _name(name) {}
 
-inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name, FeatureGroup::Flag flag) : _name(name) { if (flag != NONE) { _flags[flag] = true ; } }
-
-inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name
-                                     , std::initializer_list<FeatureGroup::Flag> const &flags) : _name(name) {
-  for ( auto f : flags ) {
-    if (f != NONE) { _flags[f] = true; }
+inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name, FeatureGroup::Flag flag) : _name(name)
+{
+  if (flag != NONE) {
+    _flags[flag] = true;
   }
 }
 
-inline FeatureGroup::ExprInfo &FeatureGroup::operator[](FeatureGroup::index_type idx) { return _expr_info[idx]; }
+inline FeatureGroup::Descriptor::Descriptor(swoc::TextView const &name, std::initializer_list<FeatureGroup::Flag> const &flags)
+  : _name(name)
+{
+  for (auto f : flags) {
+    if (f != NONE) {
+      _flags[f] = true;
+    }
+  }
+}
+
+inline FeatureGroup::ExprInfo &
+FeatureGroup::operator[](FeatureGroup::index_type idx)
+{
+  return _expr_info[idx];
+}
 /* ---------------------------------------------------------------------------------------------- */

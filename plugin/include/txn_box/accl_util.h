@@ -23,7 +23,7 @@ class Comparison;
 template <class T> class reversed_view;
 
 ///
-/// @brief PATRICIA algorithm implementation using binary trees.
+/// @brief PATRICA algorithm implementation using binary trees.
 ///        This Data Structure allows to search for N key in exactly N nodes, providing a log(N) bit
 ///        comparision with a single full key comparision per search. The key(or view) is stored in the node,
 ///        nodes are traversed according to the bits of the key, this implementation does NOT uses the key
@@ -161,12 +161,11 @@ get_bit(Key const &key, int position)
   }
   typename Key::const_pointer ptr = &*std::begin(key);
   assert(ptr != nullptr);
-  int const byte_number           = position / 8;
-  int const position_in_byte      = position - (byte_number * 8);
-  auto byte                       = get_byte<Key>(ptr, byte_number);
+  int const byte_number      = position / 8;
+  int const position_in_byte = position - (byte_number * 8);
+  auto byte                  = get_byte<Key>(ptr, byte_number);
   return ((byte) >> (7 - position_in_byte)) & 1;
 }
-
 
 template <typename Key>
 static auto
@@ -389,7 +388,7 @@ template <typename View> class reversed_view
 {
   /// haven't test more than this types.
   static_assert(swoc::meta::is_any_of<View, std::string, std::string_view, swoc::TextView>::value, "Type not supported");
-  // TODO: remove ^^ once is_any_of_v is available. 
+  // TODO: remove ^^ once is_any_of_v is available.
   // static_assert(swoc::meta::is_any_of_v<View, std::string, std::string_view, swoc::TextView>, "Type not supported");
 
 public:
@@ -399,7 +398,11 @@ public:
   // Define our own iterator which show a reverse view of the original.
   struct iterator {
     explicit iterator(typename View::reverse_iterator iter) : _iter(iter) {}
-    const typename View::value_type &operator*() const { return *_iter; }
+    const typename View::value_type &
+    operator*() const
+    {
+      return *_iter;
+    }
 
     // TODO: Work on some operator to provide a better api (operator+, operator+=, etc)
     iterator &
@@ -432,12 +435,12 @@ public:
   private:
     typename View::reverse_iterator _iter;
   };
-  
+
   reversed_view() noexcept = default;
 
   explicit reversed_view(View view) noexcept : _view(view) {}
   bool
-  operator==(View const& v) const noexcept
+  operator==(View const &v) const noexcept
   {
     return v == _view;
   }
@@ -475,7 +478,7 @@ public:
   template <typename T> friend std::ostream &operator<<(std::ostream &os, reversed_view<T> const &v);
   template <typename T> friend bool operator==(reversed_view<T> const &lhs, reversed_view<T> const &rhs);
 
-  // To be removed. POC for testing purposes. 
+  // To be removed. POC for testing purposes.
   View
   get_view() const noexcept
   {
@@ -513,8 +516,8 @@ operator==(reversed_view<View> const &lhs, reversed_view<View> const &rhs)
 class string_tree_map
 {
 public:
-  using value_type = swoc::TextView;
-  using key_type   = swoc::TextView;
+  using value_type  = swoc::TextView;
+  using key_type    = swoc::TextView;
   using search_type = std::vector<std::pair<key_type, value_type>>;
 
   bool

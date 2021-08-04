@@ -27,12 +27,14 @@ Hook Convert_TS_Event_To_TxB_Hook(TSEvent ev);
 /// TxB values are compact so an array works fine.
 extern std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
-namespace ts {
-
+namespace ts
+{
 class SSLContext;
 
-template<typename ... Args>
-void DebugMsg(swoc::TextView fmt, Args&& ... args) {
+template <typename... Args>
+void
+DebugMsg(swoc::TextView fmt, Args &&... args)
+{
   swoc::LocalBufferWriter<1024> w;
   auto arg_pack = std::forward_as_tuple(args...);
   w.print_v(fmt, arg_pack);
@@ -54,10 +56,11 @@ void DebugMsg(swoc::TextView fmt, Args&& ... args) {
  * @internal - why isn't this a @c std::unique_ptr with a specialized destructor? Because we
  * need the length?
  */
-class String {
+class String
+{
 public:
   String() = default; ///< Construct an empty instance.
-  ~String(); ///< Clean up string.
+  ~String();          ///< Clean up string.
 
   /** Construct from a TS allocated string.
    *
@@ -74,15 +77,25 @@ protected:
 
 inline ts::String::String(char *s, int64_t size) : _view{s, static_cast<size_t>(size)} {}
 
-inline String::~String() { if (_view.data()) { TSfree(const_cast<char *>(_view.data())); }}
+inline String::~String()
+{
+  if (_view.data()) {
+    TSfree(const_cast<char *>(_view.data()));
+  }
+}
 
-inline String::operator swoc::TextView() const { return _view; }
+inline String::operator swoc::TextView() const
+{
+  return _view;
+}
 
 /// TS configuration variable data as supported by the API.
 using ConfVarData = std::variant<std::monostate, intmax_t, double, swoc::TextView>;
 
 /// Convert to an absolute path in the TS configuration directory.
-inline swoc::file::path make_absolute(swoc::file::path&& path) {
+inline swoc::file::path
+make_absolute(swoc::file::path &&path)
+{
   if (path.is_relative()) {
     path = swoc::file::path(TSConfigDirGet()) / path;
   }
@@ -90,7 +103,9 @@ inline swoc::file::path make_absolute(swoc::file::path&& path) {
 }
 
 /// Convert to an absolute path in the TS configuration directory.
-inline swoc::file::path& make_absolute(swoc::file::path& path) {
+inline swoc::file::path &
+make_absolute(swoc::file::path &path)
+{
   if (path.is_relative()) {
     path = swoc::file::path(TSConfigDirGet()) / path;
   }
@@ -99,7 +114,13 @@ inline swoc::file::path& make_absolute(swoc::file::path& path) {
 
 /// Clean up an TS @c TSIOBuffer
 struct IOBufferDeleter {
-  void operator()(TSIOBuffer buff) { if (buff) { TSIOBufferDestroy(buff); }}
+  void
+  operator()(TSIOBuffer buff)
+  {
+    if (buff) {
+      TSIOBufferDestroy(buff);
+    }
+  }
 };
 
 /// Smart pointer to TS IO Buffer.
@@ -108,7 +129,8 @@ using IOBuffer = std::unique_ptr<std::remove_pointer<TSIOBuffer>::type, IOBuffer
 /** Generic base class for objects in the TS Header heaps.
  * All of these are represented by a buffer and a location.
  */
-class HeapObject {
+class HeapObject
+{
 public:
   HeapObject() = default;
 
@@ -123,26 +145,29 @@ public:
   /// Get the memory location handle.
   TSMLoc mloc() const;
 
-  HeapObject& clear();
+  HeapObject &clear();
 
 protected:
   TSMBuffer _buff = nullptr; ///< TS buffer handle.
-  TSMLoc _loc = nullptr; ///< TS memory locatio handle.
+  TSMLoc _loc     = nullptr; ///< TS memory locatio handle.
 };
 
-inline HeapObject& HeapObject::clear() {
+inline HeapObject &
+HeapObject::clear()
+{
   _buff = nullptr;
-  _loc = nullptr;
+  _loc  = nullptr;
   return *this;
 }
 
 class HttpHeader;
 
 /// A URL object.
-class URL : public HeapObject {
+class URL : public HeapObject
+{
   friend class HttpHeader;
 
-  using self_type = URL; ///< Self reference type.
+  using self_type  = URL;        ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
   URL() = default;
@@ -155,7 +180,7 @@ public:
    * @param w Destination buffer.
    * @return @a w
    */
-  swoc::BufferWriter& write_full(swoc::BufferWriter& w) const;
+  swoc::BufferWriter &write_full(swoc::BufferWriter &w) const;
 
   /** Get the network location
    *
@@ -171,10 +196,10 @@ public:
    *
    * @note If the port is not explicitly set, it is computed based on the scheme.
    */
-  in_port_t port() const; ///< Port.
-  swoc::TextView scheme() const; ///< View of the URL scheme.
-  swoc::TextView path() const; ///< View of the URL path.
-  swoc::TextView query() const; ///< View of the query.
+  in_port_t port() const;          ///< Port.
+  swoc::TextView scheme() const;   ///< View of the URL scheme.
+  swoc::TextView path() const;     ///< View of the URL path.
+  swoc::TextView query() const;    ///< View of the query.
   swoc::TextView fragment() const; ///< View of the fragment.
 
   /** Set the scheme for the URL.
@@ -182,18 +207,22 @@ public:
    * @param scheme Scheme as text.
    * @return @a this
    */
-  self_type& scheme_set(swoc::TextView const& scheme);
+  self_type &scheme_set(swoc::TextView const &scheme);
 
   /** Set the host in the URL.
    *
    * @param host Host.
    * @return @a this.
    */
-  self_type& host_set(swoc::TextView const& host);
+  self_type &host_set(swoc::TextView const &host);
 
-  static bool is_port_canonical(swoc::TextView const& scheme, in_port_t port);
+  static bool is_port_canonical(swoc::TextView const &scheme, in_port_t port);
 
-  bool is_port_canonical() const { return this->is_port_canonical(this->scheme(), this->port()); }
+  bool
+  is_port_canonical() const
+  {
+    return this->is_port_canonical(this->scheme(), this->port());
+  }
 
   /** Set the @a port in the URL.
    *
@@ -202,38 +231,44 @@ public:
    *
    * @note If the port matches the computed port of the scheme, it is not explicitly set.
    */
-  self_type& port_set(in_port_t port);
+  self_type &port_set(in_port_t port);
 
-  self_type& path_set(swoc::TextView path) {
+  self_type &
+  path_set(swoc::TextView path)
+  {
     TSUrlPathSet(_buff, _loc, path.data(), path.size());
     return *this;
   }
 
-  self_type& query_set(swoc::TextView text);
-  self_type& fragment_set(swoc::TextView text);
+  self_type &query_set(swoc::TextView text);
+  self_type &fragment_set(swoc::TextView text);
 };
 
-class HttpField : public HeapObject {
+class HttpField : public HeapObject
+{
   friend class HttpHeader;
 
-  using self_type = HttpField; ///< Self reference type.
+  using self_type  = HttpField;  ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
   HttpField() = default;
 
-  HttpField(self_type const&) = delete;
+  HttpField(self_type const &) = delete;
 
-  HttpField(self_type&& that) : super_type(that), _hdr(that._hdr) {
+  HttpField(self_type &&that) : super_type(that), _hdr(that._hdr)
+  {
     that._buff = nullptr;
-    that._hdr = nullptr;
-    that._loc = nullptr;
+    that._hdr  = nullptr;
+    that._loc  = nullptr;
   }
 
-  self_type& operator=(self_type const&) = delete;
+  self_type &operator=(self_type const &) = delete;
 
-  self_type& operator=(self_type&& that) {
+  self_type &
+  operator=(self_type &&that)
+  {
     this->~self_type();
-    new(this) self_type(std::move(that));
+    new (this) self_type(std::move(that));
     return *this;
   }
 
@@ -261,10 +296,10 @@ public:
    *
    * Duplicates are fields with the same name.
    */
-  self_type next_dup() const {
-    return this->is_valid()
-           ? self_type{_buff, _hdr, TSMimeHdrFieldNextDup(_buff, _hdr, _loc)}
-           : self_type{};
+  self_type
+  next_dup() const
+  {
+    return this->is_valid() ? self_type{_buff, _hdr, TSMimeHdrFieldNextDup(_buff, _hdr, _loc)} : self_type{};
   }
 
   /** Get the number of duplicates for this field.
@@ -273,9 +308,17 @@ public:
    */
   unsigned dup_count() const;
 
-  bool operator==(self_type const& that) { return _loc == that._loc; }
+  bool
+  operator==(self_type const &that)
+  {
+    return _loc == that._loc;
+  }
 
-  bool operator!=(self_type const& that) { return _loc != that._loc; }
+  bool
+  operator!=(self_type const &that)
+  {
+    return _loc != that._loc;
+  }
 
 protected:
   HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc);
@@ -283,10 +326,11 @@ protected:
   TSMLoc _hdr = nullptr;
 };
 
-class HttpHeader : public HeapObject {
+class HttpHeader : public HeapObject
+{
   friend class HttpTxn;
 
-  using self_type = HttpHeader; ///< Self reference type.
+  using self_type  = HttpHeader; ///< Self reference type.
   using super_type = HeapObject; ///< Parent type.
 public:
   HttpHeader() = default;
@@ -322,12 +366,14 @@ public:
    * @param name Field name.
    * @return @a this.
    */
-  self_type& field_remove(swoc::TextView name);
+  self_type &field_remove(swoc::TextView name);
 };
 
-class HttpRequest : public HttpHeader {
-  using self_type = HttpRequest;
+class HttpRequest : public HttpHeader
+{
+  using self_type  = HttpRequest;
   using super_type = HttpHeader;
+
 public:
   /// Make super type constructors available.
   using super_type::super_type;
@@ -343,7 +389,7 @@ public:
    * @param arena Temporary memory to write the URL.
    * @return A view of the URL in @a arena.
    */
-  swoc::BufferWriter& effective_url(swoc::BufferWriter& w);
+  swoc::BufferWriter &effective_url(swoc::BufferWriter &w);
 
   swoc::TextView method() const;
 
@@ -375,7 +421,7 @@ public:
    * then it is unmodified and the @c Host field is set to @a host. If the URL has a host and
    * there is no @c Host field, only the URL is updated. The port is not updated.
    */
-  bool host_set(swoc::TextView const& host);
+  bool host_set(swoc::TextView const &host);
 
   /** Set the port.
    *
@@ -387,9 +433,11 @@ public:
   bool port_set(in_port_t port);
 };
 
-class HttpResponse : public HttpHeader {
-  using self_type = HttpResponse;
+class HttpResponse : public HttpHeader
+{
+  using self_type  = HttpResponse;
   using super_type = HttpHeader;
+
 public:
   /// Make super type constructors available.
   using super_type::super_type;
@@ -411,7 +459,8 @@ public:
 /** Wrapper for a TS C API session.
  *
  */
-class HttpSsn {
+class HttpSsn
+{
   friend class HttpTxn;
 
 public:
@@ -432,7 +481,7 @@ public:
    *
    * This is more efficient then obtaining the stack and then searching for @a tag.
    */
-  swoc::TextView proto_contains(swoc::TextView const& tag) const;
+  swoc::TextView proto_contains(swoc::TextView const &tag) const;
 
   /** Retrieve the protocol stack for @a this session in to @a tags.
    *
@@ -463,27 +512,48 @@ protected:
   HttpSsn(TSHttpSsn ssn) : _ssn(ssn) {}
 };
 
-class TxnConfigVar {
+class TxnConfigVar
+{
   using self_type = TxnConfigVar; ///< Self reference type.
 public:
-  TxnConfigVar(swoc::TextView const& name, TSOverridableConfigKey key, TSRecordDataType type);
+  TxnConfigVar(swoc::TextView const &name, TSOverridableConfigKey key, TSRecordDataType type);
 
-  swoc::TextView name() const { return _name; }
+  swoc::TextView
+  name() const
+  {
+    return _name;
+  }
 
-  TSOverridableConfigKey key() const { return _key; }
+  TSOverridableConfigKey
+  key() const
+  {
+    return _key;
+  }
 
-  TSRecordDataType type() const { return _ts_type; }
+  TSRecordDataType
+  type() const
+  {
+    return _ts_type;
+  }
 
   bool is_valid(intmax_t) const { return _ts_type == TS_RECORDDATATYPE_INT; }
 
-  bool is_valid(swoc::TextView const&) const { return _ts_type == TS_RECORDDATATYPE_STRING; }
+  bool
+  is_valid(swoc::TextView const &) const
+  {
+    return _ts_type == TS_RECORDDATATYPE_STRING;
+  }
 
-  bool is_valid(double) const { return _ts_type == TS_RECORDDATATYPE_FLOAT; }
+  bool
+  is_valid(double) const
+  {
+    return _ts_type == TS_RECORDDATATYPE_FLOAT;
+  }
 
-  template<typename T> bool is_valid(typename std::decay<T>::type) { return false; }
+  template <typename T> bool is_valid(typename std::decay<T>::type) { return false; }
 
 protected:
-  std::string _name; ///< Name.
+  std::string _name;           ///< Name.
   TSOverridableConfigKey _key; ///< override index value.
   TSRecordDataType _ts_type{TS_RECORDDATATYPE_NULL};
 };
@@ -492,7 +562,8 @@ protected:
  * This provides various utility methods, rather than having free functions that all take a
  * transaction instance.
  */
-class HttpTxn {
+class HttpTxn
+{
   using self_type = HttpTxn; ///< Self reference type.
 public:
   HttpTxn() = default;
@@ -554,7 +625,7 @@ public:
    * @param key Cache key for the retrieved object.
    * @return Errors, if any.
    */
-  swoc::Errata cache_key_assign(swoc::TextView const& key);
+  swoc::Errata cache_key_assign(swoc::TextView const &key);
 
   /// @return The session object for @a this transaction.
   HttpSsn ssn() const;
@@ -564,7 +635,7 @@ public:
    * @param addr Address to use for the upstream.
    * @return Errors, if any.
    */
-  bool set_upstream_addr(swoc::IPAddr const& addr) const;
+  bool set_upstream_addr(swoc::IPAddr const &addr) const;
 
   /** Assign @a n to the integer transaction overridable configuration @a var
    *
@@ -574,7 +645,7 @@ public:
    *
    * @note This does not check if @a var is in fact an integer, the caller must assure that.
    */
-  swoc::Errata override_assign(TxnConfigVar const& var, intmax_t n);
+  swoc::Errata override_assign(TxnConfigVar const &var, intmax_t n);
 
   /** Assign @a n to the string transaction overridable configuration @a var
    *
@@ -584,7 +655,7 @@ public:
    *
    * @note This does not check if @a var is in fact an string, the caller must assure that.
    */
-  swoc::Errata override_assign(TxnConfigVar const& var, swoc::TextView const& text);
+  swoc::Errata override_assign(TxnConfigVar const &var, swoc::TextView const &text);
 
   /** Assign @a n to the double transaction overridable configuration @a var
    *
@@ -594,16 +665,16 @@ public:
    *
    * @note This does not check if @a var is in fact an double, the caller must assure that.
    */
-  swoc::Errata override_assign(TxnConfigVar const& var, double f);
+  swoc::Errata override_assign(TxnConfigVar const &var, double f);
 
-  swoc::Rv<ConfVarData> override_fetch(TxnConfigVar const& var);
+  swoc::Rv<ConfVarData> override_fetch(TxnConfigVar const &var);
 
   /** Look up the transaction overridable configuration variable @a name.
    *
    * @param name Variable name.
    * @return The variable, or @a nullptr if @a name is not found to be a valid.
    */
-  static TxnConfigVar *find_override(swoc::TextView const& name);
+  static TxnConfigVar *find_override(swoc::TextView const &name);
 
   /** Retrieve transaction arg @a idx
    *
@@ -619,14 +690,14 @@ public:
    */
   void arg_assign(int idx, void *value);
 
-  static swoc::Rv<int> reserve_arg(swoc::TextView const& name, swoc::TextView const& description);
+  static swoc::Rv<int> reserve_arg(swoc::TextView const &name, swoc::TextView const &description);
 
   /** Perform DSO load time intialization.
    *
    * @param errata Current errors.
    * @return @a errata, updated with any additional errors.
    */
-  static swoc::Errata& init(swoc::Errata& errata);
+  static swoc::Errata &init(swoc::Errata &errata);
 
   /** Gets the number of transactions between the Traffic Server proxy and the
    *  origin server from a single session. Any value greater than zero indicates connection reuse.
@@ -654,20 +725,21 @@ protected:
    * @param text String to duplicate.
    * @return The duplicated string.
    */
-  swoc::MemSpan<char> ts_dup(swoc::TextView const& text);
+  swoc::MemSpan<char> ts_dup(swoc::TextView const &text);
 
-  static void config_bool_record(swoc::Errata& errata, swoc::TextView name);
+  static void config_bool_record(swoc::Errata &errata, swoc::TextView name);
 
-  static void config_integer_record(swoc::Errata& errata, swoc::TextView name);
+  static void config_integer_record(swoc::Errata &errata, swoc::TextView name);
 
-  static void config_integer_record(swoc::Errata& errata, swoc::TextView name, int min, int max);
+  static void config_integer_record(swoc::Errata &errata, swoc::TextView name, int min, int max);
 
-  static void config_string_record(swoc::Errata& errata, swoc::TextView name);
+  static void config_string_record(swoc::Errata &errata, swoc::TextView name);
 };
 
 /// An SSL context for a session.
-class SSLContext {
-  using self_type = SSLContext;
+class SSLContext
+{
+  using self_type     = SSLContext;
   struct ssl_st *_obj = nullptr;
 
   friend class HttpSsn;
@@ -693,7 +765,11 @@ protected:
   SSLContext(ssl_st *obj) : _obj(obj) {}
 };
 
-inline bool SSLContext::is_valid() const { return _obj != nullptr; }
+inline bool
+SSLContext::is_valid() const
+{
+  return _obj != nullptr;
+}
 
 // ----
 
@@ -702,20 +778,20 @@ inline bool SSLContext::is_valid() const { return _obj != nullptr; }
  * @param name Name to look up.
  * @return The SSL NID if found, @c NID_undef if not.
  */
-int ssl_nid(swoc::TextView const& name);
+int ssl_nid(swoc::TextView const &name);
 
 /** Get the stat index.
  *
  * @param name Stat name.
  * @return Index of the stat or negative if not found.
  */
-int plugin_stat_index(swoc::TextView const& name);
+int plugin_stat_index(swoc::TextView const &name);
 
 int plugin_stat_value(int idx);
 
 void plugin_stat_update(int idx, intmax_t value);
 
-swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool persistent_p);
+swoc::Rv<int> plugin_stat_define(swoc::TextView const &name, int value, bool persistent_p);
 
 /** Generate a NOTE log entry.
  *
@@ -723,7 +799,7 @@ swoc::Rv<int> plugin_stat_define(swoc::TextView const& name, int value, bool per
  *
  * @note Earlier versions of ATS will generate ERROR because NOTE
  */
-void Log_Note(swoc::TextView const& text);
+void Log_Note(swoc::TextView const &text);
 
 /** Generate a WARNING log entry.
  *
@@ -731,91 +807,119 @@ void Log_Note(swoc::TextView const& text);
  *
  * @warning Earlier versions of ATS will generate ERROR because WARNING
  */
-void Log_Warning(swoc::TextView const& text);
+void Log_Warning(swoc::TextView const &text);
 
 /** Generate a Error log entry.
  *
  * @param text Text of the message.
  */
-void Log_Error(swoc::TextView const& text);
+void Log_Error(swoc::TextView const &text);
 // ----
 
 struct TaskHandle {
   /// Wrapper for data needed when the event is dispatched.
   struct Data {
-    std::function<void()> _f; ///< Functor to dispatch.
+    std::function<void()> _f;         ///< Functor to dispatch.
     std::atomic<bool> _active = true; ///< Set @c false if the task has been canceled.
 
     /// Construct from functor @a f.
-    Data(std::function<void()>&& f) : _f(std::move(f)) {}
+    Data(std::function<void()> &&f) : _f(std::move(f)) {}
   };
 
   TSAction _action = nullptr; ///< Internal handle returned from task scheduling.
-  TSCont _cont = nullptr; ///< Continuation for @a _action.
+  TSCont _cont     = nullptr; ///< Continuation for @a _action.
 
   /// Cancel the task.
   void cancel();
 };
 
-TaskHandle PerformAsTask(std::function<void()>&& task);
+TaskHandle PerformAsTask(std::function<void()> &&task);
 
-TaskHandle PerformAsTaskEvery(std::function<void()>&& task, std::chrono::milliseconds period);
+TaskHandle PerformAsTaskEvery(std::function<void()> &&task, std::chrono::milliseconds period);
 
 inline HeapObject::HeapObject(TSMBuffer buff, TSMLoc loc) : _buff(buff), _loc(loc) {}
 
-inline bool HeapObject::is_valid() const { return _buff != nullptr && _loc != nullptr; }
+inline bool
+HeapObject::is_valid() const
+{
+  return _buff != nullptr && _loc != nullptr;
+}
 
-inline TSMBuffer HeapObject::mbuff() const { return _buff; }
+inline TSMBuffer
+HeapObject::mbuff() const
+{
+  return _buff;
+}
 
-inline TSMLoc HeapObject::mloc() const { return _loc; }
+inline TSMLoc
+HeapObject::mloc() const
+{
+  return _loc;
+}
 
 inline URL::URL(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
-inline swoc::TextView URL::path() const {
+inline swoc::TextView
+URL::path() const
+{
   int length;
   auto text = TSUrlPathGet(_buff, _loc, &length);
   return {text, static_cast<size_t>(length)};
 }
 
-inline swoc::TextView URL::query() const {
+inline swoc::TextView
+URL::query() const
+{
   int length;
   auto text = TSUrlHttpQueryGet(_buff, _loc, &length);
   return text ? swoc::TextView{text, static_cast<size_t>(length)} : swoc::TextView{};
 }
 
-inline swoc::TextView URL::fragment() const {
+inline swoc::TextView
+URL::fragment() const
+{
   int length;
   auto text = TSUrlHttpFragmentGet(_buff, _loc, &length);
   return text ? swoc::TextView{text, static_cast<size_t>(length)} : swoc::TextView{};
 }
 
-inline URL &URL::host_set(swoc::TextView const& host) {
+inline URL &
+URL::host_set(swoc::TextView const &host)
+{
   if (this->is_valid()) {
     TSUrlHostSet(_buff, _loc, host.data(), host.size());
   }
   return *this;
 }
 
-inline auto URL::port_set(in_port_t port) -> self_type & {
+inline auto
+URL::port_set(in_port_t port) -> self_type &
+{
   TSUrlPortSet(_buff, _loc, port);
   return *this;
 }
 
-inline URL &URL::scheme_set(swoc::TextView const& scheme) {
+inline URL &
+URL::scheme_set(swoc::TextView const &scheme)
+{
   if (this->is_valid()) {
     TSUrlSchemeSet(_buff, _loc, scheme.data(), scheme.size());
   }
   return *this;
 }
 
-inline URL &URL::query_set(swoc::TextView text) {
+inline URL &
+URL::query_set(swoc::TextView text)
+{
   if (this->is_valid()) {
     TSUrlHttpQuerySet(_buff, _loc, text.data(), text.size());
   }
   return *this;
 }
 
-inline URL &URL::fragment_set(swoc::TextView text) {
+inline URL &
+URL::fragment_set(swoc::TextView text)
+{
   if (this->is_valid()) {
     TSUrlHttpFragmentSet(_buff, _loc, text.data(), text.size());
   }
@@ -826,43 +930,90 @@ inline HttpField::HttpField(TSMBuffer buff, TSMLoc hdr_loc, TSMLoc field_loc) : 
 
 inline HttpHeader::HttpHeader(TSMBuffer buff, TSMLoc loc) : super_type(buff, loc) {}
 
-inline TxnConfigVar::TxnConfigVar(swoc::TextView const &name, TSOverridableConfigKey key
-                           , TSRecordDataType type) : _name(name), _key(key), _ts_type(type) {}
+inline TxnConfigVar::TxnConfigVar(swoc::TextView const &name, TSOverridableConfigKey key, TSRecordDataType type)
+  : _name(name), _key(key), _ts_type(type)
+{
+}
 
-inline TSHttpStatus HttpResponse::status() const { return TSHttpHdrStatusGet(_buff, _loc); }
+inline TSHttpStatus
+HttpResponse::status() const
+{
+  return TSHttpHdrStatusGet(_buff, _loc);
+}
 
 inline HttpTxn::HttpTxn(TSHttpTxn txn) : _txn(txn) {}
 
-inline HttpTxn::operator TSHttpTxn() const { return _txn; }
+inline HttpTxn::operator TSHttpTxn() const
+{
+  return _txn;
+}
 
-inline HttpSsn HttpTxn::ssn() const { return _txn ? TSHttpTxnSsnGet(_txn) : nullptr; }
+inline HttpSsn
+HttpTxn::ssn() const
+{
+  return _txn ? TSHttpTxnSsnGet(_txn) : nullptr;
+}
 
-inline unsigned HttpSsn::txn_count() const { return TSHttpSsnTransactionCount(_ssn); };
+inline unsigned
+HttpSsn::txn_count() const
+{
+  return TSHttpSsnTransactionCount(_ssn);
+};
 
-const swoc::TextView HTTP_FIELD_HOST { TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST) };
-const swoc::TextView HTTP_FIELD_LOCATION { TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION) };
-const swoc::TextView HTTP_FIELD_CONTENT_LENGTH { TS_MIME_FIELD_CONTENT_LENGTH, static_cast<size_t>(TS_MIME_LEN_CONTENT_LENGTH) };
-const swoc::TextView HTTP_FIELD_CONTENT_TYPE { TS_MIME_FIELD_CONTENT_TYPE, static_cast<size_t>(TS_MIME_LEN_CONTENT_TYPE) };
+const swoc::TextView HTTP_FIELD_HOST{TS_MIME_FIELD_HOST, static_cast<size_t>(TS_MIME_LEN_HOST)};
+const swoc::TextView HTTP_FIELD_LOCATION{TS_MIME_FIELD_LOCATION, static_cast<size_t>(TS_MIME_LEN_LOCATION)};
+const swoc::TextView HTTP_FIELD_CONTENT_LENGTH{TS_MIME_FIELD_CONTENT_LENGTH, static_cast<size_t>(TS_MIME_LEN_CONTENT_LENGTH)};
+const swoc::TextView HTTP_FIELD_CONTENT_TYPE{TS_MIME_FIELD_CONTENT_TYPE, static_cast<size_t>(TS_MIME_LEN_CONTENT_TYPE)};
 
-const swoc::TextView URL_SCHEME_HTTP { TS_URL_SCHEME_HTTP, static_cast<size_t>(TS_URL_LEN_HTTP) };
-const swoc::TextView URL_SCHEME_HTTPS { TS_URL_SCHEME_HTTPS, static_cast<size_t>(TS_URL_LEN_HTTPS) };
+const swoc::TextView URL_SCHEME_HTTP{TS_URL_SCHEME_HTTP, static_cast<size_t>(TS_URL_LEN_HTTP)};
+const swoc::TextView URL_SCHEME_HTTPS{TS_URL_SCHEME_HTTPS, static_cast<size_t>(TS_URL_LEN_HTTPS)};
 
 extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
+
+/** Search a query string for the value for a specific @a key.
+ *
+ * @param query_str Query string to search.
+ * @param search_key Key to find.
+ * @param caseless_p Match key caseinsensitive?
+ * @return
+ */
+extern swoc::TextView query_value_for(swoc::TextView query_str, swoc::TextView search_key, bool caseless_p = false);
 }; // namespace ts
 
-namespace swoc {
-  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSHttpStatus status);
-  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, TSRecordDataType);
-  BufferWriter& bwformat(BufferWriter& w, bwf::Spec const& spec, ts::ConfVarData const&);
+namespace swoc
+{
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, TSHttpStatus status);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, TSRecordDataType);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ts::ConfVarData const &);
 } // namespace swoc
 
-namespace std {
-
+namespace std
+{
 // Structured binding support for @c HeapObject.
-template<> class tuple_size<ts::HeapObject> : public std::integral_constant<size_t, 2> {};
-template<> class tuple_element<0, ts::HeapObject> { public: using type = TSMBuffer; };
-template<> class tuple_element<1, ts::HeapObject> { public: using type = TSMLoc; };
-template < size_t IDX > typename tuple_element<IDX, ts::HeapObject>::type get(ts::HeapObject const&);
-template <> inline TSMBuffer get<0>(ts::HeapObject const& obj) { return obj.mbuff(); }
-template <> inline TSMLoc get<1>(ts::HeapObject const& obj) { return obj.mloc(); }
+template <> class tuple_size<ts::HeapObject> : public std::integral_constant<size_t, 2>
+{
+};
+template <> class tuple_element<0, ts::HeapObject>
+{
+public:
+  using type = TSMBuffer;
+};
+template <> class tuple_element<1, ts::HeapObject>
+{
+public:
+  using type = TSMLoc;
+};
+template <size_t IDX> typename tuple_element<IDX, ts::HeapObject>::type get(ts::HeapObject const &);
+template <>
+inline TSMBuffer
+get<0>(ts::HeapObject const &obj)
+{
+  return obj.mbuff();
+}
+template <>
+inline TSMLoc
+get<1>(ts::HeapObject const &obj)
+{
+  return obj.mloc();
+}
 } // namespace std

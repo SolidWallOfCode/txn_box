@@ -15,20 +15,24 @@ Concepts
 consider some subset of the information in the transaction and, based on that, perform specific
 actions. There is a further presumption that the common use will be multiple comparisons against the
 same data, each comparison associated with different actions. This is a generalization of how URL
-rewriting happens currently in |TS| via "remap.config". The difference between this and |TS| is
+rewriting happens currently in |TS| via "remap.config". The difference between this and remapping is
 the latter considers only a fixed, very small subset of data in the transaction, the set of actions
 is limited, and there is only one decision point.
 
 To aid further explanation, some terms need to be defined.
 
-|TxB| has two phases of operation, :term:`load time` and :term:`run time`. Load time is the time
-during which the configuration is being loaded and run time is when processing transactions. A
-:term:`hook`\s is essentially the same as a hook in |TS|. In addition to the hooks in |TS|,
-|TxB| has additional hooks specific to |TxB|.
+Every action in |TxB| is associated with a specific :term:`hook`. A |TxB| hook is essentially the
+same as a hook in |TS|. In addition to the hooks in |TS|, |TxB| has additional hooks specific to
+|TxB|.
+
+|TxB| has two phases of operation, :term:`load time` and :term:`run time`. Load time is the
+time during which the configuration is being loaded and run time is when processing transactions.
+Operations during load time are done by associating the action with a hook that triggers during
+load time.
 
 A :term:`feature` is data of interest for a transaction. A feature is created by :term:`Extraction`
 which is specifed by a :term:`feature expression`, which is a series of literals and
-:term:`extractor`\s. Each extractor retrieves a specific datum and the combbination of those and
+:term:`extractor`\s. Each extractor retrieves a specific datum and the combination of those and
 (optional) literals defines the resulting feature. Features can be one of several types, the most
 common being a string.
 
@@ -53,7 +57,7 @@ file that is YAML.
 
 For a global configuration, the top level directives must all be :txb:drtv:`when` thereby
 associating every directive with a specific hook. For a remap configuration, all directives are
-grouped in an implied :code:`when: remap`and therefore no explicit :code:`when` is required.
+grouped in an implied :code:`when: remap` and therefore no explicit :code:`when` is required.
 
 Each directive and extractor has an associated set of hooks in which it is valid, therefore some
 will be available in a remap configuration and some will not. In particular there are several

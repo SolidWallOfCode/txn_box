@@ -19,8 +19,10 @@
 class Comparison;
 
 /// Base class for Accelerator implementations.
-class Accelerator {
+class Accelerator
+{
   using self_type = Accelerator;
+
 public:
   /// Number of defined Accelerators.
   static constexpr size_t N_ACCELERATORS = 1;
@@ -35,30 +37,33 @@ public:
   using Handle = std::unique_ptr<Accelerator>;
 
   /// Construct a specific type of Accelerator.
-  using Builder = std::function<swoc::Rv<Handle> ()>;
+  using Builder = std::function<swoc::Rv<Handle>()>;
+
 protected:
   static std::array<Builder, N_ACCELERATORS> _factory;
 };
 
 // --- //
 
-class StringAccelerator : public Accelerator {
-  using self_type = StringAccelerator;
+class StringAccelerator : public Accelerator
+{
+  using self_type  = StringAccelerator;
   using super_type = Accelerator;
 
-  using Errata = swoc::Errata;
+  using Errata   = swoc::Errata;
   using TextView = swoc::TextView;
+
 public:
   StringAccelerator() = default;
 
-  void match_exact(TextView text, Comparison* cmp);
-  void match_prefix(TextView text, Comparison* cmp);
-  void match_suffix(TextView text, Comparison* cmp);
+  void match_exact(TextView text, Comparison *cmp);
+  void match_prefix(TextView text, Comparison *cmp);
+  void match_suffix(TextView text, Comparison *cmp);
 
   /** Find @a text in @a this.
    *
    * @param text Text to match.
    * @return The best match @c Comparison for @a text.
    */
-  Comparison* operator()(TextView text) const;
+  Comparison *operator()(TextView text) const;
 };

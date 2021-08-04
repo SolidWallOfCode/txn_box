@@ -21,13 +21,16 @@ using swoc::Errata;
 using swoc::Rv;
 
 // ----
-namespace {
+namespace
+{
 struct join_visitor {
-  swoc::BufferWriter & _w;
+  swoc::BufferWriter &_w;
   TextView _glue;
   unsigned _recurse = 0;
 
-  swoc::BufferWriter&  glue() {
+  swoc::BufferWriter &
+  glue()
+  {
     if (_w.size()) {
       _w.write(_glue);
     }
@@ -35,17 +38,35 @@ struct join_visitor {
   }
 
   void operator()(feature_type_for<NIL>) {}
-  void operator()(feature_type_for<STRING> const& s) { this->glue().write(s); }
-  void operator()(feature_type_for<INTEGER> n) { this->glue().print("{}", n); }
-  void operator()(feature_type_for<BOOLEAN> flag) { this->glue().print("{}", flag);}
-  void operator()(feature_type_for<DURATION> d) { this->glue().print("{}", d);}
-  void operator()(feature_type_for<TUPLE> t) {
+  void
+  operator()(feature_type_for<STRING> const &s)
+  {
+    this->glue().write(s);
+  }
+  void
+  operator()(feature_type_for<INTEGER> n)
+  {
+    this->glue().print("{}", n);
+  }
+  void
+  operator()(feature_type_for<BOOLEAN> flag)
+  {
+    this->glue().print("{}", flag);
+  }
+  void
+  operator()(feature_type_for<DURATION> d)
+  {
+    this->glue().print("{}", d);
+  }
+  void
+  operator()(feature_type_for<TUPLE> t)
+  {
     this->glue();
     if (_recurse) {
       _w.write("[ "_tv);
     }
     auto lw = swoc::FixedBufferWriter{_w.aux_span()};
-    for ( auto const& item : t) {
+    for (auto const &item : t) {
       std::visit(join_visitor{lw, _glue, _recurse + 1}, item);
     }
     _w.commit(lw.size());
@@ -54,16 +75,19 @@ struct join_visitor {
     }
   }
 
-  template < typename T > auto operator()(T const&) -> EnableForFeatureTypes<T, void> {}
+  template <typename T>
+  auto
+  operator()(T const &) -> EnableForFeatureTypes<T, void>
+  {
+  }
 };
 
-}
+} // namespace
 
-Feature Feature::join(Context &ctx, const swoc::TextView &glue) const {
-  return {
-      ctx.render_transient([=](BufferWriter & w) {
-        std::visit(join_visitor{w, glue}, *this);
-      } ) };
+Feature
+Feature::join(Context &ctx, const swoc::TextView &glue) const
+{
+  return {ctx.render_transient([=](BufferWriter &w) { std::visit(join_visitor{w, glue}, *this); })};
 }
 // ----
 /** Parse a string that consists of counts and units.
@@ -82,73 +106,81 @@ Feature Feature::join(Context &ctx, const swoc::TextView &glue) const {
  * - "1M 4C 4X" : 1,440
  * - "3M 5 C3 X" : 3,530
  */
-template < typename E >
-class UnitParser {
+template <typename E> class UnitParser
+{
   using self_type = UnitParser; ///< Self reference type.
 public:
-  using value_type = E; ///< Integral type returned.
-  using unit_type = swoc::Lexicon<value_type>; ///< Unit definition type.
-  static constexpr value_type NIL { 0 };
+  using value_type = E;                         ///< Integral type returned.
+  using unit_type  = swoc::Lexicon<value_type>; ///< Unit definition type.
+  static constexpr value_type NIL{0};
 
   /** Constructor.
    *
    * @param units A @c Lexicon of unit definitions.
    */
-  UnitParser(unit_type && units) noexcept;
+  UnitParser(unit_type &&units) noexcept;
 
   /** Constructor.
    *
    * @param units A @c Lexicon of unit definitions.
    * @param unit_required_p Specify if every number must have an attached unit.
    */
-  UnitParser(unit_type && units, bool unit_required_p) noexcept;
+  UnitParser(unit_type &&units, bool unit_required_p) noexcept;
 
   /** Set whether a unit is required.
    *
    * @param flag @c true if a unit is required, @c false if not.
    * @return @a this.
    */
-  self_type & unit_required(bool flag);
+  self_type &unit_required(bool flag);
 
   /** Parse a string.
    *
    * @param src Input string.
    * @return The computed value if the input it valid, or an error report.
    */
-  Rv<value_type> operator() (swoc::TextView const& src) const noexcept;
+  Rv<value_type> operator()(swoc::TextView const &src) const noexcept;
 
-  unit_type const& units() { return _units; }
+  unit_type const &
+  units()
+  {
+    return _units;
+  }
+
 protected:
   bool _unit_required_p = true; ///< Whether unitless values are allowed.
-  const unit_type _units; ///< Unit definitions.
+  const unit_type _units;       ///< Unit definitions.
 };
 
-template < typename E >
-UnitParser<E>::UnitParser(UnitParser::unit_type&& units) noexcept : UnitParser(std::move(units), true) {}
+template <typename E> UnitParser<E>::UnitParser(UnitParser::unit_type &&units) noexcept : UnitParser(std::move(units), true) {}
 
-template < typename E >
-UnitParser<E>::UnitParser(UnitParser::unit_type&& units, bool unit_required_p) noexcept
-  : _unit_required_p(unit_required_p)
-  , _units(std::move(units.set_default(NIL)))
-{}
+template <typename E>
+UnitParser<E>::UnitParser(UnitParser::unit_type &&units, bool unit_required_p) noexcept
+  : _unit_required_p(unit_required_p), _units(std::move(units.set_default(NIL)))
+{
+}
 
-template < typename E >
-auto UnitParser<E>::unit_required(bool flag) -> self_type & {
-  _unit_required_p = false;
+template <typename E>
+auto
+UnitParser<E>::unit_required(bool flag) -> self_type &
+{
+  _unit_required_p = flag;
   return *this;
 }
 
-template < typename E >
-auto UnitParser<E>::operator()(swoc::TextView const& src) const noexcept -> Rv<value_type> {
-  value_type zret { 0 };
+template <typename E>
+auto
+UnitParser<E>::operator()(swoc::TextView const &src) const noexcept -> Rv<value_type>
+{
+  value_type zret{0};
   TextView text = src; // Keep @a src around to report error offsets.
 
   while (text.ltrim_if(&isspace)) {
     // Get a count first.
-    auto ptr = text.data(); // save for error reporting.
+    auto ptr   = text.data(); // save for error reporting.
     auto count = text.clip_prefix_of(&isdigit);
     if (count.empty()) {
-      return { NIL , Error("Required count not found at offset {}", ptr - src.data()) };
+      return {NIL, Error("Required count not found at offset {}", ptr - src.data())};
     }
     // Should always parse correctly as @a count is a non-empty sequence of digits.
     auto n = svtou(count);
@@ -156,10 +188,10 @@ auto UnitParser<E>::operator()(swoc::TextView const& src) const noexcept -> Rv<v
     // Next, the unit.
     ptr = text.ltrim_if(&isspace).data(); // save for error reporting.
     // Everything up to the next digit or whitespace.
-    auto unit = text.clip_prefix_of([](char c) { return !(isspace(c) || isdigit(c)); } );
+    auto unit = text.clip_prefix_of([](char c) { return !(isspace(c) || isdigit(c)); });
     if (unit.empty()) {
       if (_unit_required_p) {
-        return { NIL, Error("Required unit not found at offset {}", ptr - src.data()) };
+        return {NIL, Error("Required unit not found at offset {}", ptr - src.data())};
       }
       zret += value_type{n}; // no metric -> unit metric.
     } else {
@@ -174,33 +206,66 @@ auto UnitParser<E>::operator()(swoc::TextView const& src) const noexcept -> Rv<v
 }
 
 // ----
-namespace {
+namespace
+{
 struct bool_visitor {
   bool operator()(feature_type_for<NIL>) { return false; }
 
-  bool operator()(feature_type_for<STRING> const& s) { return BoolNames[s] == True; }
+  bool
+  operator()(feature_type_for<STRING> const &s)
+  {
+    return BoolNames[s] == True;
+  }
 
-  bool operator()(feature_type_for<INTEGER> n) { return n != 0; }
+  bool
+  operator()(feature_type_for<INTEGER> n)
+  {
+    return n != 0;
+  }
 
-  bool operator()(feature_type_for<FLOAT> f) { return f != 0; }
+  bool
+  operator()(feature_type_for<FLOAT> f)
+  {
+    return f != 0;
+  }
 
-  bool operator()(feature_type_for<IP_ADDR> addr) { return addr.is_valid(); }
+  bool
+  operator()(feature_type_for<IP_ADDR> addr)
+  {
+    return addr.is_valid();
+  }
 
-  bool operator()(feature_type_for<BOOLEAN> flag) { return flag; }
+  bool
+  operator()(feature_type_for<BOOLEAN> flag)
+  {
+    return flag;
+  }
 
-  bool operator()(feature_type_for<TUPLE> t) { return t.size() > 0; }
+  bool
+  operator()(feature_type_for<TUPLE> t)
+  {
+    return t.size() > 0;
+  }
 
-  template<typename T> auto operator()(T const&) -> EnableForFeatureTypes<T, bool> { return false; }
+  template <typename T>
+  auto
+  operator()(T const &) -> EnableForFeatureTypes<T, bool>
+  {
+    return false;
+  }
 };
 
-}
+} // namespace
 
-auto Feature::as_bool() const -> type_for<BOOLEAN> {
+auto
+Feature::as_bool() const -> type_for<BOOLEAN>
+{
   return std::visit(bool_visitor{}, *this);
 }
 
 // ----
-namespace {
+namespace
+{
 struct integer_visitor {
   /// Target feature type.
   using ftype = feature_type_for<INTEGER>;
@@ -211,80 +276,100 @@ struct integer_visitor {
 
   explicit integer_visitor(ftype invalid) : _invalid(invalid) {}
 
-  ret_type operator()(feature_type_for<STRING> const& s) {
+  ret_type
+  operator()(feature_type_for<STRING> const &s)
+  {
     TextView parsed;
     ftype zret = swoc::svtoi(s, &parsed);
     if (parsed.size() != s.size()) {
-      return { _invalid
-               , Error("Invalid format for integer at offset {}", parsed.size() + 1)};
+      return {_invalid, Error("Invalid format for integer at offset {}", parsed.size() + 1)};
     }
     return zret;
   }
 
-  ret_type operator()(feature_type_for<INTEGER> n) { return n; }
+  ret_type
+  operator()(feature_type_for<INTEGER> n)
+  {
+    return n;
+  }
 
-  ret_type operator()(feature_type_for<FLOAT> f) { return ftype(f); }
+  ret_type
+  operator()(feature_type_for<FLOAT> f)
+  {
+    return ftype(f);
+  }
 
-  ret_type operator()(feature_type_for<BOOLEAN> flag) { return ftype(flag); }
+  ret_type
+  operator()(feature_type_for<BOOLEAN> flag)
+  {
+    return ftype(flag);
+  }
 
-  ret_type operator()(feature_type_for<TUPLE> t) { return t.size(); }
+  ret_type
+  operator()(feature_type_for<TUPLE> t)
+  {
+    return t.size();
+  }
 
-  template<typename F> auto operator()(F const&) -> EnableForFeatureTypes<F, ret_type> {
-    return { _invalid
-             , Error("Feature of type {} cannot be coerced to type {}."
-                     ,   value_type_of<F>, INTEGER)
-    };
+  template <typename F>
+  auto
+  operator()(F const &) -> EnableForFeatureTypes<F, ret_type>
+  {
+    return {_invalid, Error("Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
   }
 };
 
-}
-auto Feature::as_integer(type_for<INTEGER> invalid) const -> Rv<type_for<INTEGER>> {
-return std::visit(integer_visitor{invalid}, *this);
+} // namespace
+auto
+Feature::as_integer(type_for<INTEGER> invalid) const -> Rv<type_for<INTEGER>>
+{
+  return std::visit(integer_visitor{invalid}, *this);
 }
 // ----
 // Duration conversion support.
 using namespace std::chrono;
-namespace swoc {
-  template <> uintmax_t Lexicon_Hash(system_clock::duration d) { return static_cast<uintmax_t>(d.count()); }
+namespace swoc
+{
+template <>
+uintmax_t
+Lexicon_Hash(system_clock::duration d)
+{
+  return static_cast<uintmax_t>(d.count());
 }
+} // namespace swoc
 
-UnitParser<system_clock::duration> DurationParser{    UnitParser<system_clock::duration>::unit_type{
-                                                          {nanoseconds(1), {"ns", "nanoseconds"}}
-                                                          , {microseconds(1), {"us", "microseconds"}}
-                                                          , {milliseconds(1), {"ms", "milliseconds"}}
-                                                          , {seconds(1), {"s", "sec", "second", "seconds"}}
-                                                          , {minutes(1), {"m", "min", "minute", "minutes"}}
-                                                          , {hours(1), {"h", "hour", "hours"}}
-                                                          , {days(1), {"d", "day", "days"}}
-                                                          , {days(7), {"w", "week", "weeks"}}
-                                                      }
-};
+UnitParser<system_clock::duration> DurationParser{
+  UnitParser<system_clock::duration>::unit_type{{nanoseconds(1), {"ns", "nanoseconds"}},
+                                                {microseconds(1), {"us", "microseconds"}},
+                                                {milliseconds(1), {"ms", "milliseconds"}},
+                                                {seconds(1), {"s", "sec", "second", "seconds"}},
+                                                {minutes(1), {"m", "min", "minute", "minutes"}},
+                                                {hours(1), {"h", "hour", "hours"}},
+                                                {days(1), {"d", "day", "days"}},
+                                                {days(7), {"w", "week", "weeks"}}}};
 
 // Generate a list, ordered largest to smallest, of the duration name units.
 // The lambda constructs such a vector, which is then used to move construct @c DurationOrder.
-std::vector<decltype(DurationParser)::unit_type::iterator> DurationOrder {
-  []() {
-    using I = decltype(DurationParser)::unit_type::iterator;
-    auto const& lexicon = DurationParser.units();
-    auto n = lexicon.count();
+std::vector<decltype(DurationParser)::unit_type::iterator> DurationOrder{[]() {
+  using I             = decltype(DurationParser)::unit_type::iterator;
+  auto const &lexicon = DurationParser.units();
+  auto n              = lexicon.count();
 
-    std::vector<I> zret;
-    zret.reserve(n);
-    // Load the iterators into the vector.
-    for ( auto spot = lexicon.begin() ; spot != lexicon.end() ; ++spot ) {
-      zret.push_back(spot);
-    }
+  std::vector<I> zret;
+  zret.reserve(n);
+  // Load the iterators into the vector.
+  for (auto spot = lexicon.begin(); spot != lexicon.end(); ++spot) {
+    zret.push_back(spot);
+  }
 
-    // Sort the iterators by scale, largest first.
-    std::sort(zret.begin(), zret.end(), [](I const& lhs, I const& rhs) {
-      return std::get<0>(*lhs) > std::get<0>(*rhs);
-    });
+  // Sort the iterators by scale, largest first.
+  std::sort(zret.begin(), zret.end(), [](I const &lhs, I const &rhs) { return std::get<0>(*lhs) > std::get<0>(*rhs); });
 
-    return zret;
-  } ()
-};
+  return zret;
+}()};
 
-namespace {
+namespace
+{
 /// Handlers for coercing feature types into duration.
 struct duration_visitor {
   /// Target feature type.
@@ -296,24 +381,30 @@ struct duration_visitor {
 
   explicit duration_visitor(ftype invalid) : _invalid(invalid) {}
 
-  ret_type operator()(feature_type_for<DURATION> const& d);
+  ret_type operator()(feature_type_for<DURATION> const &d);
 
-  ret_type operator()(feature_type_for<STRING> const& s);
+  ret_type operator()(feature_type_for<STRING> const &s);
 
   ret_type operator()(feature_type_for<TUPLE> t);
 
-  template<typename F> auto operator()(F const&) -> EnableForFeatureTypes<F, ret_type> {
-    return {_invalid
-            , Error("Feature of type {} cannot be coerced to type {}."
-                    , value_type_of<F>, INTEGER)
-    };
+  template <typename F>
+  auto
+  operator()(F const &) -> EnableForFeatureTypes<F, ret_type>
+  {
+    return {_invalid, Error("Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
   }
 };
 
 // It's already the correct type, pass it back.
-auto duration_visitor::operator()(feature_type_for<DURATION> const& d) -> ret_type { return d; }
+auto
+duration_visitor::operator()(feature_type_for<DURATION> const &d) -> ret_type
+{
+  return d;
+}
 
-duration_visitor::ret_type duration_visitor::operator()(feature_type_for<STRING> const& s) {
+duration_visitor::ret_type
+duration_visitor::operator()(feature_type_for<STRING> const &s)
+{
   auto &&[n, errata] = DurationParser(s);
   if (!errata.is_ok()) {
     errata.info("Duration string was not a valid format.");
@@ -323,10 +414,12 @@ duration_visitor::ret_type duration_visitor::operator()(feature_type_for<STRING>
 }
 
 // Sum the durations in the tuple, coercing as it goes.
-duration_visitor::ret_type duration_visitor::operator()(feature_type_for<TUPLE> t) {
+duration_visitor::ret_type
+duration_visitor::operator()(feature_type_for<TUPLE> t)
+{
   ftype zret{0};
   unsigned idx = 0; // Just for error reporting.
-  for (auto const& item : t) {
+  for (auto const &item : t) {
     auto &&[value, errata]{std::visit(duration_visitor{_invalid}, item)};
     if (!errata.is_ok()) {
       errata.info("The tuple element at index {} was not a valid duration.", idx);
@@ -340,76 +433,101 @@ duration_visitor::ret_type duration_visitor::operator()(feature_type_for<TUPLE> 
 
 } // namespace
 
-auto Feature::as_duration(type_for<DURATION> invalid) const -> Rv<type_for < DURATION>> {
- return std::visit(duration_visitor{invalid}, *this);
+auto
+Feature::as_duration(type_for<DURATION> invalid) const -> Rv<type_for<DURATION>>
+{
+  return std::visit(duration_visitor{invalid}, *this);
 }
 
 /* ------------------------------------------------------------------------------------ */
-bool operator == (Feature const& lhs, Feature const& rhs) {
+bool
+operator==(Feature const &lhs, Feature const &rhs)
+{
   auto lidx = lhs.index();
   if (lidx != rhs.index()) {
     return false;
   }
   switch (lidx) {
-    case IndexFor(NIL): return true;
-    case IndexFor(BOOLEAN):
-      return std::get<IndexFor(BOOLEAN)>(lhs) == std::get<IndexFor(BOOLEAN)>(rhs);
-    case IndexFor(INTEGER):
-      return std::get<IndexFor(INTEGER)>(lhs) == std::get<IndexFor(INTEGER)>(rhs);
-    case IndexFor(IP_ADDR):
-      return std::get<IndexFor(IP_ADDR)>(lhs) == std::get<IndexFor(IP_ADDR)>(rhs);
-    case IndexFor(DURATION):
-      return std::get<IndexFor(DURATION)>(lhs) == std::get<IndexFor(DURATION)>(rhs);
-    default: break;
+  case IndexFor(NO_VALUE):
+  case IndexFor(NIL):
+    return true;
+  case IndexFor(BOOLEAN):
+    return std::get<IndexFor(BOOLEAN)>(lhs) == std::get<IndexFor(BOOLEAN)>(rhs);
+  case IndexFor(INTEGER):
+    return std::get<IndexFor(INTEGER)>(lhs) == std::get<IndexFor(INTEGER)>(rhs);
+  case IndexFor(IP_ADDR):
+    return std::get<IndexFor(IP_ADDR)>(lhs) == std::get<IndexFor(IP_ADDR)>(rhs);
+  case IndexFor(DURATION):
+    return std::get<IndexFor(DURATION)>(lhs) == std::get<IndexFor(DURATION)>(rhs);
+  default:
+    break;
   }
   return false;
 }
 
-bool operator < (Feature const& lhs, Feature const& rhs) {
+bool
+operator<(Feature const &lhs, Feature const &rhs)
+{
   auto lidx = lhs.index();
   if (lidx != rhs.index()) {
     return false;
   }
   switch (lidx) {
-    case IndexFor(BOOLEAN):
-      return std::get<IndexFor(BOOLEAN)>(lhs) < std::get<IndexFor(BOOLEAN)>(rhs);
-    case IndexFor(INTEGER):
-      return std::get<IndexFor(INTEGER)>(lhs) < std::get<IndexFor(INTEGER)>(rhs);
-    case IndexFor(IP_ADDR):
-      return std::get<IndexFor(IP_ADDR)>(lhs) < std::get<IndexFor(IP_ADDR)>(rhs);
-    case IndexFor(DURATION):
-      return std::get<IndexFor(DURATION)>(lhs) < std::get<IndexFor(DURATION)>(rhs);
-    default: break;
+  case IndexFor(BOOLEAN):
+    return std::get<IndexFor(BOOLEAN)>(lhs) < std::get<IndexFor(BOOLEAN)>(rhs);
+  case IndexFor(INTEGER):
+    return std::get<IndexFor(INTEGER)>(lhs) < std::get<IndexFor(INTEGER)>(rhs);
+  case IndexFor(IP_ADDR):
+    return std::get<IndexFor(IP_ADDR)>(lhs) < std::get<IndexFor(IP_ADDR)>(rhs);
+  case IndexFor(DURATION):
+    return std::get<IndexFor(DURATION)>(lhs) < std::get<IndexFor(DURATION)>(rhs);
+  default:
+    break;
   }
   return false;
 }
 
-bool operator <= (Feature const& lhs, Feature const& rhs) {
+bool
+operator<=(Feature const &lhs, Feature const &rhs)
+{
   auto lidx = lhs.index();
   if (lidx != rhs.index()) {
     return false;
   }
   switch (lidx) {
-    case IndexFor(NIL): return true;
-    case IndexFor(BOOLEAN):
-      return std::get<IndexFor(BOOLEAN)>(lhs) <= std::get<IndexFor(BOOLEAN)>(rhs);
-    case IndexFor(INTEGER):
-      return std::get<IndexFor(INTEGER)>(lhs) <= std::get<IndexFor(INTEGER)>(rhs);
-    case IndexFor(IP_ADDR):
-      return std::get<IndexFor(IP_ADDR)>(lhs) <= std::get<IndexFor(IP_ADDR)>(rhs);
-    case IndexFor(DURATION):
-      return std::get<IndexFor(DURATION)>(lhs) <= std::get<IndexFor(DURATION)>(rhs);
-    default: break;
+  case IndexFor(NIL):
+    return true;
+  case IndexFor(BOOLEAN):
+    return std::get<IndexFor(BOOLEAN)>(lhs) <= std::get<IndexFor(BOOLEAN)>(rhs);
+  case IndexFor(INTEGER):
+    return std::get<IndexFor(INTEGER)>(lhs) <= std::get<IndexFor(INTEGER)>(rhs);
+  case IndexFor(IP_ADDR):
+    return std::get<IndexFor(IP_ADDR)>(lhs) <= std::get<IndexFor(IP_ADDR)>(rhs);
+  case IndexFor(DURATION):
+    return std::get<IndexFor(DURATION)>(lhs) <= std::get<IndexFor(DURATION)>(rhs);
+  default:
+    break;
   }
   return false;
 }
 /* ------------------------------------------------------------------------------------ */
-namespace swoc {
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &, std::monostate) {
+namespace swoc
+{
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &, feature_type_for<NO_VALUE>)
+{
+  return w.write("!NO_VALUE");
+}
+
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &, feature_type_for<NIL>)
+{
   return w.write("NULL");
 }
 
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type)
+{
   if (spec.has_numeric_type()) {
     return bwformat(w, spec, static_cast<unsigned>(type));
   }
@@ -417,14 +535,15 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type) {
 }
 
 BufferWriter &
-bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
+bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask)
+{
   auto span{w.aux_span()};
   if (span.size() > spec._max) {
     span = span.prefix(spec._max);
   }
   swoc::FixedBufferWriter lw{span};
   if (mask.any()) {
-    for (auto const&[e, v] : ValueTypeNames) {
+    for (auto const &[e, v] : ValueTypeNames) {
       if (!mask[e]) {
         continue;
       }
@@ -440,10 +559,12 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask) {
   return w;
 }
 
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple const& t) {
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureTuple const &t)
+{
   if (t.count() > 0) {
     bwformat(w, spec, t[0]);
-    for (auto && f : t.subspan(1, t.count() - 1)) {
+    for (auto &&f : t.subspan(1, t.count() - 1)) {
       w.write(", ");
       bwformat(w, spec, f);
     }
@@ -451,7 +572,9 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple cons
   return w;
 }
 
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature) {
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature)
+{
   if (is_nil(feature)) {
     return bwformat(w, spec, "NULL"_tv);
   } else {
@@ -460,12 +583,14 @@ BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &fe
   }
 }
 
-BufferWriter & bwformat(BufferWriter & w, bwf::Spec const& spec, feature_type_for<DURATION> const& d) {
+BufferWriter &
+bwformat(BufferWriter &w, bwf::Spec const &spec, feature_type_for<DURATION> const &d)
+{
   bool sep_p = false;
-  auto n = d.count();
-  for ( auto item : DurationOrder) {
+  auto n     = d.count();
+  for (auto item : DurationOrder) {
     auto scale = std::get<0>(*item).count();
-    auto c = n / scale;
+    auto c     = n / scale;
     if (c > 0) {
       if (sep_p) {
         w.write(' ');
@@ -482,7 +607,8 @@ BufferWriter & bwformat(BufferWriter & w, bwf::Spec const& spec, feature_type_fo
 } // namespace swoc
 
 BufferWriter &
-bwformat(BufferWriter& w, swoc::bwf::Spec const& spec, ActiveType const& type) {
+bwformat(BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const &type)
+{
   bwformat(w, spec, type._base_type);
   if (type._tuple_type.any()) {
     w.write(", Tuples of [");

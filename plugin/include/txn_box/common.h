@@ -1,9 +1,9 @@
 /** @file
-  * Common types and utilities needed by all compilation units.
-  *
-  * Copyright 2019, Oath Inc.
-  * SPDX-License-Identifier: Apache-2.0
-  */
+ * Common types and utilities needed by all compilation units.
+ *
+ * Copyright 2019, Oath Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #pragma once
 
@@ -25,21 +25,30 @@ constexpr swoc::TextView DEBUG_TAG = "txn_box";
 // Forward declares
 class Config;
 class Context;
-using TSCont =  struct tsapi_cont *;
+using TSCont = struct tsapi_cont *;
 
-namespace YAML { class Node; }
+namespace YAML
+{
+class Node;
+}
 
 /// Generate an @c Errata from a format string and arguments.
-template < typename ... Args > swoc::Errata Error(std::string_view const& fmt, Args && ... args) {
+template <typename... Args>
+swoc::Errata
+Error(std::string_view const &fmt, Args &&... args)
+{
   return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
 }
 
-template < typename ... Args > swoc::Errata Warning(std::string_view const& fmt, Args && ... args) {
+template <typename... Args>
+swoc::Errata
+Warning(std::string_view const &fmt, Args &&... args)
+{
   return std::move(swoc::Errata().note_v(swoc::Severity::WARN, fmt, std::forward_as_tuple(args...)));
 }
 
 /// Separate a name and argument for a directive or extractor.
-extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView & key);
+extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView &key);
 
 /** Data for a feature that is a full / string.
  *
@@ -51,35 +60,37 @@ extern swoc::Rv<swoc::TextView> parse_arg(swoc::TextView & key);
  * copying while providing safe access to (possibly) transient data. This enables copy on use
  * rather than always copying.
  */
-class FeatureView : public swoc::TextView {
-  using self_type = FeatureView;
+class FeatureView : public swoc::TextView
+{
+  using self_type  = FeatureView;
   using super_type = swoc::TextView;
+
 public:
-  bool _direct_p = false; ///< String is in externally controlled memory.
+  bool _direct_p  = false; ///< String is in externally controlled memory.
   bool _literal_p = false; ///< String is in transaction static memory.
-  bool _cstr_p = false; ///< There is a null char immediately after the view.
+  bool _cstr_p    = false; ///< There is a null char immediately after the view.
 
   using super_type::super_type; ///< Import constructors.
-  using super_type::operator=; ///< Import assignment.
+  using super_type::operator=;  ///< Import assignment.
 
   /** Return a literal feature view.
    *
    * @param view Text of the literal.
    * @return A @c FeatureView marked as a literal.
    */
-  static self_type Literal(TextView const& view);
+  static self_type Literal(TextView const &view);
 
   /** Create a direct feature view.
    *
    * @param view Base view.
    * @return A @c FeatureView for @a view that is direct.
    */
-  static self_type Direct(TextView const& view);
+  static self_type Direct(TextView const &view);
 };
 
 /// YAML tag type for literal (no feature extraction).
-static constexpr swoc::TextView LITERAL_TAG { "!literal" };
-static constexpr swoc::TextView DURATION_TAG {"!duration"};
+static constexpr swoc::TextView LITERAL_TAG{"!literal"};
+static constexpr swoc::TextView DURATION_TAG{"!duration"};
 
 // Self referential types, forward declared.
 struct Cons;
@@ -95,13 +106,18 @@ using FeatureTuple = swoc::MemSpan<Feature>;
  * - Extension types such that non-framework code can have its own feature (sub) type.
  * This should be subclassed.
  */
-class Generic {
+class Generic
+{
 public:
   swoc::TextView _tag; ///< Sub type identifier.
 
-  Generic(swoc::TextView const& tag) : _tag(tag) {}
+  Generic(swoc::TextView const &tag) : _tag(tag) {}
   virtual ~Generic() {}
-  virtual swoc::TextView description() const { return _tag; }
+  virtual swoc::TextView
+  description() const
+  {
+    return _tag;
+  }
 
   /** Extract a non-Generic feature from @a this.
    *
@@ -112,7 +128,11 @@ public:
    */
   virtual Feature extract() const;
 
-  virtual bool is_nil() const { return false; }
+  virtual bool
+  is_nil() const
+  {
+    return false;
+  }
 };
 
 /// Enumeration of types of values, e.g. those returned by a feature string or extractor.
@@ -122,65 +142,69 @@ public:
 /// - @c FeatureTypelist
 /// - @c Feature::value_type
 enum ValueType : int8_t {
-  NIL = 0, ///< Explicitly no data.
-  STRING, ///< View of a string.
-  INTEGER, ///< Integer.
-  BOOLEAN, ///< Boolean.
-  FLOAT, ///< Floating point.
-  IP_ADDR, ///< IP Address
-  DURATION, ///< Duration (time span).
-  TIMEPOINT, ///< Timestamp, specific moment on a clock.
-  CONS, ///< Pointer to cons cell.
-  TUPLE, ///< Array of features (@c FeatureTuple)
-  GENERIC, ///< Extended type.
+  NO_VALUE = 0, ///< No value, uninitialized
+  NIL,          ///< Config level no data.
+  STRING,       ///< View of a string.
+  INTEGER,      ///< Integer.
+  BOOLEAN,      ///< Boolean.
+  FLOAT,        ///< Floating point.
+  IP_ADDR,      ///< IP Address
+  DURATION,     ///< Duration (time span).
+  TIMEPOINT,    ///< Timestamp, specific moment on a clock.
+  CONS,         ///< Pointer to cons cell.
+  TUPLE,        ///< Array of features (@c FeatureTuple)
+  GENERIC,      ///< Extended type.
+};
+
+/// Empty struct to represent a NIL / NULL runtime value.
+struct nil_value {
 };
 
 class ActiveType; // Forward declare
 
-namespace std {
-template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::GENERIC) + 1> {};
+namespace std
+{
+template <> struct tuple_size<ValueType> : public std::integral_constant<size_t, static_cast<size_t>(ValueType::GENERIC) + 1> {
+};
 }; // namespace std
 
 // *** @c FeatureTypeList, @c FeatureType, and @c FeatureindexList must be kept in parallel synchronization! ***
 /// Type list of feature types.
-using FeatureTypeList = swoc::meta::type_list<
-      std::monostate
-    , FeatureView
-    , intmax_t
-    , bool
-    , double
-    , swoc::IPAddr
-    , std::chrono::nanoseconds
-    , std::chrono::system_clock::time_point
-    , Cons *
-    , FeatureTuple
-    , Generic*
-    >;
+using FeatureTypeList =
+  swoc::meta::type_list<std::monostate, nil_value, FeatureView, intmax_t, bool, double, swoc::IPAddr, std::chrono::nanoseconds,
+                        std::chrono::system_clock::time_point, Cons *, FeatureTuple, Generic *>;
 
 /// Variant index to feature type.
-constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue {
-    NIL
-   , STRING
-   , INTEGER
-   , BOOLEAN
-   , FLOAT
-   , IP_ADDR
-   , DURATION
-   , TIMEPOINT
-   , CONS
-   , TUPLE
-   , GENERIC };
+constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue{
+  NO_VALUE, NIL, STRING, INTEGER, BOOLEAN, FLOAT, IP_ADDR, DURATION, TIMEPOINT, CONS, TUPLE, GENERIC};
 
-namespace detail {
-template < typename GENERATOR, size_t ... IDX> constexpr
-std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g, std::index_sequence<IDX...> &&) { return { g(IDX)... }; }
-template < size_t N, typename GENERATOR> constexpr
-std::initializer_list<std::result_of_t<GENERATOR(size_t)>> indexed_init_list(GENERATOR && g) { return indexed_init_list(std::forward<GENERATOR>(g), std::make_index_sequence<N>());}
+namespace detail
+{
+template <typename GENERATOR, size_t... IDX>
+constexpr std::initializer_list<std::result_of_t<GENERATOR(size_t)>>
+indexed_init_list(GENERATOR &&g, std::index_sequence<IDX...> &&)
+{
+  return {g(IDX)...};
+}
+template <size_t N, typename GENERATOR>
+constexpr std::initializer_list<std::result_of_t<GENERATOR(size_t)>>
+indexed_init_list(GENERATOR &&g)
+{
+  return indexed_init_list(std::forward<GENERATOR>(g), std::make_index_sequence<N>());
+}
 
-template < typename GENERATOR, size_t ... IDX> constexpr
-std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> indexed_array(GENERATOR && g, std::index_sequence<IDX...> &&) { return std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)> { g(IDX)... }; }
-template < size_t N, typename GENERATOR> constexpr
-std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g) { return indexed_array(std::forward<GENERATOR>(g), std::make_index_sequence<N>()); }
+template <typename GENERATOR, size_t... IDX>
+constexpr std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)>
+indexed_array(GENERATOR &&g, std::index_sequence<IDX...> &&)
+{
+  return std::array<std::result_of_t<GENERATOR(size_t)>, sizeof...(IDX)>{g(IDX)...};
+}
+template <size_t N, typename GENERATOR>
+constexpr std::array<std::result_of_t<GENERATOR(size_t)>, N>
+indexed_array(GENERATOR &&g)
+{
+  return indexed_array(std::forward<GENERATOR>(g), std::make_index_sequence<N>());
+}
 
 } // namespace detail
 
@@ -189,8 +213,10 @@ std::array<std::result_of_t<GENERATOR(size_t)>, N> indexed_array(GENERATOR && g)
  * @param type Value type (enumeration).
  * @return Index in @c FeatureData for that feature type.
  */
-inline constexpr unsigned IndexFor(ValueType type) {
-    auto IDX = detail::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
+inline constexpr unsigned
+IndexFor(ValueType type)
+{
+  auto IDX = detail::indexed_array<std::tuple_size<ValueType>::value>([](unsigned idx) { return idx; });
   return IDX[static_cast<unsigned>(type)];
 };
 
@@ -212,7 +238,8 @@ inline constexpr unsigned IndexFor(ValueType type) {
  * types can be defined before such a template. This is generally done when those types are
  * usable types, with the template for a generic failure response for non-usable types.
  */
-template < typename L, typename T, typename R > using EnableForTypes = std::enable_if_t<L::template contains<typename std::decay<T>::type>, R>;
+template <typename L, typename T, typename R>
+using EnableForTypes = std::enable_if_t<L::template contains<typename std::decay<T>::type>, R>;
 
 /** Helper template for handling @c Feature variants.
  * @tparam T The type to check against the variant type list.
@@ -228,29 +255,31 @@ template < typename L, typename T, typename R > using EnableForTypes = std::enab
  * types can be defined before such a template. This is generally done when those types are
  * usable types, with the template for a generic failure response for non-usable types.
  */
-template < typename T, typename R > using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
+template <typename T, typename R>
+using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
+
+using Sonar = FeatureTypeList::template apply<std::variant>;
 
 /** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
  * All of these are small and fixed size, any external storage (e.g. the text for a full)
  * is stored separately.
  *
- * @internal This is needed to deal with self-reference in the underlying variant. Some nested
- * types need to refer to @c Feature but the variant itself can't be forward declared. Instead
- * this struct is and is then used as an empty wrapper on the actual variant.
+ * @internal This is needed to deal with self-reference in the underlying variant. Some nested types
+ * need to refer to @c Feature but the variant itself can't be forward declared. Instead this struct
+ * is declared as an empty wrapper on the actual variant which can be forward declared.
  */
 struct Feature : public FeatureTypeList::template apply<std::variant> {
-  using self_type = Feature; ///< Self reference type.
-  using super_type = FeatureTypeList::template apply<std::variant>; ///< Parent type.
-  using variant_type = super_type; ///< The base variant type.
+  using self_type    = Feature;                                       ///< Self reference type.
+  using super_type   = FeatureTypeList::template apply<std::variant>; ///< Parent type.
+  using variant_type = super_type;                                    ///< The base variant type.
 
   /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
   /// @tparam F ValueType enumeration value.
-  template < ValueType F > using type_for = std::variant_alternative_t<IndexFor(F), variant_type>;
+  template <ValueType F> using type_for = std::variant_alternative_t<IndexFor(F), variant_type>;
 
   // Inherit variant constructors.
   using super_type::super_type;
-
 
   /** The value type of @a this.
    *
@@ -258,7 +287,9 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
    *
    * This is the direct type of the feature, without regard to containment.
    */
-  ValueType value_type() const {
+  ValueType
+  value_type() const
+  {
     return FeatureIndexToValue[this->index()];
   }
 
@@ -304,73 +335,97 @@ struct Feature : public FeatureTypeList::template apply<std::variant> {
    * list elements are rendered, separated by the @a glue. The primary use of this is to force
    * an arbitrary feature to be a string.
    */
-  self_type join(Context & ctx, swoc::TextView const& glue) const;
+  self_type join(Context &ctx, swoc::TextView const &glue) const;
 };
 
-bool operator == (Feature const& lhs, Feature const& rhs);
-inline bool operator != (Feature const& lhs, Feature const& rhs) { return !(lhs == rhs);}
-bool operator < (Feature const& lhs, Feature const& rhs);
-inline bool operator > (Feature const& lhs, Feature const& rhs) { return rhs < lhs;}
-bool operator <= (Feature const& lhs, Feature const& rhs);
-inline bool operator >= (Feature const& lhs, Feature const& rhs) { return rhs <= lhs;}
+bool operator==(Feature const &lhs, Feature const &rhs);
+inline bool
+operator!=(Feature const &lhs, Feature const &rhs)
+{
+  return !(lhs == rhs);
+}
+bool operator<(Feature const &lhs, Feature const &rhs);
+inline bool
+operator>(Feature const &lhs, Feature const &rhs)
+{
+  return rhs < lhs;
+}
+bool operator<=(Feature const &lhs, Feature const &rhs);
+inline bool
+operator>=(Feature const &lhs, Feature const &rhs)
+{
+  return rhs <= lhs;
+}
 
 /// @cond NO_DOXYGEN
 // These are overloads for variant visitors so that other call sites can use @c Feature
 // directly without having to reach in to the @c variant_type.
-namespace std {
-template < typename VISITOR > auto visit(VISITOR&& visitor, Feature & feature) -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature))) {
+namespace std
+{
+template <typename VISITOR>
+auto
+visit(VISITOR &&visitor, Feature &feature)
+  -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature)))
+{
   return visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type &>(feature));
 }
 
-template < typename VISITOR > auto visit(VISITOR&& visitor, Feature const& feature) -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const&>(feature))) {
-  return visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const&>(feature));
+template <typename VISITOR>
+auto
+visit(VISITOR &&visitor, Feature const &feature)
+  -> decltype(visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const &>(feature)))
+{
+  return visit(std::forward<VISITOR>(visitor), static_cast<Feature::variant_type const &>(feature));
 }
 } // namespace std
 /// @endcond
 
 /// @deprecated - use @c f.value_type()
-inline ValueType ValueTypeOf(Feature const& f) { return f.value_type(); }
+inline ValueType
+ValueTypeOf(Feature const &f)
+{
+  return f.value_type();
+}
 
-namespace detail {
+namespace detail
+{
 // Need to document this, and then move it in to libswoc.
 // This walks a typelist and compute the index of a given type @c F in the typelist.
 // The utility is to convert from a feature type in the feature variant to the index in the variant.
 // This is used almost entirely for error reporting.
-template<typename T, typename... Rest>
-struct TypeListIndex;
+template <typename T, typename... Rest> struct TypeListIndex;
 
-template<typename T, typename... Rest>
-struct TypeListIndex<T, T, Rest...> : std::integral_constant<std::size_t, 0> {
+template <typename T, typename... Rest> struct TypeListIndex<T, T, Rest...> : std::integral_constant<std::size_t, 0> {
 };
 
-template<typename T, typename U, typename... Rest>
-struct TypeListIndex<T, U, Rest...> : std::integral_constant<std::size_t,
-    1 + TypeListIndex<T, Rest...>::value> {
+template <typename T, typename U, typename... Rest>
+struct TypeListIndex<T, U, Rest...> : std::integral_constant<std::size_t, 1 + TypeListIndex<T, Rest...>::value> {
 };
 
-template < typename F > struct TypeListIndexWrapper {
-  template < typename ... Args > struct IDX : std::integral_constant<size_t, TypeListIndex<F, Args...>::value> {};
+template <typename F> struct TypeListIndexWrapper {
+  template <typename... Args> struct IDX : std::integral_constant<size_t, TypeListIndex<F, Args...>::value> {
+  };
 };
 
-template < typename F > using TypeListIndexer = FeatureTypeList::template apply<detail::TypeListIndexWrapper<F>::template IDX>;
+template <typename F> using TypeListIndexer = FeatureTypeList::template apply<detail::TypeListIndexWrapper<F>::template IDX>;
 
-}
+} // namespace detail
 
 /** Convert a feature type to a feature index.
  *
  * @tparam F Feature type.
  */
-template < typename F > static constexpr size_t index_for_type = detail::TypeListIndexer<F>::value;
+template <typename F> static constexpr size_t index_for_type = detail::TypeListIndexer<F>::value;
 
 /** Convert a feature type to a @c ValueType value.
  *
  * @tparam F Feature type.
  */
-template < typename F > static constexpr ValueType value_type_of = ValueType(index_for_type<F>);
+template <typename F> static constexpr ValueType value_type_of = ValueType(index_for_type<F>);
 
 /// Nil value feature.
 /// @internal Default constructor doesn't work in the Intel compiler, must be explicit.
-static constexpr Feature NIL_FEATURE{};
+static constexpr Feature NIL_FEATURE{nil_value{}};
 
 /** Standard cons cell.
  *
@@ -389,42 +444,65 @@ using ValueMask = std::bitset<std::tuple_size<ValueType>::value>;
 /** The active type.
  * This is a mask of feature types, representing the possible types of the active feature.
  */
-class ActiveType {
+class ActiveType
+{
   using self_type = ActiveType;
+
 public:
   struct TupleOf {
     ValueMask _mask;
     TupleOf() = default;
     explicit TupleOf(ValueMask mask) : _mask(mask) {}
-    template < typename ... Rest > TupleOf(ValueType vt, Rest && ... rest ) : TupleOf(rest...) {
-      _mask[vt] = true;
-    }
+    template <typename... Rest> TupleOf(ValueType vt, Rest &&... rest) : TupleOf(rest...) { _mask[vt] = true; }
   };
-  ActiveType() = default;
-  ActiveType(self_type const& that) = default;
-  ActiveType(ValueMask vtypes) : _base_type(vtypes) {};
-  template < typename ... Rest > ActiveType(ValueType vt, Rest && ... rest );
-  template < typename ... Rest > ActiveType(TupleOf const& tt, Rest && ... rest );
+  ActiveType()                      = default;
+  ActiveType(self_type const &that) = default;
+  ActiveType(ValueMask vtypes) : _base_type(vtypes){};
+  template <typename... Rest> ActiveType(ValueType vt, Rest &&... rest);
+  template <typename... Rest> ActiveType(TupleOf const &tt, Rest &&... rest);
 
-  self_type & operator=(ValueType vt);
-  self_type & operator=(TupleOf const& tt);
-  self_type & operator|=(ValueType vt);
-  self_type & operator|=(ValueMask vtypes) { _base_type |= vtypes; return *this; }
-  self_type & operator|=(TupleOf const& tt);
+  self_type &operator=(ValueType vt);
+  self_type &operator=(TupleOf const &tt);
+  self_type &operator|=(ValueType vt);
+  self_type &
+  operator|=(ValueMask vtypes)
+  {
+    _base_type |= vtypes;
+    return *this;
+  }
+  self_type &operator|=(TupleOf const &tt);
 
-  bool operator==(self_type const& that) { return _base_type == that._base_type && _tuple_type == that._tuple_type; }
-  bool operator!=(self_type const& that) { return ! (*this == that); }
+  bool
+  operator==(self_type const &that)
+  {
+    return _base_type == that._base_type && _tuple_type == that._tuple_type;
+  }
+  bool
+  operator!=(self_type const &that)
+  {
+    return !(*this == that);
+  }
 
   /// Check if this is any type and therefore has a value.
-  bool has_value() const { return _base_type.any(); }
+  bool
+  has_value() const
+  {
+    return _base_type.any();
+  }
 
-  bool can_satisfy(ValueType vt) const {
+  bool
+  can_satisfy(ValueType vt) const
+  {
     return _base_type[vt];
   }
-  bool can_satisfy(ValueMask vmask) const {
+  bool
+  can_satisfy(ValueMask vmask) const
+  {
     return (_base_type & vmask).any();
   }
-  bool can_satisfy(self_type const& that) const {
+  bool
+  can_satisfy(self_type const &that) const
+  {
     auto c = _base_type & that._base_type;
     // TUPLE is a common type if the tuple element types have a common type or no type is specified
     // for the TUPLE, which means just check for being a TUPLE.
@@ -434,13 +512,32 @@ public:
     return c.any();
   }
 
-  ValueMask base_types() const { return _base_type; }
-  ValueMask tuple_types() const { return _tuple_type; }
+  ValueMask
+  base_types() const
+  {
+    return _base_type;
+  }
+  ValueMask
+  tuple_types() const
+  {
+    return _tuple_type;
+  }
 
-  self_type & mark_cfg_const() { _cfg_const_p = true; return *this; }
-  bool is_cfg_const() const { return _cfg_const_p; }
+  self_type &
+  mark_cfg_const()
+  {
+    _cfg_const_p = true;
+    return *this;
+  }
+  bool
+  is_cfg_const() const
+  {
+    return _cfg_const_p;
+  }
 
-  static self_type any_type() {
+  static self_type
+  any_type()
+  {
     self_type zret;
     zret._base_type.set();
     zret._tuple_type.set();
@@ -448,42 +545,50 @@ public:
   }
 
 protected:
-  ValueMask _base_type; ///< Base type of the feature.
-  ValueMask _tuple_type; ///< Types of the elements of a tuple.
+  ValueMask _base_type;      ///< Base type of the feature.
+  ValueMask _tuple_type;     ///< Types of the elements of a tuple.
   bool _cfg_const_p = false; ///< Config time constant.
-  friend swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);
+  friend swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const &type);
 };
 
-template<typename... Rest>
-ActiveType::ActiveType(ValueType vt, Rest&& ... rest) : ActiveType(rest...) {
+template <typename... Rest> ActiveType::ActiveType(ValueType vt, Rest &&... rest) : ActiveType(rest...)
+{
   _base_type[vt] = true;
 }
 
-template < typename ... Rest >
-ActiveType::ActiveType(TupleOf const& tt, Rest && ... rest ) : ActiveType(rest...) {
+template <typename... Rest> ActiveType::ActiveType(TupleOf const &tt, Rest &&... rest) : ActiveType(rest...)
+{
   _tuple_type |= tt._mask;
   _base_type[TUPLE] = true;
 }
 
-inline auto ActiveType::operator=(ValueType vt) -> self_type & {
+inline auto
+ActiveType::operator=(ValueType vt) -> self_type &
+{
   _base_type.reset();
   _base_type[vt] = true;
   return *this;
 }
 
-inline auto ActiveType::operator=(TupleOf const& tt) -> self_type & {
+inline auto
+ActiveType::operator=(TupleOf const &tt) -> self_type &
+{
   _base_type.reset();
   _base_type[TUPLE] = true;
-  _tuple_type = tt._mask;
+  _tuple_type       = tt._mask;
   return *this;
 }
 
-inline auto ActiveType::operator|=(ValueType vt) -> self_type & {
+inline auto
+ActiveType::operator|=(ValueType vt) -> self_type &
+{
   _base_type[vt] = true;
   return *this;
 }
 
-inline auto ActiveType::operator|=(TupleOf const& tt) -> self_type & {
+inline auto
+ActiveType::operator|=(TupleOf const &tt) -> self_type &
+{
   _base_type[TUPLE] = true;
   _tuple_type |= tt._mask;
   return *this;
@@ -504,7 +609,9 @@ inline auto ActiveType::operator|=(TupleOf const& tt) -> self_type & {
  * @see ValueType
  * @see FeatureMask
  */
-inline ValueMask MaskFor(ValueType type) {
+inline ValueMask
+MaskFor(ValueType type)
+{
   ValueMask mask;
   mask[IndexFor(type)] = true;
   return mask;
@@ -518,12 +625,14 @@ inline ValueMask MaskFor(ValueType type) {
  *
  * This is enabled only if all types in @a P are @c ValueType.
  */
-template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<ValueType, P>...>, ValueMask> {
+template <typename... P>
+auto
+MaskFor(P... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<ValueType, P>...>, ValueMask>
+{
   ValueMask mask;
-  ( (mask[IndexFor(parms)] = true) ,  ...);
+  ((mask[IndexFor(parms)] = true), ...);
   return mask;
 }
-
 
 /** Create a @c FeatureMask containing @a types.
  *
@@ -542,7 +651,9 @@ template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::
  * @see ValueType
  * @see FeatureMask
  */
-inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
+inline ValueMask
+MaskFor(std::initializer_list<ValueType> const &types)
+{
   ValueMask mask;
   for (auto type : types) {
     mask[IndexFor(type)] = true;
@@ -552,7 +663,7 @@ inline ValueMask MaskFor(std::initializer_list<ValueType> const& types) {
 
 /// Convenience meta-function to convert a @c FeatureData index to the specific feature type.
 /// @tparam F ValueType enumeration value.
-template < ValueType F > using feature_type_for = Feature::type_for<F>;
+template <ValueType F> using feature_type_for = Feature::type_for<F>;
 
 /** Compute a feature mask from a list of types.
  *
@@ -562,25 +673,34 @@ template < ValueType F > using feature_type_for = Feature::type_for<F>;
  * @internal This can't be @c constexpr because the underlying type @c std::bitset doesn't have a
  * @c constexpr constructor.
  */
-template < typename ... F > ValueMask MaskFor() {
+template <typename... F>
+ValueMask
+MaskFor()
+{
   ValueMask mask;
-  ( (mask[index_for_type<F>] = true) , ...);
+  ((mask[index_for_type<F>] = true), ...);
   return mask;
 }
 
-template < typename ... F > struct ValueMaskFor {
-  static inline const ValueMask value { MaskFor<F ...>() };
+template <typename... F> struct ValueMaskFor {
+  static inline const ValueMask value{MaskFor<F...>()};
 };
 
 /// Check if @a feature is nil.
-inline bool is_nil(Feature const& feature) {
+inline bool
+is_nil(Feature const &feature)
+{
   if (auto gf = std::get_if<GENERIC>(&feature)) {
     return (*gf)->is_nil();
   }
   return feature.index() == IndexFor(NIL);
 }
 /// Check if @a feature is empty (nil or an empty string).
-inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.index() || (IndexFor(STRING) == feature.index() && std::get<IndexFor(STRING)>(feature).empty()); }
+inline bool
+is_empty(Feature const &feature)
+{
+  return IndexFor(NIL) == feature.index() || (IndexFor(STRING) == feature.index() && std::get<IndexFor(STRING)>(feature).empty());
+}
 
 /** Get the first element for @a feature.
  *
@@ -589,7 +709,7 @@ inline bool is_empty(Feature const& feature) { return IndexFor(NIL) == feature.i
  * sequence.
  *
  */
-Feature car(Feature const& feature);
+Feature car(Feature const &feature);
 
 /** Drop the first element in @a feature.
  *
@@ -598,17 +718,19 @@ Feature car(Feature const& feature);
  * Otherwise a sequence not containing the first element of @a feature.
  *
  */
-Feature & cdr(Feature & feature);
+Feature &cdr(Feature &feature);
 
-inline void clear(Feature & feature) {
-  if (auto gf = std::get_if<GENERIC>(&feature) ; gf) {
+inline void
+clear(Feature &feature)
+{
+  if (auto gf = std::get_if<GENERIC>(&feature); gf) {
     (*gf)->~Generic();
   }
   feature = NIL_FEATURE;
 }
 
-static constexpr swoc::TextView ACTIVE_FEATURE_KEY { "..." };
-static constexpr swoc::TextView UNMATCHED_FEATURE_KEY {"*" };
+static constexpr swoc::TextView ACTIVE_FEATURE_KEY{"..."};
+static constexpr swoc::TextView UNMATCHED_FEATURE_KEY{"*"};
 
 /// Conversion between @c ValueType and printable names.
 extern swoc::Lexicon<ValueType> const ValueTypeNames;
@@ -618,24 +740,26 @@ extern swoc::Lexicon<ValueType> const ValueTypeNames;
 /// directive is valid from the current hook. Special hooks that can't be scheduled from a
 /// transaction go before @c TXN_START so they are always "in the past".
 enum class Hook {
-  INVALID, ///< Invalid hook (default initialization value).
-  POST_LOAD, ///< After configuration has been loaded.
+  INVALID,     ///< Invalid hook (default initialization value).
+  POST_LOAD,   ///< After configuration has been loaded.
   POST_ACTIVE, ///< After the configuration has become active.
-  MSG, ///< During plugin message handling (implicit).
-  TXN_START, ///< Transaction start.
-  CREQ, ///< Read Request from user agent.
-  PRE_REMAP, ///< Before remap.
-  REMAP, ///< Remap (implicit).
-  POST_REMAP, ///< After remap.
-  PREQ, ///< Send request from proxy to upstream.
-  URSP, ///< Read response from upstream.
-  PRSP, ///< Send response to user agent from proxy.
-  TXN_CLOSE ///< Transaction close.
+  MSG,         ///< During plugin message handling (implicit).
+  TXN_START,   ///< Transaction start.
+  CREQ,        ///< Read Request from user agent.
+  PRE_REMAP,   ///< Before remap.
+  REMAP,       ///< Remap (implicit).
+  POST_REMAP,  ///< After remap.
+  PREQ,        ///< Send request from proxy to upstream.
+  URSP,        ///< Read response from upstream.
+  PRSP,        ///< Send response to user agent from proxy.
+  TXN_CLOSE    ///< Transaction close.
 };
 
 /// Make @c tuple_size work for the @c Hook enum.
-namespace std {
-template<> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::TXN_CLOSE)+1> {};
+namespace std
+{
+template <> struct tuple_size<Hook> : public std::integral_constant<size_t, static_cast<size_t>(Hook::TXN_CLOSE) + 1> {
+};
 }; // namespace std
 
 /** Convert a @c Hook enumeration to an unsigned value.
@@ -643,7 +767,9 @@ template<> struct tuple_size<Hook> : public std::integral_constant<size_t, stati
  * @param id Enumeration to convert.
  * @return Numeric value of @a id.
  */
-inline constexpr unsigned IndexFor(Hook id) {
+inline constexpr unsigned
+IndexFor(Hook id)
+{
   return static_cast<unsigned>(id);
 }
 
@@ -662,7 +788,9 @@ using HookMask = std::bitset<std::tuple_size<Hook>::value>;
  *   static const HookMask Mask { MaskFor(Hook::PRE_REMAP) };
  * @endcode
  */
-inline HookMask MaskFor(Hook hook) {
+inline HookMask
+MaskFor(Hook hook)
+{
   HookMask mask;
   mask[IndexFor(hook)] = true;
   return mask;
@@ -685,7 +813,9 @@ inline HookMask MaskFor(Hook hook) {
  * @see ValueType
  * @see HookMask
  */
-inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
+inline HookMask
+MaskFor(std::initializer_list<Hook> const &hooks)
+{
   HookMask mask;
   for (auto hook : hooks) {
     mask[IndexFor(hook)] = true;
@@ -693,27 +823,39 @@ inline HookMask MaskFor(std::initializer_list<Hook> const& hooks) {
   return mask;
 }
 
-template < typename E > struct MaskTypeFor { };
-template <> struct MaskTypeFor<Hook> { using type = HookMask; };
-template <> struct MaskTypeFor<ValueType> { using type = ValueMask; };
+template <typename E> struct MaskTypeFor {
+};
+template <> struct MaskTypeFor<Hook> {
+  using type = HookMask;
+};
+template <> struct MaskTypeFor<ValueType> {
+  using type = ValueMask;
+};
 
-template < typename ... P > auto MaskFor(P  ... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<Hook, P>...>, HookMask> {
+template <typename... P>
+auto
+MaskFor(P... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<Hook, P>...>, HookMask>
+{
   HookMask mask;
-  ( (mask[IndexFor(parms)] = true) ,  ...);
+  ((mask[IndexFor(parms)] = true), ...);
   return mask;
 }
 
 /// Name lookup for hook values.
 extern swoc::Lexicon<Hook> HookName;
 
-inline FeatureView FeatureView::Literal(TextView const& view) {
-  self_type zret { view };
+inline FeatureView
+FeatureView::Literal(TextView const &view)
+{
+  self_type zret{view};
   zret._literal_p = true;
   return zret;
 }
 
-inline FeatureView FeatureView::Direct(TextView const& view) {
-  self_type zret { view };
+inline FeatureView
+FeatureView::Direct(TextView const &view)
+{
+  self_type zret{view};
   zret._direct_p = true;
   return zret;
 }
@@ -721,8 +863,8 @@ inline FeatureView FeatureView::Direct(TextView const& view) {
 /// Conversion enumeration for checking boolean strings.
 enum BoolTag {
   INVALID = -1,
-  False = 0,
-  True = 1,
+  False   = 0,
+  True    = 1,
 };
 /// Mapping of strings to boolean values.
 /// This is for handling various synonymns in a consistent manner.
@@ -733,17 +875,16 @@ struct Global {
   swoc::Errata _preload_errata;
   int TxnArgIdx = -1;
   std::vector<std::string> _args; ///< Global configuration arguments.
-  TSCont _cont; ///< Global continuation to start transaction handling.
+  TSCont _cont;                   ///< Global continuation to start transaction handling.
   /// Amount of reserved storage requested by remap directives.
   /// This is not always correct, @c Context must handle overflows gracefully.
-  std::atomic<size_t> _remap_ctx_storage_required {0 };
+  std::atomic<size_t> _remap_ctx_storage_required{0};
 
   void reserve_txn_arg();
 
   // -- Reserved keys -- //
   /// Standard name for nested directives and therefore reserved globally.
   static constexpr swoc::TextView DO_KEY = "do";
-
 };
 
 /// Global data.
@@ -752,31 +893,31 @@ extern Global G;
 /// Reserved storage descriptor.
 struct ReservedSpan {
   size_t offset = 0; ///< Offset for start of storage.
-  size_t n = 0; ///< Storage size;
+  size_t n      = 0; ///< Storage size;
 };
 
 /// Used for clean up in @c Config and @c Context.
 /// A list of these is used to perform additional cleanup for extensions to the basic object.
 struct Finalizer {
-  using self_type = Finalizer; ///< Self reference type.
-  void * _ptr = nullptr; ///< Pointer to object to destroy.
-  std::function<void (void*)> _f; ///< Functor to destroy @a _ptr.
+  using self_type = Finalizer;    ///< Self reference type.
+  void *_ptr      = nullptr;      ///< Pointer to object to destroy.
+  std::function<void(void *)> _f; ///< Functor to destroy @a _ptr.
 
-  self_type * _prev = nullptr; ///< List support.
-  self_type * _next = nullptr; ///< List support.
-  using Linkage = swoc::IntrusiveLinkage<Finalizer>; ///< For @c IntrusiveDList
+  self_type *_prev = nullptr;                           ///< List support.
+  self_type *_next = nullptr;                           ///< List support.
+  using Linkage    = swoc::IntrusiveLinkage<Finalizer>; ///< For @c IntrusiveDList
 
-  Finalizer(void* ptr, std::function<void (void*)> && f);
+  Finalizer(void *ptr, std::function<void(void *)> &&f);
 };
 
-inline Finalizer::Finalizer(void* ptr, std::function<void (void*)> && f) : _ptr(ptr), _f(std::move(f)) {}
+inline Finalizer::Finalizer(void *ptr, std::function<void(void *)> &&f) : _ptr(ptr), _f(std::move(f)) {}
 
 /** Scoping value change.
  *
  * @tparam T Type of variable to scope.
  */
-template < typename T > struct let {
-  T & _var; ///< Reference to scoped variable.
+template <typename T> struct let {
+  T &_var;  ///< Reference to scoped variable.
   T _value; ///< Original value.
 
   /** Construct a scope.
@@ -784,37 +925,48 @@ template < typename T > struct let {
    * @param var Variable to scope.
    * @param value temporary value to assign.
    */
-  let(T & var, T const& value);
+  let(T &var, T const &value);
 
   /** Construct a scope.
    *
    * @param var Variable to scope.
    * @param value temporary value to assign.
    */
-  let(T & var, T && value);
+  let(T &var, T &&value);
 
   ~let();
 };
 
-template < typename T > let<T>::let(T& var, T const& value) : _var(var), _value(var)  { _var = value; }
-template < typename T > let<T>::let(T& var, T && value) : _var(var), _value(std::move(var))  { _var = value; }
+template <typename T> let<T>::let(T &var, T const &value) : _var(var), _value(var)
+{
+  _var = value;
+}
+template <typename T> let<T>::let(T &var, T &&value) : _var(var), _value(std::move(var))
+{
+  _var = value;
+}
 
-template < typename T > let<T>::~let() { _var = _value; }
+template <typename T> let<T>::~let()
+{
+  _var = _value;
+}
 
 // BufferWriter support.
-namespace swoc {
-BufferWriter &bwformat(BufferWriter& w, bwf::Spec const& spec, std::monostate);
+namespace swoc
+{
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, feature_type_for<NO_VALUE>);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, feature_type_for<NIL>);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueType type);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, FeatureTuple const& t);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, FeatureTuple const &t);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, Feature const &feature);
 BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ValueMask const &mask);
-BufferWriter &bwformat(BufferWriter &w, bwf::Spec const& spec, feature_type_for<DURATION> const& d);
-//BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, ActiveType const& type);
-}
-swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const& spec, Hook hook);
-swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const& type);
+BufferWriter &bwformat(BufferWriter &w, bwf::Spec const &spec, feature_type_for<DURATION> const &d);
+} // namespace swoc
+swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, Hook hook);
+swoc::BufferWriter &bwformat(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, ActiveType const &type);
 
-namespace std { namespace chrono {
-using days = duration<hours::rep, ratio<86400>>;
-using weeks = duration<hours::rep, ratio<86400*7>>;
-}} // namespace std::chrono
+namespace std::chrono
+{
+using days  = duration<hours::rep, ratio<86400>>;
+using weeks = duration<hours::rep, ratio<86400 * 7>>;
+} // namespace std::chrono

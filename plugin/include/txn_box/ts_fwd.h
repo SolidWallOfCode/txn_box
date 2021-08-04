@@ -7,5 +7,5 @@
 
 #pragma once
 
-using TSCont = struct tsapi_cont *;
+using TSCont    = struct tsapi_cont *;
 using TSHttpTxn = struct tsapi_httptxn *;

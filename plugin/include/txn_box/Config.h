@@ -3,14 +3,14 @@
  *
  * Copyright 2019, Oath Inc.
  * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 
 #pragma once
 
 #include <array>
 #include <vector>
 #if __has_include(<memory_resource>)
-#  include <memory_resource>
+#include <memory_resource>
 #endif
 
 #include <swoc/TextView.h>
@@ -26,82 +26,86 @@
 
 /// Contains a configuration and configuration helper methods.
 /// This is also used to pass information between node parsing during configuration loading.
-class Config {
+class Config
+{
   using self_type = Config; ///< Self reference type.
-  using Errata = swoc::Errata;
-public:
+  using Errata    = swoc::Errata;
 
+public:
   /// Full name of the plugin.
-  static constexpr swoc::TextView PLUGIN_NAME { "Transaction Tool Box" };
+  static constexpr swoc::TextView PLUGIN_NAME{"Transaction Tool Box"};
   /// Tag name of the plugin.
-  static constexpr swoc::TextView PLUGIN_TAG { "txn_box" };
+  static constexpr swoc::TextView PLUGIN_TAG{"txn_box"};
 
   static const std::string GLOBAL_ROOT_KEY; ///< Root key for global configuration.
-  static const std::string REMAP_ROOT_KEY; ///< Root key for remap configuration.
+  static const std::string REMAP_ROOT_KEY;  ///< Root key for remap configuration.
 
   /// Track the state of provided features.
   struct ActiveFeatureState {
-    ActiveType _type; ///< Type of active feature.
+    ActiveType _type;    ///< Type of active feature.
     bool _ref_p = false; ///< Feature has been referenced / used.
   };
 
-  class ActiveFeatureScope {
+  class ActiveFeatureScope
+  {
     using self_type = ActiveFeatureScope;
     friend class Config;
 
-    Config * _cfg = nullptr;
+    Config *_cfg = nullptr;
     ActiveFeatureState _state;
 
   public:
-    ActiveFeatureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
+    ActiveFeatureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
 
-    ActiveFeatureScope(self_type && that) : _cfg(that._cfg), _state(that._state) {
-      that._cfg = nullptr;
-    }
+    ActiveFeatureScope(self_type &&that) : _cfg(that._cfg), _state(that._state) { that._cfg = nullptr; }
 
     // No copying.
-    ActiveFeatureScope(self_type const& that) = delete;
-    self_type & operator = (self_type const& that) = delete;
+    ActiveFeatureScope(self_type const &that) = delete;
+    self_type &operator=(self_type const &that) = delete;
 
     ~ActiveFeatureScope();
   };
   friend ActiveFeatureScope;
-  ActiveFeatureScope feature_scope(ActiveType const& ex_type);
+  ActiveFeatureScope feature_scope(ActiveType const &ex_type);
 
   /// Track the state of the active capture groups.
   struct ActiveCaptureState {
-    unsigned _count = 0; ///< Number of active capture groups - 0 => not active.
-    int _line = -1; ///< Line of the active regular expression.
-    bool _ref_p = false; ///< Regular expression capture groups referenced / used.
+    unsigned _count = 0;     ///< Number of active capture groups - 0 => not active.
+    int _line       = -1;    ///< Line of the active regular expression.
+    bool _ref_p     = false; ///< Regular expression capture groups referenced / used.
   };
 
-  class ActiveCaptureScope {
+  class ActiveCaptureScope
+  {
     using self_type = ActiveCaptureScope;
     friend class Config;
 
-    Config * _cfg = nullptr;
+    Config *_cfg = nullptr;
     ActiveCaptureState _state;
 
   public:
-    ActiveCaptureScope(Config& cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
+    ActiveCaptureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
 
-    ActiveCaptureScope(self_type && that);
+    ActiveCaptureScope(self_type &&that);
 
     // No copying.
-    ActiveCaptureScope(self_type const& that) = delete;
-    self_type & operator = (self_type const& that) = delete;
+    ActiveCaptureScope(self_type const &that) = delete;
+    self_type &operator=(self_type const &that) = delete;
 
-    ~ActiveCaptureScope() {
+    ~ActiveCaptureScope()
+    {
       if (_cfg) {
         _cfg->_active_capture = _state;
       }
     }
   };
   friend ActiveCaptureScope;
-  ActiveCaptureScope capture_scope(unsigned count, unsigned line_no) {
+  ActiveCaptureScope
+  capture_scope(unsigned count, unsigned line_no)
+  {
     ActiveCaptureScope scope(*this);
     _active_capture._count = count;
-    _active_capture._line = line_no;
+    _active_capture._line  = line_no;
     _active_capture._ref_p = false;
     return scope;
   }
@@ -129,8 +133,7 @@ public:
    * @param cache Cache of the results of YAML parsing the files.
    * @return Errors, if any.
    */
-  Errata load_cli_args(Handle handle, std::vector<std::string> const& args, int arg_idx = 0
-                       , YamlCache * cache = nullptr);
+  Errata load_cli_args(Handle handle, std::vector<std::string> const &args, int arg_idx = 0, YamlCache *cache = nullptr);
 
   /** Load the configuration from CLI arguments.
    *
@@ -140,8 +143,7 @@ public:
    * @param cache Cache of the results of YAML parsing the files.
    * @return Errors, if any.
    */
-  Errata load_cli_args(Handle handle, swoc::MemSpan<char const*> argv, int arg_idx = 0
-                       , YamlCache * cache = nullptr);
+  Errata load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_idx = 0, YamlCache *cache = nullptr);
 
   /** Load file(s) in to @a this configuation.
    *
@@ -152,7 +154,7 @@ public:
    * All files matching the @a pattern are loaded in to this configuration, using @a CfgKey as
    * the root key.
    */
-  swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key, YamlCache* cache = nullptr);
+  swoc::Errata load_file_glob(swoc::TextView pattern, swoc::TextView cfg_key, YamlCache *cache = nullptr);
 
   /** Load a file into @a this.
    *
@@ -162,7 +164,7 @@ public:
    *
    * The content of @a cfg_path is loaded in to @a this configuration instance.
    */
-  swoc::Errata load_file(swoc::file::path const& cfg_path, swoc::TextView cfg_key, YamlCache * cache = nullptr);
+  swoc::Errata load_file(swoc::file::path const &cfg_path, swoc::TextView cfg_key, YamlCache *cache = nullptr);
 
   /** Parse YAML from @a node to initialize @a this configuration.
    *
@@ -179,7 +181,11 @@ public:
    */
   Errata parse_yaml(YAML::Node root, swoc::TextView path);
 
-  void mark_as_remap() { _hook = Hook::REMAP; }
+  void
+  mark_as_remap()
+  {
+    _hook = Hook::REMAP;
+  }
 
   /** Load directives at the top level.
    *
@@ -198,7 +204,7 @@ public:
    * @param drtv_node Directive node.
    * @return A new directive instance, or errors if loading failed.
    */
-  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const& drtv_node);
+  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const &drtv_node);
 
   /** Parse a feature expression.
    *
@@ -215,12 +221,16 @@ public:
 
 #if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
   /// Access the internal memory arena as a memory resource.
-  std::pmr::memory_resource * pmr() { return &_arena; }
+  std::pmr::memory_resource *
+  pmr()
+  {
+    return &_arena;
+  }
 #endif
 
   enum LocalOpt {
     LOCAL_VIEW, ///< Localize as view.
-    LOCAL_CSTR ///< Localize as C string.
+    LOCAL_CSTR  ///< Localize as C string.
   };
 
   /** Copy @a text to local storage in this instance.
@@ -231,12 +241,22 @@ public:
    * Strings in the YAML configuration are transient. If the content needs to be available at
    * run time it must be first localized.
    */
-  std::string_view& localize(std::string_view & text, LocalOpt opt = LOCAL_VIEW);
-  swoc::TextView localize(std::string_view const& text, LocalOpt opt = LOCAL_VIEW) { swoc::TextView tv { text }; return this->localize(tv, opt); }
+  std::string_view &localize(std::string_view &text, LocalOpt opt = LOCAL_VIEW);
+  swoc::TextView
+  localize(std::string_view const &text, LocalOpt opt = LOCAL_VIEW)
+  {
+    swoc::TextView tv{text};
+    return this->localize(tv, opt);
+  }
 
-  self_type& localize(Feature & feature);
+  self_type &localize(Feature &feature);
 
-  template < typename T > auto localize(T &) -> EnableForFeatureTypes<T, self_type&> { return *this; }
+  template <typename T>
+  auto
+  localize(T &) -> EnableForFeatureTypes<T, self_type &>
+  {
+    return *this;
+  }
 
   /** Allocate config space for an array of @a T.
    *
@@ -249,7 +269,10 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template < typename T > swoc::MemSpan<T> alloc_span(unsigned count) {
+  template <typename T>
+  swoc::MemSpan<T>
+  alloc_span(unsigned count)
+  {
     return _arena.alloc(sizeof(T) * count).rebind<T>();
   }
 
@@ -260,7 +283,11 @@ public:
   Hook current_hook() const;
 
   /// @return The type of the active feature.
-  ActiveType active_type() const { return _active_feature._type; }
+  ActiveType
+  active_type() const
+  {
+    return _active_feature._type;
+  }
 
   /** Require regular expression capture vectors to support at least @a n groups.
    *
@@ -274,7 +301,12 @@ public:
    * @param hook Runtime dispatch hook.
    * @return @a this
    */
-  self_type &reserve_slot(Hook hook) { ++_directive_count[IndexFor(hook)]; return *this; }
+  self_type &
+  reserve_slot(Hook hook)
+  {
+    ++_directive_count[IndexFor(hook)];
+    return *this;
+  }
 
   /// Check for top level directives.
   /// @return @a true if there are any top level directives, @c false if not.
@@ -285,7 +317,7 @@ public:
    * @param hook The hook identifier.
    * @return A reference to the vector of top level directives for @a hook.
    */
-  std::vector<Directive::Handle> const& hook_directives(Hook hook) const;
+  std::vector<Directive::Handle> const &hook_directives(Hook hook) const;
 
   /** Mark @a ptr for cleanup when @a this is destroyed.
    *
@@ -295,7 +327,7 @@ public:
    *
    * @a ptr is cleaned up by calling @c std::destroy_at.
    */
-  template <typename T> self_type & mark_for_cleanup(T* ptr);
+  template <typename T> self_type &mark_for_cleanup(T *ptr);
 
   /** Define a directive.
    *
@@ -306,11 +338,9 @@ public:
    * @param cfg_init_cb Config time initialization if needed.
    * @return Errors, if any.
    */
-  static swoc::Errata define(swoc::TextView name
-                             , HookMask const& hooks
-                             , Directive::Options const& options
-                             , Directive::InstanceLoader && worker
-                             , Directive::CfgInitializer && cfg_init_cb = [](Config&, Directive::CfgStaticData const*) -> swoc::Errata { return {}; });
+  static swoc::Errata define(
+    swoc::TextView name, HookMask const &hooks, Directive::Options const &options, Directive::InstanceLoader &&worker,
+    Directive::CfgInitializer &&cfg_init_cb = [](Config &, Directive::CfgStaticData const *) -> swoc::Errata { return {}; });
 
   /** Define a directive.
    *
@@ -320,7 +350,10 @@ public:
    * This is used when the directive class layout is completely standard. The template picks out those
    * pieces and passes them to the argument based @c define.
    */
-  template < typename D > static swoc::Errata define() {
+  template <typename D>
+  static swoc::Errata
+  define()
+  {
     return self_type::define(D::KEY, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
   }
 
@@ -333,7 +366,10 @@ public:
    * This is used when a directive needs to be available under an alternative name. All of the arguments
    * are pulled from standard class members except the key (directive name).
    */
-  template < typename D > static swoc::Errata define(swoc::TextView name) {
+  template <typename D>
+  static swoc::Errata
+  define(swoc::TextView name)
+  {
     return self_type::define(name, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
   }
 
@@ -370,33 +406,43 @@ public:
    * @note The directive itself should use its embedded pointer. This is required by other elements
    * that need access to shared configuration state for the directive.
    */
-  Directive::CfgStaticData const * drtv_info(swoc::TextView const& name) const;
+  Directive::CfgStaticData const *drtv_info(swoc::TextView const &name) const;
 
   /// @return Number of files loaded for this configuration.
-  size_t file_count() const { return _cfg_file_count; }
+  size_t
+  file_count() const
+  {
+    return _cfg_file_count;
+  }
 
   /// @return The total amount of context storage reserved.
-  size_t reserved_ctx_storage_size() const { return _ctx_storage_required; }
+  size_t
+  reserved_ctx_storage_size() const
+  {
+    return _ctx_storage_required;
+  }
 
-  template < typename T > T* active_value(swoc::TextView const & name) {
-    return static_cast<T*>(_active_values[name]);
+  template <typename T>
+  T *
+  active_value(swoc::TextView const &name)
+  {
+    return static_cast<T *>(_active_values[name]);
   }
 
   struct active_value_save {
-    void *& _value;
-    void * _saved;
+    void *&_value;
+    void *_saved;
 
-    active_value_save(void*& var, void* value) : _value(var), _saved(_value) {
-      _value = value;
-    }
-    ~active_value_save() {
-      _value = _saved;
-    }
+    active_value_save(void *&var, void *value) : _value(var), _saved(_value) { _value = value; }
+    ~active_value_save() { _value = _saved; }
   };
 
-  active_value_save active_value_let(swoc::TextView const & name, void * value) {
+  active_value_save
+  active_value_let(swoc::TextView const &name, void *value)
+  {
     return active_value_save(_active_values[name], value);
   }
+
 protected:
   /// As the top level directive, this needs special access.
   friend class When;
@@ -407,7 +453,7 @@ protected:
   Hook _hook = Hook::INVALID;
 
   /// Mark whether there are any top level directives.
-  bool _has_top_level_directive_p { false };
+  bool _has_top_level_directive_p{false};
 
   /// Maximum number of capture groups for regular expression matching.
   /// Always at least one because literal matches use that.
@@ -456,7 +502,7 @@ protected:
 
   /// Largest number of directives across the hooks. These are updated during
   /// directive load, if needed. This includes the top level directives.
-  std::array<size_t, std::tuple_size<Hook>::value> _directive_count { 0 };
+  std::array<size_t, std::tuple_size<Hook>::value> _directive_count{0};
 
   /// For localizing data at a configuration level, primarily strings.
   swoc::MemArena _arena;
@@ -464,7 +510,7 @@ protected:
   /// Additional clean up to perform when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
 
-  swoc::Rv<Directive::Handle> load_directive(YAML::Node const& drtv_node);
+  swoc::Rv<Directive::Handle> load_directive(YAML::Node const &drtv_node);
 
   /** Parse a scalar feature expression.
    *
@@ -476,7 +522,7 @@ protected:
    */
   swoc::Rv<Expr> parse_scalar_expr(YAML::Node node);
 
-  swoc::Rv<Expr> parse_composite_expr(swoc::TextView const& text);
+  swoc::Rv<Expr> parse_composite_expr(swoc::TextView const &text);
 
   /** Parse an unquoted feature expression.
    *
@@ -484,7 +530,7 @@ protected:
    * @return The expression, or errors on failure.
    *
    */
-  swoc::Rv<Expr> parse_unquoted_expr(swoc::TextView const& text);
+  swoc::Rv<Expr> parse_unquoted_expr(swoc::TextView const &text);
 
   swoc::Rv<Expr> parse_expr_with_mods(YAML::Node node);
 
@@ -502,7 +548,8 @@ protected:
   swoc::Rv<ActiveType> validate(Extractor::Spec &spec);
 
   /// Tracking for configuration files loaded in to @a this.
-  class FileInfo {
+  class FileInfo
+  {
     using self_type = FileInfo; ///< Self reference type.
   public:
     /** Check if a specific @a key has be used as a root for this file.
@@ -531,32 +578,53 @@ protected:
   size_t _cfg_file_count = 0;
 };
 
-inline bool Config::FileInfo::has_cfg_key(swoc::TextView key) const {
-  return _keys.end() != std::find_if(_keys.begin(), _keys.end(), [=] (std::string const& k) { return 0 == strcasecmp(k, key);});
+inline bool
+Config::FileInfo::has_cfg_key(swoc::TextView key) const
+{
+  return _keys.end() != std::find_if(_keys.begin(), _keys.end(), [=](std::string const &k) { return 0 == strcasecmp(k, key); });
 }
 
-inline void Config::FileInfo::add_cfg_key(swoc::TextView key) {
+inline void
+Config::FileInfo::add_cfg_key(swoc::TextView key)
+{
   _keys.emplace_back(key);
 }
 
-inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type&& that) : _cfg(that._cfg), _state(that._state) {
+inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type &&that)
+  : _cfg(that._cfg), _state(that._state)
+{
   that._cfg = nullptr;
 }
 
-inline Hook Config::current_hook() const { return _hook; }
-inline bool Config::has_top_level_directive() const { return _has_top_level_directive_p; }
+inline Hook
+Config::current_hook() const
+{
+  return _hook;
+}
+inline bool
+Config::has_top_level_directive() const
+{
+  return _has_top_level_directive_p;
+}
 
-inline std::vector<Directive::Handle> const &Config::hook_directives(Hook hook) const {
+inline std::vector<Directive::Handle> const &
+Config::hook_directives(Hook hook) const
+{
   return _roots[static_cast<unsigned>(hook)];
 }
 
-inline Config& Config::require_rxp_group_count(unsigned n) {
+inline Config &
+Config::require_rxp_group_count(unsigned n)
+{
   _capture_groups = std::max(_capture_groups, n);
   return *this;
 }
 
-template < typename T > auto Config::mark_for_cleanup(T *ptr) -> self_type & {
-  auto f = _arena.make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
+template <typename T>
+auto
+Config::mark_for_cleanup(T *ptr) -> self_type &
+{
+  auto f = _arena.make<Finalizer>(ptr, [](void *ptr) { std::destroy_at(static_cast<T *>(ptr)); });
   _finalizers.append(f);
   return *this;
 }

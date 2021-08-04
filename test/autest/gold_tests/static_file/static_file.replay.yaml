@@ -66,6 +66,7 @@ meta:
           - eq: 404
           - match: "security.txt"
           do:
+          - debug: "Resetting upstream response"
           - upstream-rsp-status: [ 200 , "OK" ]
           - upstream-rsp-body: *secure-text
           - upstream-rsp-field<Cache-Control>: "max-age=3600"
@@ -77,7 +78,7 @@ meta:
       # If this is checking it could be because there was an early failure. In that case the proxy
       # request may never have been created and proxy-req-path will be NULL. This syntax tries
       # proxy-req-path and if it is NULL, tries ua-req-path instead which will always be something.
-      - debug: "id {upstream-rsp-field<UUID>} proxy-rsp-status {proxy-rsp-status} proxy-req-path {proxy-req-path}"
+      - debug: "id {ua-req-field<UUID>} proxy-rsp-status {proxy-rsp-status} proxy-req-path {proxy-req-path}"
       - with: [ proxy-rsp-status , [ proxy-req-path , { else: ua-req-path } ] ]
         select:
         - as-tuple:
@@ -88,6 +89,21 @@ meta:
           - proxy-rsp-status: [ 200 , "OK" ]
           - proxy-rsp-body: [ *secure-text , "text/plain" ]
 # -- doc-proxy-rsp--<
+
+     # This is for testing empty (zero content length) responses from the upstream.
+    - when: upstream-rsp
+      do:
+      - with: [ upstream-rsp-status , [ proxy-req-path , { else: ua-req-path } ] ]
+        select:
+        - as-tuple:
+          - eq: 404
+          - all-of:
+            - prefix: "security-"
+            - suffix: ".txt"
+          do:
+          - debug: "Resetting upstream response for {ua-req-field<UUID>}"
+          - upstream-rsp-status: [ 200 , "OK" ]
+          - upstream-rsp-body: *secure-text
 
     remap:
     - when: proxy-rsp
@@ -354,3 +370,69 @@ sessions:
       <<: *base-rsp
     proxy-response:
       status: 404
+
+  # Verify caching
+  - all: { headers: { fields: [[ uuid, cached-security ]]}}
+    client-request:
+      <<: *base-req
+      url: "/security.txt"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 404
+      reason: "Missing"
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 90 ]
+        - [ Cache-Status, live ] # Should not arrive because not in cached version.
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ Cache-Status, { absent: }]
+        - [ uuid, { as: equal, value: "3" }] # cached in transaction 3
+
+
+  # Verify correctness for empty upstream response - base case
+  - all: { headers: { fields: [[ uuid, base-case ]]}}
+    client-request:
+      <<: *base-req
+      url: "/security-2.txt"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 404
+      reason: "Missing"
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+    proxy-response:
+      status: 200
+
+  # Verify correctness for empty upstream response - empty case
+  - all: { headers: { fields: [[ uuid, empty-response ]]}}
+    client-request:
+      <<: *base-req
+      url: "/security-3.txt"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 404
+      reason: "Missing"
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 0 ]
+    proxy-response:
+      status: 200

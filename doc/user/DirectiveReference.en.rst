@@ -122,6 +122,15 @@ User Agent Request
 
    Sets the query string for the user agent request.
 
+.. directive:: ua-req-query-value
+   :arg: Query parameter key.
+   :value: string
+
+   Set the value for a specific query parameter, identified by key. This assumes the standard format
+   for a query string, key / value pairs (joined by '=') separated by '&' or ';'. The key comparison
+   is case insensitive. If the value is ``NULL`` the key and value are removed from the query string.
+   Otherwise, if the key is not present it is added, then the value updated.
+
 .. directive:: ua-req-fragment
    :value: string
 
@@ -188,6 +197,15 @@ Proxy Request
    :value: string
 
    Sets the query string for the proxy request.
+
+.. directive:: proxy-req-query-value
+   :arg: Query parameter key.
+   :value: string
+
+   Set the value for a specific query parameter, identified by key. This assumes the standard format
+   for a query string, key / value pairs (joined by '=') separated by '&' or ';'. The key comparison
+   is case insensitive. If the value is ``NULL`` the key and value are removed from the query string.
+   Otherwise, if the key is not present it is added, then the value updated.
 
 .. directive:: proxy-req-fragment
    :value: string

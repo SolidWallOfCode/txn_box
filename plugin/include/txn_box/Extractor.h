@@ -29,7 +29,8 @@ class FeatureGroup;
  * which maps from names to instances of subclasses. In use, the extractor will be passed a
  * run time context which is expected to suffice to extract the appropriate information.
  */
-class Extractor {
+class Extractor
+{
   using self_type = Extractor; ///< Self reference type.
 public:
   /// Container for extractor factory.
@@ -41,9 +42,19 @@ public:
    */
   struct Spec : public swoc::bwf::Spec {
     /// Extractor used in the spec, if any.
-    Extractor * _exf = nullptr;
+    Extractor *_exf = nullptr;
     /// Config storage for extractor, if needed.
-    swoc::MemSpan<void> _data;
+    /// No member should be larger than a string view or span nor have any state.
+    /// Extractors are required to know what type was stored and retrieve it without addtional
+    /// type information.
+    union union_type {
+      uintmax_t u;
+      swoc::MemSpan<void> span;
+      swoc::TextView text;
+
+      union_type() { span = decltype(span){}; }                // provide copy constructor for Spec constructors.
+      union_type(union_type const &that) { span = that.span; } // provide copy constructor for Spec constructors.
+    } _data;
   };
 
   virtual ~Extractor() = default;
@@ -58,7 +69,7 @@ public:
    * The base implementation returns successfully as a @c STRING or @c NULL. If the extractor
    * returns some other type or needs to actually validate @a spec, it must override this method.
    */
-  virtual swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg);
+  virtual swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg);
 
   /** Whether the extractor uses data from the context.
    *
@@ -78,7 +89,7 @@ public:
    * @param spec Specifier for the extractor.
    * @return The extracted feature.
    */
-  virtual Feature extract(Context & ctx, Spec const& spec) = 0;
+  virtual Feature extract(Context &ctx, Spec const &spec) = 0;
 
   /** Extract from the configuration.
    *
@@ -93,7 +104,7 @@ public:
    * @see validate
    * @see extract(Context & ctx, Spec const& spec)
    */
-  virtual Feature extract(Config & cfg, Spec const& spec);
+  virtual Feature extract(Config &cfg, Spec const &spec);
 
   /** Generate string output for the feature.
    *
@@ -105,7 +116,7 @@ public:
    * This is the generic entry point for generating string output for a feature, which is required
    * for all extractors. The base implementation calls @c extract and pass that to @c bwformat.
    */
-  virtual swoc::BufferWriter & format(swoc::BufferWriter& w, Spec const& spec, Context & ctx);
+  virtual swoc::BufferWriter &format(swoc::BufferWriter &w, Spec const &spec, Context &ctx);
 
   /** Define @a name as the extractor @a ex.
    *
@@ -115,39 +126,41 @@ public:
    *
    * This populates the set of names used in the configuration file to specify extractors.
    */
-  static swoc::Errata define(swoc::TextView name, self_type * ex);
+  static swoc::Errata define(swoc::TextView name, self_type *ex);
 
   /** Find the extractor for @a name.
    *
    * @param name Extractor name.
    * @return A pointer to the extractor, @c nullptr if not found.
    */
-  static self_type* find(swoc::TextView const& name);
+  static self_type *find(swoc::TextView const &name);
 
 protected:
   /** Defined extractors.
    */
-  static Table _ex_table;  /// Obtain the named extractor table.
+  static Table _ex_table; /// Obtain the named extractor table.
 };
 
 /** Cross reference extractor.
  * This requires special handling and therefore needs to be externally visible.
  */
-class Ex_this : public Extractor {
+class Ex_this : public Extractor
+{
 public:
-  static constexpr swoc::TextView NAME { "this" }; ///< Extractor name.
+  static constexpr swoc::TextView NAME{"this"}; ///< Extractor name.
 
   Ex_this() = default;
-  explicit Ex_this(FeatureGroup& fg) : _fg(&fg) {}
+  explicit Ex_this(FeatureGroup &fg) : _fg(&fg) {}
 
-  swoc::Rv<ActiveType> validate(Config & cfg, Spec & spec, swoc::TextView const& arg) override;
+  swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
 
-  Feature extract(Context& ctx, Spec const& spec) override;
+  Feature extract(Context &ctx, Spec const &spec) override;
 
   /// Required text formatting access.
-  swoc::BufferWriter& format(swoc::BufferWriter& w, Spec const& spec, Context & ctx) override;
+  swoc::BufferWriter &format(swoc::BufferWriter &w, Spec const &spec, Context &ctx) override;
+
 protected:
-  FeatureGroup* _fg = nullptr; ///< FeatureGroup for name lookup.
+  FeatureGroup *_fg = nullptr; ///< FeatureGroup for name lookup.
 };
 
 extern Ex_this ex_this;
@@ -156,8 +169,8 @@ extern Ex_this ex_this;
  * The feature is extracted to transient memory. The subclass needs to provide only the @c format
  * method, this @c extract will use that to return a string.
  */
-class StringExtractor : public Extractor {
+class StringExtractor : public Extractor
+{
 public:
-  Feature extract(Context& ctx, Spec const& spec) override;
+  Feature extract(Context &ctx, Spec const &spec) override;
 };
-

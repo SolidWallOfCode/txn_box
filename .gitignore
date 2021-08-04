@@ -56,6 +56,7 @@ include/swoc
 /var
 /_vcs
 /_sdk
+/_scm
 /_unit_tests
 /test/autest/_sandbox/
 /test/autest/Pipfile

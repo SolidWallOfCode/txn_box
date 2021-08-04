@@ -17,10 +17,12 @@ using swoc::Errata;
 using swoc::Rv;
 
 /* ------------------------------------------------------------------------------------ */
-YAML::Node yaml_merge(YAML::Node root) {
-  static constexpr auto flatten = [] (YAML::Node dst, YAML::Node const& src) -> void {
+YAML::Node
+yaml_merge(YAML::Node root)
+{
+  static constexpr auto flatten = [](YAML::Node dst, YAML::Node const &src) -> void {
     if (src.IsMap()) {
-      for ( auto const& [ key, value ] : src ) {
+      for (auto const &[key, value] : src) {
         // don't need to check for nested merge key, because this function is called only if
         // that's already set in @a dst therefore it won't be copied up from @a src.
         if (!dst[key]) {
@@ -31,16 +33,16 @@ YAML::Node yaml_merge(YAML::Node root) {
   };
 
   if (root.IsSequence()) {
-    for ( auto child : root ) {
+    for (auto child : root) {
       yaml_merge(child);
     }
   } else if (root.IsMap()) {
     // Do all nested merges first, so the result is iteration order independent.
-    for ( auto [ key, value ] : root ) {
+    for (auto [key, value] : root) {
       value = yaml_merge(value);
     }
     // If there's a merge key, merge it in.
-    if ( auto merge_node { root[YAML_MERGE_KEY] } ; merge_node ) {
+    if (auto merge_node{root[YAML_MERGE_KEY]}; merge_node) {
       if (merge_node.IsMap()) {
         flatten(root, merge_node);
       } else if (merge_node.IsSequence()) {
@@ -54,8 +56,10 @@ YAML::Node yaml_merge(YAML::Node root) {
   return root;
 }
 
-Rv<YAML::Node> yaml_load(swoc::file::path const& path) {
-//  static_assert(sizeof(YAML::Node) == sizeof(static_cast<Rv<YAML::Node>*>(nullptr)->_r));
+Rv<YAML::Node>
+yaml_load(swoc::file::path const &path)
+{
+  //  static_assert(sizeof(YAML::Node) == sizeof(static_cast<Rv<YAML::Node>*>(nullptr)->_r));
   std::error_code ec;
   std::string content = swoc::file::load(path, ec);
 
