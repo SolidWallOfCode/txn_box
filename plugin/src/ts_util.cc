@@ -599,6 +599,12 @@ swoc::IPEndpoint ts::HttpSsn::addr_local() const {
   return swoc::IPEndpoint{ TSHttpSsnIncomingAddrGet(_ssn) };
 }
 
+int ts::HttpTxn::inbound_fd() const {
+  int fd = -1;
+  auto result = TSHttpTxnClientFdGet(_txn, &fd);
+  return result != TS_SUCCESS ? -1 : fd;
+}
+
 Errata ts::HttpTxn::cache_key_assign(TextView const &key) {
   TSCacheUrlSet(_txn, key.data(), key.size());
   return {};
