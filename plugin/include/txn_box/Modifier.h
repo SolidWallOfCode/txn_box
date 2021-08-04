@@ -19,7 +19,8 @@
 /** Feature modification / transformation.
  *
  */
-class Modifier {
+class Modifier
+{
   using self_type = Modifier; ///< Self reference type.
 
 public:
@@ -34,7 +35,8 @@ public:
    * @param key_value The YAML node in @a mod_node that identified the modifier.
    * @return A handle for the new instance, or errors if any.
    */
-  using Worker = std::function<swoc::Rv<Handle> (Config& cfg, YAML::Node mod_node, swoc::TextView key, swoc::TextView arg, YAML::Node key_value)>;
+  using Worker =
+    std::function<swoc::Rv<Handle>(Config &cfg, YAML::Node mod_node, swoc::TextView key, swoc::TextView arg, YAML::Node key_value)>;
 
   virtual ~Modifier() = default;
 
@@ -44,8 +46,10 @@ public:
    * @param feature Feature to modify.
    * @return Modified feature, or errors.
    */
-  virtual swoc::Rv<Feature> operator()(Context& ctx, Feature & feature) {
-    auto visitor = [&](auto && value) { return (*this)(ctx, value); };
+  virtual swoc::Rv<Feature>
+  operator()(Context &ctx, Feature &feature)
+  {
+    auto visitor = [&](auto &&value) { return (*this)(ctx, value); };
     return std::visit(visitor, feature);
   }
 
@@ -55,28 +59,33 @@ public:
    * @param feature The feature to modify.
    * @return The modified feature.
    */
-  virtual swoc::Rv<Feature> operator()(Context& ctx, std::monostate);
+  virtual swoc::Rv<Feature> operator()(Context &ctx, std::monostate);
 
   // Do-nothing base implementations - subclasses should override methods for supported types.
-  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<STRING> feature);
-  virtual swoc::Rv<Feature> operator()(Context& ctx, feature_type_for<IP_ADDR> feature);
+  virtual swoc::Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature);
+  virtual swoc::Rv<Feature> operator()(Context &ctx, feature_type_for<IP_ADDR> feature);
 
   // Temporary until actually used.
-  template < typename T > auto operator()(Context&, T const&) -> EnableForFeatureTypes<T, swoc::Rv<Feature>> { return {}; }
+  template <typename T>
+  auto
+  operator()(Context &, T const &) -> EnableForFeatureTypes<T, swoc::Rv<Feature>>
+  {
+    return {};
+  }
 
   /** Check if the comparison is valid for @a type.
    *
    * @param type Type of feature to compare.
    * @return @c true if this comparison can compare to that feature type, @c false otherwise.
    */
-  virtual bool is_valid_for(ActiveType const& type) const = 0;
+  virtual bool is_valid_for(ActiveType const &type) const = 0;
 
   /** Output type of the modifier.
    *
    * @param in The input type for the modifier.
    * @return The type of the modified feature.
    */
-  virtual ActiveType result_type(ActiveType  const& ex_type) const = 0;
+  virtual ActiveType result_type(ActiveType const &ex_type) const = 0;
 
   /** Define a mod for @a name.
    *
@@ -85,7 +94,7 @@ public:
    * @return Errors, if any.
    *
    */
-  static swoc::Errata define(swoc::TextView name, Worker const& f);
+  static swoc::Errata define(swoc::TextView name, Worker const &f);
 
   /** Load an instance from YAML.
    *
@@ -94,7 +103,7 @@ public:
    * @param ex_type Feature type to modify.
    * @return
    */
-  static swoc::Rv<Handle> load(Config& cfg, YAML::Node const& node, ActiveType ex_type);
+  static swoc::Rv<Handle> load(Config &cfg, YAML::Node const &node, ActiveType ex_type);
 
 protected:
   /// Set of defined modifiers.

@@ -27,20 +27,23 @@ using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
 /// Define a plugin statistic.
-class Do_stat_define : public Directive {
-  using self_type = Do_stat_define; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
+class Do_stat_define : public Directive
+{
+  using self_type  = Do_stat_define; ///< Self reference type.
+  using super_type = Directive;      ///< Parent type.
   friend struct Stat;
+
 protected:
   struct CfgInfo;
+
 public:
   static inline const std::string KEY{"stat-define"}; ///< Directive name.
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static const HookMask HOOKS;                        ///< Valid hooks for directive.
 
   /// Reserved configuration storage.
-  static constexpr Options OPTIONS { sizeof(CfgInfo*) };
+  static constexpr Options OPTIONS{sizeof(CfgInfo *)};
 
-  Errata invoke(Context & ctx) override; ///< Runtime activation.
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
 
   /** Load from YAML node.
    *
@@ -52,10 +55,10 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
 
-  static Errata cfg_init(Config &cfg, CfgStaticData const* rtti);
+  static Errata cfg_init(Config &cfg, CfgStaticData const *rtti);
 
 protected:
   /// Mapping internal names to full names.
@@ -71,11 +74,11 @@ protected:
    * @param name Stat name in configuration.
    * @return The full name of the stat if defined, or a localized copy if not.
    */
-  static TextView expand_and_localize(Config& cfg, TextView const& name);
+  static TextView expand_and_localize(Config &cfg, TextView const &name);
 
-  TextView _name; ///< Stat name (internal)
-  TextView _full_name; ///< Fullname including prefix.
-  int _value = 0; ///< Initial value.
+  TextView _name;             ///< Stat name (internal)
+  TextView _full_name;        ///< Fullname including prefix.
+  int _value         = 0;     ///< Initial value.
   bool _persistent_p = false; ///< Make persistent.
 
   static inline const std::string NAME_TAG{"name"};
@@ -86,10 +89,12 @@ protected:
 
 const HookMask Do_stat_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
-TextView Do_stat_define::expand_and_localize(Config& cfg, TextView const& name) {
+TextView
+Do_stat_define::expand_and_localize(Config &cfg, TextView const &name)
+{
   auto rtti = cfg.drtv_info(KEY);
   if (rtti->_count > 0) {
-    Names& names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
+    Names &names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
     if (auto spot = names.find(name); spot != names.end()) {
       return spot->second;
     }
@@ -97,24 +102,31 @@ TextView Do_stat_define::expand_and_localize(Config& cfg, TextView const& name) 
   return cfg.localize(name);
 }
 
-Errata Do_stat_define::cfg_init(Config &cfg, CfgStaticData const* rtti) {
+Errata
+Do_stat_define::cfg_init(Config &cfg, CfgStaticData const *rtti)
+{
   // Get space for instance.
   auto cfg_info = cfg.allocate_cfg_storage(sizeof(CfgInfo), 8).rebind<CfgInfo>().data();
   // Initialize it.
   new (cfg_info) CfgInfo;
   // Remember where it is.
-  rtti->_cfg_store.rebind<CfgInfo*>()[0] = cfg_info;
+  rtti->_cfg_store.rebind<CfgInfo *>()[0] = cfg_info;
   // Clean it up when the config is destroyed.
   cfg.mark_for_cleanup(cfg_info);
   return {};
 }
 
-Errata Do_stat_define::invoke(Context &) {
-  auto && [ idx, errata ] { ts::plugin_stat_define(_full_name, _value, _persistent_p)};
+Errata
+Do_stat_define::invoke(Context &)
+{
+  auto &&[idx, errata]{ts::plugin_stat_define(_full_name, _value, _persistent_p)};
   return errata;
 }
 
-Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const&, YAML::Node key_value) {
+Rv<Directive::Handle>
+Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &,
+                     YAML::Node key_value)
+{
   auto self = new self_type();
   Handle handle(self);
 
@@ -129,7 +141,8 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       return std::move(prefix_errata);
     }
     if (!prefix_expr.is_literal() || !prefix_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY, drtv_node.Mark());
+      return Error("{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY,
+                   drtv_node.Mark());
     }
 
     prefix = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(prefix_expr._raw));
@@ -144,17 +157,19 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
     return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
   }
 
-  auto &&[name_expr, name_errata] { cfg.parse_expr(name_node) };
-  if (! name_errata.is_ok()) {
+  auto &&[name_expr, name_errata]{cfg.parse_expr(name_node)};
+  if (!name_errata.is_ok()) {
     name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
     return std::move(name_errata);
   }
-  if (! name_expr.is_literal() || ! name_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
+  if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
+    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY,
+                 drtv_node.Mark());
   }
   TextView name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
   if (name.empty()) {
-    return Error("{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY, drtv_node.Mark());
+    return Error("{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY,
+                 drtv_node.Mark());
   }
 
   // Localize prefix and name in the same string, storing views in to that string.
@@ -164,9 +179,9 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
     swoc::FixedBufferWriter w{cfg.allocate_cfg_storage(prefix.size() + 1 + name.size() + 1)};
     w.write(prefix).write('.').write(name).write('\0');
     self->_full_name = TextView{w.view()}.remove_suffix(1); // drop terminal null.
-    self->_name = self->_full_name.suffix(name.size());
+    self->_name      = self->_full_name.suffix(name.size());
   }
-  Names& names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
+  Names &names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
   names.insert({self->_name, self->_full_name});
   drtv_node.remove(name_node);
 
@@ -177,8 +192,9 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       value_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(value_errata);
     }
-    if (!value_expr.is_literal() || ! value_expr.result_type().can_satisfy(INTEGER)) {
-      return Error("{} value at {} for {} directive at {} must be a literal integer.", VALUE_TAG, value_node.Mark(), KEY, drtv_node.Mark());
+    if (!value_expr.is_literal() || !value_expr.result_type().can_satisfy(INTEGER)) {
+      return Error("{} value at {} for {} directive at {} must be a literal integer.", VALUE_TAG, value_node.Mark(), KEY,
+                   drtv_node.Mark());
     }
     drtv_node.remove(value_node);
     self->_value = std::get<IndexFor(INTEGER)>(std::get<Expr::LITERAL>(value_expr._raw));
@@ -191,8 +207,9 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
       persistent_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(persistent_errata);
     }
-    if (! persistent_expr.is_literal() || ! persistent_expr.result_type().can_satisfy(BOOLEAN)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", PERSISTENT_TAG, persistent_node.Mark(), KEY, drtv_node.Mark());
+    if (!persistent_expr.is_literal() || !persistent_expr.result_type().can_satisfy(BOOLEAN)) {
+      return Error("{} value at {} for {} directive at {} must be a literal string.", PERSISTENT_TAG, persistent_node.Mark(), KEY,
+                   drtv_node.Mark());
     }
     drtv_node.remove(persistent_node); // ugly, need to fix the overall API.
     self->_persistent_p = std::get<IndexFor(BOOLEAN)>(std::get<Expr::LITERAL>(persistent_expr._raw));
@@ -204,15 +221,15 @@ Rv<Directive::Handle> Do_stat_define::load(Config& cfg, CfgStaticData const* rtt
 /// The name is used when it can't be resolved during configuration loading.
 struct Stat {
   static constexpr int UNRESOLVED = -1;
-  static constexpr int INVALID = -2;
-  TextView _name; ///< Statistic name.
+  static constexpr int INVALID    = -2;
+  TextView _name;        ///< Statistic name.
   int _idx = UNRESOLVED; ///< Statistic index.
 
-  Stat(Config& cfg, TextView const& name) {
-    this->assign(cfg, name);
-  }
+  Stat(Config &cfg, TextView const &name) { this->assign(cfg, name); }
 
-  Stat& assign(Config& cfg, TextView name) {
+  Stat &
+  assign(Config &cfg, TextView name)
+  {
     _name = Do_stat_define::expand_and_localize(cfg, name);
 
     _idx = ts::plugin_stat_index(_name);
@@ -220,7 +237,9 @@ struct Stat {
     return *this;
   }
 
-  int index () {
+  int
+  index()
+  {
     if (_idx == UNRESOLVED) {
       _idx = ts::plugin_stat_index(_name);
       if (_idx < 0) { // On a lookup failure, give up and prevent future lookups.
@@ -230,13 +249,17 @@ struct Stat {
     return _idx;
   }
 
-  Feature value() {
-    auto n { this->index() };
+  Feature
+  value()
+  {
+    auto n{this->index()};
     return n < 0 ? NIL_FEATURE : feature_type_for<INTEGER>{ts::plugin_stat_value(_idx)};
   }
 
-  Stat& update(feature_type_for<INTEGER> value) {
-    auto n { this->index() };
+  Stat &
+  update(feature_type_for<INTEGER> value)
+  {
+    auto n{this->index()};
     if (n >= 0) {
       ts::plugin_stat_update(n, value);
     }
@@ -244,14 +267,15 @@ struct Stat {
   }
 };
 /* ------------------------------------------------------------------------------------ */
-class Do_stat_update : public Directive {
-  using self_type = Do_stat_update; ///< Self reference type.
-  using super_type = Directive; ///< Parent type.
+class Do_stat_update : public Directive
+{
+  using self_type  = Do_stat_update; ///< Self reference type.
+  using super_type = Directive;      ///< Parent type.
 public:
   static const std::string KEY; ///< Directive name.
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static const HookMask HOOKS;  ///< Valid hooks for directive.
 
-  Errata invoke(Context & ctx) override; ///< Runtime activation.
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
 
   /** Load from YAML node.
    *
@@ -263,84 +287,98 @@ public:
    * @param key_value Value for directive @a KEY
    * @return A directive, or errors on failure.
    */
-  static Rv<Handle> load( Config& cfg, CfgStaticData const* rtti, YAML::Node drtv_node, swoc::TextView const& name
-                          , swoc::TextView const& arg, YAML::Node key_value);
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
 
 protected:
   Stat _stat; ///< Stat to update.
   Expr _expr; ///< Value of update.
 
-  Do_stat_update(Config& cfg, TextView const& name, Expr && expr);
+  Do_stat_update(Config &cfg, TextView const &name, Expr &&expr);
 };
 
-const std::string Do_stat_update::KEY { "stat-update" };
-const HookMask Do_stat_update::HOOKS{MaskFor({Hook::CREQ, Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PRSP, Hook::URSP, Hook::TXN_START, Hook::TXN_CLOSE})};
+const std::string Do_stat_update::KEY{"stat-update"};
+const HookMask Do_stat_update::HOOKS{MaskFor({Hook::CREQ, Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::PRSP,
+                                              Hook::URSP, Hook::TXN_START, Hook::TXN_CLOSE})};
 
-Do_stat_update::Do_stat_update(Config& cfg, TextView const& name, Expr && expr) : _stat{cfg, name}, _expr(std::move(expr)) {}
+Do_stat_update::Do_stat_update(Config &cfg, TextView const &name, Expr &&expr) : _stat{cfg, name}, _expr(std::move(expr)) {}
 
-Errata Do_stat_update::invoke(Context& ctx) {
-  auto [ value, errata ] { ctx.extract(_expr).as_integer(0) };
+Errata
+Do_stat_update::invoke(Context &ctx)
+{
+  auto [value, errata]{ctx.extract(_expr).as_integer(0)};
   if (value != 0) {
     _stat.update(value);
   }
   return errata;
 }
 
-Rv<Directive::Handle> Do_stat_update::load(Config& cfg, CfgStaticData const*, YAML::Node drtv_node, swoc::TextView const&, swoc::TextView const& arg, YAML::Node key_value) {
+Rv<Directive::Handle>
+Do_stat_update::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &arg,
+                     YAML::Node key_value)
+{
   if (key_value.IsNull()) {
     return Handle(new self_type(cfg, arg, Expr{feature_type_for<INTEGER>(1)}));
   }
 
-  auto && [expr, errata]{cfg.parse_expr(key_value)};
-  if (! errata.is_ok()) {
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
     return std::move(errata);
   }
 
-  if (! expr.result_type().can_satisfy(INTEGER)) {
+  if (!expr.result_type().can_satisfy(INTEGER)) {
     return Error("Value for {} directive at {} must be an integer.", KEY, drtv_node.Mark());
   }
 
   return Handle(new self_type{cfg, arg, std::move(expr)});
 }
 /* ------------------------------------------------------------------------------------ */
-class Ex_stat : public Extractor {
-  using self_type = Ex_stat; ///< Self reference type.
+class Ex_stat : public Extractor
+{
+  using self_type  = Ex_stat;   ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
 public:
   static constexpr TextView NAME{"stat"};
 
-  Rv<ActiveType> validate(Config& cfg, Spec& spec, TextView const& arg) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, TextView const &arg) override;
 
-  Feature extract(Context & ctx, Spec const& spec) override;
-  BufferWriter& format(BufferWriter& w, Spec const& spec, Context& ctx) override;
+  Feature extract(Context &ctx, Spec const &spec) override;
+  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
 };
 
-Rv<ActiveType> Ex_stat::validate(Config &cfg, Spec &spec, const TextView &arg) {
+Rv<ActiveType>
+Ex_stat::validate(Config &cfg, Spec &spec, const TextView &arg)
+{
   if (arg.empty()) {
     return Error(R"("{}" extractor requires an argument to specify the statistic.)", NAME);
   }
   spec._data.span = cfg.alloc_span<Stat>(1); // allocate and stash.
   spec._data.span.rebind<Stat>()[0].assign(cfg, arg);
-  return { INTEGER };
+  return {INTEGER};
 }
 
-Feature Ex_stat::extract(Context &, const Spec &spec) {
+Feature
+Ex_stat::extract(Context &, const Spec &spec)
+{
   return spec._data.span.rebind<Stat>()[0].value();
 }
 
-BufferWriter& Ex_stat::format(BufferWriter &w, Spec const &spec, Context &ctx) {
+BufferWriter &
+Ex_stat::format(BufferWriter &w, Spec const &spec, Context &ctx)
+{
   return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
 
-namespace {
+namespace
+{
 Ex_stat stat;
 
-[[maybe_unused]] bool INITIALIZED = [] () -> bool {
+[[maybe_unused]] bool INITIALIZED = []() -> bool {
   Config::define<Do_stat_define>();
   Config::define<Do_stat_update>();
   Extractor::define(Ex_stat::NAME, &stat);
   return true;
-} ();
+}();
 } // namespace

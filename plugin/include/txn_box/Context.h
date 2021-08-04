@@ -9,7 +9,7 @@
 
 #include <memory>
 #if __has_include(<memory_resource>)
-#  include <memory_resource>
+#include <memory_resource>
 #endif
 #include <functional>
 
@@ -33,18 +33,20 @@ using TSRemapRequestInfo = _tm_remap_request_info;
  * global structures, such that a transaction based hook can retrieve all necessary information
  * from a point to an instance of this class.
  */
-class Context {
+class Context
+{
   using self_type = Context;
   friend class Config;
   /// Cleanup functor for an inverted arena.
   /// @internal Because the arena is inverted, calling the destructor will clean up everything.
   /// For this reason @c delete must @b not be called (that will double free).
   struct ArenaDestructor {
-    void operator()(swoc::MemArena* arena);
+    void operator()(swoc::MemArena *arena);
   };
+
 public:
   /// Construct based a specific configuration.
-  explicit Context(std::shared_ptr<Config> const& cfg);
+  explicit Context(std::shared_ptr<Config> const &cfg);
 
   ~Context();
 
@@ -76,7 +78,7 @@ public:
    * @param txn TS transaction object.
    * @return @a this
    */
-  self_type & enable_hooks(TSHttpTxn txn);
+  self_type &enable_hooks(TSHttpTxn txn);
 
   /** Extract a feature.
    *
@@ -92,14 +94,14 @@ public:
    *
    * @see commit
    */
-  Feature extract(Expr const& expr);
+  Feature extract(Expr const &expr);
 
   enum ViewOption {
     EX_COMMIT, ///< Force transient to be committed
-    EX_C_STR ///< Force C-string (null terminated)
+    EX_C_STR   ///< Force C-string (null terminated)
   };
 
-  FeatureView extract_view(Expr const& expr, std::initializer_list<ViewOption> opts = {});
+  FeatureView extract_view(Expr const &expr, std::initializer_list<ViewOption> opts = {});
 
   /** Commit a feature.
    *
@@ -112,7 +114,7 @@ public:
    *
    * @see extract
    */
-  Feature& commit(Feature & feature);
+  Feature &commit(Feature &feature);
 
   /** Commit a view.
    *
@@ -126,14 +128,14 @@ public:
    *
    * @see extract
    */
-  FeatureView commit(FeatureView const& feature);
+  FeatureView commit(FeatureView const &feature);
 
   /** Allocate and initialize a block of memory as an instance of @a T
 
       The template type specifies the type to create and any arguments are forwarded to the
       constructor. If the constructed object needs destruction, see @c mark_for_cleanup.
   */
-  template<typename T, typename... Args> T *make(Args&& ... args);
+  template <typename T, typename... Args> T *make(Args &&... args);
 
   /** Allocate context (txn scoped) space for an array of @a T.
    *
@@ -145,7 +147,7 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template < typename T > swoc::MemSpan<T> alloc_span(unsigned count);
+  template <typename T> swoc::MemSpan<T> alloc_span(unsigned count);
 
   /** Require @a n bytes of transient buffer.
    *
@@ -156,7 +158,7 @@ public:
    * least @a n bytes in the transient buffer. This is useful for string rendering when a reasonable
    * upper bound on the string length can be computed.
    */
-  self_type & transient_require(size_t n);
+  self_type &transient_require(size_t n);
 
   /** Get the transient buffer.
    *
@@ -168,7 +170,7 @@ public:
    */
   swoc::MemSpan<char> transient_buffer(size_t required = 0);
 
-  # if 0
+#if 0
   /** Get a transient span of a specific type.
    *
    * @tparam T Element type.
@@ -180,7 +182,7 @@ public:
    */
   template < typename T > swoc::MemSpan<T> transient_span(unsigned count);
 
-  # endif
+#endif
 
   /** Finalize a transient value.
    *
@@ -190,7 +192,7 @@ public:
    * This is used to indicate the transient buffer is no longer active but contains a value. If
    * the transient buffer is used the object will be committed.
    */
-  self_type & transient_finalize(size_t n);
+  self_type &transient_finalize(size_t n);
 
   /** Discard the current transient buffer.
    *
@@ -200,8 +202,7 @@ public:
    * in cases where the transient buffer is used only locally, otherwise it will be committed the
    * next time a transient buffer is requested.
    */
-  self_type & transient_discard();
-
+  self_type &transient_discard();
 
   /** Commit the current transient buffer.
    *
@@ -209,13 +210,17 @@ public:
    *
    * If there is a transient buffer, it is committed.
    */
-  self_type & commit_transient();
+  self_type &commit_transient();
 
-  template < typename F > FeatureView render_transient(F const& f);
+  template <typename F> FeatureView render_transient(F const &f);
 
 #if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
   /// Access the internal memory arena as a memory resource.
-  std::pmr::memory_resource * pmr() { return _arena.get(); }
+  std::pmr::memory_resource *
+  pmr()
+  {
+    return _arena.get();
+  }
 #endif
 
   /** Convert a reserved span into memory in @a this.
@@ -223,7 +228,7 @@ public:
    * @param span Reserve span.
    * @return The context local memory.
    */
-  swoc::MemSpan<void> storage_for(ReservedSpan const& span);
+  swoc::MemSpan<void> storage_for(ReservedSpan const &span);
 
   /** Convert a reserved span into memory in @a this and initialize it.
    *
@@ -235,10 +240,10 @@ public:
    * initialization status is tracked per reserved span per context and only initialized once.
    * Subsequent calls for the same reserved span in the same context will not initialize the memory.
    */
-  template < typename T > swoc::MemSpan<T> initialized_storage_for(ReservedSpan const& span);
+  template <typename T> swoc::MemSpan<T> initialized_storage_for(ReservedSpan const &span);
 
-  Hook _cur_hook = Hook::INVALID;
-  TSCont _cont = nullptr;
+  Hook _cur_hook   = Hook::INVALID;
+  TSCont _cont     = nullptr;
   ts::HttpTxn _txn = nullptr;
 
   /// Current extracted feature.
@@ -251,7 +256,7 @@ public:
   bool _update_remainder_p = false;
 
   /// Context for working with PCRE - allocates from the transaction arena.
-  pcre2_general_context* _rxp_ctx = nullptr;
+  pcre2_general_context *_rxp_ctx = nullptr;
 
   /** Set capture groups for a literal match.
    *
@@ -269,24 +274,25 @@ public:
    * Generate output to @a w based on data in @a spec.
    * Conceptually
    */
-  void operator()(swoc::BufferWriter& w, Extractor::Spec const& spec);
+  void operator()(swoc::BufferWriter &w, Extractor::Spec const &spec);
 
   /** Class for handling numbered arguments to formatting.
    *
    * The primary use is for mapping regular expression capture groups to indices.
    */
-  class ArgPack : public swoc::bwf::ArgPack {
+  class ArgPack : public swoc::bwf::ArgPack
+  {
   public:
-    explicit ArgPack(Context& ctx) : _ctx(ctx) {} ///< Default constructor.
+    explicit ArgPack(Context &ctx) : _ctx(ctx) {} ///< Default constructor.
 
     /** Get argument at index @a idx.
-      *
-      * @param idx Argument index.
-      * @return The argument value.
-      *
-      * Should have BWF supply a default implementation that throws - this is used in so few
-      * cases it shouldn't have to be implemented by default.
-      */
+     *
+     * @param idx Argument index.
+     * @return The argument value.
+     *
+     * Should have BWF supply a default implementation that throws - this is used in so few
+     * cases it shouldn't have to be implemented by default.
+     */
     std::any capture(unsigned idx) const override;
 
     /** Generate formatted output for an argument.
@@ -304,7 +310,7 @@ public:
     unsigned count() const override;
 
     /// Transaction context.
-    Context& _ctx;
+    Context &_ctx;
   };
 
   /// Wrapper for top level directives.
@@ -312,46 +318,39 @@ public:
   struct Callback {
     using self_type = Callback; ///< Self reference type.
   protected:
-    Directive * _drtv = nullptr; ///< Directive to invoke for the callback.
-    self_type * _next = nullptr; ///< Intrusive list link.
-    self_type * _prev = nullptr; ///< Intrusive list link.
+    Directive *_drtv = nullptr; ///< Directive to invoke for the callback.
+    self_type *_next = nullptr; ///< Intrusive list link.
+    self_type *_prev = nullptr; ///< Intrusive list link.
   public:
     /// Intrusive list descriptor.
     using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
     /// Constructor.
     /// @param drtv Directive for the callback.
-    Callback(Directive* drtv) : _drtv(drtv) {}
+    Callback(Directive *drtv) : _drtv(drtv) {}
     /// Call the directive in @a this.
     /// @param ctx Transaction context for the callback.
     /// @return Errors, if any.
-    swoc::Errata invoke(Context& ctx);
+    swoc::Errata invoke(Context &ctx);
   };
 
   /// Directives for a particular hook.
   struct HookInfo {
     /// @c IntrusiveDList support.
     using List = swoc::IntrusiveDList<Callback::Linkage>;
-    List cb_list; ///< List of directives to call back.
+    List cb_list;            ///< List of directives to call back.
     bool hook_set_p = false; ///< If a TS level callback for this hook has already been set.
   };
 
   /// State of each global config hook for this transaction / context.
   std::array<HookInfo, std::tuple_size<Hook>::value> _hooks;
 
-  ts::HttpRequest ua_req_hdr(); ///< @return user agent (client) request.
-  ts::HttpRequest proxy_req_hdr(); ///< @return proxy request.
+  ts::HttpRequest ua_req_hdr();        ///< @return user agent (client) request.
+  ts::HttpRequest proxy_req_hdr();     ///< @return proxy request.
   ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
-  ts::HttpResponse proxy_rsp_hdr(); ///< @return proxy response.
+  ts::HttpResponse proxy_rsp_hdr();    ///< @return proxy response.
 
-  ts::HttpSsn inbound_ssn();; ///< Inbound session.
-
-  /** Store a transaction variable.
-   *
-   * @param name Variable name.
-   * @param value Variable value.
-   * @return @a this
-   */
-  self_type & store_txn_var(swoc::TextView const& name, Feature && value);
+  ts::HttpSsn inbound_ssn();
+  ; ///< Inbound session.
 
   /** Store a transaction variable.
    *
@@ -359,20 +358,28 @@ public:
    * @param value Variable value.
    * @return @a this
    */
-  self_type & store_txn_var(swoc::TextView const& name, Feature & value);
+  self_type &store_txn_var(swoc::TextView const &name, Feature &&value);
+
+  /** Store a transaction variable.
+   *
+   * @param name Variable name.
+   * @param value Variable value.
+   * @return @a this
+   */
+  self_type &store_txn_var(swoc::TextView const &name, Feature &value);
 
   /** Load a transaction variable.
    *
    * @param name Variable name.
    * @return Value of the variable.
    */
-  Feature const& load_txn_var(swoc::TextView const& name);
+  Feature const &load_txn_var(swoc::TextView const &name);
 
   /// Status event returned to core after a callback has finished.
   TSEvent _global_status = TS_EVENT_HTTP_CONTINUE;
 
   /// Storage for remap txn information, if a remap rule is active.
-  TSRemapRequestInfo* _remap_info = nullptr;
+  TSRemapRequestInfo *_remap_info = nullptr;
   /// Value to return from a remap invocation.
   TSRemapStatus _remap_status = TSREMAP_NO_REMAP;
 
@@ -381,12 +388,16 @@ public:
    * @param n Number of capture groups required.
    * @return Cpature data sufficient to match @a n groups.
    */
-  self_type & rxp_match_require(unsigned n);
+  self_type &rxp_match_require(unsigned n);
 
-  pcre2_match_data * rxp_working_match_data() { return _rxp_working; }
+  pcre2_match_data *
+  rxp_working_match_data()
+  {
+    return _rxp_working;
+  }
 
   /// Commit the working match data as the active match data.
-  pcre2_match_data * rxp_commit_match(swoc::TextView const& src);
+  pcre2_match_data *rxp_commit_match(swoc::TextView const &src);
 
   /** Make a transaction local copy of @a text that is a C string if needed.
    *
@@ -408,7 +419,7 @@ public:
    *
    * @a ptr is cleaned up by calling
    */
-  template <typename T> self_type & mark_for_cleanup(T* ptr);
+  template <typename T> self_type &mark_for_cleanup(T *ptr);
 
   /** Get a reference to the configuration for @a this.
    *
@@ -416,7 +427,7 @@ public:
    *
    * Use when local access to the configuration is needed.
    */
-  Config& cfg();
+  Config &cfg();
 
   /** Get a reference to the configuration.
    *
@@ -430,7 +441,11 @@ public:
    *
    * @return @c true
    */
-  bool is_terminal() const { return _terminal_p; }
+  bool
+  is_terminal() const
+  {
+    return _terminal_p;
+  }
 
   /** Mark the current directive terminal status.
    *
@@ -442,7 +457,12 @@ public:
    * directives) then directive process will terminate. This must be called from the @c invoke
    * method of the directive.
    */
-  self_type & mark_terminal(bool flag) { _terminal_p= flag; return *this; }
+  self_type &
+  mark_terminal(bool flag)
+  {
+    _terminal_p = flag;
+    return *this;
+  }
 
 protected:
   /// Header for reserved memory.
@@ -456,8 +476,8 @@ protected:
   struct OverflowSpan {
     using self_type = OverflowSpan; ///< Self reference type.
   protected:
-    self_type * _next = nullptr; ///< Intrusive list link.
-    self_type * _prev = nullptr; ///< Intrusive list link.
+    self_type *_next = nullptr; ///< Intrusive list link.
+    self_type *_prev = nullptr; ///< Intrusive list link.
   public:
     /// Intrusive list descriptor.
     using Linkage = swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev>;
@@ -475,14 +495,14 @@ protected:
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
 
-  size_t _transient = 0; ///< Current amount of reserved / temporary space in the arena.
+  size_t _transient                                      = 0; ///< Current amount of reserved / temporary space in the arena.
   static constexpr decltype(_transient) TRANSIENT_ACTIVE = std::numeric_limits<decltype(_transient)>::max();
 
   // HTTP header objects for the transaction.
-  ts::HttpRequest _ua_req; ///< Client request header.
-  ts::HttpRequest _proxy_req; ///< Proxy request header.
+  ts::HttpRequest _ua_req;        ///< Client request header.
+  ts::HttpRequest _proxy_req;     ///< Proxy request header.
   ts::HttpResponse _upstream_rsp; ///< Upstream response header.
-  ts::HttpResponse _proxy_rsp; ///< Proxy response header.
+  ts::HttpResponse _proxy_rsp;    ///< Proxy response header.
 
   /// Base / Global configuration object.
   std::shared_ptr<Config> _cfg;
@@ -491,12 +511,12 @@ protected:
   swoc::MemSpan<void> _ctx_store;
 
   /// Active regex capture data.
-  pcre2_match_data * _rxp_active = nullptr;
+  pcre2_match_data *_rxp_active = nullptr;
 
   /// Temporary / working capture group data.
   /// If successful, this becomes active via @c rxp_commit_match
   /// @see rxp_commit_match
-  pcre2_match_data * _rxp_working = nullptr;
+  pcre2_match_data *_rxp_working = nullptr;
 
   /// Number of capture groups supported by current match data allocations.
   unsigned _rxp_n = 0;
@@ -515,19 +535,31 @@ protected:
     using self_type = TxnVar; ///< Self reference type.
     static constexpr std::hash<std::string_view> Hash_Func{};
 
-    swoc::TextView _name; ///< Name of variable.
-    Feature _value; ///< Value of variable.
-    self_type * _next = nullptr; ///< Intrusive link.
-    self_type * _prev = nullptr; ///< Intrusive link.
+    swoc::TextView _name;       ///< Name of variable.
+    Feature _value;             ///< Value of variable.
+    self_type *_next = nullptr; ///< Intrusive link.
+    self_type *_prev = nullptr; ///< Intrusive link.
 
     /// Linkage for @c IntrusiveHashMap.
     struct Linkage : public swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev> {
-      static swoc::TextView key_of(self_type* self) { return self->_name; }
-      static auto hash_of(swoc::TextView const& text) -> decltype(Hash_Func(text)) { return Hash_Func(text); }
-      static bool equal(swoc::TextView const& lhs, swoc::TextView const& rhs) { return lhs == rhs; }
+      static swoc::TextView
+      key_of(self_type *self)
+      {
+        return self->_name;
+      }
+      static auto
+      hash_of(swoc::TextView const &text) -> decltype(Hash_Func(text))
+      {
+        return Hash_Func(text);
+      }
+      static bool
+      equal(swoc::TextView const &lhs, swoc::TextView const &rhs)
+      {
+        return lhs == rhs;
+      }
     };
 
-    TxnVar(swoc::TextView const& name, Feature const& value) : _name(name), _value(value) {}
+    TxnVar(swoc::TextView const &name, Feature const &value) : _name(name), _value(value) {}
   };
 
   using TxnVariables = swoc::IntrusiveHashMap<TxnVar::Linkage>;
@@ -539,7 +571,7 @@ protected:
   /// Invoke the callbacks for the current hook.
   swoc::Errata invoke_callbacks();
 
-  swoc::MemSpan<void> overflow_storage_for(ReservedSpan const& span);
+  swoc::MemSpan<void> overflow_storage_for(ReservedSpan const &span);
 
   /// Used for generating transient feature expression values.
   std::optional<swoc::FixedBufferWriter> _transient_writer;
@@ -553,76 +585,108 @@ protected:
    *
    * The @c Context instance is carried as the Continuation data.
    */
-  static int ts_callback(TSCont cont, TSEvent evt, void * payload);
+  static int ts_callback(TSCont cont, TSEvent evt, void *payload);
 };
 
 // --- Implementation ---
 
-inline auto Context::store_txn_var(swoc::TextView const&name, Feature&&value) -> self_type & {
+inline auto
+Context::store_txn_var(swoc::TextView const &name, Feature &&value) -> self_type &
+{
   return this->store_txn_var(name, value);
 }
 
-template < typename T > Context& Context::mark_for_cleanup(T *ptr) {
-  auto f = _arena->make<Finalizer>(ptr, [](void* ptr) { std::destroy_at(static_cast<T*>(ptr)); });
+template <typename T>
+Context &
+Context::mark_for_cleanup(T *ptr)
+{
+  auto f = _arena->make<Finalizer>(ptr, [](void *ptr) { std::destroy_at(static_cast<T *>(ptr)); });
   _finalizers.append(f);
   return *this;
 }
 
-template<typename T>
-swoc::MemSpan<T> Context::alloc_span(unsigned int count) {
+template <typename T>
+swoc::MemSpan<T>
+Context::alloc_span(unsigned int count)
+{
   this->commit_transient();
   return _arena->alloc(sizeof(T) * count).rebind<T>();
 }
 
-inline swoc::MemSpan<void> Context::storage_for(ReservedSpan const& span) {
+inline swoc::MemSpan<void>
+Context::storage_for(ReservedSpan const &span)
+{
   if (span.offset + span.n <= _ctx_store.size()) {
     return _ctx_store.subspan(span.offset, span.n);
   }
   return this->overflow_storage_for(span);
 }
 
-template<typename T>
-swoc::MemSpan<T> Context::initialized_storage_for(ReservedSpan const& span) {
-  auto mem = this->storage_for(span).rebind<T>();
-  ReservedStatus& status = *reinterpret_cast<ReservedStatus*>(reinterpret_cast<std::byte*>(mem.data()) - swoc::Scalar<8>(swoc::round_up(sizeof(ReservedStatus))));
-  if (! status._initialized_p) {
-    mem.apply([](T& t){ new (&t) T; });
+template <typename T>
+swoc::MemSpan<T>
+Context::initialized_storage_for(ReservedSpan const &span)
+{
+  auto mem               = this->storage_for(span).rebind<T>();
+  ReservedStatus &status = *reinterpret_cast<ReservedStatus *>(reinterpret_cast<std::byte *>(mem.data()) -
+                                                               swoc::Scalar<8>(swoc::round_up(sizeof(ReservedStatus))));
+  if (!status._initialized_p) {
+    mem.apply([](T &t) { new (&t) T; });
     status._initialized_p = true;
   }
   return mem;
 }
 
-inline Config& Context::cfg() { return *_cfg; }
+inline Config &
+Context::cfg()
+{
+  return *_cfg;
+}
 
-inline std::shared_ptr<Config> Context::acquire_cfg() { return _cfg; }
+inline std::shared_ptr<Config>
+Context::acquire_cfg()
+{
+  return _cfg;
+}
 
-inline void Context::ArenaDestructor::operator()(swoc::MemArena *arena) { arena->swoc::MemArena::~MemArena(); }
+inline void
+Context::ArenaDestructor::operator()(swoc::MemArena *arena)
+{
+  arena->swoc::MemArena::~MemArena();
+}
 
-inline void Context::clear_cache() {
+inline void
+Context::clear_cache()
+{
   _ua_req.clear();
   _proxy_req.clear();
   _upstream_rsp.clear();
   _proxy_rsp.clear();
 }
 
-inline auto Context::transient_finalize(size_t n) -> self_type & {
+inline auto
+Context::transient_finalize(size_t n) -> self_type &
+{
   _transient = n;
   return *this;
 }
 
-inline Context::self_type& Context::transient_discard() {
+inline Context::self_type &
+Context::transient_discard()
+{
   _transient = 0;
   return *this;
 }
 
-template<typename F>
-FeatureView Context::render_transient(F const& f) {
-  size_t base = 0; // rendered size.
+template <typename F>
+FeatureView
+Context::render_transient(F const &f)
+{
+  size_t base  = 0;     // rendered size.
   bool outer_p = false; // outermost / top level render.
   // Tricksy - if there's no extant writer, then this is the outer most render and needs to both
   // create the writer and clean it up. Also, the outer is responsible for finalizing the
   // transient buffer used.
-  if (! _transient_writer.has_value()) {
+  if (!_transient_writer.has_value()) {
     _transient_writer.template emplace(this->transient_buffer());
     outer_p = true;
   } else {
@@ -645,10 +709,16 @@ FeatureView Context::render_transient(F const& f) {
   return v;
 }
 
-template<typename T, typename... Args> T *Context::make(Args&& ... args) {
+template <typename T, typename... Args>
+T *
+Context::make(Args &&... args)
+{
   this->commit_transient();
-  return new(this->_arena->alloc(sizeof(T)).data()) T(std::forward<Args>(args)...);
+  return new (this->_arena->alloc(sizeof(T)).data()) T(std::forward<Args>(args)...);
 }
 
-inline ts::HttpSsn Context::inbound_ssn() { return _txn.ssn(); }
-
+inline ts::HttpSsn
+Context::inbound_ssn()
+{
+  return _txn.ssn();
+}

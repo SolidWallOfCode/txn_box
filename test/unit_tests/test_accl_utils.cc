@@ -217,7 +217,7 @@ TEST_CASE("Very basic perf test")
                                                                {"ASF.com", "ASF.com"},
                                                                {"txn_box", "ok.txn_box"},
                                                                {"trafficserver.apache.com", "es.apache.com"}};
-  
+
   // We should make this more accurate and run it several time to sample the avg time
   // on inserts and find. As a first approach is ok.
   SECTION("string_tree_map")

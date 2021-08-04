@@ -20,12 +20,10 @@ std::array<Accelerator::Builder, Accelerator::N_ACCELERATORS> Accelerator::_fact
 
 // --- //
 
-namespace {
-[[maybe_unused]] bool INITIALIZED = [] () -> bool {
-  return true;
-} ();
+namespace
+{
+[[maybe_unused]] bool INITIALIZED = []() -> bool { return true; }();
 
 // --- //
 
 } // namespace
-
