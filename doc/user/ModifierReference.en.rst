@@ -152,3 +152,44 @@ Modifiers
    Space. The value for the modifier is a feature expression in which :ex:`ip-col` can be used to
    extract data from the row. The value of that expression replaces the IP address.
 
+.. modifier:: url-encode
+
+   The :mod:`url-encode` perform percent-encoding of a feature, this provides a mechanism for encoding information in a
+   Uniform Resource Identifier (URI). This modifier uses the |TS| api :code:`TSStringPercentEncode` to perform the encoding.
+   In addition we are using a custom map optional in the mentioned API) to deal with reserved characters(RFC2396:Sec 2.2).
+
+   .. code::
+
+      reserved    = ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" |
+                    "$" | ","
+
+   The following example shows how a particular field can be encoded.
+
+   .. literalinclude:: ../../test/autest/gold_tests/basic/mod.replay.yaml
+     :start-after: doc-url-encode-<
+     :end-before: doc-url-encode->
+
+   Perform a redirect and apply the :mod:`url-encode` to :ex:`pre-remap-query` in combination with :mod:`concat`.
+
+   .. literalinclude:: ../../test/autest/gold_tests/basic/redirect.replay.yaml
+     :start-after: doc-redirect-url-encode-form-<
+     :end-before: doc-redirect-url-encode-form->
+
+.. modifier:: url-decode
+
+   The :mod:`url-decode` perform percent-decoding of a feature, this provides a mechanism for encoding information in a
+   Uniform Resource Identifier (URI).This internally uses  the |TS| api :code:`TSStringPercentDecode` to perform the decoding.
+
+
+   The following example shows how a particular field can be encoded.
+
+   .. literalinclude:: ../../test/autest/gold_tests/basic/mod.replay.yaml
+     :start-after: doc-url-decode-<
+     :end-before: doc-url-decode->
+
+   Perform a redirect and apply the :mod:`url-decode` to :ex:`pre-remap-query` in combination with :mod:`concat`.
+
+   .. literalinclude:: ../../test/autest/gold_tests/basic/redirect.replay.yaml
+     :start-after: doc-redirect-url-decode-form-<
+     :end-before: doc-redirect-url-decode-form->
+

@@ -15,6 +15,8 @@ replay_file="redirect.replay.yaml"
 tr = Test.TxnBoxTestAndRun("Redirect", replay_file
                 , remap=[ ['http://base.ex/',  ( '--key=meta.txn_box.remap', replay_file) ]
                         , [ 'http://unmatched.ex/'] # no TxnBox for this rule.
+                        , [ 'http://encode.ex/', ('--key=meta.txn_box.remap-encode', replay_file ) ]
+                        , [ 'http://decode.ex/', ('--key=meta.txn_box.remap-decode', replay_file ) ]
                         ]
                 , verifier_client_args="--verbose info"
                 )

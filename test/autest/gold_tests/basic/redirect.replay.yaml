@@ -27,6 +27,28 @@ meta:
         status: 302
         reason: "Because I said so!"
         body: "The album is now located at <a href=\"{this::location}\">{this::location}</a>. Please update your link."
+    remap-encode:
+      # doc-redirect-url-encode-form-<
+    - redirect:
+        location:
+        - "http://delta.ex/{pre-remap-path}"
+        - concat:
+          - "?"
+          - [ pre-remap-query , { url-encode: } ]
+        status: 302
+        reason: "Because he said so! "
+      # doc-redirect-url-encode-form->
+    remap-decode:
+      # doc-redirect-url-decode-form-<
+    - redirect:
+        location:
+        - "http://delta.ex/{pre-remap-path}"
+        - concat:
+          - "?"
+          - [ pre-remap-query , { url-decode: } ]
+        status: 302
+        reason: "Because he said so! "
+      # doc-redirect-url-decode-form->
 
   blocks:
   - base-req: &base-req
@@ -198,3 +220,36 @@ sessions:
       headers:
         fields:
         - [ "Location", { value: "http://reply.ex/reply/doc.html", as: equal } ]
+
+  - all: { headers: { fields: [ [ uuid, encode ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/run/query.html?comets=1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley&area=solar"
+      headers:
+        fields:
+        - [ "Host", "encode.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", { value: "http://delta.ex/run/query.html?comets%3D1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley%26area%3Dsolar", as: equal } ]
+  - all: { headers: { fields: [ [ uuid, decode ] ] } }
+    client-request:
+      <<: *base-req
+      url: "/run/query.html?comets%3D1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley%26area%3Dsolar"
+      headers:
+        fields:
+        - [ "Host", "decode.ex" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 302
+      headers:
+        fields:
+        - [ "Location", { value: "http://delta.ex/run/query.html?comets=1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley&area=solar", as: equal } ]
