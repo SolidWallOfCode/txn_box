@@ -212,6 +212,17 @@ public:
    */
   self_type &commit_transient();
 
+  /** Render text in to the transient buffer.
+   *
+   * @tparam F Printing functor type.
+   * @param f Printing functor
+   * @return A transient view of the rendered text.
+   *
+   * @a F must be a functor that takes a single @c BufferWriter& parameter. It should print to
+   * that instance. The internal logic will call @a f and if there is an overflow will increase the
+   * transient buffer and call @a f again. The output can be localized if @c commit is called
+   * on the returned feature before any other transient operation.
+   */
   template <typename F> FeatureView render_transient(F const &f);
 
 #if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
@@ -266,13 +277,15 @@ public:
    */
   void set_literal_capture(swoc::TextView text);
 
+  /// Return the text for the active capture group at index @a idx.
+  swoc::TextView active_group(int idx);
+
   /** BWF interface for name binding.
    *
    * @param w Output writer.
    * @param spec Specifier with name to bind.
    *
    * Generate output to @a w based on data in @a spec.
-   * Conceptually
    */
   void operator()(swoc::BufferWriter &w, Extractor::Spec const &spec);
 
@@ -302,7 +315,6 @@ public:
      * @param spec Formatting specifier (should be a @c Extractor::Spec)
      * @return @a w
      *
-     * For now this is unimplemented - it will get filled out when regex support is done.
      */
     swoc::BufferWriter &print(swoc::BufferWriter &w, swoc::bwf::Spec const &spec, unsigned idx) const override;
 

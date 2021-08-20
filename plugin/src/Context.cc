@@ -498,6 +498,13 @@ Context::commit_transient()
   return *this;
 }
 
+TextView Context::active_group(int idx) {
+  auto ovector = pcre2_get_ovector_pointer(_rxp_active);
+  idx *= 2; // To account for offset pairs.
+  TSDebug(Config::PLUGIN_TAG.data(), "Access match group %d at offsets %ld:%ld", idx/2, ovector[idx], ovector[idx+1]);
+  return _rxp_src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
+}
+
 unsigned
 Context::ArgPack::count() const
 {
@@ -507,9 +514,7 @@ Context::ArgPack::count() const
 BufferWriter &
 Context::ArgPack::print(BufferWriter &w, swoc::bwf::Spec const &spec, unsigned idx) const
 {
-  auto ovector = pcre2_get_ovector_pointer(_ctx._rxp_active);
-  idx *= 2; // To account for offset pairs.
-  return bwformat(w, spec, _ctx._rxp_src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]));
+  return bwformat(w, spec, _ctx.active_group(idx));
 }
 
 std::any

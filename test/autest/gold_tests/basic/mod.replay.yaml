@@ -1,8 +1,8 @@
 meta:
   version: "1.0"
 
-  txn_box:
-    global:
+  txn-box:
+    alpha:
     - when: proxy-req
       do:
       # doc-concat-empty-<
@@ -31,6 +31,20 @@ meta:
           - proxy-req-field<comets-decoded>: [ proxy-req-field<comets-encoded>, { url-decode: } ]
       # doc-url-decode->
 
+    bravo:
+    - ua-req-field<Bands>:
+      - ua-req-field<Bands>
+      - rxp-replace:
+        - "Nightwish"
+        - "Delain"
+
+    charlie:
+    - ua-req-field<Bands>:
+      - ua-req-field<Bands>
+      - rxp-replace:
+        - "([[:alnum:]]+),([[:alnum:]]+)"
+        - "{2};{1}"
+
   blocks:
   - base-req: &base-req
       version: "1.1"
@@ -50,6 +64,7 @@ sessions:
 - protocol: [ { name: ip, version : 4} ]
   transactions:
 
+  ## Checks for the concat modifier.
   # Separator is dropped if the initial value is empty
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:
@@ -57,7 +72,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, "alpha.ex" ]
     proxy-request:
       headers:
         fields:
@@ -74,7 +89,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, "alpha.ex" ]
         - [ bands, "Nightwish" ]
     proxy-request:
       headers:
@@ -92,7 +107,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, "alpha.ex" ]
         - [ bands, "Nightwish," ]
     proxy-request:
       headers:
@@ -110,7 +125,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, "alpha.ex" ]
         - [ bands, "Nightwish,Within Temptation" ]
     proxy-request:
       headers:
@@ -157,3 +172,57 @@ sessions:
     proxy-response:
       <<: *base-rsp
 
+- protocol: [ { name: ip, version : 4} ]
+  transactions:
+
+  ## Checks for regular expression modifier.
+  - all: { headers: { fields: [[ uuid, rxp-basic ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, "bravo.ex" ]
+        - [ bands, "Nightwish,Within Temptation" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Delain,Within Temptation", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, rxp-basic-miss ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, "bravo.ex" ]
+        - [ bands, "Xandria,Within Temptation" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Xandria,Within Temptation", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - all: { headers: { fields: [[ uuid, rxp-swap ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, "charlie.ex" ]
+        - [ bands, "Nightwish,Delain" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ bands,   { value: "Delain;Nightwish", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp

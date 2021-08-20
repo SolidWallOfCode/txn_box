@@ -258,8 +258,6 @@ using EnableForTypes = std::enable_if_t<L::template contains<typename std::decay
 template <typename T, typename R>
 using EnableForFeatureTypes = std::enable_if_t<FeatureTypeList::contains<typename std::decay<T>::type>, R>;
 
-using Sonar = FeatureTypeList::template apply<std::variant>;
-
 /** Feature.
  * This is a wrapper on the variant type containing all the distinct feature types.
  * All of these are small and fixed size, any external storage (e.g. the text for a full)
@@ -943,7 +941,7 @@ template <typename T> let<T>::let(T &var, T const &value) : _var(var), _value(va
 }
 template <typename T> let<T>::let(T &var, T &&value) : _var(var), _value(std::move(var))
 {
-  _var = value;
+  _var = std::move(value);
 }
 
 template <typename T> let<T>::~let()

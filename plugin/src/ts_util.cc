@@ -1098,18 +1098,33 @@ SSLContext::remote_issuer_value(int nid) const
   return {};
 }
 /* ------------------------------------------------------------------------------------ */
-TextView
+/** Get the next pair from the query string.
+    Three cases
+
+    -  "name=value"
+    - "name"
+    - "name="
+
+    The latter two are distinguished by the value pointing at @c name.end() or one past.).
+*/
+std::tuple<TextView, TextView> take_query_pair(TextView & src) {
+  auto token = src.take_prefix_at("&;"_tv);
+  auto name   = token.take_prefix_at('=');
+  return { name, token };
+}
+
+std::tuple<TextView, TextView>
 query_value_for(TextView query_str, TextView search_key, bool caseless_p)
 {
   while (query_str) {
-    auto token = query_str.take_prefix_at("&;"_tv);
-    auto key   = token.take_prefix_at('=');
-    if ((!caseless_p && key == search_key) || (caseless_p && 0 == strcasecmp(key, search_key))) {
-      return token;
+    auto && [ name, value ] { take_query_pair(query_str) };
+    if ((!caseless_p && name == search_key) || (caseless_p && 0 == strcasecmp(name, search_key))) {
+      return {name, value};
     }
   }
   return {};
 }
+
 /* ------------------------------------------------------------------------------------ */
 void
 Log_Note(TextView const &text)
@@ -1150,7 +1165,7 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, ts::ConfVarData const &data)
 {
   switch (data.index()) {
   default:
-    w.write("NIL");
+    w.write("NIL"_tv);
     break;
   case 1:
     bwformat(w, spec, std::get<1>(data));

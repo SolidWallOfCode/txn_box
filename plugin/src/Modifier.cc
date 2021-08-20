@@ -86,7 +86,7 @@ public:
   /** Modify the feature.
    *
    * @param ctx Run time context.
-   * @param feature Feature to modify [in,out]
+   * @param feature Feature to modify.
    * @return Errors, if any.
    */
   Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature) override;
@@ -161,17 +161,161 @@ Mod_hash::load(Config &, YAML::Node node, TextView, TextView, YAML::Node key_val
 }
 
 // ---
+
+/// Do replacement based on regular expression matching.
+class Mod_rxp_replace : public Modifier {
+  using self_type = Mod_rxp_replace;
+  using super_type = Modifier;
+public:
+  static inline const std::string KEY{"rxp-replace"}; ///< Identifier name.
+
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+  bool is_valid_for(ActiveType const &ex_type) const override;
+
+  ActiveType result_type(ActiveType const &) const override;
+
+  Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> src) override;
+
+  static constexpr TextView ARG_GLOBAL = "g"; ///< Global replace.
+  static constexpr TextView ARG_NOCASE = "nc"; ///< Case insensitive match.
+protected:
+  RxpOp _op; ///< Regular expression operator.
+  Expr _replacement; ///< Replacement text.
+  bool _global_p = false;
+
+  Mod_rxp_replace(RxpOp && op, Expr && replacement) : _op(std::move(op)), _replacement(std::move(replacement)) {}
+};
+
+bool
+Mod_rxp_replace::is_valid_for(ActiveType const &ex_type) const
+{
+  return ex_type.can_satisfy(STRING);
+}
+
+ActiveType
+Mod_rxp_replace::result_type(ActiveType const &) const
+{
+  return {NIL, STRING};
+}
+
+Rv<Modifier::Handle>
+Mod_rxp_replace::load(Config &cfg, YAML::Node node, TextView, TextView args, YAML::Node key_value)
+{
+  Rxp::Options opt;
+  bool global_p = false;
+
+  if (!key_value.IsSequence() || key_value.size() != 2) {
+    return Error(R"(Value for modifier "{}" at {} is not list of size 2 - [ pattern, replacement ] - as required.)", KEY, node.Mark());
+  }
+
+  while (args) {
+    auto token = args.take_prefix_at(',');
+    if (ARG_GLOBAL == token) {
+      global_p = true;
+    } else if (ARG_NOCASE == token) {
+      opt.f.nc = true;
+    } else {
+      return Error(R"(Invalid option "{}" for modifier "{}" at {}.)", token, KEY, key_value.Mark());
+    }
+  }
+
+  YAML::Node rxp_src_node = key_value[0];
+  auto && [pattern, pattern_errata] { cfg.parse_expr(key_value[0]) };
+  if (!pattern_errata.is_ok()) {
+    pattern_errata.info(R"(While parsing expression for "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(pattern_errata);
+  }
+
+  auto && [ op, op_errata ] { RxpOp::load(cfg, std::move(pattern), opt)};
+  if (! op_errata.is_ok()) {
+    op_errata.info(R"(While parsing pattern for modifier "{}".)", KEY);
+    return std::move(op_errata);
+  }
+  cfg.require_rxp_group_count(op.capture_count());
+
+  auto && [ rep, rep_errata ] { cfg.parse_expr(key_value[1])};
+  if (! rep_errata.is_ok()) {
+    rep_errata.info(R"(While parsing replacement for modifier "{}".)", KEY);
+    return std::move(rep_errata);
+  }
+
+  auto self = new self_type(std::move(op), std::move(rep));
+  self->_global_p = global_p;
+  return {Handle(self)};
+}
+
+Rv<Feature>
+Mod_rxp_replace::operator()(Context &ctx, feature_type_for<STRING> src)
+{
+  /* Some unfortunate issues make this more complex than one might assume.
+   * The root issue is the non-recursive nature of the transient buffer. To generate the
+   * replacement text the feature for it must be extracted every time, because it is likely to
+   * depend on extracting capture groups which can vary with every replacement. This will trash
+   * the overall result if it also stored in the transient buffer. Therefore it is necessary to
+   * construct pieces of the final string as the replacements are done, and then assemble them
+   * later. At some point it could be desirable to make this sort of piece wise string a general
+   * type that can be passed around, without having to immediately render it as a contiguous string.
+   * For now, this is just here.
+   */
+  struct piece {
+    TextView _text;
+    piece * _next = nullptr;
+  };
+
+  piece anchor; // to avoid checking for nullptr / start of list.
+  piece * last = & anchor; // last piece added.
+  int result;
+
+  while (src && (result = _op(ctx, src)) > 0) {
+    auto match = ctx.active_group(0);
+    auto p = ctx.make<piece>();
+    p->_text.assign(src.data(), match.data());
+    last->_next = p;
+    last = p;
+    // write the replacement text.
+    auto r = ctx.extract(_replacement);
+    if (r.index() == IndexFor(STRING)) {
+      ctx.commit(r);
+      auto rp = ctx.make<piece>();
+      rp->_text = std::get<IndexFor(STRING)>(r);
+      last->_next = rp;
+      last = rp;
+    }
+    // Clip the match.
+    src.assign(match.data_end(), src.data_end());
+    if (! opt.f.global) {
+      break;
+    }
+  }
+
+  // How big is the result?
+  size_t n = src.size();
+  for ( piece * spot = anchor._next ; spot != nullptr ; spot = spot->_next ) {
+    n += spot->_text.size();
+  }
+
+  // Pieces assemble!
+  auto span = ctx.transient_buffer(n).rebind<char>();
+  swoc::FixedBufferWriter w(span);
+  for ( piece * spot = anchor._next ; spot != nullptr ; spot = spot->_next ) {
+    w.write(spot->_text);
+  }
+  w.write(src);
+  ctx.transient_finalize(w.size());
+
+  return { FeatureView(w.view()) };
+}
+
+// ---
 /// Filter a list.
-class Mod_filter : public Modifier
+class Mod_filter : public FilterMod
 {
   using self_type  = Mod_filter;
   using super_type = Modifier;
 
 public:
-  static constexpr TextView KEY         = "filter";  ///< Identifier name.
-  static constexpr TextView REPLACE_KEY = "replace"; ///< Replace element.
-  static constexpr TextView DROP_KEY    = "drop";    ///< Drop / remove element.
-  static constexpr TextView PASS_KEY    = "pass";    ///< Pass unalterated.
+  static inline const std::string KEY         = "filter";  ///< Identifier name.
 
   /** Modify the feature.
    *
@@ -200,32 +344,39 @@ public:
    */
   static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
 
-protected:
-  enum Action {
-    PASS = 0, ///< No action
-    DROP,     ///< Remove element from result.
-    REPLACE   ///< Replace element in result.
-  };
-
   /// A filter comparison case.
   struct Case {
     Action _action = PASS;   ///< Action on match.
     Expr _expr;              ///< Replacement expression, if any.
     Comparison::Handle _cmp; ///< Comparison.
 
-    void
-    assign(Comparison::Handle &&handle)
-    {
-      _cmp = std::move(handle);
-    }
+    /// Assign the comparison for this case.
+    void assign(Comparison::Handle &&handle);
 
     bool operator()(Context &ctx, Feature const &feature);
 
+    /** YAML load hook.
+     *
+     * @param cfg Configuration.
+     * @param node Node containing comparison.
+     * @return Errors, if any.
+     *
+     * This is called during case loading, before the generic loading is done. It is required to
+     * check any non-generic keys and remove them - anything not expected by the generic load will
+     * be flagged as an error.
+     */
     Errata pre_load(Config &cfg, YAML::Node node);
   };
 
+  /// Container for cases with comparisons.
   ComparisonGroup<Case> _cases;
 
+  /** Perform the comparisons for the filter.
+   *
+   * @param ctx Txn context
+   * @param feature Feature to compare
+   * @return The matched @c Case or @c nullptr if no case matched.
+   */
   Case const *compare(Context &ctx, Feature const &feature) const;
 };
 
@@ -299,6 +450,12 @@ Mod_filter::operator()(Context &ctx, Feature &feature)
   return zret;
 }
 
+void
+Mod_filter::Case::assign(Comparison::Handle &&handle)
+{
+  _cmp = std::move(handle);
+}
+
 Errata
 Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node)
 {
@@ -313,36 +470,36 @@ Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node)
     return Error(R"("{}" at line {} is not allowed in a modifier comparison.)", Global::DO_KEY, do_node.Mark());
   }
 
-  YAML::Node drop_node = cmp_node[DROP_KEY];
+  YAML::Node drop_node = cmp_node[ACTION_DROP];
   if (drop_node) {
     _action = DROP;
-    cmp_node.remove(DROP_KEY);
+    cmp_node.remove(ACTION_DROP);
     ++action_count;
   }
 
-  YAML::Node pass_node = cmp_node[PASS_KEY];
+  YAML::Node pass_node = cmp_node[ACTION_PASS];
   if (pass_node) {
     _action = PASS;
-    cmp_node.remove(PASS_KEY);
+    cmp_node.remove(ACTION_PASS);
     ++action_count;
   }
 
-  YAML::Node replace_node = cmp_node[REPLACE_KEY];
+  YAML::Node replace_node = cmp_node[ACTION_REPLACE];
   if (replace_node) {
     auto &&[expr, errata] = cfg.parse_expr(replace_node);
     if (!errata.is_ok()) {
-      errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), REPLACE_KEY,
+      errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), ACTION_REPLACE,
                   cmp_node.Mark());
       return std::move(errata);
     }
     _expr   = std::move(expr);
     _action = REPLACE;
-    cmp_node.remove(REPLACE_KEY);
+    cmp_node.remove(ACTION_REPLACE);
     ++action_count;
   }
 
   if (action_count > 1) {
-    return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", REPLACE_KEY, DROP_KEY, PASS_KEY, KEY,
+    return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", ACTION_REPLACE, ACTION_DROP, ACTION_PASS, KEY,
                  cmp_node.Mark());
   }
 
@@ -1100,6 +1257,7 @@ namespace
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_filter::KEY, &Mod_filter::load);
   Modifier::define(Mod_as_ip_addr::KEY, &Mod_as_ip_addr::load);
+  Modifier::define(Mod_rxp_replace::KEY, &Mod_rxp_replace::load);
   Modifier::define(Mod_url_encode::KEY, &Mod_url_encode::load);
   Modifier::define(Mod_url_decode::KEY, &Mod_url_decode::load);
   return true;

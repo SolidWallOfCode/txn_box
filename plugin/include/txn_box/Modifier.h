@@ -96,6 +96,21 @@ public:
    */
   static swoc::Errata define(swoc::TextView name, Worker const &f);
 
+  /** Define a standard layout modifier.
+   *
+   * @tparam M The Modifier class.
+   * @return Errors, if any.
+   *
+   * This is used when the modifier class layout is completely standard. The template picks out those pieces and passes them to the
+   * argument based @c define.
+   */
+  template <typename M>
+  static swoc::Errata
+  define()
+  {
+    return self_type::define(M::KEY, &M::load);
+  }
+
   /** Load an instance from YAML.
    *
    * @param cfg Config state object.
@@ -110,4 +125,24 @@ protected:
   using Factory = std::unordered_map<swoc::TextView, Worker, std::hash<std::string_view>>;
   /// Storage for set of modifiers.
   static Factory _factory;
+};
+
+
+// ---
+/// Base class for various filter modifiers.
+class FilterMod : public Modifier {
+  using self_type = FilterMod;
+  using super_type = Modifier;
+public:
+  static inline const std::string ACTION_REPLACE = "replace"; ///< Replace element.
+  static inline const std::string ACTION_DROP    = "drop";    ///< Drop / remove element.
+  static inline const std::string ACTION_PASS    = "pass";    ///< Pass unaltered.
+  static inline const std::string ACTION_OPT     = "option";  ///< Options
+protected:
+  /// Action to take for an element.
+  enum Action {
+    PASS = 0, ///< No action
+    DROP,     ///< Remove element from result.
+    REPLACE   ///< Replace element in result.
+  };
 };

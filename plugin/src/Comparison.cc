@@ -723,7 +723,7 @@ protected:
     std::vector<Item> &_rxp;
   };
 
-  bool operator()(Context &ctx, FeatureView const &active) const override;
+  bool operator()(Context &ctx, feature_type_for<STRING> const &active) const override;
 
   std::vector<Item> _rxp;
   Rxp::Options _opt;
@@ -846,13 +846,13 @@ Cmp_RxpSingle::Cmp_RxpSingle(Expr &&expr, Rxp::Options opt) : _rxp(std::move(exp
 Cmp_RxpSingle::Cmp_RxpSingle(Rxp &&rxp) : _rxp(std::move(rxp)) {}
 
 bool
-Cmp_RxpSingle::operator()(Context &ctx, FeatureView const &active) const
+Cmp_RxpSingle::operator()(Context &ctx, feature_type_for<STRING> const &active) const
 {
   return std::visit(rxp_visitor{ctx, _opt, active}, _rxp);
 }
 
 bool
-Cmp_RxpList::operator()(Context &ctx, FeatureView const &) const
+Cmp_RxpList::operator()(Context &ctx, feature_type_for<STRING> const &) const
 {
   return std::any_of(_rxp.begin(), _rxp.end(), [&](Item const &item) { return std::visit(rxp_visitor{ctx, _opt, {}}, item); });
 }

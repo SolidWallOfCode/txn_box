@@ -9,6 +9,7 @@
 
 #include "txn_box/common.h"
 #include "txn_box/Rxp.h"
+#include "txn_box/Config.h"
 
 using swoc::TextView;
 using namespace swoc::literals;
@@ -46,4 +47,96 @@ Rxp::capture_count() const
   uint32_t count = 0;
   auto result    = pcre2_pattern_info(_rxp.get(), PCRE2_INFO_CAPTURECOUNT, &count);
   return result == 0 ? count + 1 : 0; // output doesn't reflect capture group 0, apparently.
+}
+/* ------------------------------------------------------------------------------------ */
+RxpOp::RxpOp(Rxp && rxp) : _raw(std::move(rxp)) {}
+RxpOp::RxpOp(Expr && expr, Rxp::Options opt) : _raw(DynamicRxp{std::move(expr), opt}) {}
+
+Rv<RxpOp>
+RxpOp::Cfg_Visitor::operator()(Feature &f)
+{
+  if (IndexFor(STRING) != f.index()) {
+    return Error(R"(Regular expression literal was not a string as required.)");
+  }
+
+  auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
+  if (!rxp_errata.is_ok()) {
+    rxp_errata.info(R"(While parsing regular expression.)");
+    return std::move(rxp_errata);
+  }
+  _cfg.require_rxp_group_count(rxp.capture_count());
+  return RxpOp(std::move(rxp));
+}
+
+Rv<RxpOp>
+RxpOp::Cfg_Visitor::operator()(std::monostate)
+{
+  return Error(R"(Literal must be a string)");
+}
+
+Rv<RxpOp>
+RxpOp::Cfg_Visitor::operator()(Expr::Direct &d)
+{
+  return RxpOp(Expr(std::move(d)), _rxp_opt);
+}
+
+Rv<RxpOp>
+RxpOp::Cfg_Visitor::operator()(Expr::Composite &comp)
+{
+  return RxpOp(Expr(std::move(comp)), _rxp_opt);
+}
+
+Rv<RxpOp>
+RxpOp::Cfg_Visitor::operator()(Expr::List &)
+{
+  return Error(R"(Literal must be a string)");
+}
+
+bool RxpOp::Apply_Visitor::operator()(std::monostate) const
+{
+  return false;
+}
+
+bool
+RxpOp::Apply_Visitor::operator()(const Rxp &rxp) const
+{
+  auto result = rxp(_src, _ctx.rxp_working_match_data());
+  if (result > 0) {
+    _ctx.rxp_commit_match(_src);
+    _ctx._remainder.clear();
+    return true;
+  }
+  return false;
+}
+
+bool
+RxpOp::Apply_Visitor::operator()(DynamicRxp const &dr) const
+{
+  auto f = _ctx.extract(dr._expr);
+  if (auto text = std::get_if<IndexFor(STRING)>(&f); text != nullptr) {
+    auto &&[rxp, rxp_errata]{Rxp::parse(*text, dr._opt)};
+    if (rxp_errata.is_ok()) {
+      _ctx.rxp_match_require(rxp.capture_count());
+      return (*this)(rxp); // forward to Rxp overload.
+    }
+  }
+  return false;
+}
+
+Rv<RxpOp> RxpOp::load(Config & cfg, Expr && expr, Rxp::Options opt) {
+  return { std::visit(Cfg_Visitor(cfg, opt), expr._raw) };
+}
+
+int RxpOp::operator()(Context &ctx, swoc::TextView src)
+{
+  return std::visit(Apply_Visitor{ctx, src}, _raw);
+}
+
+size_t
+RxpOp::capture_count()
+{
+  if (_raw.index() == STATIC) {
+    return std::get<STATIC>(_raw).capture_count();
+  }
+  return 0; // No rxp or indeterminate.
 }

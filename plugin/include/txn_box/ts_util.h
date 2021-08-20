@@ -9,6 +9,7 @@
 
 #include <array>
 #include <type_traits>
+#include <variant>
 
 #include "txn_box/common.h"
 #include <swoc/swoc_file.h>
@@ -976,14 +977,30 @@ const swoc::TextView URL_SCHEME_HTTPS{TS_URL_SCHEME_HTTPS, static_cast<size_t>(T
 
 extern const swoc::Lexicon<TSRecordDataType> TSRecordDataTypeNames;
 
+/** Get the next pair from the query string.
+ * @param src Query string [in,out]
+ *
+    Three cases
+
+    -  "name=value"
+    - "name"
+    - "name="
+
+    The latter two are distinguished by the value pointing at @c name.end() or one past.).
+*/
+std::tuple<swoc::TextView, swoc::TextView> take_query_pair(swoc::TextView & src);
+
 /** Search a query string for the value for a specific @a key.
  *
  * @param query_str Query string to search.
  * @param search_key Key to find.
  * @param caseless_p Match key caseinsensitive?
- * @return
+ * @return The name and value, if found.
+ *
+ * To distinguish between "name" and "name=", check if @c value.data() is @c name.end(). This
+ * indicates there was no '='.
  */
-extern swoc::TextView query_value_for(swoc::TextView query_str, swoc::TextView search_key, bool caseless_p = false);
+extern std::tuple<swoc::TextView, swoc::TextView> query_value_for(swoc::TextView query_str, swoc::TextView search_key, bool caseless_p = false);
 }; // namespace ts
 
 namespace swoc

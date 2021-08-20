@@ -2,16 +2,39 @@ meta:
   version: "1.0"
 
   txn-box:
-  - when: ua-req
-    do:
-    - with: ua-req-query
-      select:
-      - rxp<nc>: "^emailaddress=[^&;]*[;&]?(.*)$" # first value.
-        do:
-        - ua-req-query: "{1}"
-      - rxp<nc>: "(.*?)[&;]emailaddress=[^&;]*(.*)$" # not first value
-        do:
-        - ua-req-query: "{1}{2}"
+    alpha:
+     - when: ua-req
+       do:
+       - with: ua-req-query
+         continue:
+         select:
+         - rxp<nc>: "^emailaddress=[^&;]*[;&]?(.*)$" # first value.
+           do:
+           - ua-req-query: "{1}"
+         - rxp<nc>: "(.*?)[&;]emailaddress=[^&;]*(.*)$" # not first value
+           do:
+           - ua-req-query: "{1}{2}"
+         - with: ua-req-query
+           select:
+           - rxp<nc>: "^(.*)%26emailAddress%3D(.*?)((?:%26)?.*)$"
+             do:
+             - ua-req-query: "{1}{2}"
+    bravo:
+    - when: ua-req
+      do:
+      - ua-req-query:
+        - ua-req-query
+        - query-filter:
+          - match<nc>: "emailaddress"
+            drop:
+          - match<nc>: "f"
+            replace:
+              value:
+              - value
+              - rxp-replace:
+                - "%26emailAddress%3D(.*?)%26"
+                - "%26"
+          - pass:
 
   blocks:
   - base-req: &base-req
@@ -27,7 +50,7 @@ meta:
 
 sessions:
 - protocol: [ { name: ip, version : 4} ]
-  transactions:
+  transactions: &txn-set
 
   # No query
   - all: { headers: { fields: [[ uuid, no-query ]]}}
@@ -160,6 +183,23 @@ sessions:
       <<: *base-req
       url:
       - [ query, { value: "xandria=nice&leah=cool&nightwish=good", as: "equal" } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  # Check for delete including URI encoded value.
+  - all: { headers: { fields: [[ uuid, uri-cleanup ]]}}
+    client-request:
+      <<: *base-req
+      url: "/page.html?xandria=nice&EmailAddress=alpha@bravo.com&leah=cool&f=https%3A%2F%2Fxyz.vabc.com%2Fsignup%2Fverify-email%3Fcode%3D622551*%26emailAddress%3Dsomebody%25yahoo.com%26*session%3D7f5580c3-031f-4c99-8f87-39eeb22b217d%26anonymousId%3Dc5eaa1ce-cb62-4cfc-a332-5f68f11c5082&nightwish=good"
+      headers:
+        fields:
+        - [ Host, three.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ query, { value: "xandria=nice&leah=cool&f=https%3A%2F%2Fxyz.vabc.com%2Fsignup%2Fverify-email%3Fcode%3D622551*%26*session%3D7f5580c3-031f-4c99-8f87-39eeb22b217d%26anonymousId%3Dc5eaa1ce-cb62-4cfc-a332-5f68f11c5082&nightwish=good", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
