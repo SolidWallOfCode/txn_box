@@ -45,6 +45,9 @@ public:
    * @param ctx Runtime transaction context.
    * @param feature Feature to modify.
    * @return Modified feature, or errors.
+   *
+   * The input feature is never modified - the modified feature is returned. If there is no
+   * modification it is acceptable to return the input feature.
    */
   virtual swoc::Rv<Feature>
   operator()(Context &ctx, Feature &feature)
@@ -53,19 +56,16 @@ public:
     return std::visit(visitor, feature);
   }
 
-  /** Modification operator.
-   *
-   * @param ctx Runtime transaction context.
-   * @param feature The feature to modify.
-   * @return The modified feature.
-   */
-  virtual swoc::Rv<Feature> operator()(Context &ctx, std::monostate);
-
+  /// Feature type specific overloads as a convenience, so modifiers that support few types
+  /// can overload these instead of the general case.
+  /// @{
   // Do-nothing base implementations - subclasses should override methods for supported types.
+  virtual swoc::Rv<Feature> operator()(Context &ctx, feature_type_for<NIL>);
   virtual swoc::Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature);
   virtual swoc::Rv<Feature> operator()(Context &ctx, feature_type_for<IP_ADDR> feature);
+  /// @}
 
-  // Temporary until actually used.
+  // At least prevent compilation if a non-feature type is used.
   template <typename T>
   auto
   operator()(Context &, T const &) -> EnableForFeatureTypes<T, swoc::Rv<Feature>>

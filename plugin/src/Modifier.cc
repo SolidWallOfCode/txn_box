@@ -56,7 +56,7 @@ Modifier::load(Config &cfg, YAML::Node const &node, ActiveType ex_type)
 }
 
 swoc::Rv<Feature>
-Modifier::operator()(Context &, std::monostate)
+Modifier::operator()(Context &, feature_type_for<NIL>)
 {
   return NIL_FEATURE;
 }
