@@ -1009,15 +1009,13 @@ Rv<Feature>
 Mod_url_encode::operator()(Context &ctx, feature_type_for<STRING> feature)
 {
   const size_t size = feature.size() * 3; // *3 should suffice.
-  ctx.transient_require(size);
-  auto view = ctx.render_transient([&feature, size](swoc::BufferWriter &w) {
-    swoc::MemSpan<char> buff = w.aux_span();
-    size_t length;
-    if (TS_SUCCESS == TSStringPercentEncode(feature.data(), feature.size(), buff.data(), size, &length, escape_codes)) {
-      w.commit(length);
-    }
-  });
-  return {ctx.commit(view)};
+  size_t length;
+  auto buff = ctx.transient_buffer(size);
+  if (TS_SUCCESS == TSStringPercentEncode(feature.data(), feature.size(), buff.data(), size, &length, escape_codes)) {
+    ctx.transient_finalize(length).commit_transient();    // adjust the transient buffer length and commit it.
+    return {FeatureView::Literal({buff.data(), length})}; // literal because it's committed.
+  }
+  return NIL_FEATURE;
 }
 
 // ---
@@ -1045,6 +1043,7 @@ public:
    * @param ctx Run time context.
    * @param feature Feature to modify
    * @return Errors, if any.
+   *
    */
   Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature) override;
 
@@ -1080,15 +1079,13 @@ Rv<Feature>
 Mod_url_decode::operator()(Context &ctx, feature_type_for<STRING> feature)
 {
   const size_t size = feature.size();
-  ctx.transient_require(size);
-  auto view = ctx.render_transient([&feature, size](swoc::BufferWriter &w) {
-    swoc::MemSpan<char> buff = w.aux_span();
-    size_t length;
-    if (TS_SUCCESS == TSStringPercentDecode(feature.data(), size, buff.data(), size, &length)) {
-      w.commit(length);
-    }
-  });
-  return {ctx.commit(view)};
+  size_t length;
+  auto buff = ctx.transient_buffer(size);
+  if (TS_SUCCESS == TSStringPercentDecode(feature.data(), size, buff.data(), size, &length)) {
+    ctx.transient_finalize(length).commit_transient();    // adjust the transient buffer length and commit it.
+    return {FeatureView::Literal({buff.data(), length})}; // literal because it's committed.
+  }
+  return NIL_FEATURE;
 }
 // --- //
 
