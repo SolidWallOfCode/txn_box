@@ -580,6 +580,12 @@ public:
 
   HttpResponse prsp_hdr();
 
+  /** Configure whether transaction level debugging is enabled.
+   *
+   * @param[in] enable True if transaction level debugging should be enabled, false otherewise.
+   */
+  void enable_debug(bool enable);
+
   /** Is this an internal request?
    *
    * @return @c true if internal, @c false if not.

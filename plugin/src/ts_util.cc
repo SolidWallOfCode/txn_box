@@ -627,6 +627,12 @@ ts::HttpResponse::reason_set(swoc::TextView reason)
   return this->is_valid() && TS_SUCCESS == TSHttpHdrReasonSet(_buff, _loc, reason.data(), reason.size());
 }
 
+void
+ts::HttpTxn::enable_debug(bool enable)
+{
+  TSHttpTxnDebugSet(_txn, enable ? 1 : 0);
+}
+
 bool
 ts::HttpTxn::is_internal() const
 {
