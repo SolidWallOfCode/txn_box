@@ -25,7 +25,7 @@ meta:
         - ua-req-scheme: "https"
         - redirect:
             location: ua-req-url
-            status: 301
+            status: 302
 
   blocks:
   - base-req: &base-req
@@ -55,7 +55,7 @@ sessions:
     server-response:
       <<: *base-rsp
     proxy-response:
-      status: 301
+      status: 302
       headers:
         fields:
         - [ "Location", { value: "https://calendar.yahoo.com", as: prefix } ]
@@ -70,9 +70,11 @@ sessions:
         - [ ycal-host, "bop.yahoo.com" ]
     proxy-request:
       <<: *base-req
-      url:
-      - [ query, { value: "view=notepad", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
-      status: 200
+      status: 302
+      headers:
+        fields:
+        - [ Location, { value: "view=notepad", as: "contains" } ]
+
