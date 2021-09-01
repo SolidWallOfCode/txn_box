@@ -3812,6 +3812,49 @@ Do_var::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::TextView cons
   return Handle(new self_type(cfg.localize(arg), std::move(expr)));
 }
 /* ------------------------------------------------------------------------------------ */
+/// Internal transaction error control
+class Do_txn_error : public Directive
+{
+  using self_type  = Do_txn_error;
+  using super_type = Directive;
+
+public:
+  static inline const std::string KEY{"txn-error"};
+  /// Valid hooks for directive.
+  static inline const HookMask HOOKS{MaskFor({Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
+                                              Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
+
+  Errata invoke(Context &ctx) override;
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
+
+protected:
+  Expr _expr;
+
+  Do_txn_error(Expr &&msg);
+};
+
+Do_txn_error::Do_txn_error(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata
+Do_txn_error::invoke(Context &ctx)
+{
+  ctx._global_status = ctx.extract(_expr).as_bool() ? TS_EVENT_HTTP_ERROR : TS_EVENT_HTTP_CONTINUE;
+  return {};
+}
+
+Rv<Directive::Handle>
+Do_txn_error::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &,
+               YAML::Node key_value) {
+  auto &&[expr, errata] = cfg.parse_expr(key_value);
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return {std::move(errata)};
+  }
+  return {Handle{new self_type{std::move(expr)}}};
+}
+
+/* ------------------------------------------------------------------------------------ */
 /** @c with directive.
  *
  * This is a core directive that has lots of special properties.
@@ -4129,6 +4172,7 @@ namespace
   Config::define<Do_note>();
   Config::define<Do_warning>();
   Config::define<Do_error>();
+  Config::define<Do_txn_error>();
   Config::define<Do_var>();
 
   Config::define<Do_apply_remap_rule>();
