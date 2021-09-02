@@ -524,9 +524,14 @@ class Ex_ua_req_port : public Extractor
 public:
   static constexpr TextView NAME{"ua-req-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_ua_req_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_ua_req_port::extract(Context &ctx, Spec const &)
@@ -539,21 +544,20 @@ Ex_ua_req_port::extract(Context &ctx, Spec const &)
   }
   return zret;
 }
-
-BufferWriter &
-Ex_ua_req_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 // ----
 class Ex_proxy_req_port : public Extractor
 {
 public:
   static constexpr TextView NAME{"proxy-req-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_proxy_req_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_proxy_req_port::extract(Context &ctx, Spec const &)
@@ -565,11 +569,6 @@ Ex_proxy_req_port::extract(Context &ctx, Spec const &)
     }
   }
   return zret;
-}
-BufferWriter &
-Ex_proxy_req_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
 }
 /* ------------------------------------------------------------------------------------ */
 /// URL path.
@@ -1134,9 +1133,14 @@ class Ex_ua_req_url_port : public Extractor
 public:
   static constexpr TextView NAME{"ua-req-url-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_ua_req_url_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_ua_req_url_port::extract(Context &ctx, Spec const &)
@@ -1151,20 +1155,21 @@ Ex_ua_req_url_port::extract(Context &ctx, Spec const &)
   return zret;
 }
 
-BufferWriter &
-Ex_ua_req_url_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 // ----
 class Ex_proxy_req_url_port : public Extractor
 {
 public:
   static constexpr TextView NAME{"proxy-req-url-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_proxy_req_url_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
+
 
 Feature
 Ex_proxy_req_url_port::extract(Context &ctx, Spec const &)
@@ -1179,20 +1184,20 @@ Ex_proxy_req_url_port::extract(Context &ctx, Spec const &)
   return zret;
 }
 
-BufferWriter &
-Ex_proxy_req_url_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 // ----
 class Ex_pre_remap_port : public Extractor
 {
 public:
   static constexpr TextView NAME{"pre-remap-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_pre_remap_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_pre_remap_port::extract(Context &ctx, Spec const &)
@@ -1204,20 +1209,20 @@ Ex_pre_remap_port::extract(Context &ctx, Spec const &)
   return zret;
 }
 
-BufferWriter &
-Ex_pre_remap_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 // ----
 class Ex_remap_target_port : public Extractor
 {
 public:
   static constexpr TextView NAME{"remap-target-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_remap_target_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_remap_target_port::extract(Context &ctx, Spec const &)
@@ -1231,20 +1236,20 @@ Ex_remap_target_port::extract(Context &ctx, Spec const &)
   return zret;
 }
 
-BufferWriter &
-Ex_remap_target_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 // ----
 class Ex_remap_replacement_port : public Extractor
 {
 public:
   static constexpr TextView NAME{"remap-replacement-port"};
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+Rv<ActiveType> Ex_remap_replacement_port::validate(Config &, Spec &, const swoc::TextView &)
+{
+  return ActiveType{ NIL, INTEGER };
+}
 
 Feature
 Ex_remap_replacement_port::extract(Context &ctx, Spec const &)
@@ -1258,11 +1263,6 @@ Ex_remap_replacement_port::extract(Context &ctx, Spec const &)
   return zret;
 }
 
-BufferWriter &
-Ex_remap_replacement_port::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 /* ------------------------------------------------------------------------------------ */
 class ExHttpField : public Extractor
 {
