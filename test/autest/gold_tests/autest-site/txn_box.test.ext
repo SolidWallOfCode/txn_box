@@ -11,6 +11,13 @@ import os.path
 import types
 from urllib.parse import urlparse
 
+def append_if(name, suffix=""):
+    """
+    Append the optional suffix to name if it exists and return the result.
+    """
+    return name if not suffix else f"{name}-{suffix}"
+
+
 def TxnBoxUrlRewrite(tester, rules, ports):
     if rules:
         for line in rules:
@@ -83,7 +90,8 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
             if to is missing, it is set equal to from yielding an identity remap.
     """
 
-    ts = self.MakeATSProcess("ts{}".format(suffix), command=command, enable_tls=enable_tls)
+    ts_name = append_if("ts", suffix)
+    ts = self.MakeATSProcess(ts_name, command=command, enable_tls=enable_tls)
     self.Variables.TXNBOX_TS = ts
     self.Variables.TXNBOX_REPLAY_PATH = replay_path
     self.Variables.TXNBOX_DEPENDENCIES = False
@@ -111,9 +119,11 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
         ts.Disk.plugin_config.AddLine(txn_box_command)
 
     # Configure Traffic Server to use the DNS process.
-    self.Variables.TXNBOX_DNS = self.MakeDNServer("dns{}".format(suffix), ip='127.0.0.1', default='127.0.0.1')
+    dns_name = append_if("dns", suffix)
+    self.Variables.TXNBOX_DNS = self.MakeDNServer(dns_name, ip='127.0.0.1', default='127.0.0.1')
 
-    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess("pv-server{}".format(suffix), replay_path, other_args=verifier_server_args)
+    server_name = append_if("pv-server", suffix)
+    self.Variables.TXNBOX_SERVER = self.MakeVerifierServerProcess(server_name, replay_path, other_args=verifier_server_args)
 
     ts.Disk.records_config.update({
         'proxy.config.dns.nameservers': '127.0.0.1:{0}'.format(self.Variables.TXNBOX_DNS.Variables.Port),
@@ -136,7 +146,7 @@ def TxnBoxTest(self, replay_path, config_path=None, config_key="meta.txn_box", r
     ts.Env['PV_HTTPS_PORT'] = "{}".format(self.Variables.TXNBOX_SERVER.Variables.https_port)
     return ts
 
-def TxnBoxRun(self, text, replay_path=None, ssl_cert=None, suffix=None, verifier_client_args=""):
+def TxnBoxRun(self, text, replay_path=None, ssl_cert=None, suffix="", verifier_client_args=""):
     """
     Set up a standard test run for TxnBox
 
@@ -165,12 +175,8 @@ def TxnBoxRun(self, text, replay_path=None, ssl_cert=None, suffix=None, verifier
     except:
         pass # not an error if it's missing, just don't pass it.
 
-    vc_name="pv-client"
-    if suffix != None:
-        vc_name = "{}-{}".format(vc_name,suffix)
-
+    vc_name = append_if("pv-client", suffix)
     pv_client = run.AddVerifierClientProcess(vc_name, replay_path, **vc_args)
-
     run.Variables.CLIENT = pv_client
 
     pv_server = self.Variables.TXNBOX_SERVER
@@ -188,7 +194,7 @@ def TxnBoxTestAndRun(self, name, replay_path, config_path=None, config_key="meta
                      , verifier_client_args="--verbose diag", verifier_server_args="--verbose info"
                      , command="traffic_server", enable_tls=False, suffix=""):
     self.TxnBoxTest(replay_path, config_path, config_key, remap, command=command, enable_tls=enable_tls, suffix=suffix, verifier_server_args=verifier_server_args)
-    return self.TxnBoxRun(name, verifier_client_args=verifier_client_args)
+    return self.TxnBoxRun(name, verifier_client_args=verifier_client_args, suffix=suffix)
 
 ExtendTest(TxnBoxTest, name="TxnBoxTest")
 ExtendTest(TxnBoxRun, name="TxnBoxRun")

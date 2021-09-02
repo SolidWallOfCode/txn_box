@@ -427,6 +427,13 @@ Utility
       On versions of Traffic Server before 10 this will generate an "ERROR" log entry because the
       plugin API does not support other log levels.
 
+.. directive:: txn-debug
+    :value: boolean
+
+    Control whether Traffic Server emits transaction level debug messages for
+    the associated transaction. By default transaction level debugging is
+    disabled.
+
 .. directive:: stat-define
 
    Define a plugin statistic, which can be externally accessed. Currently |TS| limits plugin

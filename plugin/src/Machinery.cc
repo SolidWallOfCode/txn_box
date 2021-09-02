@@ -1995,6 +1995,59 @@ FieldDirective::load(Config &cfg, std::function<Handle(TextView const &, Expr &&
 
 // -- Implementations --
 
+/* ------------------------------------------------------------------------------------ */
+/// Set transaction level debuggging for this transaction.
+class Do_txn_debug : public Directive
+{
+  using self_type  = Do_txn_debug; ///< Self reference type.
+  using super_type = Directive;    ///< Parent type.
+public:
+  static inline const std::string KEY{ "txn-debug" }; ///< Directive name.
+
+  /// Valid hooks for directive.
+  static inline const HookMask HOOKS{MaskFor({Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
+                                              Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
+
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
+
+  /** Load from YAML configuration.
+   *
+   * @param cfg Configuration data.
+   * @param drtv_node Node containing the directive.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
+
+protected:
+  Expr _expr;              ///< Whether transaction debug is enabled or disabled.
+
+  Do_txn_debug(Expr &&msg);
+};
+
+Do_txn_debug::Do_txn_debug(Expr &&expr) : _expr(std::move(expr)) {}
+
+Errata
+Do_txn_debug::invoke(Context &ctx)
+{
+  auto f = ctx.extract(_expr);
+  ctx._txn.enable_debug(f.as_bool());
+  return {};
+}
+
+Rv<Directive::Handle>
+Do_txn_debug::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &,
+                          YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    return std::move(errata);
+  }
+  return {Handle{new self_type{std::move(expr)}}};
+}
+
 // --
 class Do_ua_req_field : public FieldDirective
 {
@@ -4024,6 +4077,7 @@ namespace
   Config::define<When>();
   Config::define<Do_with>();
 
+  Config::define<Do_txn_debug>();
   Config::define<Do_ua_req_field>();
   Config::define<Do_ua_req_url>();
   Config::define<Do_ua_req_url>("ua-url-host"_tv); // alias
