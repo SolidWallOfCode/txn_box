@@ -13,7 +13,7 @@ Production use case: Manipulate specific query parameters.
 replay_file="query-delete.replay.yaml"
 
 tr = Test.TxnBoxTestAndRun("Query Delete with RXP", replay_file
-                          , config_path='Auto', config_key="meta.txn-box.alpha"
+                          , config_path='Auto', config_key="meta.txn-box.bravo"
                           , verifier_client_args="--verbose info"
                           )
 

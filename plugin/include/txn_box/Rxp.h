@@ -16,6 +16,11 @@
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 
+#include <swoc/TextView.h>
+#include <swoc/Errata.h>
+
+#include "txn_box/Expr.h"
+
 /** Regular expression support.
  *
  * This is split out from @c Comparison because regular expressions will be used in additional
@@ -80,3 +85,91 @@ protected:
   /// Internal constructor used by @a parse.
   Rxp(pcre2_code *rxp) : _rxp(rxp) {}
 };
+
+/** Container for a regular expression operation.
+ *
+ * This holds a regular expression and the machinery needed to apply it at run time.
+ *
+ * @internal I don't like this here, but where else to put it? Is anything going to use
+ * the @c Rxp class without also using this?
+ */
+class RxpOp {
+  using self_type = RxpOp;
+  template<typename R> using Rv = swoc::Rv<R>; // import
+
+public:
+  struct DynamicRxp {
+    Expr _expr; ///< Feature expression source for regular expression.
+    Rxp::Options _opt; ///< Options for regular expression.
+  };
+
+  RxpOp() = default;
+  explicit RxpOp(Rxp && rxp);
+  RxpOp(Expr && expr, Rxp::Options opt);
+
+  /// Get the number of capture groups.
+  size_t capture_count();
+
+  int operator()(Context & ctx, swoc::TextView src);
+
+  static Rv<self_type> load(Config & cfg, Expr && expr, Rxp::Options opt);
+
+protected:
+  std::variant<std::monostate, Rxp, DynamicRxp> _raw;
+  // Indices for variant types.
+  static constexpr size_t NO_VALUE = 0;
+  static constexpr size_t STATIC = 1;
+  static constexpr size_t DYNAMIC = 2;
+
+  /// Process the regular expression based on the expression type.
+  /// This is used during configuration load.
+  struct Cfg_Visitor {
+    /** Constructor.
+     *
+     * @param cfg Configuration being loaded.
+     * @param opt Options from directive arguments.
+     */
+    Cfg_Visitor(Config &cfg, Rxp::Options opt) : _cfg(cfg), _rxp_opt(opt) {}
+
+    Rv<RxpOp> operator()(std::monostate);
+    Rv<RxpOp> operator()(Feature &f);
+    Rv<RxpOp> operator()(Expr::List &l);
+    Rv<RxpOp> operator()(Expr::Direct &d);
+    Rv<RxpOp> operator()(Expr::Composite &comp);
+
+    Config &_cfg;          ///< Configuration being loaded.
+    Rxp::Options _rxp_opt; ///< Any options from directive arguments.
+  };
+
+  /** Runtime support.
+   *
+   * This enables dynamic regular expressions at a reasonable run time cost. If the configuration
+   * is a literal it is compiled during configuration load and stored as an @c Rxp instance.
+   * Otherwise the @c Expr is stored and evaluated on invocation.
+   */
+  struct Apply_Visitor {
+    /// Invoke on invalid / uninitialized rxp, always fails.
+    bool operator()(std::monostate) const;
+
+    /** Invoke the @a rxp against the active feature.
+     *
+     * @param rxp Compiled regular expression.
+     * @return @c true on success, @c false otherwise.
+     */
+    bool operator()(Rxp const &rxp) const;
+    /** Compile the @a expr into a regular expression.
+     *
+     * @param dr Feature expression and options.
+     * @return @c true on successful match, @c false otherwise.
+     *
+     * @internal This compiles the feature from @a expr and then invokes the @c Rxp overload to do
+     * the match.
+     */
+    bool operator()(DynamicRxp const &dr) const;
+
+    Context &_ctx;         ///< Configuration context.
+    swoc::TextView _src;         ///< regex text.
+  };
+
+};
+

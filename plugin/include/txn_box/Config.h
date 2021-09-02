@@ -110,6 +110,17 @@ public:
     return scope;
   }
 
+  /** Local extractor table.
+   *
+   * Used for directive/modifier dependent extractors.
+   *
+   * Generally @c let should be used to restore the previous state.
+   * @code
+   * let ex_scope(cfg._local_extractors, local_table);
+   * @endcode
+   */
+  Extractor::Table * _local_extractors = nullptr;
+
   /// Global and session variable map.
   using Variables = std::map<swoc::TextView, unsigned>;
 
@@ -264,8 +275,8 @@ public:
    * @param count # of elements.
    * @return A span covering the allocated array.
    *
-   * This allocates in the config storage. No destructors are called when the config is destructed.
-   * If that is required use @c mark_for_cleanup
+   * This allocates in the config storage. Constructors are not called. No destructors are called when the config is destructed. If
+   * that is required use @c mark_for_cleanup
    *
    * @see mark_for_cleanup
    */
@@ -380,6 +391,39 @@ public:
    * @return The allocated span.
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n, size_t align = 1);
+
+  /** Find or allocate an instance of @a T in configuration storage.
+   *
+   * @tparam T Type of object.
+   * @tparam Args Arguments to @a T constructor.
+   * @param name Name of object.
+   * @return A pointer to an initialized instance of @a T in configuration storage.
+   *
+   * This can be used to allocate or retrieve the instance. If the name is not found, a @a T is
+   * allocated and default constructed. If found, a pointer to the existing instance is returned.
+   *
+   * @note This should only be called during configuration loading.
+   */
+  template < typename T, typename ... Args > T * obtain_named_object(swoc::TextView name, Args && ... args) {
+    auto spot = _named_objects.find(name);
+    if (spot != _named_objects.end()) {
+      return spot->second.rebind<T>().data();
+    }
+    auto span = this->allocate_cfg_storage(sizeof(T), alignof(T));
+    _named_objects[name] = span;
+    return new (span.data()) T(std::forward<Args>(args)...);
+  }
+
+  /** Find named object.
+   *
+   * @tparam T Expected type of object.
+   * @param name Name of the object.
+   * @return A pointer to the object, or @c nullptr if not found.
+   */
+  template < typename T > T * named_object(swoc::TextView name) {
+    auto spot = _named_objects.find(name);
+    return spot != _named_objects.end() ? spot->second.rebind<T>().data() : nullptr;
+  }
 
   /** Prepare for context storage.
    *
@@ -496,6 +540,9 @@ protected:
 
   /// The set of defined directives..
   static Factory _factory;
+
+  /// Set of named configuration storage objects.
+  std::unordered_map<swoc::TextView, swoc::MemSpan<void>, std::hash<std::string_view>> _named_objects;
 
   /// Top level directives for each hook. Always invoked.
   std::array<std::vector<Directive::Handle>, std::tuple_size<Hook>::value> _roots;

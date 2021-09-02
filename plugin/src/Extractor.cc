@@ -24,6 +24,8 @@ namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
+static_assert(sizeof(Extractor::Spec::union_type) == sizeof(MemSpan<void>));
+/* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<BoolTag> const BoolNames{
   {{BoolTag::True, {"true", "1", "on", "enable", "Y", "yes"}}, {BoolTag::False, {"false", "0", "off", "disable", "N", "no"}}},
   {BoolTag::INVALID}};

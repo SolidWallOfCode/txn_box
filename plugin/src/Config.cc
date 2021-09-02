@@ -212,7 +212,18 @@ Config::validate(Extractor::Spec &spec)
       return std::move(arg_errata);
     }
 
-    if (auto ex{Extractor::find(name)}; nullptr != ex) {
+    Extractor * ex = nullptr;
+    if (_local_extractors) {
+      if (auto spot = _local_extractors->find(name) ; spot != _local_extractors->end()) {
+        ex = spot->second;
+      }
+    }
+
+    if (nullptr == ex) {
+      ex = Extractor::find(name);
+    }
+
+    if (nullptr != ex) {
       spec._exf  = ex;
       spec._name = this->localize(name);
       spec._ext  = this->localize(spec._ext);

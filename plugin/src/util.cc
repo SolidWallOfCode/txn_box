@@ -12,6 +12,7 @@
 #include <swoc/bwf_ip.h>
 
 #include "txn_box/common.h"
+#include "txn_box/Config.h"
 #include "txn_box/Context.h"
 
 using swoc::TextView;
@@ -28,8 +29,7 @@ struct join_visitor {
   TextView _glue;
   unsigned _recurse = 0;
 
-  swoc::BufferWriter &
-  glue()
+  swoc::BufferWriter & glue() const
   {
     if (_w.size()) {
       _w.write(_glue);
@@ -37,29 +37,29 @@ struct join_visitor {
     return _w;
   }
 
-  void operator()(feature_type_for<NIL>) {}
+  void operator()(feature_type_for<NIL>) const {}
   void
-  operator()(feature_type_for<STRING> const &s)
+  operator()(feature_type_for<STRING> const &s) const
   {
     this->glue().write(s);
   }
   void
-  operator()(feature_type_for<INTEGER> n)
+  operator()(feature_type_for<INTEGER> n) const
   {
     this->glue().print("{}", n);
   }
   void
-  operator()(feature_type_for<BOOLEAN> flag)
+  operator()(feature_type_for<BOOLEAN> flag) const
   {
     this->glue().print("{}", flag);
   }
   void
-  operator()(feature_type_for<DURATION> d)
+  operator()(feature_type_for<DURATION> d) const
   {
     this->glue().print("{}", d);
   }
   void
-  operator()(feature_type_for<TUPLE> t)
+  operator()(feature_type_for<TUPLE> t) const
   {
     this->glue();
     if (_recurse) {
@@ -77,7 +77,7 @@ struct join_visitor {
 
   template <typename T>
   auto
-  operator()(T const &) -> EnableForFeatureTypes<T, void>
+  operator()(T const &) -> EnableForFeatureTypes<T, void> const
   {
   }
 };
@@ -118,7 +118,7 @@ public:
    *
    * @param units A @c Lexicon of unit definitions.
    */
-  UnitParser(unit_type &&units) noexcept;
+  explicit UnitParser(unit_type &&units) noexcept;
 
   /** Constructor.
    *
@@ -209,47 +209,47 @@ UnitParser<E>::operator()(swoc::TextView const &src) const noexcept -> Rv<value_
 namespace
 {
 struct bool_visitor {
-  bool operator()(feature_type_for<NIL>) { return false; }
+  bool operator()(feature_type_for<NIL>) const { return false; }
 
   bool
-  operator()(feature_type_for<STRING> const &s)
+  operator()(feature_type_for<STRING> const &s) const
   {
     return BoolNames[s] == True;
   }
 
   bool
-  operator()(feature_type_for<INTEGER> n)
+  operator()(feature_type_for<INTEGER> n) const
   {
     return n != 0;
   }
 
   bool
-  operator()(feature_type_for<FLOAT> f)
+  operator()(feature_type_for<FLOAT> f) const
   {
     return f != 0;
   }
 
   bool
-  operator()(feature_type_for<IP_ADDR> addr)
+  operator()(feature_type_for<IP_ADDR> addr) const
   {
     return addr.is_valid();
   }
 
   bool
-  operator()(feature_type_for<BOOLEAN> flag)
+  operator()(feature_type_for<BOOLEAN> flag) const
   {
     return flag;
   }
 
   bool
-  operator()(feature_type_for<TUPLE> t)
+  operator()(feature_type_for<TUPLE> t) const
   {
     return t.size() > 0;
   }
 
   template <typename T>
   auto
-  operator()(T const &) -> EnableForFeatureTypes<T, bool>
+  operator()(T const &) -> EnableForFeatureTypes<T, bool> const
   {
     return false;
   }

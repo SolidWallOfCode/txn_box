@@ -44,15 +44,16 @@ public:
     /// Extractor used in the spec, if any.
     Extractor *_exf = nullptr;
     /// Config storage for extractor, if needed.
-    /// No member should be larger than a string view or span nor have any state.
-    /// Extractors are required to know what type was stored and retrieve it without addtional
+    /// No member should be larger than a string view or span nor have any external state.
+    /// Extractors are required to know what type was stored and retrieve it without additional
     /// type information.
     union union_type {
       uintmax_t u;
       swoc::MemSpan<void> span;
       swoc::TextView text;
+      ReservedSpan ctx_reserved_span;
 
-      union_type() { span = decltype(span){}; }                // provide copy constructor for Spec constructors.
+      union_type() { span = decltype(span){}; }                // default constructor.
       union_type(union_type const &that) { span = that.span; } // provide copy constructor for Spec constructors.
     } _data;
   };
@@ -68,6 +69,7 @@ public:
    *
    * The base implementation returns successfully as a @c STRING or @c NULL. If the extractor
    * returns some other type or needs to actually validate @a spec, it must override this method.
+   * Overriding is also required if the extractor needs to do configuration time initialization.
    */
   virtual swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg);
 

@@ -48,9 +48,11 @@ Modifiers
       Add an item to the new list in place of the original element. This key takes a feature expression
       which is the new value to put in the new list.
 
+   It is an error to have more than one action for a comparison.
+
    If no action is specified with a comparison, a match will ``pass`` the item. If an action has no
    comparison, it always matches. The comparisons are checked in order for each element and the first
-   match determines the action for that element. If there are no matches, the item is droppe. This
+   match determines the action for that element. If there are no matches, the item is dropped. This
    makes it easy to remove elements. To remove any "set-cookie" field with the loopback address in it -
    ::
 
@@ -195,3 +197,112 @@ Modifiers
      :start-after: doc-redirect-url-decode-form-<
      :end-before: doc-redirect-url-decode-form->
 
+.. modifier:: query-sort
+   :arg: ``nc``, ``rev``
+
+   Sort a query string by name.
+
+   ``nc``
+      Caseless comparison for sorting.
+
+   ``rev``
+      Sort in reverse (descending) order.
+
+
+.. modifier:: query-filter
+
+   This is designed to work with URL query strings in a manner similar to :mod:`filter`. The filter
+   is applied to each element in the query string. Comparisons match on the name. The basic actions
+   are the same as :mod:`filter`.
+
+   pass
+      Pass element to the output unchanged.
+
+   drop
+      Do not pass the element to the output (the element is removed).
+
+   replace
+      Replace the element with a new element. This can have two nested keys, ``name`` and ``value``.
+      These are optional and should contain feature expressions which will replace the existing
+      text.
+
+   It is an error to have more than one action for a comparison.
+
+   It is an error to have a :code:`do` key with any of the comparisons.
+
+   If no action is specified with a comparison, a match will ``pass`` the item. If an action has no
+   comparison, it always matches. The comparisons are checked in order for each element and the first
+   match determines the action for that element. If there are no matches, the item is dropped.
+
+   In addition to actions there are a set of options which are attached to the ``option`` key with
+   the comparison. These nested keys are
+
+   value
+      This must contain a comparison which is applied to the value for the element.
+
+   append
+      Append a new element to the output. This requires a list of two elements, the name and value.
+      This will be added after the current element (if passed or replaced). It is valid to ``drop``
+      the current element and then ``append``, although that is more easily done by using the list
+      form of ``replace``.
+
+   append-unique
+
+      **NOT IMPLEMENTED**
+
+      As ``append`` but only once. If this is used, the name for the appended element will appear
+      exactly once in the modified query string. Using this will effect all elements with the name,
+      regardless of how such elements are added to the output. If some previous element was passed
+      with this name, this append will be dropped to satisfy the uniqueness.
+
+   pass-rest
+      Stop filtering - all remaining elements are passed.
+
+   drop-rest
+      Stop filtering - all remaining elements are dropped.
+
+   For feature expressions in the scope of this modifier the extractors ``name`` and ``value`` are
+   locally bound to the name and value of the current element.
+
+   Example - drop all elements with the name "email" if the address is for "base.ex". ::
+
+      query-filter:
+         -  match: "email"
+            option:
+               value:
+                  suffix: "@base.ex"
+            drop:
+         -  pass: # everything else pass on through.
+
+   Change the name "x-email" to "email" for all elements. ::
+
+      query-filter:
+         -  match: "x-email"
+            replace:
+               name: "email"
+         -  pass:
+
+   Make every value more exciting. ::
+
+      query-filter:
+         - replace:
+              value: "{value}!"
+
+.. modifier:: rxp-replace
+   :arg: nc, g
+
+   Perform a regular expression based search and replace on a string. This takes a list of two
+   elements, the *pattern* and the *replacement*. As is common this modifier searches the value a
+   match for the regular expression *pattern*. If found the text matching *pattern* is removed and
+   replaced by replacement*. Capture group extractors are available to extract text from the matched
+   text.
+
+   PCRE syntax is used for the regular expression.
+
+   The arguments are
+
+   nc
+      Case insensitive matching.
+
+   g
+      Global - after a match and replacement, the remaining string is searched for further matches.
