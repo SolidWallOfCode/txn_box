@@ -284,7 +284,7 @@ Mod_rxp_replace::operator()(Context &ctx, feature_type_for<STRING> src)
     }
     // Clip the match.
     src.assign(match.data_end(), src.data_end());
-    if (! opt.f.global) {
+    if (! _global_p) {
       break;
     }
   }
