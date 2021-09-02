@@ -434,6 +434,22 @@ Utility
    the associated transaction. By default transaction level debugging is
    disabled.
 
+.. directive:: txn-error
+   :value: boolean
+
+   Control whether |TxB| returns an internal error to the plugin API. If the expression is true
+   an error is returned, and not if false. This can be invoked multiple times with the last
+   invocation controlling what is returned.
+
+   If an error is returned the transaction will be terminated and a 500 "INKApi Error"
+   response will be sent. The status can be overridden in the ``proxy-rsp`` hook if the error was
+   returned in a previous hook. The primary use of this is to prevent callbacks for other hooks.
+   For example if this is done in the ``ua-req`` hook then no other hook before ``proxy-rsp``
+   will have callbacks. Note this applies to *all* plugins, not just |TxB|.
+
+Statistics
+==========
+
 .. directive:: stat-define
 
    Define a plugin statistic, which can be externally accessed. Currently |TS| limits plugin
