@@ -2796,6 +2796,33 @@ Do_proxy_reply::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
 }
 // ---
 /* ------------------------------------------------------------------------------------ */
+class Do_remap_redirect : public Directive {
+  using self_type  = Do_remap_redirect; ///< Self reference type.
+  using super_type = Directive;   ///< Parent type.
+public:
+  static inline const HookMask HOOKS{MaskFor(Hook::REMAP)}; ///< Valid hooks for directive.
+  static inline const std::string KEY          = "remap-redirect"; ///< Directive name.
+
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
+};
+
+Rv<Directive::Handle>
+Do_remap_redirect::load(Config &, CfgStaticData const *, YAML::Node
+                        , swoc::TextView const &, swoc::TextView const &, YAML::Node) {
+  return Handle{new self_type};
+}
+
+Errata
+Do_remap_redirect::invoke(Context &ctx) {
+  if (ctx._remap_info) {
+    ctx._remap_info->redirect = 1;
+    ctx._remap_status = TSREMAP_DID_REMAP;
+  }
+  return {};
+}
+/* ------------------------------------------------------------------------------------ */
 /// Redirect.
 /// Although this could technically be done "by hand", it's common enough to justify
 /// a specific directive.
@@ -3780,7 +3807,6 @@ namespace
   Config::define<When>();
   Config::define<Do_with>();
 
-  Config::define<Do_txn_debug>();
   Config::define<Do_ua_req_field>();
   Config::define<Do_ua_req_url>();
   Config::define<Do_ua_req_url>("ua-url-host"_tv); // alias
@@ -3797,7 +3823,6 @@ namespace
   Config::define<Do_proxy_req_field>();
   Config::define<Do_proxy_req_url>();
   Config::define<Do_proxy_req_url_host>();
-  Config::define<Do_proxy_req_url_host>("proxy-url-host"); // alias
   Config::define<Do_proxy_req_url_port>();
   Config::define<Do_proxy_req_url_loc>();
   Config::define<Do_proxy_req_host>();
@@ -3823,12 +3848,14 @@ namespace
   Config::define<Do_cache_key>();
   Config::define<Do_txn_conf>();
   Config::define<Do_redirect>();
+  Config::define<Do_remap_redirect>();
   Config::define<Do_proxy_reply>();
   Config::define<Do_debug>();
   Config::define<Do_note>();
   Config::define<Do_warning>();
   Config::define<Do_error>();
   Config::define<Do_txn_error>();
+  Config::define<Do_txn_debug>();
   Config::define<Do_var>();
 
   Config::define<Do_apply_remap_rule>();

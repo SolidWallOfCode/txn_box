@@ -364,6 +364,11 @@ Transaction
    directive that is done when the directive is invoked and the result cached for later use, whereas
    in the above example extraction is done during the proxy response hook.
 
+.. directive:: remap-redirect
+
+   This ignores any value and cause a temporary redirect to the remapped URL. This is valid only
+   in a remap rule, it cannot be used on any global hook.
+
 Utility
 =======
 

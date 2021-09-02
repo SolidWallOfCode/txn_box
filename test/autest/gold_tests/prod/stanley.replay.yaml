@@ -23,9 +23,7 @@ meta:
         - prefix: "mail.yahoo-inc.com"
         do:
         - ua-req-scheme: "https"
-        - redirect:
-            location: ua-req-url
-            status: 302
+        - remap-redirect:
 
   blocks:
   - base-req: &base-req
