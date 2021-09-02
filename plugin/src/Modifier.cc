@@ -927,6 +927,166 @@ Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node ke
   return Handle(new self_type{std::move(expr)});
 }
 
+// ---
+/// url-encode modifier.
+class Mod_url_encode : public Modifier
+{
+  using self_type  = Mod_url_encode;
+  using super_type = Modifier;
+
+  // Our own map. TSStringPercentEncode will not escape all we need.
+  static constexpr unsigned char escape_codes[32] = {
+    0xFF, 0xFF, 0xFF,
+    0xFF,       // control
+    0xBE,       // space ” # % $ &
+    0x19,       // + , /
+    0x00,       //
+    0x3F,       // < > : ; = ?
+    0x80,       // @
+    0x00, 0x00, //
+    0x1E, 0x80, // [ \ ] ^ `
+    0x00, 0x00, //
+    0x1F,       // { | } ~ DEL
+    0x00, 0x00, 0x00,
+    0x00, // all non-ascii characters unmodified
+    0x00, 0x00, 0x00,
+    0x00, //
+    0x00, 0x00, 0x00,
+    0x00, //
+    0x00, 0x00, 0x00,
+    0x00 //
+  };
+
+public:
+  inline static const std::string KEY = "url-encode";
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const &ex_type) const override;
+
+  /// Resulting type of feature after modifying.
+  ActiveType result_type(ActiveType const &) const override;
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature) override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<super_type::Handle> load(Config &, YAML::Node, TextView, TextView, YAML::Node);
+};
+
+bool
+Mod_url_encode::is_valid_for(ActiveType const &ex_type) const
+{
+  return ex_type.can_satisfy(MaskFor(NIL, STRING));
+}
+
+ActiveType
+Mod_url_encode::result_type(ActiveType const &) const
+{
+  return {MaskFor({NIL, STRING})};
+}
+
+Rv<Modifier::Handle>
+Mod_url_encode::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node)
+{
+  return Modifier::Handle(new self_type);
+}
+
+Rv<Feature>
+Mod_url_encode::operator()(Context &ctx, feature_type_for<STRING> feature)
+{
+  const size_t size = feature.size() * 3; // *3 should suffice.
+  size_t length;
+  auto buff = ctx.transient_buffer(size);
+  if (TS_SUCCESS == TSStringPercentEncode(feature.data(), feature.size(), buff.data(), size, &length, escape_codes)) {
+    ctx.transient_finalize(length).commit_transient();    // adjust the transient buffer length and commit it.
+    return {FeatureView::Literal({buff.data(), length})}; // literal because it's committed.
+  }
+  return NIL_FEATURE;
+}
+
+// ---
+/// url-decode modifier
+class Mod_url_decode : public Modifier
+{
+  using self_type  = Mod_url_decode;
+  using super_type = Modifier;
+
+public:
+  inline static const std::string KEY = "url-decode";
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const &ex_type) const override;
+
+  /// Resulting type of feature after modifying.
+  ActiveType result_type(ActiveType const &) const override;
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify
+   * @return Errors, if any.
+   *
+   */
+  Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> feature) override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<super_type::Handle> load(Config &, YAML::Node, TextView, TextView, YAML::Node);
+};
+
+bool
+Mod_url_decode::is_valid_for(ActiveType const &ex_type) const
+{
+  return ex_type.can_satisfy(MaskFor(NIL, STRING));
+}
+
+ActiveType
+Mod_url_decode::result_type(ActiveType const &) const
+{
+  return {MaskFor({NIL, STRING})};
+}
+
+Rv<Modifier::Handle>
+Mod_url_decode::load(Config &, YAML::Node, TextView, TextView, YAML::Node)
+{
+  return Modifier::Handle(new self_type);
+}
+
+Rv<Feature>
+Mod_url_decode::operator()(Context &ctx, feature_type_for<STRING> feature)
+{
+  const size_t size = feature.size();
+  size_t length;
+  auto buff = ctx.transient_buffer(size);
+  if (TS_SUCCESS == TSStringPercentDecode(feature.data(), size, buff.data(), size, &length)) {
+    ctx.transient_finalize(length).commit_transient();    // adjust the transient buffer length and commit it.
+    return {FeatureView::Literal({buff.data(), length})}; // literal because it's committed.
+  }
+  return NIL_FEATURE;
+}
 // --- //
 
 namespace
@@ -940,6 +1100,8 @@ namespace
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_filter::KEY, &Mod_filter::load);
   Modifier::define(Mod_as_ip_addr::KEY, &Mod_as_ip_addr::load);
+  Modifier::define(Mod_url_encode::KEY, &Mod_url_encode::load);
+  Modifier::define(Mod_url_decode::KEY, &Mod_url_decode::load);
   return true;
 }();
 } // namespace

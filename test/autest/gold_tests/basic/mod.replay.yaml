@@ -10,6 +10,26 @@ meta:
         - proxy-req-field<bands>
         - concat: [ ",", "Delain" ]
       # doc-concat-empty->
+    - when: proxy-req
+      do:
+      # doc-url-encode-<
+      - with: proxy-req-field<comets>
+        select:
+        - is-null: # field not present.
+        - do:
+          # encode it.
+          - proxy-req-field<comets>: [ proxy-req-field<comets>, { url-encode: } ]
+      # doc-url-encode->
+    - when: proxy-req
+      do:
+      # doc-url-decode-<
+      - with: proxy-req-field<comets-encoded>
+        select:
+        - is-null: # field not present.
+        - do:
+          # decode it.
+          - proxy-req-field<comets-decoded>: [ proxy-req-field<comets-encoded>, { url-decode: } ]
+      # doc-url-decode->
 
   blocks:
   - base-req: &base-req
@@ -96,6 +116,42 @@ sessions:
       headers:
         fields:
         - [ bands,   { value: "Nightwish,Within Temptation,Delain", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  # percent encode on a particular field.
+  - all: { headers: { fields: [[ uuid, 5 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ comets, "1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ comets,   { value: "1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  # Decode a cookie
+  - all: { headers: { fields: [[ uuid, 6 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/delain/albums"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ comets-encoded, "1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ comets-decoded, { value: "1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:
