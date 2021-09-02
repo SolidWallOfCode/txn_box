@@ -428,11 +428,11 @@ Utility
       plugin API does not support other log levels.
 
 .. directive:: txn-debug
-    :value: boolean
+   :value: boolean
 
-    Control whether Traffic Server emits transaction level debug messages for
-    the associated transaction. By default transaction level debugging is
-    disabled.
+   Control whether Traffic Server emits transaction level debug messages for
+   the associated transaction. By default transaction level debugging is
+   disabled.
 
 .. directive:: stat-define
 
