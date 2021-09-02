@@ -1000,7 +1000,7 @@ Mod_url_encode::result_type(ActiveType const &) const
 }
 
 Rv<Modifier::Handle>
-Mod_url_encode::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node)
+Mod_url_encode::load(Config &, YAML::Node, TextView, TextView, YAML::Node)
 {
   return Modifier::Handle(new self_type);
 }

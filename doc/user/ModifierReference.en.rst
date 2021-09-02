@@ -153,6 +153,7 @@ Modifiers
    extract data from the row. The value of that expression replaces the IP address.
 
 .. modifier:: url-encode
+   :value: string
 
    The :mod:`url-encode` perform percent-encoding of a feature, this provides a mechanism for encoding information in a
    Uniform Resource Identifier (URI). This modifier uses the |TS| api :code:`TSStringPercentEncode` to perform the encoding.
@@ -176,6 +177,7 @@ Modifiers
      :end-before: doc-redirect-url-encode-form->
 
 .. modifier:: url-decode
+   :value: string
 
    The :mod:`url-decode` perform percent-decoding of a feature, this provides a mechanism for encoding information in a
    Uniform Resource Identifier (URI).This internally uses  the |TS| api :code:`TSStringPercentDecode` to perform the decoding.
