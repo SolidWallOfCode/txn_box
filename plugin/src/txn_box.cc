@@ -157,7 +157,7 @@ TxnBoxInit()
     TSHttpHookAdd(TS_HTTP_TXN_START_HOOK, cont);
     G.reserve_txn_arg();
   } else {
-    errata.error(R"({}: plugin registration failed.)", Config::PLUGIN_TAG);
+    errata.note(R"({}: plugin registration failed.)", Config::PLUGIN_TAG);
     return errata;
   }
   return {};

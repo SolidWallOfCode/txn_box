@@ -151,7 +151,7 @@ Rv<ActiveType>
 QueryValueExtractor::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error("Extractor \"{}\" requires a key name argument.", this->key());
+    return Errata(S_ERROR,"Extractor \"{}\" requires a key name argument.", this->key());
   }
   spec._data.text = cfg.localize(arg);
   return ActiveType{NIL, STRING};
@@ -418,7 +418,7 @@ Mod_query_sort::load(Config &, YAML::Node, TextView, TextView arg, YAML::Node)
     } else if (token == ARG_REVERSE) {
       rev_p = true;
     } else {
-      return Error(R"(Invalid argument "{}" in modifier "{}")", token, KEY);
+      return Errata(S_ERROR,R"(Invalid argument "{}" in modifier "{}")", token, KEY);
     }
   }
   return Handle{new self_type(case_p, rev_p)};
@@ -567,13 +567,13 @@ Mod_query_filter::Case::assign(Comparison::Handle &&handle)
 swoc::Errata
 Mod_query_filter::Case::parse_pair(Config &cfg, YAML::Node node, PairExpr &pair) {
   if (! node.IsMap()) {
-    return Error("Element at {} is not an object as required.", node.Mark());
+    return Errata(S_ERROR,"Element at {} is not an object as required.", node.Mark());
   }
 
   if (auto knode = node[PAIR_NAME] ; knode) {
     auto && [ expr, errata ] { cfg.parse_expr(knode) };
     if (!errata.is_ok()) {
-      errata.info("While parsing expression for {}.", PAIR_NAME);
+      errata.note("While parsing expression for {}.", PAIR_NAME);
     }
     pair._name = std::move(expr);
   }
@@ -581,7 +581,7 @@ Mod_query_filter::Case::parse_pair(Config &cfg, YAML::Node node, PairExpr &pair)
   if (auto vnode = node[PAIR_VALUE] ; vnode) {
     auto && [ expr, errata ] { cfg.parse_expr(vnode) };
     if (!errata.is_ok()) {
-      errata.info("While parsing expression for {}.", PAIR_VALUE);
+      errata.note("While parsing expression for {}.", PAIR_VALUE);
     }
     pair._value = std::move(expr);
   }
@@ -594,11 +594,11 @@ Mod_query_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   unsigned action_count = 0;
 
   if (!cmp_node.IsMap()) {
-    return Error("List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
+    return Errata(S_ERROR,"List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
   }
 
   if (auto do_node = cmp_node[Global::DO_KEY]; do_node) {
-    return Error(R"("{}" at line {} is not allowed in a modifier comparison.)", Global::DO_KEY, do_node.Mark());
+    return Errata(S_ERROR,R"("{}" at line {} is not allowed in a modifier comparison.)", Global::DO_KEY, do_node.Mark());
   }
 
   YAML::Node drop_node = cmp_node[ACTION_DROP];
@@ -617,7 +617,7 @@ Mod_query_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   if (YAML::Node replace_node = cmp_node[ACTION_REPLACE] ; replace_node) {
     Errata errata = this->parse_pair(cfg, replace_node, _replace);
     if (!errata.is_ok()) {
-      errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), ACTION_REPLACE,
+      errata.note("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), ACTION_REPLACE,
                   cmp_node.Mark());
       return errata;
     }
@@ -627,20 +627,20 @@ Mod_query_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
   }
 
   if (action_count > 1) {
-    return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", ACTION_REPLACE, ACTION_DROP, ACTION_PASS, KEY,
+    return Errata(S_ERROR,"Only one of {}, {}, {} is allowed in the {} comparison at {}.", ACTION_REPLACE, ACTION_DROP, ACTION_PASS, KEY,
                  cmp_node.Mark());
   }
 
   YAML::Node opt_node = cmp_node[ACTION_OPT];
   if (opt_node) {
     if (!opt_node.IsMap()) {
-      return Error(R"("Value for "{}" at {} for "{}" modifier is not an object.)", ACTION_OPT, opt_node.Mark(), KEY);
+      return Errata(S_ERROR,R"("Value for "{}" at {} for "{}" modifier is not an object.)", ACTION_OPT, opt_node.Mark(), KEY);
     }
 
     if (YAML::Node vcmp_node = opt_node[OPT_VALUE] ; vcmp_node) {
       auto && [ vcmp, vcmp_errata ] { Comparison::load(cfg, vcmp_node) };
       if (! vcmp_errata.is_ok()) {
-        return std::move(vcmp_errata.info(R"(While parsing "{}" option for "{}" modifier)", OPT_VALUE, KEY));
+        return std::move(vcmp_errata.note(R"(While parsing "{}" option for "{}" modifier)", OPT_VALUE, KEY));
       }
       _value_cmp = std::move(vcmp);
       opt_node.remove(vcmp_node);
@@ -663,7 +663,7 @@ Mod_query_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
       opt_node.remove(append_node);
     }
     if (! errata.is_ok()) {
-      errata.info("While parsing {} expressions.", OPT_APPEND);
+      errata.note("While parsing {} expressions.", OPT_APPEND);
       return errata;
     }
 
@@ -674,7 +674,7 @@ Mod_query_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node) {
 
     if (auto drop_rest_node = opt_node[OPT_DROP_REST] ; drop_rest_node) {
       if (_opt_rest != Case::REST_NONE) {
-        return Error("{} at {} has both {} and {} which is not allowed.", ACTION_OPT, opt_node.Mark(), OPT_PASS_REST, OPT_DROP_REST);
+        return Errata(S_ERROR,"{} at {} has both {} and {} which is not allowed.", ACTION_OPT, opt_node.Mark(), OPT_PASS_REST, OPT_DROP_REST);
       }
       _opt_rest = Case::REST_DROP;
       opt_node.remove(drop_rest_node);
@@ -700,7 +700,7 @@ Rv<Modifier::Handle> Mod_query_filter::load(Config &cfg, YAML::Node node, TextVi
   }
 
   if (auto errata = self->_cases.load(cfg, key_value); !errata.is_ok()) {
-    errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
+    errata.note(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
     return errata;
   }
 
@@ -828,14 +828,14 @@ Do_ua_req_query::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, 
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (expr.is_null()) {
     expr = Feature{FeatureView::Literal(""_tv)};
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -882,11 +882,11 @@ Do_proxy_req_query::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -945,13 +945,13 @@ QueryValueDirective::load(Config &cfg, std::function<Handle(const TextView &, Ex
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value for "{}".)", key);
+    errata.note(R"(While parsing value for "{}".)", key);
     return std::move(errata);
   }
 
   auto expr_type = expr.result_type();
   if (!expr_type.has_value()) {
-    return Error(R"(Directive "{}" must have a value.)", key);
+    return Errata(S_ERROR,R"(Directive "{}" must have a value.)", key);
   }
   return maker(cfg.localize(arg), std::move(expr));
 }
@@ -965,7 +965,7 @@ QueryValueDirective::invoke_on_url(Context &ctx, ts::URL &&url)
     url.query_set(qs);
     ctx.transient_discard();
   }
-  return Error("Failed to update query value {} because the URL could not be found.", _name);
+  return Errata(S_ERROR,"Failed to update query value {} because the URL could not be found.", _name);
 }
 
 // --

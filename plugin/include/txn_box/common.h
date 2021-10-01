@@ -22,6 +22,11 @@
 
 constexpr swoc::TextView DEBUG_TAG = "txn_box";
 
+constexpr swoc::Errata::Severity S_DEBUG{1};
+constexpr swoc::Errata::Severity S_INFO{2};
+constexpr swoc::Errata::Severity S_WARN{3};
+constexpr swoc::Errata::Severity S_ERROR{4};
+
 // Forward declares
 class Config;
 class Context;
@@ -30,21 +35,6 @@ using TSCont = struct tsapi_cont *;
 namespace YAML
 {
 class Node;
-}
-
-/// Generate an @c Errata from a format string and arguments.
-template <typename... Args>
-swoc::Errata
-Error(std::string_view const &fmt, Args &&... args)
-{
-  return std::move(swoc::Errata().note_v(swoc::Severity::ERROR, fmt, std::forward_as_tuple(args...)));
-}
-
-template <typename... Args>
-swoc::Errata
-Warning(std::string_view const &fmt, Args &&... args)
-{
-  return std::move(swoc::Errata().note_v(swoc::Severity::WARN, fmt, std::forward_as_tuple(args...)));
 }
 
 /// Separate a name and argument for a directive or extractor.

@@ -137,19 +137,19 @@ Ex_random::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg)
     if (min_arg) {
       min = swoc::svtoi(min_arg, &parsed);
       if (parsed.size() != min_arg.size()) {
-        return Error(R"(Parameter "{}" for "{}" is not an integer as required)", min_arg, NAME);
+        return Errata(S_ERROR,R"(Parameter "{}" for "{}" is not an integer as required)", min_arg, NAME);
       }
     }
     if (max_arg) {
       max = swoc::svtoi(max_arg, &parsed);
       if (parsed.size() != max_arg.size()) {
-        return Error(R"(Parameter "{}" for "{}" is not an integer as required)", max_arg, NAME);
+        return Errata(S_ERROR,R"(Parameter "{}" for "{}" is not an integer as required)", max_arg, NAME);
       }
     }
   }
 
   if (min >= max) {
-    return Error(R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
+    return Errata(S_ERROR,R"(Parameter "{}" for "{}" has an invalid range {}-{})", min, max);
   }
 
   // Update the stored values now that *both* input values are validated.
@@ -206,13 +206,13 @@ Ex_duration<T, KEY>::validate(Config &cfg, Extractor::Spec &spec, TextView const
   spec._data.span = span; // remember where the storage is.
 
   if (!arg) {
-    return Error(R"("{}" extractor requires an integer argument.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an integer argument.)", NAME);
   }
 
   TextView parsed;
   auto n = swoc::svtoi(arg, &parsed);
   if (parsed.size() != arg.size()) {
-    return Error(R"(Parameter "{}" for "{}" is not an integer as required)", arg, NAME);
+    return Errata(S_ERROR,R"(Parameter "{}" for "{}" is not an integer as required)", arg, NAME);
   }
 
   span[0] = T{n};
@@ -251,7 +251,7 @@ Ex_txn_conf::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   auto var = ts::HttpTxn::find_override(arg);
   if (nullptr == var) {
-    return Error(R"("{}" is not a recognized transaction overridable configuration variable name.)", arg);
+    return Errata(S_ERROR,R"("{}" is not a recognized transaction overridable configuration variable name.)", arg);
   }
   auto ptr        = cfg.alloc_span<store_type>(1);
   ptr[0]          = var;

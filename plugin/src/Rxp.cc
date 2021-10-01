@@ -29,7 +29,7 @@ Rxp::parse(TextView const &str, Options const &options)
   if (nullptr == result) {
     PCRE2_UCHAR err_buff[128];
     auto err_size = pcre2_get_error_message(errc, err_buff, sizeof(err_buff));
-    return Error(R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)",
+    return Errata(S_ERROR,R"(Failed to parse regular expression - error "{}" [{}] at offset {} in "{}".)",
                  TextView(reinterpret_cast<char const *>(err_buff), err_size), errc, err_off, str);
   }
   return {result};
@@ -56,12 +56,12 @@ Rv<RxpOp>
 RxpOp::Cfg_Visitor::operator()(Feature &f)
 {
   if (IndexFor(STRING) != f.index()) {
-    return Error(R"(Regular expression literal was not a string as required.)");
+    return Errata(S_ERROR,R"(Regular expression literal was not a string as required.)");
   }
 
   auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
   if (!rxp_errata.is_ok()) {
-    rxp_errata.info(R"(While parsing regular expression.)");
+    rxp_errata.note(R"(While parsing regular expression.)");
     return std::move(rxp_errata);
   }
   _cfg.require_rxp_group_count(rxp.capture_count());
@@ -71,7 +71,7 @@ RxpOp::Cfg_Visitor::operator()(Feature &f)
 Rv<RxpOp>
 RxpOp::Cfg_Visitor::operator()(std::monostate)
 {
-  return Error(R"(Literal must be a string)");
+  return Errata(S_ERROR,R"(Literal must be a string)");
 }
 
 Rv<RxpOp>
@@ -89,7 +89,7 @@ RxpOp::Cfg_Visitor::operator()(Expr::Composite &comp)
 Rv<RxpOp>
 RxpOp::Cfg_Visitor::operator()(Expr::List &)
 {
-  return Error(R"(Literal must be a string)");
+  return Errata(S_ERROR,R"(Literal must be a string)");
 }
 
 bool RxpOp::Apply_Visitor::operator()(std::monostate) const

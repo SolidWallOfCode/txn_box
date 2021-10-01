@@ -141,7 +141,7 @@ Rv<ActiveType>
 Ex_has_inbound_protocol_prefix::validate(Config &cfg, Extractor::Spec &spec, TextView const &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
   spec._data.text = cfg.localize(arg, Config::LOCAL_CSTR);
   return {BOOLEAN};
@@ -219,7 +219,7 @@ Rv<ActiveType>
 Ex_inbound_protocol::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument to use as a protocol prefix.)", NAME);
   }
   spec._data.text = cfg.localize(arg, Config::LOCAL_CSTR);
   return {STRING};
@@ -275,11 +275,11 @@ Rv<ActiveType>
 Ex_inbound_cert_local_issuer_value::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
   }
   intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
-    return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
+    return Errata(S_ERROR,R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
   spec._data.u = nid;
   return {STRING};
@@ -312,11 +312,11 @@ Rv<ActiveType>
 Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
   }
   intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
-    return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
+    return Errata(S_ERROR,R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }
   spec._data.u = nid;
   return {STRING};
@@ -349,11 +349,11 @@ Rv<ActiveType>
 Ex_inbound_cert_remote_issuer_value::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
   }
   intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
-    return Error(R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
+    return Errata(S_ERROR,R"("{}" is not a valid certificate issuer name in "{}" extractor.)", arg, NAME);
   }
   // Sigh - abuse the memspan and use the size as the integer value.
   spec._data.u = nid;
@@ -387,11 +387,11 @@ Rv<ActiveType>
 Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument for the value name.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
   }
   intptr_t nid = ts::ssl_nid(arg);
   if (NID_undef == nid) {
-    return Error(R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
+    return Errata(S_ERROR,R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
   }
   // Sigh - abuse the memspan and use the size as the integer value.
   spec._data.u = nid;

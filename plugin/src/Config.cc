@@ -116,7 +116,7 @@ parse_arg(TextView &key)
     return {};
   }
   if (arg.empty() || arg.back() != ARG_SUFFIX) {
-    return Error(R"(Argument for "{}" is not properly terminated with '{}'.)", name, ARG_SUFFIX);
+    return Errata(S_ERROR, R"(Argument for "{}" is not properly terminated with '{}'.)", name, ARG_SUFFIX);
   }
   key = name;
   return arg.remove_suffix(1);
@@ -202,7 +202,7 @@ Rv<ActiveType>
 Config::validate(Extractor::Spec &spec)
 {
   if (spec._name.empty()) {
-    return Error(R"(Extractor name required but not found.)");
+    return Errata(S_ERROR,R"(Extractor name required but not found.)");
   }
 
   if (spec._idx < 0) {
@@ -233,7 +233,7 @@ Config::validate(Extractor::Spec &spec)
       }
       return vt;
     }
-    return Error(R"(Extractor "{}" not found.)", name);
+    return Errata(S_ERROR,R"(Extractor "{}" not found.)", name);
   }
   return {STRING}; // non-negative index => capture group => always a string
 }
@@ -270,7 +270,7 @@ Config::parse_unquoted_expr(swoc::TextView const &text)
   Extractor::Spec spec;
   bool valid_p = spec.parse(text);
   if (!valid_p) {
-    return Error(R"(Invalid syntax for extractor "{}" - not a valid specifier.)", text);
+    return Errata(S_ERROR,R"(Invalid syntax for extractor "{}" - not a valid specifier.)", text);
   }
   auto &&[vt, errata] = this->validate(spec);
   if (!errata.is_ok()) {
@@ -303,9 +303,9 @@ Config::parse_composite_expr(TextView const &text)
     try {
       spec_p = parser(literal, spec);
     } catch (std::exception const &exp) {
-      return Error("Invalid syntax - {}", exp.what());
+      return Errata(S_ERROR,"Invalid syntax - {}", exp.what());
     } catch (...) {
-      return Error("Invalid syntax.");
+      return Errata(S_ERROR,"Invalid syntax.");
     }
 
     if (!literal.empty()) {
@@ -324,7 +324,7 @@ Config::parse_composite_expr(TextView const &text)
           single_vt = vt; // Save for singleton case.
           specs.push_back(spec);
         } else {
-          errata.info(R"(While parsing specifier at offset {}.)", text.size() - parser._fmt.size());
+          errata.note(R"(While parsing specifier at offset {}.)", text.size() - parser._fmt.size());
           return std::move(errata);
         }
       }
@@ -371,9 +371,9 @@ Config::parse_scalar_expr(YAML::Node node)
     auto &expr = zret.result();
     if (expr._max_arg_idx >= 0) {
       if (_active_capture._count == 0) {
-        return Error(R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
+        return Errata(S_ERROR,R"(Regular expression capture group used at {} but no regular expression is active.)", node.Mark());
       } else if (expr._max_arg_idx >= int(_active_capture._count)) {
-        return Error(
+        return Errata(S_ERROR,
           R"(Regular expression capture group {} used at {} but the maximum capture group is {} in the active regular expression from line {}.)",
           expr._max_arg_idx, node.Mark(), _active_capture._count - 1, _active_capture._line);
       }
@@ -387,7 +387,7 @@ Config::parse_expr_with_mods(YAML::Node node)
 {
   auto &&[expr, expr_errata]{this->parse_expr(node[0])};
   if (!expr_errata.is_ok()) {
-    expr_errata.info("While processing the expression at {}.", node.Mark());
+    expr_errata.note("While processing the expression at {}.", node.Mark());
     return std::move(expr_errata);
   }
   auto scope{this->feature_scope(expr.result_type())};
@@ -395,7 +395,7 @@ Config::parse_expr_with_mods(YAML::Node node)
     auto child{node[idx]};
     auto &&[mod, mod_errata]{Modifier::load(*this, child, expr.result_type())};
     if (!mod_errata.is_ok()) {
-      mod_errata.info(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
+      mod_errata.note(R"(While parsing feature expression at {}.)", child.Mark(), node.Mark());
       return std::move(mod_errata);
     }
     _active_feature._type = mod->result_type(_active_feature._type);
@@ -420,26 +420,26 @@ Config::parse_expr(YAML::Node expr_node)
   // If explicitly marked a literal, then no further processing should be done.
   if (0 == strcasecmp(expr_tag, LITERAL_TAG)) {
     if (!expr_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
+      return Errata(S_ERROR,R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
                    expr_node.Mark());
     }
     return Expr{FeatureView::Literal(this->localize(expr_node.Scalar()))};
   } else if (0 == strcasecmp(expr_tag, DURATION_TAG)) {
     if (!expr_node.IsScalar()) {
-      return Error(R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
+      return Errata(S_ERROR,R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
                    expr_node.Mark());
     }
     auto &&[dt, dt_errata]{Feature{expr_node.Scalar()}.as_duration()};
     return {Expr(dt), std::move(dt_errata)};
   } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
-    return Error(R"("{}" tag for extractor expression is not supported.)", expr_tag);
+    return Errata(S_ERROR,R"("{}" tag for extractor expression is not supported.)", expr_tag);
   }
 
   if (expr_node.IsScalar()) {
     return this->parse_scalar_expr(expr_node);
   }
   if (!expr_node.IsSequence()) {
-    return Error("Feature expression is not properly structured.");
+    return Errata(S_ERROR,"Feature expression is not properly structured.");
   }
 
   // It's a sequence, handle the various cases.
@@ -462,7 +462,7 @@ Config::parse_expr(YAML::Node expr_node)
   for (auto const &child : expr_node) {
     auto &&[expr, errata]{this->parse_expr(child)};
     if (!errata.is_ok()) {
-      errata.info("While parsing feature expression list at {}.", expr_node.Mark());
+      errata.note("While parsing feature expression list at {}.", expr_node.Mark());
       return std::move(errata);
     }
     l_types |= expr.result_type().base_types();
@@ -512,7 +512,7 @@ Config::load_directive(YAML::Node const &drtv_node)
       auto rtti  = &_drtv_info[info._idx];
 
       if (!info._hook_mask[IndexFor(this->current_hook())]) {
-        return Error(R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
+        return Errata(S_ERROR, R"(Directive "{}" at {} is not allowed on hook "{}".)", name, drtv_node.Mark(), this->current_hook());
       }
 
       // If this is the first use of the directive, do config level setup for the directive type.
@@ -526,7 +526,7 @@ Config::load_directive(YAML::Node const &drtv_node)
 
       auto &&[drtv, drtv_errata]{info._load_cb(*this, rtti, drtv_node, name, arg, key_value)};
       if (!drtv_errata.is_ok()) {
-        drtv_errata.info(R"(While parsing directive at {}.)", drtv_node.Mark());
+        drtv_errata.note(R"(While parsing directive at {}.)", drtv_node.Mark());
         return std::move(drtv_errata);
       }
       drtv->_rtti = rtti;
@@ -534,7 +534,7 @@ Config::load_directive(YAML::Node const &drtv_node)
       return std::move(drtv);
     }
   }
-  return Error(R"(Directive at {} has no recognized tag.)", drtv_node.Mark());
+  return Errata(S_ERROR, R"(Directive at {} has no recognized tag.)", drtv_node.Mark());
 }
 
 Rv<Directive::Handle>
@@ -551,7 +551,7 @@ Config::parse_directive(YAML::Node const &drtv_node)
       if (errata.is_ok()) {
         list->push_back(std::move(handle));
       } else {
-        errata.info(R"(While loading directives at {}.)", drtv_node.Mark());
+        errata.note(R"(While loading directives at {}.)", drtv_node.Mark());
         return std::move(errata);
       }
     }
@@ -559,7 +559,7 @@ Config::parse_directive(YAML::Node const &drtv_node)
   } else if (drtv_node.IsNull()) {
     return Directive::Handle(new NilDirective);
   }
-  return Error(R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
+  return Errata(S_ERROR, R"(Directive at {} is not an object or a sequence as required.)", drtv_node.Mark());
 }
 
 Errata
@@ -580,10 +580,10 @@ Config::load_top_level_directive(YAML::Node drtv_node)
         return std::move(errata);
       }
     } else {
-      return Error(R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
+      return Errata(S_ERROR, R"(Top level directive at {} is not a "when" directive as required.)", drtv_node.Mark());
     }
   } else {
-    return Error(R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
+    return Errata(S_ERROR, R"(Top level directive at {} is not an object as required.)", drtv_node.Mark());
   }
   return {};
 }
@@ -602,7 +602,7 @@ Config::load_remap_directive(YAML::Node drtv_node)
       return std::move(errata);
     }
   } else {
-    return Error(R"(Configuration at {} is not a directive object as required.)", drtv_node.Mark());
+    return Errata(S_ERROR, R"(Configuration at {} is not a directive object as required.)", drtv_node.Mark());
   }
   return {};
 }
@@ -618,7 +618,7 @@ Config::parse_yaml(YAML::Node root, TextView path)
     if (auto node{root[key]}; node) {
       root.reset(node);
     } else {
-      return Error(R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
+      return Errata(S_ERROR, R"(Key "{}" not found - no such key "{}".)", path, path.prefix(path.size() - p.size()).rtrim('.'));
     }
   }
 
@@ -635,7 +635,7 @@ Config::parse_yaml(YAML::Node root, TextView path)
       errata.note((this->*drtv_loader)(child));
     }
     if (!errata.is_ok()) {
-      errata.info(R"(While loading list of top level directives for "{}" at {}.)", path, root.Mark());
+      errata.note(R"(While loading list of top level directives for "{}" at {}.)", path, root.Mark());
     }
   } else if (root.IsMap()) {
     errata = (this->*drtv_loader)(root);
@@ -694,7 +694,7 @@ Config::load_file(swoc::file::path const &cfg_path, TextView cfg_key, YamlCache 
   if (root.IsNull()) {
     auto &&[yaml_node, yaml_errata]{yaml_load(cfg_path)};
     if (!yaml_errata.is_ok()) {
-      yaml_errata.info(R"(While loading file "{}".)", cfg_path);
+      yaml_errata.note(R"(While loading file "{}".)", cfg_path);
       return std::move(yaml_errata);
     }
     root = yaml_node;
@@ -706,7 +706,7 @@ Config::load_file(swoc::file::path const &cfg_path, TextView cfg_key, YamlCache 
   // Process the YAML data.
   auto errata = this->parse_yaml(root, cfg_key);
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
+    errata.note(R"(While parsing key "{}" in configuration file "{}".)", cfg_key, cfg_path);
     return errata;
   }
 
@@ -722,12 +722,12 @@ Config::load_file_glob(TextView pattern, swoc::TextView cfg_key, YamlCache *cach
   swoc::file::path abs_pattern = ts::make_absolute(pattern);
   int result                   = glob(abs_pattern.c_str(), flags, err_f, &files);
   if (result == GLOB_NOMATCH) {
-    return Warning(R"(The pattern "{}" did not match any files.)", abs_pattern);
+    return Errata(S_WARN, R"(The pattern "{}" did not match any files.)", abs_pattern);
   }
   for (size_t idx = 0; idx < files.gl_pathc; ++idx) {
     auto errata = this->load_file(swoc::file::path(files.gl_pathv[idx]), cfg_key, cache);
     if (!errata.is_ok()) {
-      errata.info(R"(While processing pattern "{}".)", pattern);
+      errata.note(R"(While processing pattern "{}".)", pattern);
       return errata;
     }
   }
@@ -763,7 +763,7 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
     if (arg.front() == '-') {
       arg.ltrim('-');
       if (arg.empty()) {
-        return Error("Arg {} has an option prefix but no name.", idx);
+        return Errata(S_ERROR, "Arg {} has an option prefix but no name.", idx);
       }
 
       TextView value;
@@ -771,7 +771,7 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
         value = arg.substr(prefix.size() + 1);
         arg   = prefix;
       } else if (++idx >= argv.count()) {
-        return Error("Arg {} is an option '{}' that requires a value but none was found.", idx, arg);
+        return Errata(S_ERROR, "Arg {} is an option '{}' that requires a value but none was found.", idx, arg);
       } else {
         value = std::string_view{argv[idx]};
       }
@@ -784,7 +784,7 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
           return errata;
         }
       } else {
-        return Error("Arg {} is an unrecognized option '{}'.", idx, arg);
+        return Errata(S_ERROR, "Arg {} is an unrecognized option '{}'.", idx, arg);
       }
       continue;
     }
@@ -802,7 +802,7 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
     for (auto &&drtv : post_load_directives) {
       auto errata = drtv->invoke(*ctx);
       if (!errata.is_ok()) {
-        errata.info("While processing post-load directives.");
+        errata.note("While processing post-load directives.");
         return errata;
       }
     }

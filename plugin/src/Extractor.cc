@@ -132,7 +132,7 @@ FeatureGroup::load_expr(Config &cfg, Tracking &tracking, Tracking::Info *info, Y
             // Invariant - @a _dependent_p is true => @a _ref_count is non-zero.
           }
         }
-        return errata;
+        return std::move(errata);
       }
       return {};
     }
@@ -179,7 +179,7 @@ FeatureGroup::load_expr(Config &cfg, Tracking &tracking, Tracking::Info *info, Y
     errata             = std::visit(v, info->_expr._raw); // update "this" extractor references.
     info->_dependent_p = v._dependent_p;
   }
-  return errata;
+  return std::move(errata);
 }
 
 auto
@@ -190,7 +190,7 @@ FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &tracking, swoc::Text
   // Check if the key is present in the node. If not, it must be a referenced key because
   // the presence of explicit keys is checked before loading any keys.
   if (!n) {
-    return Error(R"("{}" is referenced but no such key was found.)", name);
+    return Errata(S_ERROR,R"("{}" is referenced but no such key was found.)", name);
   }
 
   auto tinfo = tracking.obtain(name);
@@ -200,13 +200,13 @@ FeatureGroup::load_key(Config &cfg, FeatureGroup::Tracking &tracking, swoc::Text
   }
 
   if (tinfo->_mark == IN_PLAY) {
-    return Error(R"(Circular dependency for key "{}" at {}.)", name, tracking._node.Mark());
+    return Errata(S_ERROR,R"(Circular dependency for key "{}" at {}.)", name, tracking._node.Mark());
   }
   tinfo->_mark = IN_PLAY;
 
   Errata errata{this->load_expr(cfg, tracking, tinfo, n)};
   if (!errata.is_ok()) {
-    errata.info(R"(While loading extraction format for key "{}" at {}.)", name, tracking._node.Mark());
+    errata.note(R"(While loading extraction format for key "{}" at {}.)", name, tracking._node.Mark());
     return errata;
   }
 
@@ -228,7 +228,7 @@ FeatureGroup::load(Config &cfg, YAML::Node const &node, std::initializer_list<Fe
   for (auto &d : ex_keys) {
     auto tinfo = tracking.find(d._name);
     if (nullptr != tinfo) {
-      return Errata().error(
+      return Errata(S_ERROR,
         R"("INTERNAL ERROR: "{}" is used more than once in the extractor key list of the feature group for the node {}.)", d._name,
         node.Mark());
     }
@@ -236,7 +236,7 @@ FeatureGroup::load(Config &cfg, YAML::Node const &node, std::initializer_list<Fe
       tinfo        = tracking.alloc();
       tinfo->_name = d._name;
     } else if (d._flags[REQUIRED]) {
-      return Errata().error(R"(The required key "{}" was not found in the node {}.)", d._name, node.Mark());
+      return Errata(S_ERROR, R"(The required key "{}" was not found in the node {}.)", d._name, node.Mark());
     }
   }
 
@@ -247,7 +247,7 @@ FeatureGroup::load(Config &cfg, YAML::Node const &node, std::initializer_list<Fe
   for (auto info = tracking_info, limit = info + tracking._count; info < limit; ++info) {
     auto &&[dummy, errata]{this->load_key(cfg, tracking, info->_name)};
     if (!errata.is_ok()) {
-      return errata;
+      return std::move(errata);
     }
   }
 
@@ -305,7 +305,7 @@ FeatureGroup::load_as_tuple(Config &cfg, YAML::Node const &node, std::initialize
   for (auto const &key : ex_keys) {
     if (idx >= n_elts) {
       if (key._flags[REQUIRED]) {
-        return Errata().error(R"(The list was {} elements long but {} are required.)", n_elts, n_keys);
+        return Errata(S_ERROR, R"(The list was {} elements long but {} are required.)", n_elts, n_keys);
       }
       continue; // it was optional, skip it and keep checking for REQUIRED keys.
     }

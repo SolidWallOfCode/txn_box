@@ -119,11 +119,11 @@ protected:
 
 Rv<ActiveType> Ex_tcp_info::validate(Config &cfg, Spec &spec, const TextView &arg) {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to specify the field.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument to specify the field.)", NAME);
   }
   auto field = _field_lexicon[arg];
   if (NONE == field) {
-    return Error(R"(Field "{}" for "{}" extractor is not supported.)", arg, NAME);
+    return Errata(S_ERROR,R"(Field "{}" for "{}" extractor is not supported.)", arg, NAME);
   }
   // Ugly - need to store the enum, and it's not worth allocating some chunk of config to do that
   // instead of just stashing it in the span size.

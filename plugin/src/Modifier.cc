@@ -22,14 +22,14 @@ Modifier::define(swoc::TextView name, Modifier::Worker const &f)
     _factory.insert(spot, {name, f});
     return {};
   }
-  return Error(R"(Modifier "{}" is already defined.)", name);
+  return Errata(S_ERROR, R"(Modifier "{}" is already defined.)", name);
 }
 
 Rv<Modifier::Handle>
 Modifier::load(Config &cfg, YAML::Node const &node, ActiveType ex_type)
 {
   if (!node.IsMap()) {
-    return Error(R"(Modifier at {} is not an object as required.)", node.Mark());
+    return Errata(S_ERROR, R"(Modifier at {} is not an object as required.)", node.Mark());
   }
 
   for (auto const &[key_node, value_node] : node) {
@@ -46,13 +46,13 @@ Modifier::load(Config &cfg, YAML::Node const &node, ActiveType ex_type)
         return std::move(errata);
       }
       if (!handle->is_valid_for(ex_type)) {
-        return Error(R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ex_type);
+        return Errata(S_ERROR, R"(Modifier "{}" at {} cannot accept a feature of type "{}".)", key, node.Mark(), ex_type);
       }
 
       return std::move(handle);
     }
   }
-  return Error(R"(No valid modifier key in object at {}.)", node.Mark());
+  return Errata(S_ERROR, R"(No valid modifier key in object at {}.)", node.Mark());
 }
 
 swoc::Rv<Feature>
@@ -144,17 +144,17 @@ Rv<Modifier::Handle>
 Mod_hash::load(Config &, YAML::Node node, TextView, TextView, YAML::Node key_value)
 {
   if (!key_value.IsScalar()) {
-    return Error(R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_value.Mark(), node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" at {} in modifier at {} is not a number as required.)", KEY, key_value.Mark(), node.Mark());
   }
   TextView src{key_value.Scalar()}, parsed;
   src.trim_if(&isspace);
   auto n = swoc::svtou(src, &parsed);
   if (src.size() != parsed.size()) {
-    return Error(R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_value.Mark(),
+    return Errata(S_ERROR, R"(Value "{}" for "{}" at {} in modifier at {} is not a number as required.)", src, KEY, key_value.Mark(),
                  node.Mark());
   }
   if (n < 2) {
-    return Error(R"(Value "{}" for "{}" at {} in modifier at {} must be at least 2.)", src, KEY, key_value.Mark(), node.Mark());
+    return Errata(S_ERROR, R"(Value "{}" for "{}" at {} in modifier at {} must be at least 2.)", src, KEY, key_value.Mark(), node.Mark());
   }
 
   return {Handle{new self_type(n)}, {}};
@@ -206,7 +206,7 @@ Mod_rxp_replace::load(Config &cfg, YAML::Node node, TextView, TextView args, YAM
   bool global_p = false;
 
   if (!key_value.IsSequence() || key_value.size() != 2) {
-    return Error(R"(Value for modifier "{}" at {} is not list of size 2 - [ pattern, replacement ] - as required.)", KEY, node.Mark());
+    return Errata(S_ERROR, R"(Value for modifier "{}" at {} is not list of size 2 - [ pattern, replacement ] - as required.)", KEY, node.Mark());
   }
 
   while (args) {
@@ -216,27 +216,27 @@ Mod_rxp_replace::load(Config &cfg, YAML::Node node, TextView, TextView args, YAM
     } else if (ARG_NOCASE == token) {
       opt.f.nc = true;
     } else {
-      return Error(R"(Invalid option "{}" for modifier "{}" at {}.)", token, KEY, key_value.Mark());
+      return Errata(S_ERROR, R"(Invalid option "{}" for modifier "{}" at {}.)", token, KEY, key_value.Mark());
     }
   }
 
   YAML::Node rxp_src_node = key_value[0];
   auto && [pattern, pattern_errata] { cfg.parse_expr(key_value[0]) };
   if (!pattern_errata.is_ok()) {
-    pattern_errata.info(R"(While parsing expression for "{}" modifier at {}.)", KEY, key_value.Mark());
+    pattern_errata.note(R"(While parsing expression for "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(pattern_errata);
   }
 
   auto && [ op, op_errata ] { RxpOp::load(cfg, std::move(pattern), opt)};
   if (! op_errata.is_ok()) {
-    op_errata.info(R"(While parsing pattern for modifier "{}".)", KEY);
+    op_errata.note(R"(While parsing pattern for modifier "{}".)", KEY);
     return std::move(op_errata);
   }
   cfg.require_rxp_group_count(op.capture_count());
 
   auto && [ rep, rep_errata ] { cfg.parse_expr(key_value[1])};
   if (! rep_errata.is_ok()) {
-    rep_errata.info(R"(While parsing replacement for modifier "{}".)", KEY);
+    rep_errata.note(R"(While parsing replacement for modifier "{}".)", KEY);
     return std::move(rep_errata);
   }
 
@@ -460,14 +460,14 @@ Errata
 Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node)
 {
   if (!cmp_node.IsMap()) {
-    return Error("List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
+    return Errata(S_ERROR, "List element at {} for {} modifier is not a comparison object.", cmp_node.Mark(), KEY);
   }
 
   Expr replace_expr;
   unsigned action_count = 0;
 
   if (auto do_node = cmp_node[Global::DO_KEY]; do_node) {
-    return Error(R"("{}" at line {} is not allowed in a modifier comparison.)", Global::DO_KEY, do_node.Mark());
+    return Errata(S_ERROR, R"("{}" at line {} is not allowed in a modifier comparison.)", Global::DO_KEY, do_node.Mark());
   }
 
   YAML::Node drop_node = cmp_node[ACTION_DROP];
@@ -488,7 +488,7 @@ Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node)
   if (replace_node) {
     auto &&[expr, errata] = cfg.parse_expr(replace_node);
     if (!errata.is_ok()) {
-      errata.info("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), ACTION_REPLACE,
+      errata.note("While parsing expression at {} for {} key in comparison at {}.", replace_node.Mark(), ACTION_REPLACE,
                   cmp_node.Mark());
       return std::move(errata);
     }
@@ -499,7 +499,7 @@ Mod_filter::Case::pre_load(Config &cfg, YAML::Node cmp_node)
   }
 
   if (action_count > 1) {
-    return Error("Only one of {}, {}, {} is allowed in the {} comparison at {}.", ACTION_REPLACE, ACTION_DROP, ACTION_PASS, KEY,
+    return Errata(S_ERROR, "Only one of {}, {}, {} is allowed in the {} comparison at {}.", ACTION_REPLACE, ACTION_DROP, ACTION_PASS, KEY,
                  cmp_node.Mark());
   }
 
@@ -521,7 +521,7 @@ Mod_filter::load(Config &cfg, YAML::Node node, TextView, TextView, YAML::Node ke
   auto scope{cfg.feature_scope(active_type.can_satisfy(TUPLE) ? active_type.tuple_types() : active_type)};
 
   if (auto errata = self->_cases.load(cfg, key_value); !errata.is_ok()) {
-    errata.info(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
+    errata.note(R"(While parsing modifier "{}" at line {}.)", KEY, node.Mark());
     return errata;
   }
 
@@ -594,7 +594,7 @@ Mod_else::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value
 {
   auto &&[fmt, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(fmt)});
@@ -673,12 +673,12 @@ Mod_join::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
 
   if (!expr.result_type().can_satisfy(STRING)) {
-    errata.info(R"("{}" modifier at {} requires a string argument.)", KEY, key_value.Mark());
+    errata.note(R"("{}" modifier at {} requires a string argument.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr)});
@@ -817,11 +817,11 @@ Mod_concat::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_val
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(MaskFor(STRING, TUPLE))) {
-    errata.info(R"("{}" modifier at {} requires a string or a list of two strings.)", KEY, key_value.Mark());
+    errata.note(R"("{}" modifier at {} requires a string or a list of two strings.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr)});
@@ -904,11 +904,11 @@ Mod_as_integer::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   if (!(expr.is_null() || expr.result_type().can_satisfy(MaskFor(INTEGER)))) {
-    return Error("Value of {} modifier is not of type {}.", KEY, INTEGER);
+    return Errata(S_ERROR, "Value of {} modifier is not of type {}.", KEY, INTEGER);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -1078,7 +1078,7 @@ Mod_As_Duration::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node ke
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr)});
