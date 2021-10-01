@@ -770,7 +770,7 @@ HttpTxn::reserve_arg(swoc::TextView const &name, swoc::TextView const &descripti
   }
 
   if (TS_ERROR == ts::compat::user_arg_index_reserve(name.data(), description.data(), &idx)) {
-    return {idx, Error(R"(Failed to reserve transaction argument index.)")};
+    return {idx, Errata(S_ERROR, R"(Failed to reserve transaction argument index.)")};
   }
   return idx;
 }
@@ -802,10 +802,10 @@ Errata
 HttpTxn::override_assign(TxnConfigVar const &var, intmax_t n)
 {
   if (!var.is_valid(n)) {
-    return Error(R"(Integer value {} is not valid for transaction overridable configuration variable "{}".)", n, var.name());
+    return Errata(S_ERROR, R"(Integer value {} is not valid for transaction overridable configuration variable "{}".)", n, var.name());
   }
   if (TS_ERROR == TSHttpTxnConfigIntSet(_txn, var.key(), n)) {
-    return Error(R"(Integer value {} assignment to transaction overridable configuration variable "{}" failed.)", n, var.name());
+    return Errata(S_ERROR, R"(Integer value {} assignment to transaction overridable configuration variable "{}" failed.)", n, var.name());
   }
   return {};
 }
@@ -814,10 +814,10 @@ Errata
 HttpTxn::override_assign(TxnConfigVar const &var, TextView const &text)
 {
   if (!var.is_valid(text)) {
-    return Error(R"(String value "{}" is not valid for transaction overridable configuration variable "{}".)", text, var.name());
+    return Errata(S_ERROR, R"(String value "{}" is not valid for transaction overridable configuration variable "{}".)", text, var.name());
   }
   if (TS_ERROR == TSHttpTxnConfigStringSet(_txn, var.key(), text.data(), text.size())) {
-    return Error(R"(String value "{}" assignment to transaction overridable configuration variable "{}" failed.)", text,
+    return Errata(S_ERROR, R"(String value "{}" assignment to transaction overridable configuration variable "{}" failed.)", text,
                  var.name());
   }
   return {};
@@ -827,10 +827,10 @@ Errata
 HttpTxn::override_assign(TxnConfigVar const &var, double f)
 {
   if (!var.is_valid(f)) {
-    return Error(R"(Floating value {} is not valid for transaction overridable configuration variable "{}".)", var.name());
+    return Errata(S_ERROR, R"(Floating value {} is not valid for transaction overridable configuration variable "{}".)", var.name());
   }
   if (TS_ERROR == TSHttpTxnConfigFloatSet(_txn, var.key(), f)) {
-    return Error(R"(Floating value {} assignment to transaction overridable configuration variable "{}" failed.)", var.name());
+    return Errata(S_ERROR, R"(Floating value {} assignment to transaction overridable configuration variable "{}" failed.)", var.name());
   }
   return {};
 }
@@ -862,10 +862,10 @@ HttpTxn::override_fetch(const TxnConfigVar &var)
     break;
   }
   default:
-    return Error("Var '{}' does not have a valid data type [{}]", var.name(), var.type());
+    return Errata(S_ERROR, "Var '{}' does not have a valid data type [{}]", var.name(), var.type());
     break;
   }
-  return Error(R"(Failed to retrieve config variable "{})", var.name());
+  return Errata(S_ERROR, R"(Failed to retrieve config variable "{})", var.name());
 }
 
 int
@@ -913,7 +913,7 @@ plugin_stat_define(TextView const &name, int value, bool persistent_p)
   idx = TSStatCreate(name.data(), TS_RECORDDATATYPE_INT, (persistent_p ? TS_STAT_PERSISTENT : TS_STAT_NON_PERSISTENT),
                      TS_STAT_SYNC_SUM);
   if (idx == TS_ERROR) {
-    return Error("Failed to create stat '{}'", name);
+    return Errata(S_ERROR, "Failed to create stat '{}'", name);
   }
   TSStatIntSet(idx, value);
   return idx;

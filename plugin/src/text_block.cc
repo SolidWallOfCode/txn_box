@@ -159,7 +159,7 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
     self->_fg.load(cfg, key_value, {{NAME_TAG, FeatureGroup::REQUIRED}, {PATH_TAG}, {TEXT_TAG}, {DURATION_TAG}, {NOTIFY_TAG}});
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return errata;
   }
   auto idx = fg.index_of(NAME_TAG);
@@ -167,14 +167,14 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
   // Must have a NAME, and either TEXT or PATH. DURATION is optional, but must be a duration if present.
   auto &name_expr{fg[idx]._expr};
   if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value for {} directive at {} must be a literal string.", NAME_TAG, KEY, drtv_node.Mark());
+    return Errata(S_ERROR,"{} value for {} directive at {} must be a literal string.", NAME_TAG, KEY, drtv_node.Mark());
   }
   self->_name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
 
   if (auto path_idx = fg.index_of(PATH_TAG); path_idx != INVALID_IDX) {
     auto &path_expr = fg[path_idx]._expr;
     if (!path_expr.is_literal() || !path_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value for {} directive at {} must be a literal string.", PATH_TAG, KEY, drtv_node.Mark());
+      return Errata(S_ERROR, "{} value for {} directive at {} must be a literal string.", PATH_TAG, KEY, drtv_node.Mark());
     }
     self->_path = cfg.localize(ts::make_absolute(std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(path_expr._raw))).view().data(),
                                Config::LOCAL_CSTR);
@@ -183,23 +183,23 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
   if (auto text_idx = fg.index_of(TEXT_TAG); text_idx != INVALID_IDX) {
     auto &text_expr = fg[text_idx]._expr;
     if (!text_expr.is_literal() || !text_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value for {} directive at {} must be a literal string.", TEXT_TAG, KEY, drtv_node.Mark());
+      return Errata(S_ERROR, "{} value for {} directive at {} must be a literal string.", TEXT_TAG, KEY, drtv_node.Mark());
     }
     self->_text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(text_expr._raw));
   }
 
   if (!self->_text.has_value() && self->_path.empty()) {
-    return Error("{} directive at {} must have a {} or a {} key.", KEY, drtv_node.Mark(), PATH_TAG, TEXT_TAG);
+    return Errata(S_ERROR, "{} directive at {} must have a {} or a {} key.", KEY, drtv_node.Mark(), PATH_TAG, TEXT_TAG);
   }
 
   if (auto dur_idx = fg.index_of(DURATION_TAG); dur_idx != INVALID_IDX) {
     auto &dur_expr = fg[dur_idx]._expr;
     if (!dur_expr.is_literal()) {
-      return Error("{} value for {} directive at {} must be a literal duration.", DURATION_TAG, KEY, drtv_node.Mark());
+      return Errata(S_ERROR, "{} value for {} directive at {} must be a literal duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }
     auto &&[dur_value, dur_value_errata]{std::get<Expr::LITERAL>(dur_expr._raw).as_duration()};
     if (!dur_value_errata.is_ok()) {
-      return Error("{} value for {} directive at {} is not a valid duration.", DURATION_TAG, KEY, drtv_node.Mark());
+      return Errata(S_ERROR, "{} value for {} directive at {} is not a valid duration.", DURATION_TAG, KEY, drtv_node.Mark());
     }
     self->_duration = dur_value;
   }
@@ -214,7 +214,7 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
     } else if (self->_text.has_value()) {
       self->_content = nullptr;
     } else {
-      return Error(R"("{}" directive at {} - value "{}" for key "{}" is not readable [{}] and no alternate "{}" key was present.)",
+      return Errata(S_ERROR, R"("{}" directive at {} - value "{}" for key "{}" is not readable [{}] and no alternate "{}" key was present.)",
                    KEY, drtv_node.Mark(), self->_path, PATH_TAG, ec, TEXT_TAG);
     }
     self->_last_modified = swoc::file::modify_time(swoc::file::status(self->_path, ec));
@@ -223,7 +223,7 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
   // Put the directive in the map.
   Map *map = self->map(rtti);
   if (auto spot = map->find(self->_name); spot != map->end()) {
-    return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
+    return Errata(S_ERROR, R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
                  self->_name, spot->second->_line_no);
   }
   (*map)[self->_name] = self;
@@ -306,7 +306,7 @@ Rv<ActiveType>
 Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to specify the defined text block.)", NAME);
+    return Errata(S_ERROR, R"("{}" extractor requires an argument to specify the defined text block.)", NAME);
   }
   auto view       = cfg.alloc_span<TextView>(1);
   view[0]         = cfg.localize(TextView{arg});

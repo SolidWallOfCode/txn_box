@@ -92,11 +92,11 @@ Do_ua_req_url_host::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -162,11 +162,11 @@ Do_proxy_req_url_host::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -232,11 +232,11 @@ Do_ua_req_url_port::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(INTEGER)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -302,11 +302,11 @@ Do_proxy_req_url_port::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(INTEGER)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -468,11 +468,11 @@ Do_ua_req_url_loc::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy({STRING, TUPLE})) {
-    return Error(R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -534,11 +534,11 @@ Do_proxy_req_url_loc::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_n
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy({STRING, TUPLE})) {
-    return Error(R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {} or a {} of 2 elements.)", KEY, drtv_node.Mark(), STRING, TUPLE);
   }
   return Handle(new self_type{std::move(expr)});
 }
@@ -607,11 +607,11 @@ Do_ua_req_host::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -679,11 +679,11 @@ Do_ua_req_port::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(INTEGER)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+    return Errata(S_ERROR,R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -753,11 +753,11 @@ Do_proxy_req_port::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(INTEGER)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), INTEGER);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -822,11 +822,11 @@ Do_proxy_req_host::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -891,11 +891,11 @@ Do_ua_req_loc::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, sw
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy({STRING, TUPLE})) {
-    return Error(R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -960,11 +960,11 @@ Do_proxy_req_loc::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node,
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy({STRING, TUPLE})) {
-    return Error(R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {} or a {}.)", KEY, drtv_node.Mark(), STRING, TUPLE);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1030,11 +1030,11 @@ Do_ua_req_scheme::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node,
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1100,11 +1100,11 @@ Do_ua_req_url::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, sw
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1170,11 +1170,11 @@ Do_proxy_req_scheme::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_no
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1240,11 +1240,11 @@ Do_proxy_req_url::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node,
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a {}.)", KEY, drtv_node.Mark(), STRING);
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1310,11 +1310,11 @@ Do_did_remap::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swo
   }
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value of "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value of "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(BOOLEAN)) {
-    return Error(R"(Value for "{}" directive at {} must be convertible to a {}.)", KEY, drtv_node.Mark(), BOOLEAN);
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be convertible to a {}.)", KEY, drtv_node.Mark(), BOOLEAN);
   }
   return Handle{new self_type{std::move(expr)}};
 }
@@ -1467,11 +1467,11 @@ Do_ua_req_path::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1536,14 +1536,14 @@ Do_ua_req_fragment::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (expr.is_null()) {
     expr = Feature{FeatureView::Literal(""_tv)};
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1609,11 +1609,11 @@ Do_proxy_req_path::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1678,11 +1678,11 @@ Do_proxy_req_fragment::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
+    errata.note(R"(While parsing "{}" directive at {}.)", KEY, drtv_node.Mark());
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" directive at {} must be a string.)", KEY, drtv_node.Mark());
   }
   return Handle(new self_type(std::move(expr)));
 }
@@ -1830,7 +1830,7 @@ FieldDirective::invoke_on_hdr(Context &ctx, ts::HttpHeader &&hdr)
     std::visit(Apply(ctx, hdr, _name), value);
     return {};
   }
-  return Errata().error(R"(Failed to assign field value due to invalid HTTP header.)");
+  return Errata(S_ERROR, R"(Failed to assign field value due to invalid HTTP header.)");
 }
 
 auto
@@ -1839,13 +1839,13 @@ FieldDirective::load(Config &cfg, std::function<Handle(TextView const &, Expr &&
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value for "{}".)", key);
+    errata.note(R"(While parsing value for "{}".)", key);
     return std::move(errata);
   }
 
   auto expr_type = expr.result_type();
   if (!expr_type.has_value()) {
-    return Error(R"(Directive "{}" must have a value.)", key);
+    return Errata(S_ERROR, R"(Directive "{}" must have a value.)", key);
   }
   return maker(cfg.localize(arg), std::move(expr));
 }
@@ -1899,7 +1899,7 @@ Do_txn_debug::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swo
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return std::move(errata);
   }
   return {Handle{new self_type{std::move(expr)}}};
@@ -2159,23 +2159,23 @@ Do_upstream_rsp_status::invoke(Context &ctx)
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (0 < t.count() && t.count() <= 2) {
       if (ValueTypeOf(t[0]) != INTEGER) {
-        return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+        return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
       status = std::get<IndexFor(INTEGER)>(t[0]);
       if (t.count() == 2) {
         if (ValueTypeOf(t[1]) != STRING) {
-          return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+          return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
         }
         ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
       }
     } else {
-      return Error(R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
+      return Errata(S_ERROR, R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
     }
   }
   if (100 <= status && status <= 599) {
     ctx._txn.ursp_hdr().status_set(static_cast<TSHttpStatus>(status));
   } else {
-    return Errata().error(R"(Status value {} out of range 100..599 for "{}".)", status, KEY);
+    return Errata(S_ERROR, R"(Status value {} out of range 100..599 for "{}".)", status, KEY);
   }
   return {};
 }
@@ -2193,7 +2193,7 @@ Do_upstream_rsp_status::load(Config &cfg, CfgStaticData const *, YAML::Node drtv
 
   auto expr_type = expr.result_type();
   if (!expr_type.can_satisfy({INTEGER, TUPLE})) {
-    return Error(R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
   }
   self->_expr = std::move(expr);
   return handle;
@@ -2235,7 +2235,7 @@ Do_upstream_reason::invoke(Context &ctx)
 {
   auto value = ctx.extract(_fmt);
   if (STRING != ValueTypeOf(value)) {
-    return Error(R"(Value for "{}" is not a string.)", KEY);
+    return Errata(S_ERROR, R"(Value for "{}" is not a string.)", KEY);
   }
   ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
   return {};
@@ -2250,7 +2250,7 @@ Do_upstream_reason::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
   auto self = new self_type;
   Handle handle(self);
@@ -2302,23 +2302,23 @@ Do_proxy_rsp_status::invoke(Context &ctx)
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (0 < t.count() && t.count() <= 2) {
       if (ValueTypeOf(t[0]) != INTEGER) {
-        return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+        return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
       status = std::get<IndexFor(INTEGER)>(t[0]);
       if (t.count() == 2) {
         if (ValueTypeOf(t[1]) != STRING) {
-          return Error(R"(Tuple for "{}" must be an integer and a string.)", KEY);
+          return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
         }
         ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
       }
     } else {
-      return Error(R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
+      return Errata(S_ERROR, R"(Tuple for "{}" has {} elements, instead of there required 1 or 2.)", KEY, t.size());
     }
   }
   if (100 <= status && status <= 599) {
     ctx._txn.prsp_hdr().status_set(static_cast<TSHttpStatus>(status));
   } else {
-    return Errata().error(R"(Status value {} out of range 100..599 for "{}".)", status, KEY);
+    return Errata(S_ERROR, R"(Status value {} out of range 100..599 for "{}".)", status, KEY);
   }
   return {};
 }
@@ -2336,7 +2336,7 @@ Do_proxy_rsp_status::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_no
 
   auto expr_type = expr.result_type();
   if (!expr_type.can_satisfy(MaskFor({INTEGER, TUPLE}))) {
-    return Error(R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" at {} is not an integer or tuple as required.)", KEY, drtv_node.Mark());
   }
   self->_expr = std::move(expr);
   return handle;
@@ -2380,7 +2380,7 @@ Do_proxy_rsp_reason::invoke(Context &ctx)
 {
   auto value = ctx.extract(_expr);
   if (STRING != ValueTypeOf(value)) {
-    return Error(R"(Value for "{}" is not a string.)", KEY);
+    return Errata(S_ERROR, R"(Value for "{}" is not a string.)", KEY);
   }
   ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
   return {};
@@ -2395,7 +2395,7 @@ Do_proxy_rsp_reason::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_no
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
   auto self = new self_type;
   Handle handle(self);
@@ -2451,10 +2451,10 @@ Do_proxy_rsp_body::invoke(Context &ctx)
         mime = *ptr;
       }
     } else {
-      return Error(R"(Value for "{}" is not a list of length 2.)", KEY);
+      return Errata(S_ERROR, R"(Value for "{}" is not a list of length 2.)", KEY);
     }
   } else {
-    return Error(R"(Value for "{}" is not a string nor a list.)", KEY);
+    return Errata(S_ERROR, R"(Value for "{}" is not a string nor a list.)", KEY);
   }
   ctx._txn.error_body_set(body, mime);
   return {};
@@ -2469,7 +2469,7 @@ Do_proxy_rsp_body::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy({STRING, ActiveType::TupleOf(STRING)})) {
-    return Error(R"(The value for "{}" must be a string or a list of two strings.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(The value for "{}" must be a string or a list of two strings.)", KEY, drtv_node.Mark());
   }
   auto self = new self_type;
   Handle handle(self);
@@ -2597,7 +2597,7 @@ Do_upstream_rsp_body::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_n
     return std::move(errata);
   }
   if (!expr.result_type().can_satisfy(STRING)) {
-    return Error(R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"(The value for "{}" must be a string.)", KEY, drtv_node.Mark());
   }
 
   return Handle(new self_type(std::move(expr)));
@@ -2748,16 +2748,16 @@ Do_proxy_reply::load_status()
   if (info._expr.is_literal()) {
     auto &&[status, errata]{std::get<Feature>(info._expr._raw).as_integer(-1)};
     if (!errata.is_ok()) {
-      errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
+      errata.note("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
       return std::move(errata);
     }
     if (!(100 <= status && status <= 599)) {
-      return Errata().error(R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY,
+      return Errata(S_ERROR, R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY,
                             KEY);
     }
     _status = status;
   } else if (!info._expr.result_type().can_satisfy(MaskFor(STRING, INTEGER))) {
-    return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
+    return Errata(S_ERROR, R"({} is not an integer nor string as required.)", STATUS_KEY);
   }
   return {};
 }
@@ -2776,10 +2776,10 @@ Do_proxy_reply::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
   } else if (key_value.IsMap()) {
     errata = self->_fg.load(cfg, key_value, {{STATUS_KEY, FeatureGroup::REQUIRED}, {REASON_KEY}, {BODY_KEY}});
   } else {
-    return Error(R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
   }
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(errata)};
   }
 
@@ -2788,7 +2788,7 @@ Do_proxy_reply::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
   errata.note(self->load_status());
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(errata)};
   }
 
@@ -2926,7 +2926,7 @@ Do_redirect::invoke(Context &ctx)
     ctx.commit(location);
     ctx_info->_location = std::get<IndexFor(STRING)>(location);
   } else {
-    return Error("{} directive - '{}' was not a string as required.", KEY, LOCATION_KEY);
+    return Errata(S_ERROR, "{} directive - '{}' was not a string as required.", KEY, LOCATION_KEY);
   }
 
   // Set the status to prevent the upstream request.
@@ -2992,17 +2992,17 @@ Do_redirect::load_status()
     auto &&[status, errata]{std::get<Feature>(info._expr._raw).as_integer(DEFAULT_STATUS)};
     _status = status;
     if (!errata.is_ok()) {
-      errata.info("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
+      errata.note("While load key '{}' for directive '{}'", STATUS_KEY, KEY);
       return std::move(errata);
     }
     if (!(100 <= status && status <= 599)) {
-      return Errata().error(R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY,
+      return Errata(S_ERROR, R"(Value for '{}' key in {} directive is not a positive integer 100..599 as required.)", STATUS_KEY,
                             KEY);
     }
   } else {
     auto rtype = info._expr.result_type();
     if (rtype != STRING && rtype != INTEGER) {
-      return Errata().error(R"({} is not an integer nor string as required.)", STATUS_KEY);
+      return Errata(S_ERROR, R"({} is not an integer nor string as required.)", STATUS_KEY);
     }
   }
   return {};
@@ -3023,10 +3023,10 @@ Do_redirect::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc
   } else if (key_value.IsMap()) {
     errata = self->_fg.load(cfg, key_value, {{LOCATION_KEY, FeatureGroup::REQUIRED}, {STATUS_KEY}, {REASON_KEY}, {BODY_KEY}});
   } else {
-    return Error(R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
+    return Errata(S_ERROR, R"(Value for "{}" key at {} is must be a scalar, a list, or a map and is not.)", KEY, key_value.Mark());
   }
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(errata)};
   }
 
@@ -3036,7 +3036,7 @@ Do_redirect::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc
   errata.note(self->load_status());
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(errata)};
   }
 
@@ -3086,29 +3086,29 @@ Do_debug::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::T
   if (key_value.IsScalar()) {
     auto &&[msg_fmt, msg_errata] = cfg.parse_expr(key_value);
     if (!msg_errata.is_ok()) {
-      msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+      msg_errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
       return {{}, std::move(msg_errata)};
     }
     return {Handle{new self_type{Expr{Config::PLUGIN_TAG}, std::move(msg_fmt)}}, {}};
   } else if (key_value.IsSequence()) {
     if (key_value.size() > 2) {
-      return Error(R"(Value for "{}" key at {} is not a list of two strings as required.)", KEY, key_value.Mark());
+      return Errata(S_ERROR, R"(Value for "{}" key at {} is not a list of two strings as required.)", KEY, key_value.Mark());
     } else if (key_value.size() < 1) {
-      return Error(R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY, key_value.Mark());
+      return Errata(S_ERROR, R"(The list value for "{}" key at {} does not have at least one string as required.)", KEY, key_value.Mark());
     }
     auto &&[tag_expr, tag_errata] = cfg.parse_expr(key_value[0]);
     if (!tag_errata.is_ok()) {
-      tag_errata.info(R"(While parsing tag at {} for "{}" directive at {}.)", key_value[0].Mark(), KEY, drtv_node.Mark());
+      tag_errata.note(R"(While parsing tag at {} for "{}" directive at {}.)", key_value[0].Mark(), KEY, drtv_node.Mark());
       return std::move(tag_errata);
     }
     auto &&[msg_expr, msg_errata] = cfg.parse_expr(key_value[1]);
     if (!tag_errata.is_ok()) {
-      tag_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value[1].Mark(), KEY, drtv_node.Mark());
+      tag_errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value[1].Mark(), KEY, drtv_node.Mark());
       return std::move(tag_errata);
     }
     return Handle(new self_type(std::move(tag_expr), std::move(msg_expr)));
   }
-  return Error(R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_value.Mark());
+  return Errata(S_ERROR, R"(Value for "{}" key at {} is not a string or a list of strings as required.)", KEY, key_value.Mark());
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -3151,7 +3151,7 @@ Do_error::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::T
 {
   auto &&[msg_fmt, msg_errata] = cfg.parse_expr(key_value);
   if (!msg_errata.is_ok()) {
-    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    msg_errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(msg_errata)};
   }
   return {Handle{new self_type{std::move(msg_fmt)}}};
@@ -3205,7 +3205,7 @@ Do_note::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
 {
   auto &&[msg_fmt, msg_errata] = cfg.parse_expr(key_value);
   if (!msg_errata.is_ok()) {
-    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    msg_errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return std::move(msg_errata);
   }
   return Handle{new self_type{std::move(msg_fmt)}};
@@ -3251,7 +3251,7 @@ Do_warning::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc:
 {
   auto &&[msg_fmt, msg_errata] = cfg.parse_expr(key_value);
   if (!msg_errata.is_ok()) {
-    msg_errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    msg_errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {{}, std::move(msg_errata)};
   }
   return {Handle{new self_type{std::move(msg_fmt)}}};
@@ -3371,11 +3371,11 @@ Do_txn_conf::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::TextView
 {
   auto txn_var = ts::HttpTxn::find_override(arg);
   if (!txn_var) {
-    return Error(R"("{}" is not recognized as an overridable transaction configuration variable.)", arg);
+    return Errata(S_ERROR, R"("{}" is not recognized as an overridable transaction configuration variable.)", arg);
   }
   if (txn_var->type() != TS_RECORDDATATYPE_INT && txn_var->type() != TS_RECORDDATATYPE_STRING &&
       txn_var->type() != TS_RECORDDATATYPE_FLOAT) {
-    return Error(R"("{}" is of type "{}" which is not currently supported.)", arg, ts::TSRecordDataTypeNames[txn_var->type()]);
+    return Errata(S_ERROR, R"("{}" is of type "{}" which is not currently supported.)", arg, ts::TSRecordDataTypeNames[txn_var->type()]);
   }
   auto &&[fmt, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
@@ -3439,7 +3439,7 @@ Do_upstream_addr::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::Tex
   }
 
   if (!expr.result_type().can_satisfy(IP_ADDR)) {
-    return Error(R"(Value for "{}" must be an IP address.)");
+    return Errata(S_ERROR, R"(Value for "{}" must be an IP address.)");
   }
 
   return Handle(new self_type(std::move(expr)));
@@ -3535,7 +3535,7 @@ Do_txn_error::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swo
                YAML::Node key_value) {
   auto &&[expr, errata] = cfg.parse_expr(key_value);
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
+    errata.note(R"(While parsing message at {} for "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return {std::move(errata)};
   }
   return {Handle{new self_type{std::move(expr)}}};
@@ -3679,13 +3679,13 @@ Do_with::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
       for (YAML::Node child : select_node) {
         errata = (self->load_case(cfg, child));
         if (!errata.is_ok()) {
-          errata.info(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark(), SELECT_KEY,
+          errata.note(R"(While loading "{}" directive at {} in "{}" at {}.)", KEY, drtv_node.Mark(), SELECT_KEY,
                       select_node.Mark());
           return std::move(errata);
         }
       }
     } else {
-      return Error(R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")", SELECT_KEY, select_node.Mark(),
+      return Errata(S_ERROR, R"(The value for "{}" at {} in "{}" directive at {} is not a list or object.")", SELECT_KEY, select_node.Mark(),
                    KEY, drtv_node.Mark());
     }
   }
@@ -3698,13 +3698,13 @@ Do_with::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
   YAML::Node do_node{drtv_node[DO_KEY]};
   YAML::Node for_each_node{drtv_node[FOR_EACH_KEY]};
   if (do_node && for_each_node) {
-    return Error(R"("{}" directive cannot have both "{}" and "{}" as keys - {}.)", DO_KEY, FOR_EACH_KEY, drtv_node.Mark());
+    return Errata(S_ERROR, R"("{}" directive cannot have both "{}" and "{}" as keys - {}.)", DO_KEY, FOR_EACH_KEY, drtv_node.Mark());
   } else if (do_node) {
     auto &&[do_handle, errata]{cfg.parse_directive(do_node)};
     if (errata.is_ok()) {
       self->_do = std::move(do_handle);
     } else {
-      errata.info(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), drtv_node.Mark());
+      errata.note(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), drtv_node.Mark());
       return std::move(errata);
     }
   } else if (for_each_node) {
@@ -3713,7 +3713,7 @@ Do_with::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
       self->_do               = std::move(fe_handle);
       self->_opt.f.for_each_p = true;
     } else {
-      errata.info(R"(While parsing "{}" key at {} in selection case at {}.)", FOR_EACH_KEY, for_each_node.Mark(), drtv_node.Mark());
+      errata.note(R"(While parsing "{}" key at {} in selection case at {}.)", FOR_EACH_KEY, for_each_node.Mark(), drtv_node.Mark());
       return std::move(errata);
     }
   }
@@ -3744,8 +3744,8 @@ Do_with::load_case(Config &cfg, YAML::Node node)
       if (errata.is_ok()) {
         c._do = std::move(handle);
       } else {
-        errata.info(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), node.Mark());
-        return errata;
+        errata.note(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), node.Mark());
+        return std::move(errata);
       }
     } else {
       c._do.reset(new NilDirective);
@@ -3754,7 +3754,7 @@ Do_with::load_case(Config &cfg, YAML::Node node)
     _cases.emplace_back(std::move(c));
     return {};
   }
-  return Error(R"(The value at {} for "{}" is not an object as required.")", node.Mark(), SELECT_KEY);
+  return Errata(S_ERROR, R"(The value at {} for "{}" is not an object as required.")", node.Mark(), SELECT_KEY);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -3787,14 +3787,14 @@ When::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextV
         return {Handle{new self_type{hook, std::move(do_handle)}}, {}};
       } else {
         zret.note(do_errata);
-        zret.error(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY, do_node.Mark(), KEY,
+        zret.note(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY, do_node.Mark(), KEY,
                    key_value.Mark());
       }
     } else {
-      zret.error(R"(The required "{}" key was not found in the "{}" directive at {}.")", DO_KEY, KEY, drtv_node.Mark());
+      zret.note(R"(The required "{}" key was not found in the "{}" directive at {}.")", DO_KEY, KEY, drtv_node.Mark());
     }
   } else {
-    zret.error(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_value.Scalar(), When::KEY, key_value.Mark());
+    zret.note(R"(Invalid hook name "{}" in "{}" directive at {}.)", key_value.Scalar(), When::KEY, key_value.Mark());
   }
   return {{}, std::move(zret)};
 }

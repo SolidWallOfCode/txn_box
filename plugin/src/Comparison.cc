@@ -48,7 +48,7 @@ Rv<Comparison::Handle>
 Comparison::load(Config &cfg, YAML::Node node)
 {
   if (!node.IsMap()) {
-    return Error("Comparison at {} is not an object.", node.Mark());
+    return Errata(S_ERROR,"Comparison at {} is not an object.", node.Mark());
   }
 
   for (auto const &[key_node, value_node] : node) {
@@ -65,7 +65,7 @@ Comparison::load(Config &cfg, YAML::Node node)
     if (auto spot{_factory.find(key)}; spot != _factory.end()) {
       auto &&[loader, types] = spot->second;
       if (!cfg.active_type().can_satisfy(types)) {
-        return Error(R"(Comparison "{}" at {} is not valid for active feature.)", key, node.Mark());
+        return Errata(S_ERROR,R"(Comparison "{}" at {} is not valid for active feature.)", key, node.Mark());
       }
 
       auto &&[handle, errata]{loader(cfg, node, key, arg, value_node)};
@@ -76,7 +76,7 @@ Comparison::load(Config &cfg, YAML::Node node)
       return std::move(handle);
     }
   }
-  return Error(R"(No valid comparison key in object at {}.)", node.Mark());
+  return Errata(S_ERROR,R"(No valid comparison key in object at {}.)", node.Mark());
 }
 
 void
@@ -151,7 +151,7 @@ Cmp_String::parse_options(TextView options)
     if (0 == strcasecmp(NO_CASE_OPT, token)) {
       zret.f.nc = true;
     } else {
-      return Error(R"("{}" is not a valid option for a string comparison.)", token);
+      return Errata(S_ERROR,R"("{}" is not a valid option for a string comparison.)", token);
     }
   }
   return zret;
@@ -574,19 +574,19 @@ Cmp_LiteralString::load(Config &cfg, YAML::Node const &cmp_node, TextView const 
   auto &&[expr, errata]{cfg.parse_expr(value_node)};
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
+    errata.note(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
     return std::move(errata);
   }
 
   auto &&[options, opt_errata]{parse_options(arg)};
   if (!opt_errata.is_ok()) {
-    opt_errata.info(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
+    opt_errata.note(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
     return std::move(opt_errata);
   }
 
   auto expr_type = expr.result_type();
   if (!expr_type.can_satisfy(TYPES)) {
-    return Error(R"(Value type "{}" for comparison "{}" at {} is not supported.)", expr_type, key, cmp_node.Mark());
+    return Errata(S_ERROR,R"(Value type "{}" for comparison "{}" at {} is not supported.)", expr_type, key, cmp_node.Mark());
   }
 
   if (MATCH_KEY == key) {
@@ -603,7 +603,7 @@ Cmp_LiteralString::load(Config &cfg, YAML::Node const &cmp_node, TextView const 
     return options.f.nc ? Handle(new Cmp_PathNC(std::move(expr))) : Handle(new Cmp_Path(std::move(expr)));
   }
 
-  return Error(R"(Internal error, unrecognized key "{}".)", key);
+  return Errata(S_ERROR,R"(Internal error, unrecognized key "{}".)", key);
 }
 /* ------------------------------------------------------------------------------------ */
 class Cmp_Rxp : public Cmp_String
@@ -703,7 +703,7 @@ protected:
     Errata
     operator()(Expr::List &)
     {
-      return Error("Invalid type");
+      return Errata(S_ERROR,"Invalid type");
     }
     Errata
     operator()(Expr::Direct &d)
@@ -717,7 +717,7 @@ protected:
       _rxp.emplace_back(Expr{std::move(comp)});
       return {};
     }
-    Errata operator()(std::monostate) { return Error("Invalid type"); }
+    Errata operator()(std::monostate) { return Errata(S_ERROR,"Invalid type"); }
 
     Rxp::Options _rxp_opt;
     std::vector<Item> &_rxp;
@@ -733,12 +733,12 @@ Errata
 Cmp_RxpList::expr_visitor::operator()(Feature &f)
 {
   if (IndexFor(STRING) != f.index()) {
-    return Error(R"("{}" literal must be a string.)", KEY);
+    return Errata(S_ERROR,R"("{}" literal must be a string.)", KEY);
   }
 
   auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
   if (!rxp_errata.is_ok()) {
-    rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
+    rxp_errata.note(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
   _rxp.emplace_back(std::move(rxp));
@@ -777,12 +777,12 @@ Rv<Comparison::Handle>
 Cmp_Rxp::expr_visitor::operator()(Feature &f)
 {
   if (IndexFor(STRING) != f.index()) {
-    return Error(R"("{}" literal must be a string.)", KEY);
+    return Errata(S_ERROR, R"("{}" literal must be a string.)", KEY);
   }
 
   auto &&[rxp, rxp_errata]{Rxp::parse(std::get<IndexFor(STRING)>(f), _rxp_opt)};
   if (!rxp_errata.is_ok()) {
-    rxp_errata.info(R"(While parsing feature expression for "{}" comparison.)", KEY);
+    rxp_errata.note(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
   _cfg.require_rxp_group_count(rxp.capture_count());
@@ -791,7 +791,7 @@ Cmp_Rxp::expr_visitor::operator()(Feature &f)
 
 Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator()(std::monostate)
 {
-  return Error(R"(Literal must be a string)");
+  return Errata(S_ERROR, R"(Literal must be a string)");
 }
 
 Rv<Comparison::Handle>
@@ -813,7 +813,7 @@ Cmp_Rxp::expr_visitor::operator()(Expr::List &l)
   Cmp_RxpList::expr_visitor ev{_rxp_opt, rxm->_rxp};
   for (Expr &elt : l._exprs) {
     if (!elt.result_type().can_satisfy(STRING)) {
-      return Error(R"("{}" literal must be a string.)", KEY);
+      return Errata(S_ERROR, R"("{}" literal must be a string.)", KEY);
     }
     std::visit(ev, elt._raw);
   }
@@ -826,13 +826,13 @@ Cmp_Rxp::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, Text
   auto &&[expr, errata]{cfg.parse_expr(value_node)};
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
+    errata.note(R"(While parsing comparison "{}" at {}.)", key, cmp_node.Mark());
     return std::move(errata);
   }
 
   auto &&[options, opt_errata]{self_type::parse_options(arg)};
   if (!opt_errata.is_ok()) {
-    opt_errata.info(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
+    opt_errata.note(R"(While parsing argument "{}" for comparison "{}".)", arg, key);
     return std::move(opt_errata);
   }
 
@@ -1048,11 +1048,11 @@ Base_Binary_Cmp::load(Config &cfg, YAML::Node const &, TextView const &key, Text
 {
   auto &&[expr, errata] = cfg.parse_expr(value_node);
   if (!errata.is_ok()) {
-    return std::move(errata.info(R"(While parsing comparison "{}" value at {}.)", key, value_node.Mark()));
+    return std::move(errata.note(R"(While parsing comparison "{}" value at {}.)", key, value_node.Mark()));
   }
   auto expr_type = expr.result_type();
   if (!expr_type.can_satisfy(TYPES)) {
-    return Error(R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(),
+    return Errata(S_ERROR, R"(The value is of type "{}" for "{}" at {} which is not "{}" as required.)", expr_type, key, value_node.Mark(),
                  TYPES);
   }
   return Handle(new T(std::move(expr)));
@@ -1221,7 +1221,7 @@ Cmp_in::load(Config &cfg, YAML::Node const &cmp_node, TextView const &, TextView
     swoc::IPRange ip_range;
     if (ip_range.load(value_node.Scalar())) {
       if (!cfg.active_type().can_satisfy(IP_ADDR)) {
-        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
+        return Errata(S_ERROR, R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
                      IP_ADDR, cfg.active_type());
       }
       self->_min = Feature{ip_range.min()};
@@ -1235,25 +1235,25 @@ Cmp_in::load(Config &cfg, YAML::Node const &cmp_node, TextView const &, TextView
     TextView parsed;
 
     if (max_text.empty()) {
-      return Error(
+      return Errata(S_ERROR,
         R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [separate '-' not found])",
         KEY, cmp_node.Mark());
     }
     auto n_min = svtoi(min_text.trim_if(&isspace), &parsed);
     if (parsed.size() != min_text.size()) {
-      return Error(
+      return Errata(S_ERROR,
         R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [minimum value "{}" is not an integer])",
         KEY, cmp_node.Mark(), min_text);
     }
     auto n_max = svtoi(max_text.trim_if(&isspace), &parsed);
     if (parsed.size() != max_text.size()) {
-      return Error(
+      return Errata(S_ERROR,
         R"(Value for "{}" at line {} must be two integers separated by a '-', or IP address range or network. [maximum value "{}" is not an integer])",
         KEY, cmp_node.Mark(), max_text);
     }
 
     if (!cfg.active_type().can_satisfy(INTEGER)) {
-      return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(), INTEGER,
+      return Errata(S_ERROR, R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(), INTEGER,
                    cfg.active_type());
     }
 
@@ -1275,28 +1275,28 @@ Cmp_in::load(Config &cfg, YAML::Node const &cmp_node, TextView const &, TextView
       auto rhs_type = rhs.result_type();
 
       if (lhs_type != rhs_type) {
-        return Error(R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)", KEY, cmp_node.Mark(), lhs_type,
+        return Errata(S_ERROR, R"("{}" at line {} cannot compare a range of mixed types [{}, {}].)", KEY, cmp_node.Mark(), lhs_type,
                      rhs_type);
       }
 
       if (!lhs_type.can_satisfy(MaskFor({INTEGER, IP_ADDR}))) {
-        return Error(R"("{}" at line {} requires values of type {} or {}, not {}.)", KEY, cmp_node.Mark(), INTEGER, IP_ADDR,
+        return Errata(S_ERROR, R"("{}" at line {} requires values of type {} or {}, not {}.)", KEY, cmp_node.Mark(), INTEGER, IP_ADDR,
                      lhs_type);
       }
 
       if (!cfg.active_type().can_satisfy(lhs_type)) {
-        return Error(R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
+        return Errata(S_ERROR, R"("{}" at line {} cannot check values of type {} against a feature of type {}.)", KEY, cmp_node.Mark(),
                      lhs_type, cfg.active_type());
       }
       self->_min = std::move(lhs);
       self->_max = std::move(rhs);
       return handle;
     } else {
-      return Error(R"(The list for "{}" at line {} is not exactly 2 elements are required.)", KEY, cmp_node.Mark());
+      return Errata(S_ERROR, R"(The list for "{}" at line {} is not exactly 2 elements are required.)", KEY, cmp_node.Mark());
     }
   }
 
-  return Error(
+  return Errata(S_ERROR,
     R"(Value for "{}" at line {} must be a string representing an integer range, an IP address range or netowork, or list of two integers or IP addresses.)",
     KEY, cmp_node.Mark());
 }
@@ -1333,14 +1333,14 @@ ComboComparison::load(Config &cfg, YAML::Node const &cmp_node, TextView const &k
   if (value_node.IsMap()) {
     auto errata = self_type::load_case(cfg, cmps, value_node);
     if (!errata.is_ok()) {
-      errata.info("While parsing {} comparison at {}.", key, cmp_node.Mark());
+      errata.note("While parsing {} comparison at {}.", key, cmp_node.Mark());
     }
   } else if (value_node.IsSequence()) {
     cmps.reserve(cmp_node.size());
     for (auto child : value_node) {
       auto errata = self_type::load_case(cfg, cmps, child);
       if (!errata.is_ok()) {
-        errata.info("While parsing {} comparison at {}.", key, cmp_node.Mark());
+        errata.note("While parsing {} comparison at {}.", key, cmp_node.Mark());
         return errata;
       }
     }
@@ -1522,12 +1522,12 @@ Cmp_for_all::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, 
   -> Rv<Handle>
 {
   if (!value_node.IsMap()) {
-    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+    return Errata(S_ERROR, "{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
   auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
   auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
-    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    errata.note("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(cmp)});
@@ -1576,12 +1576,12 @@ Cmp_for_any::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key, 
   -> Rv<Handle>
 {
   if (!value_node.IsMap()) {
-    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+    return Errata(S_ERROR, "{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
   auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
   auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
-    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    errata.note("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(cmp)});
@@ -1630,12 +1630,12 @@ Cmp_for_none::load(Config &cfg, YAML::Node const &cmp_node, TextView const &key,
   -> Rv<Handle>
 {
   if (!value_node.IsMap()) {
-    return Error("{} comparison value at {} must be a single comparison.", key, value_node.Mark());
+    return Errata(S_ERROR, "{} comparison value at {} must be a single comparison.", key, value_node.Mark());
   }
   auto scope{cfg.feature_scope(cfg.active_type().tuple_types())};
   auto &&[cmp, errata] = Comparison::load(cfg, value_node);
   if (!errata.is_ok()) {
-    errata.info("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
+    errata.note("While parsing nested comparison of {} at {}.", key, cmp_node.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(cmp)});
@@ -1722,7 +1722,7 @@ ComparisonGroupBase::load(Config &cfg, YAML::Node node)
       }
     }
   } else {
-    return Error("The node at {} was not comparison nor a list of comparisons as required.", node.Mark());
+    return Errata(S_ERROR, "The node at {} was not comparison nor a list of comparisons as required.", node.Mark());
   }
   return {};
 }

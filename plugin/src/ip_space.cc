@@ -455,7 +455,7 @@ Do_ip_space_define::parse_space(Config &cfg, TextView content) -> Rv<SpaceHandle
     auto token = line.take_prefix_at(',');
     IPRange range{token};
     if (range.empty()) {
-      return Error(R"(Invalid range "{}" at line {}.)", token, line_no);
+      return Errata(S_ERROR, R"(Invalid range "{}" at line {}.)", token, line_no);
     }
 
     Row row = space->arena.alloc(_row_size).rebind<std::byte>();
@@ -485,7 +485,7 @@ Do_ip_space_define::parse_space(Config &cfg, TextView content) -> Rv<SpaceHandle
       } break;
       case ColumnData::ENUM:
         if (auto idx = c._tags[token]; INVALID_TAG == idx) {
-          return Error(R"("{}" is not a valid tag for column {}{} at line {}.)", token, c._idx, bwf::Optional(R"( "{}")", c._name),
+          return Errata(S_ERROR, R"("{}" is not a valid tag for column {}{} at line {}.)", token, c._idx, bwf::Optional(R"( "{}")", c._name),
                        line_no);
         } else {
           if (AUTO_TAG == idx) {
@@ -503,7 +503,7 @@ Do_ip_space_define::parse_space(Config &cfg, TextView content) -> Rv<SpaceHandle
           if (auto idx = c._tags[key]; idx >= 0) {
             bits[idx] = true;
           } else {
-            return Error(R"("{}" is not a valid tag for column {}{} at line {}".)", key, c._idx, bwf::Optional(R"( "{}")", c._name),
+            return Errata(S_ERROR, R"("{}" is not a valid tag for column {}{} at line {}".)", key, c._idx, bwf::Optional(R"( "{}")", c._name),
                          line_no);
           }
         }
@@ -523,11 +523,11 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
   if (name_node) {
     auto &&[name_expr, name_errata]{cfg.parse_expr(name_node)};
     if (!name_errata.is_ok()) {
-      name_errata.info("While parsing {} key at {} in {} at {}.", NAME_TAG, node.Mark(), COLUMNS_TAG, node.Mark());
+      name_errata.note("While parsing {} key at {} in {} at {}.", NAME_TAG, node.Mark(), COLUMNS_TAG, node.Mark());
       return std::move(name_errata);
     }
     if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG,
+      return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG,
                    node.Mark());
     }
     col._name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
@@ -535,21 +535,21 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
 
   auto type_node = node[TYPE_TAG];
   if (!type_node) {
-    return Error("{} at {} must have a {} key.", COLUMNS_TAG, node.Mark(), TYPE_TAG);
+    return Errata(S_ERROR, "{} at {} must have a {} key.", COLUMNS_TAG, node.Mark(), TYPE_TAG);
   }
   auto &&[type_expr, type_errata]{cfg.parse_expr(type_node)};
   if (!type_errata.is_ok()) {
-    type_errata.info("While parsing {} key at {} in {} at {}.", TYPE_TAG, node.Mark(), COLUMNS_TAG, node.Mark());
+    type_errata.note("While parsing {} key at {} in {} at {}.", TYPE_TAG, node.Mark(), COLUMNS_TAG, node.Mark());
     return std::move(type_errata);
   }
   if (!type_expr.is_literal() || !type_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG,
+    return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string.", NAME_TAG, name_node.Mark(), COLUMNS_TAG,
                  node.Mark());
   }
   auto text = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(type_expr._raw));
   col._type = Column::TypeNames[text];
   if (col._type == ColumnData::INVALID) {
-    return Error(R"(Type "{}" at {] is not valid - must be one of {:s}.)", text, type_node.Mark(), Column::TypeNames);
+    return Errata(S_ERROR, R"(Type "{}" at {] is not valid - must be one of {:s}.)", text, type_node.Mark(), Column::TypeNames);
   }
 
   // Need names if it's FLAGS. Names for ENUM are optional.
@@ -557,7 +557,7 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
     auto tags_node = node[VALUES_TAG];
     if (!tags_node) {
       if (ColumnData::FLAGS == col._type) {
-        return Error("{} at {} must have a {} key because it is of type {}.", COLUMNS_TAG, node.Mark(), VALUES_TAG,
+        return Errata(S_ERROR, "{} at {} must have a {} key because it is of type {}.", COLUMNS_TAG, node.Mark(), VALUES_TAG,
                      Column::TypeNames[ColumnData::FLAGS]);
       }
       col._tags.set_default(AUTO_TAG);
@@ -565,11 +565,11 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
       // key value must be a string or a tuple of strings.
       auto &&[tags_expr, tags_errata]{cfg.parse_expr(tags_node)};
       if (!tags_errata.is_ok()) {
-        tags_errata.info("While parsing {} key at {} in {} at {}.", VALUES_TAG, tags_node.Mark(), COLUMNS_TAG, node.Mark());
+        tags_errata.note("While parsing {} key at {} in {} at {}.", VALUES_TAG, tags_node.Mark(), COLUMNS_TAG, node.Mark());
         return std::move(type_errata);
       }
       if (!tags_expr.is_literal()) {
-        return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, tags_node.Mark(),
+        return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, tags_node.Mark(),
                      COLUMNS_TAG, node.Mark());
       }
       col._tags.set_default(INVALID_TAG);
@@ -577,7 +577,7 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
       if (ValueTypeOf(lit) == TUPLE) {
         for (auto f : std::get<IndexFor(TUPLE)>(lit)) {
           if (ValueTypeOf(f) != STRING) {
-            return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG,
+            return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG,
                          name_node.Mark(), COLUMNS_TAG, node.Mark());
           }
           col._tags.define(col._tags.count(), std::get<IndexFor(STRING)>(f));
@@ -585,7 +585,7 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
       } else if (ValueTypeOf(lit) == STRING) {
         col._tags.define(col._tags.count(), std::get<IndexFor(STRING)>(lit));
       } else {
-        return Error("{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, name_node.Mark(),
+        return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, name_node.Mark(),
                      COLUMNS_TAG, node.Mark());
       }
     }
@@ -620,15 +620,15 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv
 
   auto name_node = key_value[NAME_TAG];
   if (!name_node) {
-    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
+    return Errata(S_ERROR, "{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
   }
   auto &&[name_expr, name_errata]{cfg.parse_expr(name_node)};
   if (!name_errata.is_ok()) {
-    name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    name_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
     return std::move(name_errata);
   }
   if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY,
+    return Errata(S_ERROR, "{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY,
                  drtv_node.Mark());
   }
   drtv_node.remove(name_node);
@@ -636,16 +636,16 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv
 
   auto path_node = key_value[PATH_TAG];
   if (!path_node) {
-    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), PATH_TAG);
+    return Errata(S_ERROR, "{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), PATH_TAG);
   }
 
   auto &&[path_expr, path_errata]{cfg.parse_expr(path_node)};
   if (!path_errata.is_ok()) {
-    path_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    path_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
     return std::move(path_errata);
   }
   if (!path_expr.is_literal()) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY,
+    return Errata(S_ERROR, "{} value at {} for {} directive at {} must be a literal string.", PATH_TAG, path_node.Mark(), KEY,
                  drtv_node.Mark());
   }
   drtv_node.remove(path_node);
@@ -656,16 +656,16 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv
   if (dur_node) {
     auto &&[dur_expr, dur_errata] = cfg.parse_expr(dur_node);
     if (!dur_errata.is_ok()) {
-      dur_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+      dur_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(dur_errata);
     }
     if (!dur_expr.is_literal()) {
-      return Error("{} value at {} for {} directive at {} must be a literal duration.", DURATION_TAG, dur_node.Mark(), KEY,
+      return Errata(S_ERROR, "{} value at {} for {} directive at {} must be a literal duration.", DURATION_TAG, dur_node.Mark(), KEY,
                    drtv_node.Mark());
     }
     auto &&[dur_value, dur_value_errata]{std::get<Expr::LITERAL>(dur_expr._raw).as_duration()};
     if (!dur_value_errata.is_ok()) {
-      return Error("{} value at {} for {} directive at {} is not a valid duration.", DURATION_TAG, dur_node.Mark(), KEY,
+      return Errata(S_ERROR, "{} value at {} for {} directive at {} is not a valid duration.", DURATION_TAG, dur_node.Mark(), KEY,
                    drtv_node.Mark());
     }
     self->_duration = dur_value;
@@ -685,31 +685,31 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv
     if (cols_node.IsMap()) {
       auto errata = self->define_column(cfg, cols_node);
       if (!errata.is_ok()) {
-        errata.info(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
+        errata.note(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
         return errata;
       }
     } else if (cols_node.IsSequence()) {
       for (auto child : cols_node) {
         auto errata = self->define_column(cfg, child);
         if (!errata.is_ok()) {
-          errata.info(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
+          errata.note(R"(While parsing "{}" key at {}.)", COLUMNS_TAG, cols_node.Mark());
           return errata;
         }
       }
     } else {
-      return Error(R"("{}" at {} must be an object or a list of objects.)", COLUMNS_TAG, cols_node.Mark());
+      return Errata(S_ERROR, R"("{}" at {} must be an object or a list of objects.)", COLUMNS_TAG, cols_node.Mark());
     }
   }
 
   std::error_code ec;
   auto content = swoc::file::load(self->_path, ec);
   if (ec) {
-    return Error("Unable to read input file {} for space {} - {}", self->_path, self->_name, ec);
+    return Errata(S_ERROR, "Unable to read input file {} for space {} - {}", self->_path, self->_name, ec);
   }
   self->_last_modified              = swoc::file::modify_time(swoc::file::status(self->_path, ec));
   auto &&[space_info, space_errata] = self->parse_space(cfg, content);
   if (!space_errata.is_ok()) {
-    space_errata.info(R"(While parsing IPSpace file "{}" in space "{}".)", self->_path, self->_name);
+    space_errata.note(R"(While parsing IPSpace file "{}" in space "{}".)", self->_path, self->_name);
     return std::move(space_errata);
   }
   self->_space = space_info;
@@ -717,7 +717,7 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv
   // Put the directive in the map.
   Map *map = &rtti->_cfg_store.rebind<CfgInfo>()[0]._map;
   if (auto spot = map->find(self->_name); spot != map->end()) {
-    return Error(R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
+    return Errata(S_ERROR, R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
                  self->_name, spot->second->_line_no);
   }
   (*map)[self->_name] = self;
@@ -859,7 +859,7 @@ Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::N
     auto &map = csi->_map;
     auto spot = map.find(arg);
     if (spot == map.end()) {
-      return Error(R"("{}" at {} is not the name of a defined IP space.)", arg, node.Mark());
+      return Errata(S_ERROR, R"("{}" at {} is not the name of a defined IP space.)", arg, node.Mark());
     }
     info._drtv = spot->second;
   } // else leave @a _drtv null as a signal to find it dynamically.
@@ -869,7 +869,7 @@ Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::N
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
 
   if (!errata.is_ok()) {
-    errata.info(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
   return Handle(new self_type{std::move(expr), arg, info._drtv});
@@ -937,12 +937,12 @@ Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   TextView parsed;
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to specify the column.)", NAME);
+    return Errata(S_ERROR, R"("{}" extractor requires an argument to specify the column.)", NAME);
   }
 
   auto *mod_info = cfg.active_value<Mod_ip_space::CfgActiveInfo>(Mod_ip_space::KEY);
   if (!mod_info) {
-    return Error(R"("{}" extractor can only be used with an active IP Space from the {} modifier.)", NAME, Mod_ip_space::KEY);
+    return Errata(S_ERROR, R"("{}" extractor can only be used with an active IP Space from the {} modifier.)", NAME, Mod_ip_space::KEY);
   }
 
   auto span       = cfg.allocate_cfg_storage(sizeof(Info)).rebind<Info>();
@@ -952,13 +952,13 @@ Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   // Always do the column conversion if it's an integer - that won't change at runtime.
   if (auto n = svtou(arg, &parsed); arg.size() == parsed.size()) {
     if (drtv && n >= drtv->_cols.size()) {
-      return Error(R"(Invalid column index, {} of {} in space {}.)", n, drtv->_cols.size(), drtv->_name);
+      return Errata(S_ERROR, R"(Invalid column index, {} of {} in space {}.)", n, drtv->_cols.size(), drtv->_name);
     }
     info._idx = n;
   } else if (drtv) { // otherwise if it's not remap, verify the column name and convert to index.
     auto idx = drtv->col_idx(arg);
     if (idx == INVALID_IDX) {
-      return Error(R"(Invalid column argument, "{}" in space {} is not recognized as an index or name.)", arg, drtv->_name);
+      return Errata(S_ERROR, R"(Invalid column argument, "{}" in space {} is not recognized as an index or name.)", arg, drtv->_name);
     }
     info._idx = idx;
   } else {

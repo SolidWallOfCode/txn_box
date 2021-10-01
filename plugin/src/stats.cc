@@ -120,7 +120,7 @@ Errata
 Do_stat_define::invoke(Context &)
 {
   auto &&[idx, errata]{ts::plugin_stat_define(_full_name, _value, _persistent_p)};
-  return errata;
+  return std::move(errata);
 }
 
 Rv<Directive::Handle>
@@ -137,11 +137,11 @@ Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_nod
   if (prefix_node) {
     auto &&[prefix_expr, prefix_errata]{cfg.parse_expr(prefix_node)};
     if (!prefix_errata.is_ok()) {
-      prefix_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+      prefix_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(prefix_errata);
     }
     if (!prefix_expr.is_literal() || !prefix_expr.result_type().can_satisfy(STRING)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY,
+      return Errata(S_ERROR,"{} value at {} for {} directive at {} must be a literal string.", PREFIX_TAG, prefix_node.Mark(), KEY,
                    drtv_node.Mark());
     }
 
@@ -154,21 +154,21 @@ Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_nod
 
   auto name_node = key_value[NAME_TAG];
   if (!name_node) {
-    return Error("{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
+    return Errata(S_ERROR,"{} directive at {} must have a {} key.", KEY, drtv_node.Mark(), NAME_TAG);
   }
 
   auto &&[name_expr, name_errata]{cfg.parse_expr(name_node)};
   if (!name_errata.is_ok()) {
-    name_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+    name_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
     return std::move(name_errata);
   }
   if (!name_expr.is_literal() || !name_expr.result_type().can_satisfy(STRING)) {
-    return Error("{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY,
+    return Errata(S_ERROR,"{} value at {} for {} directive at {} must be a literal string.", NAME_TAG, name_node.Mark(), KEY,
                  drtv_node.Mark());
   }
   TextView name = std::get<IndexFor(STRING)>(std::get<Expr::LITERAL>(name_expr._raw));
   if (name.empty()) {
-    return Error("{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY,
+    return Errata(S_ERROR,"{} value at {} for {} directive at {} must be a non-empty literal string.", NAME_TAG, name_node.Mark(), KEY,
                  drtv_node.Mark());
   }
 
@@ -189,11 +189,11 @@ Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_nod
   if (value_node) {
     auto &&[value_expr, value_errata]{cfg.parse_expr(value_node)};
     if (!value_errata.is_ok()) {
-      value_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+      value_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(value_errata);
     }
     if (!value_expr.is_literal() || !value_expr.result_type().can_satisfy(INTEGER)) {
-      return Error("{} value at {} for {} directive at {} must be a literal integer.", VALUE_TAG, value_node.Mark(), KEY,
+      return Errata(S_ERROR,"{} value at {} for {} directive at {} must be a literal integer.", VALUE_TAG, value_node.Mark(), KEY,
                    drtv_node.Mark());
     }
     drtv_node.remove(value_node);
@@ -204,11 +204,11 @@ Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_nod
   if (persistent_node) {
     auto &&[persistent_expr, persistent_errata]{cfg.parse_expr(persistent_node)};
     if (!persistent_errata.is_ok()) {
-      persistent_errata.info("While parsing {} directive at {}.", KEY, drtv_node.Mark());
+      persistent_errata.note("While parsing {} directive at {}.", KEY, drtv_node.Mark());
       return std::move(persistent_errata);
     }
     if (!persistent_expr.is_literal() || !persistent_expr.result_type().can_satisfy(BOOLEAN)) {
-      return Error("{} value at {} for {} directive at {} must be a literal string.", PERSISTENT_TAG, persistent_node.Mark(), KEY,
+      return Errata(S_ERROR,"{} value at {} for {} directive at {} must be a literal string.", PERSISTENT_TAG, persistent_node.Mark(), KEY,
                    drtv_node.Mark());
     }
     drtv_node.remove(persistent_node); // ugly, need to fix the overall API.
@@ -310,7 +310,7 @@ Do_stat_update::invoke(Context &ctx)
   if (value != 0) {
     _stat.update(value);
   }
-  return errata;
+  return std::move(errata);
 }
 
 Rv<Directive::Handle>
@@ -327,7 +327,7 @@ Do_stat_update::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, s
   }
 
   if (!expr.result_type().can_satisfy(INTEGER)) {
-    return Error("Value for {} directive at {} must be an integer.", KEY, drtv_node.Mark());
+    return Errata(S_ERROR,"Value for {} directive at {} must be an integer.", KEY, drtv_node.Mark());
   }
 
   return Handle(new self_type{cfg, arg, std::move(expr)});
@@ -350,7 +350,7 @@ Rv<ActiveType>
 Ex_stat::validate(Config &cfg, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
-    return Error(R"("{}" extractor requires an argument to specify the statistic.)", NAME);
+    return Errata(S_ERROR,R"("{}" extractor requires an argument to specify the statistic.)", NAME);
   }
   spec._data.span = cfg.alloc_span<Stat>(1); // allocate and stash.
   spec._data.span.rebind<Stat>()[0].assign(cfg, arg);

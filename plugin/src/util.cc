@@ -180,7 +180,7 @@ UnitParser<E>::operator()(swoc::TextView const &src) const noexcept -> Rv<value_
     auto ptr   = text.data(); // save for error reporting.
     auto count = text.clip_prefix_of(&isdigit);
     if (count.empty()) {
-      return {NIL, Error("Required count not found at offset {}", ptr - src.data())};
+      return {NIL, Errata(S_ERROR, "Required count not found at offset {}", ptr - src.data())};
     }
     // Should always parse correctly as @a count is a non-empty sequence of digits.
     auto n = svtou(count);
@@ -191,13 +191,13 @@ UnitParser<E>::operator()(swoc::TextView const &src) const noexcept -> Rv<value_
     auto unit = text.clip_prefix_of([](char c) { return !(isspace(c) || isdigit(c)); });
     if (unit.empty()) {
       if (_unit_required_p) {
-        return {NIL, Error("Required unit not found at offset {}", ptr - src.data())};
+        return {NIL, Errata(S_ERROR, "Required unit not found at offset {}", ptr - src.data())};
       }
       zret += value_type{n}; // no metric -> unit metric.
     } else {
       auto mult = _units[unit]; // What's the multiplier?
       if (mult == NIL) {
-        return {NIL, Error("Unknown unit \"{}\" at offset {}", unit, ptr - src.data())};
+        return {NIL, Errata(S_ERROR, "Unknown unit \"{}\" at offset {}", unit, ptr - src.data())};
       }
       zret += mult * n;
     }
@@ -282,7 +282,7 @@ struct integer_visitor {
     TextView parsed;
     ftype zret = swoc::svtoi(s, &parsed);
     if (parsed.size() != s.size()) {
-      return {_invalid, Error("Invalid format for integer at offset {}", parsed.size() + 1)};
+      return {_invalid, Errata(S_ERROR, "Invalid format for integer at offset {}", parsed.size() + 1)};
     }
     return zret;
   }
@@ -315,7 +315,7 @@ struct integer_visitor {
   auto
   operator()(F const &) -> EnableForFeatureTypes<F, ret_type>
   {
-    return {_invalid, Error("Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
+    return {_invalid, Errata(S_ERROR, "Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
   }
 };
 
@@ -391,7 +391,7 @@ struct duration_visitor {
   auto
   operator()(F const &) -> EnableForFeatureTypes<F, ret_type>
   {
-    return {_invalid, Error("Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
+    return {_invalid, Errata(S_ERROR, "Feature of type {} cannot be coerced to type {}.", value_type_of<F>, INTEGER)};
   }
 };
 
@@ -407,7 +407,7 @@ duration_visitor::operator()(feature_type_for<STRING> const &s)
 {
   auto &&[n, errata] = DurationParser(s);
   if (!errata.is_ok()) {
-    errata.info("Duration string was not a valid format.");
+    errata.note("Duration string was not a valid format.");
     return {_invalid, std::move(errata)};
   }
   return {feature_type_for<DURATION>(n)};
@@ -422,7 +422,7 @@ duration_visitor::operator()(feature_type_for<TUPLE> t)
   for (auto const &item : t) {
     auto &&[value, errata]{std::visit(duration_visitor{_invalid}, item)};
     if (!errata.is_ok()) {
-      errata.info("The tuple element at index {} was not a valid duration.", idx);
+      errata.note("The tuple element at index {} was not a valid duration.", idx);
       return {_invalid, std::move(errata)};
     }
     ++idx;
