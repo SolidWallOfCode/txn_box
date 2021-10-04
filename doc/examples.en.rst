@@ -164,3 +164,60 @@ containing the file name as needed. The :code:`continue` causes the invocation t
 :drtv:`with` even if it matches. At the end, the path is assembled and set and the query parameters
 cleared.
 
+Client Certificate Authorization
+================================
+
+A common use of |TS| is to place it as a "side-car" in front of a service to perform various network
+tasks. The task in this example is to use client certificate information to authorize access to the
+proxied service. We presume client certificates are issued to provide authentication and
+authorization (such as via a tool like `Athenz <https://athenz.io>`__) but it would be too much
+work to change the service to verify this. Instead the service can use `HTTP basic
+authentication <https://datatracker.ietf.org/doc/html/rfc7617>`__ and have |TS| provide that
+authentication based on information in the client certificate while scrubbing the inbound request to
+prevent spoofing.
+
+This requires additional support from |TS| to requires a client certificate and verify it is signed
+by a trusted root certificate. To do this globally, add the `configuration value
+<https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/records.config.en.html#proxy-config-ssl-client-certification-level>`__
+to `records.config
+<https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/records.config.en.html#std-configfile-records.config>`__
+::
+
+   CONFIG proxy.config.ssl.client.certification_level INT 2
+
+The trusted root certificates are either the base operating system certificates or those specified
+by the configuration variables
+`proxy.config.ssl.CA.cert.path <https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/records.config.en.html#proxy-config-ssl-client-cert-path>`__
+and
+`proxy.config.ssl.CA.cert.filename <https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/records.config.en.html#proxy-config-ssl-client-cert-filename>`__
+
+The basic setup is to check the values on the client certificate and set the ``Authorization`` field
+if valid and remove it if not.
+
+.. literalinclude:: ../test/autest/gold_tests/prod/mTLS.txnbox.yaml
+
+This checks two values - the issuer (authentication) and the subject field (authorization).
+
+*  The issuer must be exactly the expected issuer.
+*  Authorization is passed in the subject field, which is expected to contain
+   an authorization domain ("base.ex"), a key word ("role") and then the actual authorization role.
+
+If both are successful then the role for the request is extracted and passed to the service in
+the ``Authorization`` field. Otherwise only ``GET`` and ``HEAD`` methods are allowed - if neither of
+those the request is immediately rejected with a 418 status. If allowed the ``Authorization`` field
+is stripped so the service can detect the lack of authorization for the request.
+
+Pulling the authorization value from the certificate disconnects the |TS| configuration from the
+specific roles supported by the service. Whatever those roles are, the administrator can put them
+in the certificate where they can be passed through.
+
+While it is best to adjust `remap.config
+<https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/remap.config.en.html>`__ to not
+forward non-TLS requests, this configuration will still work correctly because the
+client certificate values will be ``NIL`` for a plain text connection and therefore not match. |TS|
+support is needed for the TLS case to verify the client certificate so |TxB| can trust the values
+pulled from that certificate.
+
+If this is needed in a multi-tenant / CDN proxy, it will be necessary to use `sni.yaml
+<https://docs.trafficserver.apache.org/en/9.1.x/admin-guide/files/sni.yaml.en.html>`__ to adjust the
+client certificate requirements based on the SNI.

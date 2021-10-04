@@ -4,13 +4,12 @@ txn_box:
   - with: [ inbound-cert-remote-issuer-field<CN> , inbound-cert-remote-subject-field<CN> ]
     select:
     - as-tuple:
-      - match: "TxnBox CA alpha"
-      - rxp: "^base.ex:role[.](.+)$"
+      - match: "TxnBox CA alpha" # Authenticating issuer
+      - prefix: "base.ex:role." # e.g. "base.ex:role.user"
       do:
-      - ua-req-field<Authorization>: "{1}"
-    - otherwise: # not Alpha mTLS - allow only GET and HEAD.
+      - ua-req-field<Authorization>: "{*}"
+    - otherwise: # not Alpha mTLS - allow only GET and HEAD and no authorization.
       do:
-      - ua-req-field<Authorization>: NULL
       - with: ua-req-method
         select:
         - none-of:
@@ -18,3 +17,5 @@ txn_box:
           - match<nc>: "head"
           do:
           - proxy-reply: 418 # be distinct for testing purposes.
+      # valid method at this point.
+      - ua-req-field<Authorization>: NULL # get rid of the field entirely.
