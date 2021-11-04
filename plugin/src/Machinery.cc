@@ -1526,7 +1526,7 @@ Do_proxy_req_path::Do_proxy_req_path(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_path::invoke(Context &ctx) {
   TextView host{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.url().path_set(host);
   }
   return {};
@@ -1590,7 +1590,7 @@ Do_proxy_req_query::Do_proxy_req_query(Expr &&fmt) : _fmt(std::move(fmt)) {}
 
 Errata Do_proxy_req_query::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.url().query_set(text);
   }
   return {};
@@ -1653,7 +1653,7 @@ Do_proxy_req_fragment::Do_proxy_req_fragment(Expr &&fmt) : _fmt(std::move(fmt)) 
 
 Errata Do_proxy_req_fragment::invoke(Context &ctx) {
   TextView text{std::get<IndexFor(STRING)>(ctx.extract(_fmt))};
-  if (auto hdr{ctx.ua_req_hdr()}; hdr.is_valid()) {
+  if (auto hdr{ctx.proxy_req_hdr()}; hdr.is_valid()) {
     hdr.url().fragment_set(text);
   }
   return {};
