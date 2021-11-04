@@ -22,9 +22,10 @@ Extractor::Table Extractor::_ex_table;
 /// Static mapping from modifier to factory.
 Modifier::Factory Modifier::_factory;
 
+static std::array<swoc::TextView, 5> S_NAMES = { "Success", "Debug", "Info", "Warning", "Error"};
+
 const bool TXN_BOX_LIB_INIT = []() -> bool {
-  std::array<swoc::TextView, 5> S_NAMES = { "Success", "Debug", "Info", "Warning", "Error"};
-  swoc::Errata::SEVERITY_NAMES = swoc::MemSpan<swoc::TextView>{S_NAMES.data(), S_NAMES.size()};
+  swoc::Errata::SEVERITY_NAMES = swoc::MemSpan<swoc::TextView const>{S_NAMES.data(), S_NAMES.size()};
   swoc::Errata::DEFAULT_SEVERITY = S_ERROR;
   swoc::Errata::FAILURE_SEVERITY = S_ERROR;
   return true;

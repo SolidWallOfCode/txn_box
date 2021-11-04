@@ -55,16 +55,25 @@ meta:
 
     - when: proxy-req
       do:
-        - with: proxy-req-path
-          select:
-          - match: "path/req"
+      - with: proxy-req-path
+        select:
+        - match: "path/req"
+          do:
+          - proxy-req-url: "http://{proxy-req-host}/req/path"
+          - proxy-req-field<test>: "http://{proxy-req-host}/req/path"
+          - when: proxy-rsp
             do:
-              - proxy-req-url: "http://{proxy-req-host}/req/path"
-              - proxy-req-field<test>: "http://{proxy-req-host}/req/path"
-              - when: proxy-rsp
-                do:
-                - proxy-rsp-field<pre-remap>: "{pre-remap-scheme}://{pre-remap-host}/{pre-remap-path}"
-                - proxy-rsp-field<pristine>: "{pristine-scheme}://{pristine-host}/{pristine-path}"
+            - proxy-rsp-field<pre-remap>: "{pre-remap-scheme}://{pre-remap-host}/{pre-remap-path}"
+
+    - when: proxy-req
+      do:
+      - with: proxy-req-field<vinhoo-yaith>
+        do:
+        select:
+        - contains: "C_WOEID=23424977"
+          do:
+          - proxy-req-path: "vinhoo-yaith/working"
+          - debug: "Set proxy path to {proxy-req-path}"
 
     # Regular expression testing - verify anchors behave as expected.
     - when: proxy-req
@@ -394,7 +403,6 @@ sessions:
       headers:
         fields:
         - [ "pre-remap", { value: "http://one.ex/path/req", as: equal } ]
-        - [ "pristine", { value: "http://one.ex/path/req", as: equal } ]
 
   - all: { headers: { fields: [[ uuid, 13]]}}
     client-request:
@@ -557,6 +565,56 @@ sessions:
         fields:
         - [ "z-from", { value: "From: 'http://remap.ex/'", as: equal } ]
         - [ "z-pristine", { value: "Pre: 'http://remap.ex/21'", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, vinhoo-1]]}}
+    client-request:
+      <<: *base-req
+      url: "/original/path"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "vinhoo-yaith", "C_WOEID=23424977" ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ path, { value: "/vinhoo-yaith/working" , as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, vinhoo-3]]}}
+    client-request:
+      <<: *base-req
+      url: "/original/path"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ path, { value: "/original/path" , as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+
+  - all: { headers: { fields: [[ uuid, vinhoo-3]]}}
+    client-request:
+      <<: *base-req
+      url: "/original/path"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+        - [ "vinhoo-yaith", "C_WOEID=9994977" ]
+    proxy-request:
+      <<: *base-req
+      url:
+      - [ path, { value: "/original/path" , as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

@@ -37,6 +37,11 @@ meta:
     - ua-req-field<url>: ua-req-url # For verification.
     - debug: "Remap 4 - url is {ua-req-url}"
 
+    remap-5:
+    - when: proxy-req
+      do:
+      - proxy-req-field<remapped>: "true"
+
   blocks:
   - base-req: &base-req
       version: "1.1"
@@ -214,6 +219,23 @@ sessions:
         - [ Host, { value: "charlie.remapped.ex:" , as: prefix } ]
         - [ URL, { value: "charlie.remapped.ex", as: contains }]
         - [ uuid, "4-2" ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      <<: *base-rsp
+
+  - client-request:
+      <<: *base-req
+      url: "http://5.remap.ex/path"
+      headers:
+        fields:
+        - [ Host, 5.remap.ex ]
+        - [ uuid, "5-0" ]
+    proxy-request:
+      headers:
+        fields:
+        - [ uuid, "5-0" ]
+        - [ remapped, { value: "true" , as: equal }]
     server-response:
       <<: *base-rsp
     proxy-response:

@@ -150,7 +150,7 @@ public:
 
 protected:
   TSMBuffer _buff = nullptr; ///< TS buffer handle.
-  TSMLoc _loc     = nullptr; ///< TS memory locatio handle.
+  TSMLoc _loc     = nullptr; ///< TS memory location handle.
 };
 
 inline HeapObject &
