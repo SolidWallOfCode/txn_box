@@ -77,7 +77,7 @@ struct join_visitor {
 
   template <typename T>
   auto
-  operator()(T const &) -> EnableForFeatureTypes<T, void> const
+  operator()(T const &) const -> EnableForFeatureTypes<T, void>
   {
   }
 };
