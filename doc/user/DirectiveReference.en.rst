@@ -151,6 +151,12 @@ User Agent Request
 Proxy Request
 =============
 
+Unfortunately due to ATC plugin API constraints the proxy request directives are only effective in
+the ``proxy-req`` hook. Even then they cannot change the actual destination as the connection to
+the target has already happened. The can only change what is sent to the target. That makes these
+directives of limited utility. To change the target as late as possible use the "ua-req-..."
+directives in the ``POST_REMAP`` hook.
+
 .. directive:: proxy-req-url
    :value: string
 
