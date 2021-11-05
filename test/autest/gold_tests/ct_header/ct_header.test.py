@@ -29,14 +29,15 @@ ts.Setup.Copy("../../ssl/server.pem", os.path.join(ts.Variables.CONFIGDIR, "serv
 
 ts.Disk.records_config.update({
       'proxy.config.diags.debug.enabled': 1
-    , 'proxy.config.diags.debug.tags': 'txn_box|http|ssl'
+    #    , 'proxy.config.diags.debug.tags': 'txn_box|http|ssl'
+        , 'proxy.config.diags.debug.tags': 'txn_box'
     , 'proxy.config.http.cache.http':  0
 
     , 'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.CONFIGDIR)
     , 'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.CONFIGDIR)
     # enable ssl port
     , 'proxy.config.http.server_ports': '{0} {1}:ssl'.format(ts.Variables.port, ts.Variables.ssl_port)
-    , 'proxy.config.ssl.client.verify.server': 0
+    , 'proxy.config.ssl.client.verify.server.policy': 'DISABLED'
 })
 ts.Disk.ssl_multicert_config.AddLine(
     'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'

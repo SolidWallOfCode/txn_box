@@ -315,7 +315,7 @@ class Mod_filter : public FilterMod
   using super_type = Modifier;
 
 public:
-  static inline const std::string KEY         = "filter";  ///< Identifier name.
+  static inline const std::string KEY = "filter";  ///< Identifier name.
 
   /** Modify the feature.
    *

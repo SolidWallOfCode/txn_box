@@ -158,7 +158,7 @@ template <> struct tuple_size<ValueType> : public std::integral_constant<size_t,
 };
 }; // namespace std
 
-// *** @c FeatureTypeList, @c FeatureType, and @c FeatureindexList must be kept in parallel synchronization! ***
+// *** @c FeatureTypeList, @c ValueType, and @c FeatureindexList must be kept in parallel synchronization! ***
 /// Type list of feature types.
 using FeatureTypeList =
   swoc::meta::type_list<std::monostate, nil_value, FeatureView, intmax_t, bool, double, swoc::IPAddr, std::chrono::nanoseconds,

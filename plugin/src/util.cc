@@ -209,6 +209,20 @@ UnitParser<E>::operator()(swoc::TextView const &src) const noexcept -> Rv<value_
 namespace
 {
 struct bool_visitor {
+  template <typename F>
+  auto
+  operator()(F const &) const -> EnableForFeatureTypes<F, bool>
+  {
+    TSDebug("txn_box", "should not be here!");
+    return false;
+  }
+
+  bool
+  operator()(feature_type_for<BOOLEAN> const & flag) const
+  {
+    return flag;
+  }
+
   bool operator()(feature_type_for<NIL>) const { return false; }
 
   bool
@@ -218,41 +232,31 @@ struct bool_visitor {
   }
 
   bool
-  operator()(feature_type_for<INTEGER> n) const
+  operator()(feature_type_for<INTEGER> const& n) const
   {
     return n != 0;
   }
 
   bool
-  operator()(feature_type_for<FLOAT> f) const
+  operator()(feature_type_for<FLOAT> const& f) const
   {
     return f != 0;
   }
 
   bool
-  operator()(feature_type_for<IP_ADDR> addr) const
+  operator()(feature_type_for<IP_ADDR> const& addr) const
   {
     return addr.is_valid();
   }
 
   bool
-  operator()(feature_type_for<BOOLEAN> flag) const
-  {
-    return flag;
-  }
-
-  bool
-  operator()(feature_type_for<TUPLE> t) const
+  operator()(feature_type_for<TUPLE> const& t) const
   {
     return t.size() > 0;
   }
 
-  template <typename T>
-  auto
-  operator()(T const &) -> EnableForFeatureTypes<T, bool> const
-  {
-    return false;
-  }
+  bool operator()(feature_type_for<DURATION> const& d) const { return d.count() != 0; }
+
 };
 
 } // namespace
@@ -260,7 +264,8 @@ struct bool_visitor {
 auto
 Feature::as_bool() const -> type_for<BOOLEAN>
 {
-  return std::visit(bool_visitor{}, *this);
+  static bool_visitor visitor;
+  return std::visit(visitor, *this);
 }
 
 // ----
