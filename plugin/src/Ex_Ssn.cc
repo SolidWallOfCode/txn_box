@@ -150,7 +150,7 @@ Ex_has_inbound_protocol_prefix::validate(Config &cfg, Extractor::Spec &spec, Tex
 auto
 Ex_has_inbound_protocol_prefix::extract(Context &ctx, Spec const &spec) -> Feature
 {
-  return {!ctx._txn.ssn().proto_contains(spec._data.text).empty()};
+  return !ctx._txn.ssn().proto_contains(spec._data.text).empty();
 }
 
 BufferWriter &

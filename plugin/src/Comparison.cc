@@ -866,8 +866,8 @@ class Cmp_is_true : public Comparison
   using self_type  = Cmp_is_true; ///< Self reference type.
   using super_type = Comparison;  ///< Parent type.
 public:
-  static const std::string KEY; ///< Comparison name.
-  static const ValueMask TYPES; ///< Supported types.
+  static inline const std::string KEY{"is-true"}; ///< Comparison name.
+  static inline const ValueMask TYPES{MaskFor(NIL, STRING, BOOLEAN, INTEGER)}; ///< Supported types.
 
   bool operator()(Context &ctx, Feature const &feature) const;
 
@@ -877,9 +877,6 @@ public:
 protected:
   Cmp_is_true() = default;
 };
-
-const std::string Cmp_is_true::KEY{"is-true"};
-const ValueMask Cmp_is_true::TYPES{MaskFor(STRING, BOOLEAN, INTEGER)};
 
 bool
 Cmp_is_true::operator()(Context &, Feature const &feature) const
