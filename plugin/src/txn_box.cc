@@ -54,7 +54,7 @@ std::shared_mutex Plugin_Config_Mutex; // safe updating of the shared ptr.
 std::atomic<bool> Plugin_Reloading = false;
 
 // Get a shared pointer to the configuration safely against updates.
-std::shared_ptr<Config>
+Config::Handle
 scoped_plugin_config()
 {
   std::shared_lock lock(Plugin_Config_Mutex);
@@ -83,8 +83,10 @@ int
 CB_Txn_Start(TSCont, TSEvent, void *payload)
 {
   auto txn{reinterpret_cast<TSHttpTxn>(payload)};
-  Context *ctx = new Context(scoped_plugin_config());
-  ctx->enable_hooks(txn);
+  if ( auto cfg = scoped_plugin_config() ; cfg ) {
+    Context *ctx = new Context(std::move(cfg));
+    ctx->enable_hooks(txn);
+  }
   TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
   return TS_SUCCESS;
 }
@@ -131,6 +133,15 @@ CB_TxnBoxMsg(TSCont, TSEvent, void *data)
       }
     }
   }
+  return TS_SUCCESS;
+}
+
+int
+CB_TxnBoxShutdown(TSCont, TSEvent, void *)
+{
+  TSDebug("txn_box", "Core shut down");
+  std::unique_lock lock(Plugin_Config_Mutex);
+  Plugin_Config.reset();
   return TS_SUCCESS;
 }
 
@@ -181,6 +192,7 @@ TSPluginInit(int argc, char const *argv[])
     TSError("%s", err_str.c_str());
   }
   TSLifecycleHookAdd(TS_LIFECYCLE_MSG_HOOK, TSContCreate(&CB_TxnBoxMsg, nullptr));
+  TSLifecycleHookAdd(TS_LIFECYCLE_SHUTDOWN_HOOK, TSContCreate(&CB_TxnBoxShutdown, nullptr));
 #if TS_VERSION_MAJOR >= 9
   TSPluginDSOReloadEnable(false);
 #endif
