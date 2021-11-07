@@ -6,7 +6,6 @@ meta:
      - when: ua-req
        do:
        - with: ua-req-query
-         continue:
          select:
          - rxp<nc>: "^emailaddress=[^&;]*[;&]?(.*)$" # first value.
            do:
@@ -14,11 +13,13 @@ meta:
          - rxp<nc>: "(.*?)[&;]emailaddress=[^&;]*(.*)$" # not first value
            do:
            - ua-req-query: "{1}{2}"
-         - with: ua-req-query
-           select:
-           - rxp<nc>: "^(.*)%26emailAddress%3D(.*?)((?:%26)?.*)$"
-             do:
-             - ua-req-query: "{1}{2}"
+         continue:
+       # needs to be separate because this can occur additionally.
+       - with: ua-req-query
+         select:
+         - rxp<nc>: "^(.*)%26emailAddress%3D.*?(%26.*)?$"
+           do:
+           - ua-req-query: "{1}{2}"
     bravo:
     - when: ua-req
       do:

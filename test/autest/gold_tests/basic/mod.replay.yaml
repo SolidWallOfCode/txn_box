@@ -143,7 +143,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, alpha.ex ]
         - [ comets, "1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley" ]
     proxy-request:
       headers:
@@ -161,7 +161,7 @@ sessions:
       url: "/delain/albums"
       headers:
         fields:
-        - [ Host, one.ex ]
+        - [ Host, alpha.ex ]
         - [ comets-encoded, "1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley" ]
     proxy-request:
       headers:

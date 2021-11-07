@@ -79,19 +79,19 @@ QPair query_take_qpair(TextView & qs) {
 }
 
 TextView
-query_value_set(Context &ctx, TextView qs, TextView name, Feature const &value, bool case_p, bool force_equal_p)
+query_value_update(Context &ctx, TextView qs, TextView name, Feature const &value, bool case_p, bool force_equal_p)
 {
   TextView zret;
-  bool nv_is_str_p = (value.value_type() == STRING);
+  bool nv_is_nil_p = (value.value_type() == NIL);
   if (qs.empty()) {
-    if (nv_is_str_p) {
+    if (!nv_is_nil_p) {
       zret = ctx.render_transient([&](BufferWriter &w) { w.print("{}={}", name, std::get<STRING>(value)); });
     }
   } else { // invariant - query string was not empty.
     auto &&[k, v] = ts::query_value_for(qs, name, case_p);
     if (k.empty()) { // not found at all.
-      if (nv_is_str_p) {
-        zret = ctx.render_transient([&](BufferWriter &w) { w.print("{}&{}={}", qs, name, std::get<STRING>(value)); });
+      if (!nv_is_nil_p) {
+        zret = ctx.render_transient([&](BufferWriter &w) { w.print("{}&{}={}", qs, name, value); });
       }
     } else {
       // Make a note if there was no value but an '=' anyway.
@@ -100,12 +100,11 @@ query_value_set(Context &ctx, TextView qs, TextView name, Feature const &value, 
       TextView prefix{qs.data(), k.data()};
       // Suffix is the part after the value.
       TextView suffix{v.end(), qs.end()};
-      TextView value_text = std::get<STRING>(value);
-      if (nv_is_str_p) {
+      if (!nv_is_nil_p) {
         zret = ctx.render_transient([&, k = k, v = v](BufferWriter &w) {
           w.write(prefix).write(k);
-          if (equal_p || !value_text.empty()) {
-            w.write('=').write(value_text);
+          if (equal_p || !(value.index() == IndexFor(STRING) && std::get<IndexFor(STRING)>(value).empty())) {
+            w.print("={}", value);
           }
           w.write(suffix);
         });
@@ -960,8 +959,7 @@ Errata
 QueryValueDirective::invoke_on_url(Context &ctx, ts::URL &&url)
 {
   if (url.is_valid()) {
-    auto nv{ctx.extract(_expr)};
-    auto qs = query_value_set(ctx, url.query(), _name, nv, true, false);
+    auto qs = query_value_update(ctx, url.query(), _name, ctx.extract(_expr), true, false);
     url.query_set(qs);
     ctx.transient_discard();
   }
@@ -1073,8 +1071,6 @@ Ex_proxy_req_query_value proxy_req_query_value;
   Extractor::define(Ex_proxy_req_query_value::NAME, &ua_req_query_value);
 
   Modifier::define<Mod_query_sort>();
-
-
   Modifier::define<Mod_query_filter>();
 
   Config::define<Do_ua_req_query>();
