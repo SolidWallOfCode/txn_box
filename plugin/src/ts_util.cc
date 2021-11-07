@@ -933,17 +933,22 @@ TaskHandle::cancel()
     TSMutex m = TSContMutexGet(_cont);
     auto data = static_cast<Data *>(TSContDataGet(_cont));
     // Work around for TS shutdown - if this is cleaned up during shutdown, it's done on TS_MAIN
-    // which is not an EThread, which crashes TSMutextTryLock. If that's the case, though, there's
-    // no point in worrying about locks because the ET_NET threads aren't running.
-    if (TSThreadSelf() == nullptr || TSMutexLockTry(m)) {
+    // which should have cleared its @c EThread data. If that's the case, though, there's
+    // no point in worrying about locks because the ET_NET threads aren't running. The
+    // @c Continuation can't be cleaned up because it's now thread allocated and there's no longer
+    // a thread freelist to use. Trying to do that will crash.
+    if (TSThreadSelf() == nullptr) {
+      delete data;
+    } else if (TSMutexLockTry(m)) {
       TSActionCancel(_action);
+      // The task is not running at this point because the lock is held and now that it's been
+      // canceled it won't run again. Therefore it can be unlocked and cleaned up safely.
       TSMutexUnlock(m);
       delete data;
       TSContDestroy(_cont);
     } else {
       // Signal the task lambda (which has the lock) that it should clean up.
-      bool canceled = false; // Need reference for first argument.
-      data->_active.compare_exchange_strong(canceled, true);
+      data->_active = false;
     }
     _action = nullptr; // Don't cancel again.
   }
@@ -973,14 +978,15 @@ PerformAsTaskEvery(std::function<void()> &&task, std::chrono::milliseconds perio
 {
   // The lambda runs under lock for the continuation mutex, therefore it can cancel as needed.
   // External cancel tries the lock - if that succeeds it can cancel and prevent the lambda
-  // entirely. Otherwise it atomically sets @a _active to @c false.
+  // entirely. If not, @a _active is set to @c false. This can be a race that's missed but
+  // it will be detected the next time the task runs.
   static auto lambda = [](TSCont contp, TSEvent, void *event) -> int {
     auto data = static_cast<TaskHandle::Data *>(TSContDataGet(contp));
     if (data->_active) {
       data->_f();
     }
 
-    // See if there as a request to cancel while busy.
+    // If not active, then the task has been canceled - clean up.
     if (!data->_active) {
       TSActionCancel(static_cast<TSAction>(event));
       delete data;
