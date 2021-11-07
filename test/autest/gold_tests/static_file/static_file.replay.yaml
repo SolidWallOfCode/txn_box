@@ -393,9 +393,8 @@ sessions:
       status: 200
       headers:
         fields:
-        - [ Cache-Status, { absent: }]
+        - [ Cache-Status, { as: absent }]
         - [ uuid, { as: equal, value: "3" }] # cached in transaction 3
-
 
   # Verify correctness for empty upstream response - base case
   - all: { headers: { fields: [[ uuid, base-case ]]}}
@@ -418,21 +417,22 @@ sessions:
       status: 200
 
   # Verify correctness for empty upstream response - empty case
-  - all: { headers: { fields: [[ uuid, empty-response ]]}}
-    client-request:
-      <<: *base-req
-      url: "/security-3.txt"
-      headers:
-        fields:
-        - [ Host, base.ex ]
-    proxy-request:
-      <<: *base-req
-    server-response:
-      status: 404
-      reason: "Missing"
-      headers:
-        fields:
-        - [ Content-Type, html/plaintext ]
-        - [ Content-Length, 0 ]
-    proxy-response:
-      status: 200
+  # Disabled for now because of ATS core problem. Issue #8081.
+#  - all: { headers: { fields: [[ uuid, empty-response ]]}}
+#    client-request:
+#      <<: *base-req
+#      url: "/security-3.txt"
+#      headers:
+#        fields:
+#        - [ Host, base.ex ]
+#    proxy-request:
+#      <<: *base-req
+#    server-response:
+#      status: 404
+#      reason: "Missing"
+#      headers:
+#        fields:
+#        - [ Content-Type, html/plaintext ]
+#        - [ Content-Length, 0 ]
+#    proxy-response:
+#      status: 200

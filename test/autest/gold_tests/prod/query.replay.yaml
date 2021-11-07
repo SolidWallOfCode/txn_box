@@ -217,7 +217,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ query, { value: "Delain=best", as: "equal" } ]
+      - [ query, { value: "delain=best", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -251,7 +251,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ query, { value: "Delain=best&nightwish=good", as: "equal" } ]
+      - [ query, { value: "delain=best&nightwish=good", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -285,7 +285,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ query, { value: "nightwish=good&Delain=best", as: "equal" } ]
+      - [ query, { value: "nightwish=good&delain=best", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -319,7 +319,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ query, { value: "xandria=nice&leah=cool&nightwish=good&Delain=best", as: "equal" } ]
+      - [ query, { value: "xandria=nice&leah=cool&nightwish=good&delain=best", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:
@@ -346,7 +346,7 @@ sessions:
   - all: { headers: { fields: [[ uuid, update-first-four ]]}}
     client-request:
       <<: *base-req
-      url: "/page.html?delain=ok&xandria=nice&leah=cool&nightwish=good"
+      url: "/page.html?Delain=ok&xandria=nice&leah=cool&nightwish=good"
       headers:
         fields:
         - [ Host, two.ex ]
@@ -387,7 +387,7 @@ sessions:
     proxy-request:
       <<: *base-req
       url:
-      - [ query, { value: "xandria=nice&Delain=best&leah=cool&nightwish=good", as: "equal" } ]
+      - [ query, { value: "xandria=nice&delain=best&leah=cool&nightwish=good", as: "equal" } ]
     server-response:
       <<: *base-rsp
     proxy-response:

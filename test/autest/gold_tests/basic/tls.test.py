@@ -33,7 +33,7 @@ ts.Disk.records_config.update({
     , 'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.CONFIGDIR)
     # enable ssl port
     , 'proxy.config.http.server_ports': '{0} {1}:ssl'.format(ts.Variables.port, ts.Variables.ssl_port)
-    , 'proxy.config.ssl.client.verify.server': 0
+    , 'proxy.config.ssl.client.verify.server.policy': 'DISABLED'
 })
 ts.Disk.ssl_multicert_config.AddLine(
     'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'
