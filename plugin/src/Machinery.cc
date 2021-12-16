@@ -2512,8 +2512,19 @@ const HookMask Do_upstream_rsp_body::HOOKS{MaskFor({Hook::URSP})};
 Errata
 Do_upstream_rsp_body::invoke(Context &ctx)
 {
+  // State allocated in transaction memory.
+  struct State {
+    TextView _view; ///< Source view for body.
+    TSIOBuffer _tsio_buff = nullptr; ///< Buffer used to write body.
+  };
+
   auto static transform = [](TSCont contp, TSEvent ev_code, void *) -> int {
-    if (TSVConnClosedGet(contp)) {
+
+    if (TSVConnClosedGet(contp)) { // all done, time to clean up.
+      auto state = static_cast<State*>(TSContDataGet(contp));
+      if (state && state->_tsio_buff) {
+        TSIOBufferDestroy(state->_tsio_buff);
+      }
       TSContDestroy(contp);
       return 0;
     }
@@ -2539,14 +2550,12 @@ Do_upstream_rsp_body::invoke(Context &ctx)
           TSContCall(TSVIOContGet(in_vio),
                      (TSVIONTodoGet(in_vio) <= 0) ? TS_EVENT_VCONN_WRITE_COMPLETE : TS_EVENT_VCONN_WRITE_READY, in_vio);
         }
-        // If the full is there, create the output buffer and write it, then clear it.
-        auto view = static_cast<TextView *>(TSContDataGet(contp));
-        if (view) {
+        // If the buffer isn't already there, create it and write out the view.
+        if ( auto state = static_cast<State *>(TSContDataGet(contp)) ; state && ! state->_tsio_buff) {
           auto out_vconn = TSTransformOutputVConnGet(contp);
-          auto out_buff  = TSIOBufferCreate();
-          auto out_vio   = TSVConnWrite(out_vconn, contp, TSIOBufferReaderAlloc(out_buff), view->size());
-          TSIOBufferWrite(out_buff, view->data(), view->size());
-          TSContDataSet(contp, nullptr);
+          state->_tsio_buff = TSIOBufferCreate();
+          TSIOBufferWrite(state->_tsio_buff, state->_view.data(), state->_view.size());
+          auto out_vio = TSVConnWrite(out_vconn, contp, TSIOBufferReaderAlloc(state->_tsio_buff), state->_view.size());
           TSVIOReenable(out_vio);
         }
       }
@@ -2575,12 +2584,12 @@ Do_upstream_rsp_body::invoke(Context &ctx)
   }
 
   if (content) {
-    // The view contents are in the transaction data, but the full in the feature is not.
-    // Make a copy there and pass its address to the continuation.
-    auto ctx_view = ctx.alloc_span<TextView>(1);
+    // The view contents are in the transaction data, but the view in the feature is not.
+    // Put a copy in the transform @a state.
+    auto state    = ctx.make<State>();
     auto cont     = TSTransformCreate(transform, ctx._txn);
-    ctx_view[0]   = *content;
-    TSContDataSet(cont, ctx_view.data());
+    state->_view  = *content;
+    TSContDataSet(cont, state);
     TSHttpTxnHookAdd(ctx._txn, TS_HTTP_RESPONSE_TRANSFORM_HOOK, cont);
     ctx._txn.ursp_hdr().field_obtain("Content-Type"_tv).assign(content_type);
   }
