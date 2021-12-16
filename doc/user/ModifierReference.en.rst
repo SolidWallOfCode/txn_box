@@ -109,6 +109,28 @@ Modifiers
    An empty field is changed to "Delain", while if there is already a value, a comma is added before
    adding "Delain".
 
+.. modifier:: as-bool
+
+   Coerce the feature to a Boolean if possible. The following types can be coerced
+
+   Boolean
+      Identity.
+   Integer
+      0 is false, any other value is true.
+   Float
+      0.0 is false, anything else is true.
+   String
+      False unless the string is one of "true", "1", "on", "enable", "Y", "yes".
+   IP Address
+      A valid IP address is true, otherwise false.
+   Duration
+      A non-zero duration is true, otherwise false.
+   Tuple
+      A non-zero length tuple is true, otherwise false. Note the value(s) in the tuple are not
+      examined.
+   Null
+      False.
+
 .. modifier:: as-integer
 
    Coerce the feature to an Integer type if possible. If the feature is already an Integer, it is

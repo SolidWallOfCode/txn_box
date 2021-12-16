@@ -829,6 +829,82 @@ Mod_concat::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_val
 
 // ---
 
+/// Convert the feature to boolean.
+class Mod_as_bool : public Modifier
+  {
+  using self_type  = Mod_as_bool;
+  using super_type = Modifier;
+
+  public:
+    inline static const std::string KEY = "as-bool"; ///< Identifier name.
+
+    /** Modify the feature.
+     *
+     * @param ctx Run time context.
+     * @param feature Feature to modify [in,out]
+     * @return Errors, if any.
+     */
+    Rv<Feature> operator()(Context &ctx, Feature &feature) override;
+
+    /** Check if @a ftype is a valid type to be modified.
+     *
+     * @param ftype Type of feature to modify.
+     * @return @c true if this modifier can modity that feature type, @c false if not.
+     */
+    bool is_valid_for(ActiveType const &ex_type) const override;
+
+    /// Resulting type of feature after modifying.
+    ActiveType result_type(ActiveType const &) const override;
+
+    /** Create an instance from YAML config.
+     *
+     * @param cfg Configuration state object.
+     * @param mod_node Node with modifier.
+     * @param key_node Node in @a mod_node that identifies the modifier.
+     * @return A constructed instance or errors.
+     */
+    static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+  protected:
+    inline static const auto VALUE_TYPES = MaskFor({STRING, INTEGER, FLOAT, BOOLEAN, TUPLE, IP_ADDR, NIL});
+    Expr _value; ///< Default value.
+
+    explicit Mod_as_bool(Expr &&expr) : _value(std::move(expr)) {}
+  };
+
+bool
+Mod_as_bool::is_valid_for(ActiveType const &ex_type) const
+{
+  return ex_type.can_satisfy(VALUE_TYPES);
+}
+
+ActiveType
+Mod_as_bool::result_type(ActiveType const &) const
+{
+  return {BOOLEAN};
+}
+
+Rv<Feature>
+Mod_as_bool::operator()(Context &, Feature &feature)
+{
+  return { feature.as_bool() };
+}
+
+Rv<Modifier::Handle>
+Mod_as_bool::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  if (!(expr.is_null() || expr.result_type().can_satisfy(VALUE_TYPES))) {
+    return Errata(S_ERROR, "Value of {} modifier is not of type {}.", KEY, VALUE_TYPES);
+  }
+  return Handle(new self_type{std::move(expr)});
+}
+
+// --- //
 /// Convert the feature to an Integer.
 class Mod_as_integer : public Modifier
 {
@@ -1253,6 +1329,7 @@ namespace
   Modifier::define(Mod_else::KEY, &Mod_else::load);
   Modifier::define(Mod_join::KEY, &Mod_join::load);
   Modifier::define(Mod_concat::KEY, &Mod_concat::load);
+  Modifier::define(Mod_as_bool::KEY, &Mod_as_bool::load);
   Modifier::define(Mod_as_integer::KEY, &Mod_as_integer::load);
   Modifier::define(Mod_As_Duration::KEY, &Mod_As_Duration::load);
   Modifier::define(Mod_filter::KEY, &Mod_filter::load);

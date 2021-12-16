@@ -964,7 +964,7 @@ Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
   } else {
     info._arg = cfg.localize(arg);
     info._idx = INVALID_IDX;
-    return {{STRING, INTEGER, IP_ADDR, TUPLE}};
+    return {{NIL, STRING, INTEGER, IP_ADDR, TUPLE}};
   }
 
   ActiveType result_type = NIL;
@@ -987,7 +987,7 @@ Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
     result_type = TUPLE;
     break;
   }
-  return result_type;
+  return {{ NIL, result_type }}; // any column can return @c NIL if the address isn't found.
 }
 
 Feature
