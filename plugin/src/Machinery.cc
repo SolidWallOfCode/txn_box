@@ -2512,19 +2512,26 @@ const HookMask Do_upstream_rsp_body::HOOKS{MaskFor({Hook::URSP})};
 Errata
 Do_upstream_rsp_body::invoke(Context &ctx)
 {
-  // State allocated in transaction memory.
+  /// State data for the transform continuation.
+  /// @internal Due to ugliness in the plugin API where the final event for the @c Continuation
+  /// can arrive after the transaction is destroyed, the @c IOBuffer needs to get cleaned up at
+  /// transaction termination, not the final transform event. Therefore the destructor here does
+  /// the cleanup, so that it can be marked for cleanup in the @c Context.
   struct State {
     TextView _view; ///< Source view for body.
     TSIOBuffer _tsio_buff = nullptr; ///< Buffer used to write body.
+    /// Clean up the @c IOBuffer.
+    ~State() {
+      if (_tsio_buff) {
+        TSIOBufferDestroy(_tsio_buff);
+      }
+    }
   };
 
   auto static transform = [](TSCont contp, TSEvent ev_code, void *) -> int {
 
-    if (TSVConnClosedGet(contp)) { // all done, time to clean up.
-      auto state = static_cast<State*>(TSContDataGet(contp));
-      if (state && state->_tsio_buff) {
-        TSIOBufferDestroy(state->_tsio_buff);
-      }
+    if (TSVConnClosedGet(contp)) {
+      // IOBuffer is cleaned up at transaction close, not here.
       TSContDestroy(contp);
       return 0;
     }
@@ -2587,6 +2594,7 @@ Do_upstream_rsp_body::invoke(Context &ctx)
     // The view contents are in the transaction data, but the view in the feature is not.
     // Put a copy in the transform @a state.
     auto state    = ctx.make<State>();
+    ctx.mark_for_cleanup(state);
     auto cont     = TSTransformCreate(transform, ctx._txn);
     state->_view  = *content;
     TSContDataSet(cont, state);

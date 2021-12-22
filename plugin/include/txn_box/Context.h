@@ -429,9 +429,21 @@ public:
    * @param ptr Object to clean up.
    * @return @a this
    *
-   * @a ptr is cleaned up by calling
+   * @a ptr is cleaned up by calling @c delete.
    */
   template <typename T> self_type &mark_for_cleanup(T *ptr);
+
+  /** Mark @a ptr for cleanup by @a clearner when @a this is destroyed.
+   *
+   * @tparam T Type of @a ptr
+   * @param ptr Object to clean up.
+   * @param cleaner Functor to clean up @a ptr.
+   * @return @a this
+   *
+   * @a ptr is cleaned up by calling @a cleaner.
+   */
+  template <typename T>
+  self_type &mark_for_cleanup(T* ptr, void (*cleaner)(T*));
 
   /** Get a reference to the configuration for @a this.
    *
@@ -614,6 +626,14 @@ Context::mark_for_cleanup(T *ptr)
 {
   auto f = _arena->make<Finalizer>(ptr, [](void *ptr) { std::destroy_at(static_cast<T *>(ptr)); });
   _finalizers.append(f);
+  return *this;
+}
+
+template <typename T>
+Context &
+Context::mark_for_cleanup(T* ptr, void (*cleaner)(T*))
+{
+  _finalizers.append(_arena->make<Finalizer>(ptr, cleaner));
   return *this;
 }
 
