@@ -219,26 +219,31 @@ Context::extract_view(const Expr &expr, std::initializer_list<ViewOption> opts)
   if (IndexFor(STRING) == f.index()) {
     auto view = std::get<IndexFor(STRING)>(f);
     if (cstr_p && !view._cstr_p) {
-      if (!view._literal_p && !view._direct_p) { // in temporary memory
-        // If there's room, just add the null terminator.
-        if (auto span = _arena->remnant().rebind<char>(); span.data() == view.data_end()) {
-          _arena->alloc(1);
-          span[0]      = '\0';
-          view._cstr_p = true;
-        } else {
-          _arena->alloc(view.size()); // commit the view data and copy.
-          view._literal_p = true;
-        }
-      }
-      // if it's still in fixed memory, need to copy and terminate.
+      // Invariant - literal_p && direct_p == false
       if (view._literal_p) {
-        auto span = _arena->require(view.size() + 1).remnant().rebind<char>();
-        memcpy(span, view);
-        span[view.size()] = '\0';
-        view              = span.view();
-        view.remove_suffix(1); // drop null from view.
+        // There's a reasonable chance this was just put in the arena and therefore there
+        // could be space just past it to put the null. Let's check.
+        if (auto spot = _arena->remnant().rebind<char>().data() ; spot == view.data_end()) {
+          *spot = '\0';
+          _arena->alloc(1); // make sure the null stays null.
+        } else { // No space or not at the end of the arena, must copy.
+          auto span = _arena->require(view.size() + 1).remnant().rebind<char>();
+          memcpy(span, view);
+          span[view.size()] = '\0';
+          view              = span.view();
+          view.remove_suffix(1); // drop null from view.
+          view._literal_p = false;
+        }
         view._cstr_p    = true;
-        view._literal_p = false;
+      } else if (! view._direct_p) {
+        auto span = _arena->require(view.size() + 1).remnant().rebind<char>();
+        // If the pointers different there wasn't enough room - copy to new location.
+        if (span.data() != view.data()) {
+          memcpy(span, view);
+          view.assign(span.data(), view.size());
+        }
+        span[view.size()]      = '\0';
+        view._cstr_p = true;
       }
     }
     zret = view;
