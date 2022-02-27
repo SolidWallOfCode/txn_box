@@ -24,18 +24,22 @@ public:
   /// Output generator for BWF on an expression.
   class bwf_ex
   {
+    using V = swoc::MemSpan<Spec const>;
   public:
     /// Construct with specifier sequence.
-    bwf_ex(std::vector<Spec> const &specs) : _specs(specs), _iter(specs.begin()) {}
+    bwf_ex(std::vector<Spec> const& specs) : _specs(specs.data(), specs.size()), _iter(_specs.begin()) {}
 
     /// Validity check.
     explicit operator bool() const { return _iter != _specs.end(); }
-    ///
+
+    /// Get the next specifier.
+    /// Called from @c BufferWriter
     bool operator()(std::string_view &literal, Spec &spec);
 
   protected:
-    std::vector<Spec> const &_specs;         ///< Specifiers in format.
-    std::vector<Spec>::const_iterator _iter; ///< Current specifier.
+    /// Convert this to MemSpan
+    V _specs;         ///< Specifiers in format.
+    V::const_iterator _iter; ///< Current specifier.
   };
 
   /// Single extractor that generates a direct value.

@@ -43,6 +43,11 @@ Extractor::validate(Config &, Extractor::Spec &, TextView const &)
   return ActiveType{NIL, STRING};
 }
 
+bool Extractor::is_immediate() const
+{
+  return true;
+}
+
 Feature
 Extractor::extract(Config &, Extractor::Spec const &)
 {

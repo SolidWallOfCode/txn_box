@@ -55,6 +55,7 @@ public:
 
       union_type() { span = decltype(span){}; }                // default constructor.
       union_type(union_type const &that) { span = that.span; } // provide copy constructor for Spec constructors.
+      union_type & operator = (union_type const& that) = default;
     } _data;
   };
 
@@ -72,6 +73,11 @@ public:
    * Overriding is also required if the extractor needs to do configuration time initialization.
    */
   virtual swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg);
+
+  /// Can extractor be immediately extracted without transient memory?
+  /// Default implementation returns @a ctrue.
+  /// Extractors that need transient memory must override this to return @c false.
+  virtual bool is_immediate() const;
 
   /** Extract the feature from the @a ctx.
    *
