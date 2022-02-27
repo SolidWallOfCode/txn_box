@@ -37,12 +37,6 @@ Extractor::define(TextView name, self_type *ex)
   return {};
 }
 
-bool
-Extractor::has_ctx_ref() const
-{
-  return false;
-}
-
 swoc::Rv<ActiveType>
 Extractor::validate(Config &, Extractor::Spec &, TextView const &)
 {

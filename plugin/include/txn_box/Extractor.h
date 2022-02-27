@@ -73,18 +73,6 @@ public:
    */
   virtual swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg);
 
-  /** Whether the extractor uses data from the context.
-   *
-   * This is important for @c DIRECT features - if there is a potential reference to that value
-   * in another directive, it must be "upgraded" to a @c VIEW to avoid using changed or invalid data.
-   * The default implementation returns @c false.
-   *
-   * @return @c true if the extractor uses the context, @c false otherwise.
-   */
-  virtual bool has_ctx_ref() const;
-
-  /// @}
-
   /** Extract the feature from the @a ctx.
    *
    * @param ctx Runtime context.
