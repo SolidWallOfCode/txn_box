@@ -169,13 +169,13 @@ Context::operator()(swoc::BufferWriter &w, Extractor::Spec const &spec)
 }
 
 Feature
-Expr::bwf_visitor::operator()(const Composite &comp)
+Expr::evaluator::operator()(const Composite &comp)
 {
   return _ctx.render_transient([&](BufferWriter &w) { w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx)); });
 }
 
 Feature
-Expr::bwf_visitor::operator()(List const &list)
+Expr::evaluator::operator()(List const &list)
 {
   feature_type_for<TUPLE> expr_tuple = _ctx.alloc_span<Feature>(list._exprs.size());
   unsigned idx                       = 0;
@@ -190,7 +190,7 @@ Expr::bwf_visitor::operator()(List const &list)
 Feature
 Context::extract(Expr const &expr)
 {
-  auto value = std::visit(Expr::bwf_visitor(*this), expr._raw);
+  auto value = std::visit(Expr::evaluator(*this), expr._raw);
   for (auto const &mod : expr._mods) {
     value = (*mod)(*this, value);
   }

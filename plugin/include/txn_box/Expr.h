@@ -161,27 +161,31 @@ public:
     return _raw.index() == LITERAL;
   }
 
-  struct bwf_visitor {
-    bwf_visitor(Context &ctx) : _ctx(ctx) {}
+  /** Visitor to evaluate an expression.
+   * Requires a @c Context for the extractors.
+   */
+  struct evaluator {
+    /// Constructor instance for @a ctx.
+    evaluator(Context &ctx) : _ctx(ctx) {}
 
-    Feature
-    operator()(std::monostate const &)
-    {
-      return NIL_FEATURE;
-    }
-    Feature
-    operator()(Feature const &f)
-    {
-      return f;
-    }
-    Feature
-    operator()(Direct const &d)
-    {
-      return d._spec._exf->extract(_ctx, d._spec);
-    }
+    /// Monostate is always @c NIL.
+    Feature operator()(std::monostate const &) { return NIL_FEATURE; }
+
+    /// If it's already a feature, done.
+    Feature operator()(Feature const &f) { return f; }
+
+    /// Direct access to external memory.
+    /// Accessor is stored in @a _exf in the @c Spec.
+    Feature operator()(Direct const &d) { return d._spec._exf->extract(_ctx, d._spec); }
+
+    /// Expression with multiple extractors.
+    /// This will always evaluate to a string.
     Feature operator()(Composite const &comp);
+
+    /// List / tuple of expressions.
     Feature operator()(List const &list);
 
+    ///< Context in which to evaluate.
     Context &_ctx;
   };
 };
