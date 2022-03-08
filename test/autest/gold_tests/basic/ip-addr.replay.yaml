@@ -16,6 +16,20 @@ meta:
           do:
           - txn-conf<proxy.config.http.insert_request_via_str>: 1
           - ua-req-field<via>: [ ua-req-field<via> , { concat: [ "," , "non-standard loopback" ] } ]
+    - when: proxy-req
+      do:
+      - with: outbound-addr-remote
+        select:
+        - eq: 127.0.0.1
+          do:
+          - proxy-req-field<outbound-addr-remote>: "Smoke-Test-Ok"
+    - when: proxy-req
+      do:
+      - with: outbound-addr-local
+        select:
+        - eq: 127.0.0.1
+          do:
+          - proxy-req-field<outbound-addr-local>: "Smoke-Test-Ok"
 
 
   blocks:
@@ -46,6 +60,8 @@ sessions:
       headers:
         fields:
         - [ "via", { value: "traffic_server", as: contains } ]
+        - [ "outbound-addr-local", { value: "Smoke-Test-Ok", as: equal } ]
+        - [ "outbound-addr-remote", { value: "Smoke-Test-Ok", as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

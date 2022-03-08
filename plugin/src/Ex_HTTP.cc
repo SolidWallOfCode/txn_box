@@ -1329,6 +1329,56 @@ Ex_outbound_txn_count::extract(Context &ctx, Extractor::Spec const &)
   return static_cast<feature_type_for<INTEGER>>(ctx._txn.outbound_txn_count());
 }
 /* ------------------------------------------------------------------------------------ */
+/// Extract the transaction remote address.
+class Ex_outbound_addr_remote : public Extractor
+{
+public:
+  static constexpr TextView NAME{"outbound-addr-remote"};
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, TextView const &arg) override;
+  Feature extract(Context &ctx, Spec const &spec) override;
+};
+
+Rv<ActiveType>
+Ex_outbound_addr_remote::validate(Config &, Extractor::Spec &, TextView const &)
+{
+  return ActiveType{NIL, IP_ADDR};
+}
+
+Feature
+Ex_outbound_addr_remote::extract(Context &ctx, Spec const &)
+{
+  if (auto endpoint = ctx._txn.outbound_remote_addr(); endpoint.is_valid()) {
+    return swoc::IPAddr{endpoint};
+  }
+
+  return NIL_FEATURE;
+}
+/* ------------------------------------------------------------------------------------ */
+/// Extract the transaction local address.
+class Ex_outbound_addr_local : public Extractor
+{
+public:
+  static constexpr TextView NAME{"outbound-addr-local"};
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, TextView const &arg) override;
+  Feature extract(Context &ctx, Spec const &spec) override;
+};
+
+Rv<ActiveType>
+Ex_outbound_addr_local::validate(Config &, Extractor::Spec &, TextView const &)
+{
+  return ActiveType{NIL, IP_ADDR};
+}
+
+Feature
+Ex_outbound_addr_local::extract(Context &ctx, Spec const &)
+{
+  if (auto endpoint = ctx._txn.outbound_local_addr(); endpoint.is_valid()) {
+    return swoc::IPAddr{endpoint};
+  }
+
+  return NIL_FEATURE;
+}
+/* ------------------------------------------------------------------------------------ */
 namespace
 {
 // Extractors aren't constructed, they are always named references to singletons.
@@ -1396,6 +1446,8 @@ Ex_upstream_rsp_status upstream_rsp_status;
 Ex_proxy_rsp_status_reason proxy_rsp_status_reason;
 Ex_upstream_rsp_status_reason upstream_rsp_status_reason;
 Ex_outbound_txn_count outbound_txn_count;
+Ex_outbound_addr_remote outbound_addr_remote;
+Ex_outbound_addr_local outbound_addr_local;
 
 
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
@@ -1456,6 +1508,8 @@ Ex_outbound_txn_count outbound_txn_count;
   Extractor::define(Ex_proxy_rsp_status_reason::NAME, &proxy_rsp_status_reason);
   Extractor::define(Ex_upstream_rsp_status_reason::NAME, &upstream_rsp_status_reason);
   Extractor::define(Ex_outbound_txn_count::NAME, &outbound_txn_count);
+  Extractor::define(Ex_outbound_addr_remote::NAME, &outbound_addr_remote);
+  Extractor::define(Ex_outbound_addr_local::NAME, &outbound_addr_local);
 
   Extractor::define(Ex_ua_req_field::NAME, &ua_req_field);
   Extractor::define(Ex_proxy_req_field::NAME, &proxy_req_field);

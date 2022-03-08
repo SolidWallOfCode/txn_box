@@ -759,6 +759,26 @@ int ts::HttpTxn::inbound_fd() const {
   return result != TS_SUCCESS ? -1 : fd;
 }
 
+swoc::IPEndpoint
+ts::HttpTxn::outbound_local_addr() const
+{
+  if (auto addr = TSHttpTxnOutgoingAddrGet(_txn); addr) {
+    return swoc::IPEndpoint{addr};
+  }
+
+  return {};
+}
+
+swoc::IPEndpoint
+ts::HttpTxn::outbound_remote_addr() const
+{
+  if (auto addr = TSHttpTxnServerAddrGet(_txn); addr) {
+    return swoc::IPEndpoint{addr};
+  }
+
+  return {};
+}
+
 Errata
 ts::HttpTxn::cache_key_assign(TextView const &key)
 {
