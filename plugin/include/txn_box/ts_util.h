@@ -719,6 +719,12 @@ public:
    */
   int inbound_fd() const;
 
+  /// @return The local address for the outbound transaction.
+  swoc::IPEndpoint outbound_local_addr() const;
+
+  /// @return The remote address for the outbound transaction.
+  swoc::IPEndpoint outbound_remote_addr() const;
+
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 
