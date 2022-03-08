@@ -633,6 +633,16 @@ Session
    For ATS versions before 10, this will return `0` and the value should not be taken
    into consideration to determine connection reuse.
 
+.. extractor:: outbound-addr-remote
+   :result: IP address
+
+   The address of the origin server for a transaction.
+
+.. extractor:: outbound-addr-local
+   :result: IP address
+
+   The local address of the server connection for a transaction.
+
 .. _ex-duration:
 
 Duration
