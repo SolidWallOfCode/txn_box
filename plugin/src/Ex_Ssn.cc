@@ -98,7 +98,11 @@ Ex_inbound_addr_remote::validate(Config &, Extractor::Spec &, TextView const &)
 Feature
 Ex_inbound_addr_remote::extract(Context &ctx, Spec const &)
 {
-  return swoc::IPAddr(ctx.inbound_ssn().addr_remote());
+  if (auto addr = ctx.inbound_ssn().addr_remote(); addr) {
+    return swoc::IPAddr{addr};
+  }
+
+  return NIL_FEATURE;
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session local address.
@@ -119,7 +123,11 @@ Ex_inbound_addr_local::validate(Config &, Extractor::Spec &, TextView const &)
 Feature
 Ex_inbound_addr_local::extract(Context &ctx, Spec const &)
 {
-  return swoc::IPAddr(ctx.inbound_ssn().addr_local());
+  if (auto addr = ctx.inbound_ssn().addr_local(); addr) {
+    return swoc::IPAddr{addr};
+  }
+
+  return NIL_FEATURE;
 }
 /* ------------------------------------------------------------------------------------ */
 class Ex_has_inbound_protocol_prefix : public Extractor

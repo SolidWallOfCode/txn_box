@@ -741,16 +741,16 @@ ts::HttpSsn::proto_contains(const swoc::TextView &tag) const
   return {result, result ? strlen(result) : 0};
 }
 
-swoc::IPEndpoint
+sockaddr const *
 ts::HttpSsn::addr_remote() const
 {
-  return swoc::IPEndpoint{TSHttpSsnClientAddrGet(_ssn)};
+  return TSHttpSsnClientAddrGet(_ssn);
 }
 
-swoc::IPEndpoint
+sockaddr const *
 ts::HttpSsn::addr_local() const
 {
-  return swoc::IPEndpoint{TSHttpSsnIncomingAddrGet(_ssn)};
+  return TSHttpSsnIncomingAddrGet(_ssn);
 }
 
 int ts::HttpTxn::inbound_fd() const {
@@ -759,24 +759,16 @@ int ts::HttpTxn::inbound_fd() const {
   return result != TS_SUCCESS ? -1 : fd;
 }
 
-swoc::IPEndpoint
+sockaddr const *
 ts::HttpTxn::outbound_local_addr() const
 {
-  if (auto addr = TSHttpTxnOutgoingAddrGet(_txn); addr) {
-    return swoc::IPEndpoint{addr};
-  }
-
-  return {};
+  return TSHttpTxnOutgoingAddrGet(_txn);
 }
 
-swoc::IPEndpoint
+sockaddr const *
 ts::HttpTxn::outbound_remote_addr() const
 {
-  if (auto addr = TSHttpTxnServerAddrGet(_txn); addr) {
-    return swoc::IPEndpoint{addr};
-  }
-
-  return {};
+  return TSHttpTxnServerAddrGet(_txn);
 }
 
 Errata

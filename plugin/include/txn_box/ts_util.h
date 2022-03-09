@@ -496,10 +496,10 @@ public:
   int protocol_stack(swoc::MemSpan<char const *> tags) const;
 
   /// @return The remote address of the session.
-  swoc::IPEndpoint addr_remote() const;
+  sockaddr const *addr_remote() const;
 
   /// @return The local address of the session.
-  swoc::IPEndpoint addr_local() const;
+  sockaddr const *addr_local() const;
 
   /** The SSL context for the session.
    *
@@ -720,10 +720,10 @@ public:
   int inbound_fd() const;
 
   /// @return The local address of the server connection for a transaction.
-  swoc::IPEndpoint outbound_local_addr() const;
+  sockaddr const *outbound_local_addr() const;
 
   /// @return The address of the origin server for a transaction.
-  swoc::IPEndpoint outbound_remote_addr() const;
+  sockaddr const *outbound_remote_addr() const;
 
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
