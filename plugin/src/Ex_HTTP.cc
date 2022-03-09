@@ -1347,8 +1347,8 @@ Ex_outbound_addr_remote::validate(Config &, Extractor::Spec &, TextView const &)
 Feature
 Ex_outbound_addr_remote::extract(Context &ctx, Spec const &)
 {
-  if (auto endpoint = ctx._txn.outbound_remote_addr(); endpoint.is_valid()) {
-    return swoc::IPAddr{endpoint};
+  if (auto addr = ctx._txn.outbound_remote_addr(); addr) {
+    return swoc::IPAddr{addr};
   }
 
   return NIL_FEATURE;
@@ -1372,8 +1372,8 @@ Ex_outbound_addr_local::validate(Config &, Extractor::Spec &, TextView const &)
 Feature
 Ex_outbound_addr_local::extract(Context &ctx, Spec const &)
 {
-  if (auto endpoint = ctx._txn.outbound_local_addr(); endpoint.is_valid()) {
-    return swoc::IPAddr{endpoint};
+  if (auto addr = ctx._txn.outbound_local_addr(); addr) {
+    return swoc::IPAddr{addr};
   }
 
   return NIL_FEATURE;
