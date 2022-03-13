@@ -420,6 +420,17 @@ public:
    */
   swoc::TextView localize_as_c_str(swoc::TextView text);
 
+  /** Pre-fetched features for feature expression evaluation.
+   *
+   * @return A reference to the @c Feature span.
+   *
+   * @internal A reference is necessary so that it can be assigned and restored
+   * recursively during evaluation.
+   */
+  swoc::MemSpan<Feature>& expr_pre_fetch() {
+    return _expr_pre_fetch;
+  }
+
   /// Clear transaction headers - not reliable across hooks.
   void clear_cache();
 
@@ -547,6 +558,13 @@ protected:
 
   /// Active full to which the capture groups refer.
   FeatureView _rxp_src;
+
+  /** Used for pre-fetching during feature expression evaluation.
+   * If extractors need to be pre-fetched, the results are stored in a span which needs to be
+   * accessible to extractors during expression evaluation.
+   * @internal This is not great, but other approaches were much worse.
+   */
+  swoc::MemSpan<Feature> _expr_pre_fetch = nullptr;
 
   /// Additional clean up needed when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;

@@ -66,7 +66,13 @@ Extractor::find(TextView const &name)
   auto spot{_ex_table.find(name)};
   return spot == _ex_table.end() ? nullptr : spot->second;
 }
-
+/* ---------------------------------------------------------------------------------------------- */
+Feature
+Ex_PreFetch::extract(Context &ctx, Extractor::Spec const &spec)
+{
+  auto pf = ctx.expr_pre_fetch();
+  return pf[spec._data.u];
+}
 /* ---------------------------------------------------------------------------------------------- */
 auto
 FeatureGroup::Tracking::find(swoc::TextView const &name) const -> Tracking::Info *
@@ -150,7 +156,7 @@ FeatureGroup::load_expr(Config &cfg, Tracking &tracking, Tracking::Info *info, Y
     Errata
     operator()(Expr::Composite &c)
     {
-      for (auto &spec : c._specs) {
+      for (auto & spec : c._specs) {
         auto errata = this->load_spec(spec);
         if (!errata.is_ok()) {
           return errata;
@@ -434,4 +440,6 @@ cdr(Feature &feature)
   }
   return feature;
 }
+/* ---------------------------------------------------------------------------------------------- */
+Ex_PreFetch ex_prefetch;
 /* ---------------------------------------------------------------------------------------------- */

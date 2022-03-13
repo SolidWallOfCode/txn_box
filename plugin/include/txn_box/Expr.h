@@ -24,10 +24,11 @@ public:
   /// Output generator for BWF on an expression.
   class bwf_ex
   {
-    using V = swoc::MemSpan<Spec const>;
+    using V = swoc::MemSpan<Spec>;
   public:
     /// Construct with specifier sequence.
-    bwf_ex(std::vector<Spec> const& specs) : _specs(specs.data(), specs.size()), _iter(_specs.begin()) {}
+    bwf_ex(std::vector<Spec> & specs) : _specs(specs.data(), specs.size()), _iter(_specs.begin()) {}
+    bwf_ex(V specs) : _specs(specs), _iter(_specs.begin()) {}
 
     /// Validity check.
     explicit operator bool() const { return _iter != _specs.end(); }
@@ -39,7 +40,7 @@ public:
   protected:
     /// Convert this to MemSpan
     V _specs;         ///< Specifiers in format.
-    V::const_iterator _iter; ///< Current specifier.
+    V::iterator _iter; ///< Current specifier.
   };
 
   /// Single extractor that generates a direct value.
@@ -53,7 +54,9 @@ public:
   /// Always a string.
   struct Composite {
     /// Specifiers / elements of the parsed format string.
-    std::vector<Spec> _specs;
+    swoc::MemSpan<Spec> _specs;
+    /// Specifiers that need to be pre-fetched.
+    swoc::MemSpan<Spec> _pre_fetch;
   };
 
   struct List {
@@ -106,64 +109,26 @@ public:
    * @param spec Specifier
    * @param t Result type of expression.
    */
-  Expr(Spec const &spec, ActiveType t)
-  {
-    _raw.emplace<DIRECT>(spec, t);
-    _max_arg_idx = spec._idx;
-  }
+  Expr(Spec const &spec, ActiveType t);
 
-  ActiveType
-  result_type() const
-  {
-    struct Visitor {
-      ActiveType
-      operator()(std::monostate const &)
-      {
-        return {};
-      }
-      ActiveType
-      operator()(Feature const &f)
-      {
-        return f.active_type();
-      }
-      ActiveType
-      operator()(Direct const &d)
-      {
-        return d._result_type;
-      }
-      ActiveType
-      operator()(Composite const &)
-      {
-        return STRING;
-      }
-      ActiveType
-      operator()(List const &l)
-      {
-        return ActiveType{ActiveType::TupleOf(l._types.base_types())};
-      }
-    };
-    ActiveType zret = std::visit(Visitor{}, _raw);
-    for (auto const &mod : _mods) {
-      zret = mod->result_type(zret);
-    }
-    return zret;
-  }
+  /// The type of evaluating the expression.
+  ActiveType result_type() const;
 
   bool
   empty() const
   {
     return _raw.index() == NO_EXPR;
   }
+
   bool
   is_null() const
   {
     return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL;
   }
+
+  /// @return @c true if this is a literal expression, @c false otherwise.
   bool
-  is_literal() const
-  {
-    return _raw.index() == LITERAL;
-  }
+  is_literal() const;
 
   /** Visitor to evaluate an expression.
    * Requires a @c Context for the extractors.
@@ -193,3 +158,29 @@ public:
     Context &_ctx;
   };
 };
+
+inline Expr::Expr(Expr::Spec const &spec, ActiveType t)
+{
+  _raw.emplace<DIRECT>(spec, t);
+  _max_arg_idx = spec._idx;
+}
+
+inline ActiveType
+Expr::result_type() const
+{
+  /// Visitor support for determining the result type of an expression.
+  struct Visitor {
+    ActiveType operator()(std::monostate const &) { return {}; }
+    ActiveType operator()(Feature const &f) { return f.active_type(); }
+    ActiveType operator()(Direct const &d) { return d._result_type; }
+    ActiveType operator()(Composite const &) { return STRING; }
+    ActiveType operator()(List const &l) { return ActiveType{ActiveType::TupleOf(l._types.base_types())}; }
+  };
+  ActiveType zret = std::visit(Visitor{}, _raw);
+  for (auto const &mod : _mods) {
+    zret = mod->result_type(zret);
+  }
+  return zret;
+}
+
+inline bool Expr::is_literal() const {  return _raw.index() == LITERAL; }

@@ -446,11 +446,11 @@ public:
   template <typename... Rest> ActiveType(ValueType vt, Rest &&... rest);
   template <typename... Rest> ActiveType(TupleOf const &tt, Rest &&... rest);
 
+  self_type &operator=(self_type const& that) = default;
   self_type &operator=(ValueType vt);
   self_type &operator=(TupleOf const &tt);
   self_type &operator|=(ValueType vt);
-  self_type &
-  operator|=(ValueMask vtypes)
+  self_type &operator|=(ValueMask vtypes)
   {
     _base_type |= vtypes;
     return *this;
@@ -900,6 +900,13 @@ inline Finalizer::Finalizer(void *ptr, std::function<void(void *)> &&f) : _ptr(p
 /** Scoping value change.
  *
  * @tparam T Type of variable to scope.
+ *
+ * Given
+ * @code
+ * let guard(thing, value);
+ * @endcode
+ * @c thing is set to @a value until end of the declaration scope, at which point it is restored
+ * to its state before the assignment of @c value. The purpose is to scope the assignment.
  */
 template <typename T> struct let {
   T &_var;  ///< Reference to scoped variable.
@@ -933,7 +940,7 @@ template <typename T> let<T>::let(T &var, T &&value) : _var(var), _value(std::mo
 
 template <typename T> let<T>::~let()
 {
-  _var = _value;
+  _var = std::move(_value);
 }
 
 // BufferWriter support.

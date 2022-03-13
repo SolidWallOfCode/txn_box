@@ -170,3 +170,11 @@ class StringExtractor : public Extractor
 public:
   Feature extract(Context &ctx, Spec const &spec) override;
 };
+
+/** Extract pre-fetched feature.
+ * @note Internal use only!
+ */
+class Ex_PreFetch : public Extractor {
+public:
+  Feature extract(Context &ctx, Spec const &spec) override;
+};

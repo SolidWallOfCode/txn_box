@@ -121,6 +121,7 @@ Context::invoke_for_hook(Hook hook)
       handle->invoke(*this); // need to log errors here.
     }
   }
+  // Then any callbacks added by the directives.
   this->invoke_callbacks();
 
   _cur_hook = Hook::INVALID;
@@ -131,8 +132,9 @@ Context::invoke_for_hook(Hook hook)
 Errata
 Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri)
 {
-  _cur_hook   = Hook::REMAP;
-  _remap_info = rri;
+  let rri_guard(_remap_info, rri);
+  let hook_guard(_cur_hook, Hook::REMAP);
+
   this->clear_cache();
   this->rxp_match_require(rule_cfg._capture_groups);
 
@@ -155,10 +157,6 @@ Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri)
   }
   this->invoke_callbacks(); // Any accumulated callbacks.
 
-  // Revert from remap style invocation.
-  _cur_hook   = Hook::INVALID;
-  _remap_info = nullptr;
-
   return {};
 }
 
@@ -171,6 +169,14 @@ Context::operator()(swoc::BufferWriter &w, Extractor::Spec const &spec)
 Feature
 Expr::evaluator::operator()(const Composite &comp)
 {
+  MemSpan<Feature> span = comp._pre_fetch.size() ? _ctx.alloc_span<Feature>(comp._pre_fetch.size()) : MemSpan<Feature>{};
+  let guard(_ctx.expr_pre_fetch(), span);
+  auto fspot = span.begin();
+  for (Spec const& s : comp._pre_fetch) {
+    *fspot = s._exf->extract(_ctx, s);
+    _ctx.commit(*fspot);
+    ++fspot;
+  }
   return _ctx.render_transient([&](BufferWriter &w) { w.print_nfv(_ctx, bwf_ex{comp._specs}, Context::ArgPack(_ctx)); });
 }
 

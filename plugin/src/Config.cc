@@ -31,6 +31,7 @@ using swoc::TextView;
 using swoc::Errata;
 using swoc::Rv;
 using swoc::BufferWriter;
+using swoc::MemSpan;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
@@ -287,6 +288,7 @@ Config::parse_unquoted_expr(swoc::TextView const &text)
 Rv<Expr>
 Config::parse_composite_expr(TextView const &text)
 {
+  extern Ex_PreFetch ex_prefetch;
   ActiveType single_vt;
   auto parser{swoc::bwf::Format::bind(text)};
   std::vector<Extractor::Spec> specs; // hold the specifiers during parse.
@@ -341,12 +343,38 @@ Config::parse_composite_expr(TextView const &text)
     }
     // else it's an indexed specifier, treat as a composite.
   }
-  // Multiple specifiers, check for overall properties.
+
+  // Multiple specifiers, check for overall properties and gather up in configuration
+  // allocated space.
   Expr expr;
   auto &cexpr  = expr._raw.emplace<Expr::COMPOSITE>();
-  cexpr._specs = std::move(specs);
-  for (auto const &s : specs) {
+  cexpr._specs = this->alloc_span<Extractor::Spec>(specs.size());
+  cexpr._pre_fetch = MemSpan<Extractor::Spec>(); // Make sure it has a valid value.
+  auto spot = cexpr._specs.data();
+  // Need to be careful - absent this it would be possible for specs in the pre-fetch span
+  // to be in different arena blocks.
+  auto pf_spot = _arena.require(specs.size() * sizeof(Extractor::Spec)).remnant().rebind<Extractor::Spec>().data();
+  size_t pre_fetch_count = 0;
+  for (auto &s : specs) {
     expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
+    if (s._exf && ! s._exf->is_immediate()) {
+      // This extractor may require transient memory. That can conflict with the use
+      // by this composite, therefore those must be evaluated first. To do that each is
+      // replaced with an extractor to fetch the cached value and the original extractor moved
+      // to the pre-fetch list.
+      *pf_spot++ = s;
+      // Copy the base spec, but tweak it to use the prefetch extractor.
+      *spot = s; // copy base specification
+      s._data.u = pre_fetch_count; // index in the pre fetch data.
+      s._exf = &ex_prefetch; // Something - can't be the original.
+      ++spot;
+      ++pre_fetch_count;
+    } else {
+      *spot++ = s;
+    }
+  }
+  if (pre_fetch_count) { // if any prefetch extractors, preserve them.
+    cexpr._pre_fetch = _arena.alloc_span<Extractor::Spec>(pre_fetch_count);
   }
 
   return expr;
@@ -409,7 +437,9 @@ Config::parse_expr(YAML::Node expr_node)
   std::string_view expr_tag(expr_node.Tag());
 
   // This is the base entry method, so it needs to handle all cases, although most of them
-  // will be delegated. Handle the direct / simple special cases here.
+  // will be delegated, because that makes recursive descent parsing easy.
+  //
+  // Handle the direct / simple special cases here.
 
   if (expr_node.IsNull()) { // explicit NULL
     return Expr{NIL_FEATURE};
@@ -424,13 +454,13 @@ Config::parse_expr(YAML::Node expr_node)
     return Expr{FeatureView::Literal(this->localize(expr_node.Scalar()))};
   } else if (0 == strcasecmp(expr_tag, DURATION_TAG)) {
     if (!expr_node.IsScalar()) {
-      return Errata(S_ERROR,R"("!{}" tag used on value at {} which is not a string as required for a literal.)", LITERAL_TAG,
+      return Errata(S_ERROR,R"("!{}" tag requires the value at {} to be a literal string.)", LITERAL_TAG,
                    expr_node.Mark());
     }
     auto &&[dt, dt_errata]{Feature{expr_node.Scalar()}.as_duration()};
     return {Expr(dt), std::move(dt_errata)};
   } else if (0 != strcasecmp(expr_tag, "?"_sv) && 0 != strcasecmp(expr_tag, "!"_sv)) {
-    return Errata(S_ERROR,R"("{}" tag for extractor expression is not supported.)", expr_tag);
+    return Errata(S_ERROR,R"("!{}" tag for extractor expression is not supported.)", expr_tag);
   }
 
   if (expr_node.IsScalar()) {
