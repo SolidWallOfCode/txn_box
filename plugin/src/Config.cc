@@ -349,22 +349,26 @@ Config::parse_composite_expr(TextView const &text)
   Expr expr;
   auto &cexpr  = expr._raw.emplace<Expr::COMPOSITE>();
   cexpr._specs = this->alloc_span<Extractor::Spec>(specs.size());
-  cexpr._pre_fetch = MemSpan<Extractor::Spec>(); // Make sure it has a valid value.
   auto spot = cexpr._specs.data();
+
+  // Must avoid multiple use of transient memory. If any of the extractors require transient
+  // memory, those extractors must be evaluated before the full expression evaluation.
+  // This logic pulls them out of the base specs, replaces them with a feature reference extractor,
+  // and puts them in the @c pre_fetch array. At run time those are evaluated and the resulting
+  // features put in an array, which the replacement extractors use, each replacement having
+  // the corresponding array index.
+
   // Need to be careful - absent this it would be possible for specs in the pre-fetch span
   // to be in different arena blocks.
-  auto pf_spot = _arena.require(specs.size() * sizeof(Extractor::Spec)).remnant().rebind<Extractor::Spec>().data();
+  auto pf_size = specs.size() * sizeof(Extractor::Spec);
+  auto pf_spot = _arena.require(pf_size).remnant().subspan(0, pf_size).rebind<Extractor::Spec>().data();
   size_t pre_fetch_count = 0;
   for (auto &s : specs) {
     expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
-    if (s._exf && ! s._exf->is_immediate()) {
-      // This extractor may require transient memory. That can conflict with the use
-      // by this composite, therefore those must be evaluated first. To do that each is
-      // replaced with an extractor to fetch the cached value and the original extractor moved
-      // to the pre-fetch list.
+    if (s._exf && ! s._exf->is_immediate()) { // needs transient memory, move it.
       *pf_spot++ = s;
       // Copy the base spec, but tweak it to use the prefetch extractor.
-      *spot = s; // copy base specification
+      *spot = s; // copy base specification - used for pre-fetch evaluation.
       s._data.u = pre_fetch_count; // index in the pre fetch data.
       s._exf = &ex_prefetch; // Something - can't be the original.
       ++spot;
