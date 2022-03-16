@@ -34,9 +34,9 @@ add_library(plugin SHARED
 set_property(TARGET plugin PROPERTY PREFIX "")
 set_property(TARGET plugin PROPERTY OUTPUT_NAME "txn_box")
 
-target_link_libraries(plugin PUBLIC PkgConfig::swoc PkgConfig::yaml-cpp pcre2-8)
+target_link_libraries(plugin PRIVATE libswoc pcre2-8)
 target_include_directories(plugin PUBLIC include)
-target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include ${trafficserver_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})
+target_include_directories(plugin PRIVATE ${PLUGIN_SOURCE_DIR}/include ${trafficserver_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR}, libswoc)
 if (CMAKE_COMPILER_IS_GNUCXX)
     target_compile_options(plugin PRIVATE -Wall -Wextra -Werror -Wnon-virtual-dtor)
 endif()
