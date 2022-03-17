@@ -872,7 +872,7 @@ Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::N
     errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
-  return Handle(new self_type{std::move(expr), arg, info._drtv});
+  return Handle(new self_type{std::move(expr), cfg.localize(arg), info._drtv});
 }
 
 Rv<Feature>
