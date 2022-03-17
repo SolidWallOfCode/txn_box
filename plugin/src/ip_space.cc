@@ -922,10 +922,10 @@ public:
 
   Feature extract(Context &ctx, Spec const &spec) override;
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
-
 protected:
   static constexpr auto INVALID_IDX = Do_ip_space_define::INVALID_IDX;
+  // Data cached from configuration parsing.
+  // For remap, the @a _idx is left invalid and the column name stored in @a _arg.
   struct Info {
     unsigned _idx = INVALID_IDX; ///< Column index.
     TextView _arg;               ///< Argument name for use in remap / lazy lookup.
@@ -1028,12 +1028,6 @@ Ex_ip_col::extract(Context &ctx, const Spec &spec)
     }
   }
   return NIL_FEATURE;
-}
-
-BufferWriter &
-Ex_ip_col::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */

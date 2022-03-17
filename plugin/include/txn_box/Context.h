@@ -361,8 +361,7 @@ public:
   ts::HttpResponse upstream_rsp_hdr(); ///< @return upstream request.
   ts::HttpResponse proxy_rsp_hdr();    ///< @return proxy response.
 
-  ts::HttpSsn inbound_ssn();
-  ; ///< Inbound session.
+  ts::HttpSsn inbound_ssn(); ///< Inbound session.
 
   /** Store a transaction variable.
    *
