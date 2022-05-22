@@ -738,8 +738,7 @@ protected:
 
     /// @return An empty string if it is not a handled type.
     template <typename F>
-    auto
-    operator()(F const &) -> EnableForFeatureTypes<F, Rv<Feature>>
+    auto operator()(F const &) -> EnableForFeatureTypes<F, Rv<Feature>>
     {
       return _target;
     }

@@ -526,6 +526,11 @@ IPSpace
    path
       Path to the IP space data file.
 
+   duration
+      Time for which a loaded configuration is valid. After this time the file is checked and if the
+      modification time has become more recent, the file is reloaded. Standard duration notation
+      can be used for this value.
+
    columns
       A list of column definitions, each one a map. Each map can have the keys
 

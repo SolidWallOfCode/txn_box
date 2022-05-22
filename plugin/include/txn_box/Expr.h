@@ -127,8 +127,7 @@ public:
   }
 
   /// @return @c true if this is a literal expression, @c false otherwise.
-  bool
-  is_literal() const;
+  bool is_literal() const;
 
   /** Visitor to evaluate an expression.
    * Requires a @c Context for the extractors.

@@ -3686,7 +3686,7 @@ Do_with::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
 
   YAML::Node select_node{drtv_node[SELECT_KEY]};
   if (select_node) {
-    if (select_node.IsMap()) {
+    if (select_node.IsMap()) { // Single select - treat as list of length 1.
       errata = self->load_case(cfg, select_node);
       if (!errata.is_ok()) {
         return std::move(errata);
