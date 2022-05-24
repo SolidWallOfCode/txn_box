@@ -445,6 +445,8 @@ public:
   };
   ActiveType()                      = default;
   ActiveType(self_type const &that) = default;
+  self_type & operator = (self_type const& that) = default;
+
   ActiveType(ValueMask vtypes) : _base_type(vtypes){};
   template <typename... Rest> ActiveType(ValueType vt, Rest &&... rest);
   template <typename... Rest> ActiveType(TupleOf const &tt, Rest &&... rest);

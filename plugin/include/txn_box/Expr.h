@@ -97,6 +97,11 @@ public:
   Expr(Direct &&d) : _raw(std::move(d)) {}
   Expr(Composite &&comp) : _raw(std::move(comp)) {}
 
+  /** Construct @c DIRECT
+   *
+   * @param spec Specifier
+   * @param t Result type of expression.
+   */
   Expr(Spec const &spec, ActiveType t)
   {
     _raw.emplace<DIRECT>(spec, t);

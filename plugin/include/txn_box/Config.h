@@ -557,6 +557,11 @@ protected:
   /// Additional clean up to perform when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
 
+  /** Load a directive.
+   *
+   * @param drtv_node Node containing the directive.
+   * @return The directive.
+   */
   swoc::Rv<Directive::Handle> load_directive(YAML::Node const &drtv_node);
 
   /** Parse a scalar feature expression.
@@ -569,6 +574,14 @@ protected:
    */
   swoc::Rv<Expr> parse_scalar_expr(YAML::Node node);
 
+  /** Parse composite expression.
+   *
+   * @param text Input text.
+   * @return An expression.
+   *
+   * "Composite" means (potentially) more than one extractor. If there is only a single extractor
+   * the expression is reduced to immediate / direct expression as appropriate.
+   */
   swoc::Rv<Expr> parse_composite_expr(swoc::TextView const &text);
 
   /** Parse an unquoted feature expression.
@@ -579,6 +592,13 @@ protected:
    */
   swoc::Rv<Expr> parse_unquoted_expr(swoc::TextView const &text);
 
+  /** Parse an expression that contains modifiers.
+   *
+   * @param node Input node
+   * @return The expression with attached modifiers.
+   *
+   * @a node is expected to the the list node that is the expression and modifiers.
+   */
   swoc::Rv<Expr> parse_expr_with_mods(YAML::Node node);
 
   /** Update the (possible) extractor reference in @a spec.

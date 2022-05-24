@@ -289,7 +289,7 @@ Config::parse_composite_expr(TextView const &text)
 {
   ActiveType single_vt;
   auto parser{swoc::bwf::Format::bind(text)};
-  std::vector<Extractor::Spec> specs;
+  std::vector<Extractor::Spec> specs; // hold the specifiers during parse.
   // Used to handle literals in @a format_string. Can't be const because it must be updated
   // for each literal.
   Extractor::Spec literal_spec;
@@ -308,16 +308,14 @@ Config::parse_composite_expr(TextView const &text)
       return Errata(S_ERROR,"Invalid syntax.");
     }
 
-    if (!literal.empty()) {
-      // At some point this should be moved later, so that if it's singleton or a config time
-      // value it can be consolidated in a single view without doubling up.
+    if (!literal.empty()) { // leading literal text, add as specifier.
       literal_spec._ext = this->localize(literal, LOCAL_CSTR);
       specs.push_back(literal_spec);
     }
 
-    if (spec_p) {
+    if (spec_p) { // specifier present.
       if (spec._idx >= 0) {
-        specs.push_back(spec);
+        specs.push_back(spec); // group reference, store it.
       } else {
         auto &&[vt, errata] = this->validate(spec);
         if (errata.is_ok()) {
@@ -338,7 +336,7 @@ Config::parse_composite_expr(TextView const &text)
     } else if (specs[0]._type == Extractor::Spec::LITERAL_TYPE) {
       FeatureView f{specs[0]._ext};
       f._literal_p = true; // because it was localized when parsed from the composite.
-      f._cstr_p    = true;
+      f._cstr_p    = true; // and automatically null terminated.
       return Expr{f};
     }
     // else it's an indexed specifier, treat as a composite.
