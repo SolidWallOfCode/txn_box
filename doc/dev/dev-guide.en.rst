@@ -13,6 +13,7 @@ This section is for C++ developers working on or with |TxB|.
    :maxdepth: 1
 
    design.en
+   type-system.en
    memory-management.en
    dev-extractor.en
    dev-directive.en
