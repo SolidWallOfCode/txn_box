@@ -75,7 +75,7 @@ RxpOp::Cfg_Visitor::operator()(std::monostate)
 }
 
 Rv<RxpOp>
-RxpOp::Cfg_Visitor::operator()(Expr::Direct &d)
+RxpOp::Cfg_Visitor::operator()(Expr::Immediate &d)
 {
   return RxpOp(Expr(std::move(d)), _rxp_opt);
 }

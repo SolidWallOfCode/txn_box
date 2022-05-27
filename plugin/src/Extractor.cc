@@ -149,7 +149,7 @@ FeatureGroup::load_expr(Config &cfg, Tracking &tracking, Tracking::Info *info, Y
       return {};
     }
     Errata
-    operator()(Expr::Direct &d)
+    operator()(Expr::Immediate &d)
     {
       return this->load_spec(d._spec);
     }

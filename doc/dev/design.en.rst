@@ -161,7 +161,7 @@ the feature is referenced later, it needs to be stabilized. :code:`FeatureView` 
 
 *  Transient - the string exists only in the context local temporary memory.
 *  Literal - the string  is in the :code:`Config` local memory.
-*  Direct - the string is in external memory which is unstable.
+*  Immediate - the string is in external memory which is unstable.
 
 These are handled in different ways. ``Literal`` is the easiest - nothing needs to be done as the
 string (from the point of full of the transaction processing) is persistent. A ``direct`` string

@@ -24,11 +24,10 @@ public:
   /// Output generator for BWF on an expression.
   class bwf_ex
   {
-    using V = swoc::MemSpan<Spec>;
   public:
     /// Construct with specifier sequence.
     bwf_ex(std::vector<Spec> & specs) : _specs(specs.data(), specs.size()), _iter(_specs.begin()) {}
-    bwf_ex(V specs) : _specs(specs), _iter(_specs.begin()) {}
+    bwf_ex(swoc::MemSpan<Spec> specs) : _specs(specs), _iter(_specs.begin()) {}
 
     /// Validity check.
     explicit operator bool() const { return _iter != _specs.end(); }
@@ -38,16 +37,15 @@ public:
     bool operator()(std::string_view &literal, Spec &spec);
 
   protected:
-    /// Convert this to MemSpan
-    V _specs;         ///< Specifiers in format.
-    V::iterator _iter; ///< Current specifier.
+    swoc::MemSpan<Spec> _specs;         ///< Specifiers in format.
+    swoc::MemSpan<Spec>::iterator _iter; ///< Current specifier.
   };
 
-  /// Single extractor that generates a direct value.
-  struct Direct {
-    Direct(Spec const &spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
+  /// Immediate - single specifier / extractor.
+  struct Immediate {
+    Immediate(Spec const &spec, ActiveType rtype) : _spec(spec), _result_type(rtype) {}
     Spec _spec;                       ///< Specifier with extractor.
-    ActiveType _result_type = STRING; ///< Type of full, default is a string.
+    ActiveType _result_type = STRING; ///< Type of result, default is a string.
   };
 
   /// A composite of extractors and literals.
@@ -57,6 +55,9 @@ public:
     swoc::MemSpan<Spec> _specs;
     /// Specifiers that need to be pre-fetched.
     swoc::MemSpan<Spec> _pre_fetch;
+
+    /// Compute the maximum argument index.
+    int max_arg_idx() const;
   };
 
   struct List {
@@ -65,9 +66,6 @@ public:
     ActiveType _types; ///< Types of the expressions.
   };
 
-  using Raw = std::variant<std::monostate, Feature, Direct, Composite, List>;
-  /// Concrete types for a specific expression.
-  Raw _raw;
   /// Enumerations for type indices.
   enum {
     /// No value, uninitialized.
@@ -75,13 +73,18 @@ public:
     /// Literal value, stored in a Feature. No extraction needed.
     LITERAL = 1,
     /// A single extractor, directly accessed to get a Feature.
-    DIRECT = 2,
+    IMMEDIATE = 2,
     /// String value composed of multiple literals and/or extractors.
     COMPOSITE = 3,
     /// Nested expression - this expression is a sequence of other expressions.
     LIST = 4
   };
 
+  /// Variant for internal storage - must match up with type index enum.
+  using Raw = std::variant<std::monostate, Feature, Immediate, Composite, List>;
+
+  /// Concrete types for a specific expression.
+  Raw _raw;
   ///< Largest argument index. -1 => no numbered arguments.
   int _max_arg_idx = -1;
 
@@ -101,30 +104,24 @@ public:
    * The constructed instance will always be the literal @a f.
    */
   Expr(Feature const &f) : _raw(f) {}
-  Expr(Direct &&d) : _raw(std::move(d)) {}
-  Expr(Composite &&comp) : _raw(std::move(comp)) {}
+  Expr(Immediate &&d) : _raw(std::move(d)), _max_arg_idx(std::get<IMMEDIATE>(_raw)._spec._idx) {}
+  Expr(Composite &&comp) : _raw(std::move(comp)), _max_arg_idx(std::get<COMPOSITE>(_raw).max_arg_idx()) {}
 
-  /** Construct @c DIRECT
+  /** Construct @c IMMEDIATE
    *
    * @param spec Specifier
    * @param t Result type of expression.
    */
-  Expr(Spec const &spec, ActiveType t);
+  Expr(Expr::Spec const &spec, ActiveType t) : Expr(Immediate{spec, t}) {}
 
   /// The type of evaluating the expression.
   ActiveType result_type() const;
 
-  bool
-  empty() const
-  {
-    return _raw.index() == NO_EXPR;
-  }
+  /// @return @c true if there is no expression.
+  bool empty() const;
 
-  bool
-  is_null() const
-  {
-    return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL;
-  }
+  /// @return @c true if the expression is guaranteed to evaluate to @c NIL.
+  bool is_null() const;
 
   /// @return @c true if this is a literal expression, @c false otherwise.
   bool is_literal() const;
@@ -142,9 +139,8 @@ public:
     /// If it's already a feature, done.
     Feature operator()(Feature const &f) { return f; }
 
-    /// Direct access to external memory.
-    /// Accessor is stored in @a _exf in the @c Spec.
-    Feature operator()(Direct const &d) { return d._spec._exf->extract(_ctx, d._spec); }
+    /// Single extractor to be evaluated.
+    Feature operator()(Immediate const &d) { return d._spec._exf->extract(_ctx, d._spec); }
 
     /// Expression with multiple extractors.
     /// This will always evaluate to a string.
@@ -158,12 +154,6 @@ public:
   };
 };
 
-inline Expr::Expr(Expr::Spec const &spec, ActiveType t)
-{
-  _raw.emplace<DIRECT>(spec, t);
-  _max_arg_idx = spec._idx;
-}
-
 inline ActiveType
 Expr::result_type() const
 {
@@ -171,7 +161,7 @@ Expr::result_type() const
   struct Visitor {
     ActiveType operator()(std::monostate const &) { return {}; }
     ActiveType operator()(Feature const &f) { return f.active_type(); }
-    ActiveType operator()(Direct const &d) { return d._result_type; }
+    ActiveType operator()(Immediate const &d) { return d._result_type; }
     ActiveType operator()(Composite const &) { return STRING; }
     ActiveType operator()(List const &l) { return ActiveType{ActiveType::TupleOf(l._types.base_types())}; }
   };
@@ -183,3 +173,5 @@ Expr::result_type() const
 }
 
 inline bool Expr::is_literal() const {  return _raw.index() == LITERAL; }
+inline bool Expr::empty() const { return _raw.index() == NO_EXPR; }
+inline bool Expr::is_null() const { return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL; }

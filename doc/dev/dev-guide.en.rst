@@ -16,6 +16,7 @@ This section is for C++ developers working on or with |TxB|.
    memory-management.en
    dev-extractor.en
    dev-directive.en
+   dev-expr.en
 
 Reference
 *********

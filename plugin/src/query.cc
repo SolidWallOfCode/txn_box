@@ -127,7 +127,7 @@ query_value_update(Context &ctx, TextView qs, TextView name, Feature const &valu
 } // namespace
 /* ------------------------------------------------------------------------------------ */
 // Query string.
-// These have the @c extract method because it can be done as a @c Direct
+// These have the @c extract method because it can be done as a @c Immediate
 // value and that's better than running through the formatting.
 
 class QueryValueExtractor : public Extractor

@@ -533,3 +533,13 @@ Context::ArgPack::capture(unsigned) const
 {
   return "Bogus"_sv;
 }
+
+int
+Expr::Composite::max_arg_idx() const
+{
+  int zret = -1;
+  for ( auto const& spec : _specs ) {
+    zret = std::max<int>(zret, spec._idx);
+  }
+  return zret;
+}

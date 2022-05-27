@@ -49,7 +49,7 @@ public:
    * @param spec Format specifier.
    * @return The extracted feature.
    *
-   * This is called when the extractor is a @c Direct feature and therefore typed.
+   * This is called when the extractor is a @c Immediate feature and therefore typed.
    */
   Feature extract(Context &ctx, Spec const &spec) override;
 };

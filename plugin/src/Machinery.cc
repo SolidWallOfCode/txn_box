@@ -3596,7 +3596,7 @@ protected:
   union {
     uint32_t all = 0;
     struct {
-      unsigned for_each_p : 1; ///< Direct action is per tuple element.
+      unsigned for_each_p : 1; ///< Immediate action is per tuple element.
       unsigned continue_p : 1; ///< Continue with directives after this - want default to be 0.
     } f;
   } _opt;

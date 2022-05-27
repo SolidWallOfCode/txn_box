@@ -134,7 +134,7 @@ protected:
     Rv<RxpOp> operator()(std::monostate);
     Rv<RxpOp> operator()(Feature &f);
     Rv<RxpOp> operator()(Expr::List &l);
-    Rv<RxpOp> operator()(Expr::Direct &d);
+    Rv<RxpOp> operator()(Expr::Immediate &d);
     Rv<RxpOp> operator()(Expr::Composite &comp);
 
     Config &_cfg;          ///< Configuration being loaded.

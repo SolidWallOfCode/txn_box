@@ -694,7 +694,7 @@ Ex_proxy_req_path::extract(Context &ctx, Spec const &)
 }
 /* ------------------------------------------------------------------------------------ */
 // Fragment.
-// These have the @c extract method because it can be done as a @c Direct
+// These have the @c extract method because it can be done as a @c Immediate
 // value and that's better than running through the formatting.
 class Ex_ua_req_fragment : public StringExtractor
 {

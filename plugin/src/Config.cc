@@ -344,12 +344,8 @@ Config::parse_composite_expr(TextView const &text)
     // else it's an indexed specifier, treat as a composite.
   }
 
-  // Multiple specifiers, check for overall properties and gather up in configuration
-  // allocated space.
-  Expr expr;
-  auto &cexpr  = expr._raw.emplace<Expr::COMPOSITE>();
-  cexpr._specs = this->alloc_span<Extractor::Spec>(specs.size());
-  auto spot = cexpr._specs.data();
+  auto spec_span = this->alloc_span<Extractor::Spec>(specs.size());
+  auto spec_spot = spec_span.data();
 
   // Must avoid multiple use of transient memory. If any of the extractors require transient
   // memory, those extractors must be evaluated before the full expression evaluation.
@@ -359,29 +355,30 @@ Config::parse_composite_expr(TextView const &text)
   // the corresponding array index.
 
   // Need to be careful - absent this it would be possible for specs in the pre-fetch span
-  // to be in different arena blocks.
+  // to be in different arena blocks and then there's no valid span.
   auto pf_size = specs.size() * sizeof(Extractor::Spec);
   auto pf_spot = _arena.require(pf_size).remnant().subspan(0, pf_size).rebind<Extractor::Spec>().data();
   size_t pre_fetch_count = 0;
   for (auto &s : specs) {
-    expr._max_arg_idx = std::max(expr._max_arg_idx, s._idx);
     if (s._exf && ! s._exf->is_immediate()) { // needs transient memory, move it.
       *pf_spot++ = s;
       // Copy the base spec, but tweak it to use the prefetch extractor.
-      *spot = s; // copy base specification - used for pre-fetch evaluation.
+      *spec_spot = s; // copy base specification - used for pre-fetch evaluation.
       s._data.u = pre_fetch_count; // index in the pre fetch data.
       s._exf = &ex_prefetch; // Something - can't be the original.
-      ++spot;
+      ++spec_spot;
       ++pre_fetch_count;
     } else {
-      *spot++ = s;
+      *spec_spot++ = s;
     }
   }
+
+  MemSpan<Extractor::Spec> pf_span; // if no prefetch, this remains empty.
   if (pre_fetch_count) { // if any prefetch extractors, preserve them.
-    cexpr._pre_fetch = _arena.alloc_span<Extractor::Spec>(pre_fetch_count);
+    pf_span = _arena.alloc_span<Extractor::Spec>(pre_fetch_count);
   }
 
-  return expr;
+  return Expr(Expr::Composite{spec_span, pf_span});
 }
 
 Rv<Expr>
@@ -851,6 +848,14 @@ Config::feature_scope(ActiveType const &ex_type)
   ActiveFeatureScope scope(*this);
   _active_feature._ref_p = false;
   _active_feature._type  = ex_type;
+  return scope;
+}
+
+auto Config::capture_scope(unsigned int count, unsigned int line_no) -> ActiveCaptureScope {
+  ActiveCaptureScope scope(*this);
+  _active_capture._count = count;
+  _active_capture._line  = line_no;
+  _active_capture._ref_p = false;
   return scope;
 }
 

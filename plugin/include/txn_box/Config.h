@@ -51,8 +51,8 @@ public:
     using self_type = ActiveFeatureScope;
     friend class Config;
 
-    Config *_cfg = nullptr;
-    ActiveFeatureState _state;
+    Config *_cfg = nullptr; ///< Configuration for the scope.
+    ActiveFeatureState _state; ///< Preserved state.
 
   public:
     ActiveFeatureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
@@ -92,23 +92,10 @@ public:
     ActiveCaptureScope(self_type const &that) = delete;
     self_type &operator=(self_type const &that) = delete;
 
-    ~ActiveCaptureScope()
-    {
-      if (_cfg) {
-        _cfg->_active_capture = _state;
-      }
-    }
+    ~ActiveCaptureScope();
   };
   friend ActiveCaptureScope;
-  ActiveCaptureScope
-  capture_scope(unsigned count, unsigned line_no)
-  {
-    ActiveCaptureScope scope(*this);
-    _active_capture._count = count;
-    _active_capture._line  = line_no;
-    _active_capture._ref_p = false;
-    return scope;
-  }
+  ActiveCaptureScope capture_scope(unsigned count, unsigned line_no);
 
   /** Local extractor table.
    *
@@ -454,10 +441,7 @@ public:
 
   /// @return Number of files loaded for this configuration.
   size_t
-  file_count() const
-  {
-    return _cfg_file_count;
-  }
+  file_count() const;
 
   /// @return The total amount of context storage reserved.
   size_t
@@ -467,11 +451,7 @@ public:
   }
 
   template <typename T>
-  T *
-  active_value(swoc::TextView const &name)
-  {
-    return static_cast<T *>(_active_values[name]);
-  }
+  T * active_value(swoc::TextView const &name);
 
   struct active_value_save {
     void *&_value;
@@ -645,9 +625,12 @@ protected:
   size_t _cfg_file_count = 0;
 };
 
+template <typename T> T * Config::active_value(swoc::TextView const &name) {
+  return static_cast<T *>(_active_values[name]);
+}
+
 inline bool
-Config::FileInfo::has_cfg_key(swoc::TextView key) const
-{
+Config::FileInfo::has_cfg_key(swoc::TextView key) const {
   return _keys.end() != std::find_if(_keys.begin(), _keys.end(), [=](std::string const &k) { return 0 == strcasecmp(k, key); });
 }
 
@@ -663,34 +646,39 @@ inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope
   that._cfg = nullptr;
 }
 
+inline Config::ActiveCaptureScope::~ActiveCaptureScope() {
+  if (_cfg) {
+    _cfg->_active_capture = _state;
+  }
+}
+
 inline Hook
-Config::current_hook() const
-{
+Config::current_hook() const {
   return _hook;
 }
+
 inline bool
-Config::has_top_level_directive() const
-{
+Config::has_top_level_directive() const {
   return _has_top_level_directive_p;
 }
 
 inline std::vector<Directive::Handle> const &
-Config::hook_directives(Hook hook) const
-{
+Config::hook_directives(Hook hook) const {
   return _roots[static_cast<unsigned>(hook)];
 }
 
 inline Config &
-Config::require_rxp_group_count(unsigned n)
-{
+Config::require_rxp_group_count(unsigned n) {
   _capture_groups = std::max(_capture_groups, n);
   return *this;
 }
 
-template <typename T>
-auto
-Config::mark_for_cleanup(T *ptr) -> self_type &
-{
+inline size_t
+Config::file_count() const {
+  return _cfg_file_count;
+}
+
+template <typename T> auto Config::mark_for_cleanup(T *ptr) -> self_type & {
   auto f = _arena.make<Finalizer>(ptr, [](void *ptr) { std::destroy_at(static_cast<T *>(ptr)); });
   _finalizers.append(f);
   return *this;

@@ -225,7 +225,7 @@ protected:
       return f.value_type() == STRING;
     }
     bool
-    operator()(Expr::Direct const &d)
+    operator()(Expr::Immediate const &d)
     {
       return d._result_type.can_satisfy(STRING);
     }
@@ -636,7 +636,7 @@ protected:
     Rv<Handle> operator()(std::monostate);
     Rv<Handle> operator()(Feature &f);
     Rv<Handle> operator()(Expr::List &l);
-    Rv<Handle> operator()(Expr::Direct &d);
+    Rv<Handle> operator()(Expr::Immediate &d);
     Rv<Handle> operator()(Expr::Composite &comp);
 
     Config &_cfg;          ///< Configuration being loaded.
@@ -706,7 +706,7 @@ protected:
       return Errata(S_ERROR,"Invalid type");
     }
     Errata
-    operator()(Expr::Direct &d)
+    operator()(Expr::Immediate &d)
     {
       _rxp.emplace_back(Expr{std::move(d)});
       return {};
@@ -795,7 +795,7 @@ Rv<Comparison::Handle> Cmp_Rxp::expr_visitor::operator()(std::monostate)
 }
 
 Rv<Comparison::Handle>
-Cmp_Rxp::expr_visitor::operator()(Expr::Direct &d)
+Cmp_Rxp::expr_visitor::operator()(Expr::Immediate &d)
 {
   return Handle(new Cmp_RxpSingle(Expr{std::move(d)}, _rxp_opt));
 }

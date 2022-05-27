@@ -443,7 +443,7 @@ public:
    */
   template <typename T> self_type &mark_for_cleanup(T *ptr);
 
-  /** Mark @a ptr for cleanup by @a clearner when @a this is destroyed.
+  /** Mark @a ptr for cleanup by @a cleaner when @a this is destroyed.
    *
    * @tparam T Type of @a ptr
    * @param ptr Object to clean up.

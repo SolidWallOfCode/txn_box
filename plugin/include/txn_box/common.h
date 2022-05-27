@@ -440,7 +440,6 @@ public:
   };
   ActiveType()                      = default;
   ActiveType(self_type const &that) = default;
-  self_type & operator = (self_type const& that) = default;
 
   ActiveType(ValueMask vtypes) : _base_type(vtypes){};
   template <typename... Rest> ActiveType(ValueType vt, Rest &&... rest);
@@ -458,10 +457,7 @@ public:
   self_type &operator|=(TupleOf const &tt);
 
   bool
-  operator==(self_type const &that)
-  {
-    return _base_type == that._base_type && _tuple_type == that._tuple_type;
-  }
+  operator==(self_type const &that);
   bool
   operator!=(self_type const &that)
   {
@@ -577,6 +573,10 @@ ActiveType::operator|=(TupleOf const &tt) -> self_type &
   _base_type[TUPLE] = true;
   _tuple_type |= tt._mask;
   return *this;
+}
+
+inline bool ActiveType::operator==(ActiveType::self_type const &that) {
+  return _base_type == that._base_type && _tuple_type == that._tuple_type;
 }
 
 /** Create a @c ValueMask containing a single @a type.
