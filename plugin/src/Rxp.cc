@@ -116,7 +116,7 @@ RxpOp::Apply_Visitor::operator()(DynamicRxp const &dr) const
   if (auto text = std::get_if<IndexFor(STRING)>(&f); text != nullptr) {
     auto &&[rxp, rxp_errata]{Rxp::parse(*text, dr._opt)};
     if (rxp_errata.is_ok()) {
-      _ctx.rxp_match_require(rxp.capture_count());
+      _ctx.cg_require(rxp.capture_count());
       return (*this)(rxp); // forward to Rxp overload.
     }
   }

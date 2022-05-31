@@ -47,12 +47,12 @@ public:
 
   /** Number of regular expression capture groups provided by a match.
    *
-   * @return The number of capture groups, or 0 if it is not a regular expression.
+   * @return The number of capture groups.
    *
-   * The default implementation returns @c 0, regular expression based comparisons must
-   * override to return the appropriate number for the regular expression.
+   * The default implementation returns @c 0.  Comparisons must
+   * override to return the appropriate number for that comparison.
    */
-  virtual unsigned rxp_group_count() const;
+  virtual unsigned capture_count() const;
 
   /// @defgroup Comparison overloads.
   /// These must match the set of types in @c FeatureTypes.

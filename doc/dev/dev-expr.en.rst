@@ -50,3 +50,14 @@ Each expression tracks the maximum group index used by that expression. This can
 over all expressions in a configuration to compute the maximum group count required. The expression
 constructors should update the maximum group index. Care must be taken if the embedded variants are
 modified directly.
+
+Evaluation
+==========
+
+Expressions are evaluated by the :txb:`Context` via :txb:`Context::extract`. This does some set up
+and then calls :txb:`Expr::evaluator` as a visitor to the internal expression variant. Then the
+modifiers are applied. The evaluator is passed a reference to the :txb:`Context` instance so there
+is quite a bit of cross coordination between the context and the expression. One of the key bits
+is :txb:`Context::ArgPack`. This is constructed from the context and provides the indexed arguments
+to expression evaluation. This is opaque from the expression point of view - the evaluator constructs
+it from the context and passes it to the :code:`BufferWriter` formatter.

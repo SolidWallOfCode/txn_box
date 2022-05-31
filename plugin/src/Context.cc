@@ -52,7 +52,7 @@ Context::Context(std::shared_ptr<Config> const &cfg) : _cfg(cfg)
     [](void *, void *) -> void {}, this);
   if (cfg) {
     /// Make sure there are sufficient capture groups.
-    this->rxp_match_require(cfg->_capture_groups);
+    this->cg_require(cfg->_capture_groups);
   }
 
   if (reserved_size) {
@@ -136,7 +136,7 @@ Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri)
   let hook_guard(_cur_hook, Hook::REMAP);
 
   this->clear_cache();
-  this->rxp_match_require(rule_cfg._capture_groups);
+  this->cg_require(rule_cfg._capture_groups);
 
   // What about directive storage?
 
@@ -390,15 +390,14 @@ Context::ts_callback(TSCont cont, TSEvent evt, void *)
 }
 
 Context &
-Context::rxp_match_require(unsigned n)
+Context::cg_require(unsigned n)
 {
-  if (_rxp_n < n) {
+  if (_working_cg._capacity < n) {
     // Bump up at least 7, or 50%, or at least @a n.
-    n            = std::max(_rxp_n + 7, n);
-    n            = std::max((3 * _rxp_n) / 2, n);
-    _rxp_working = pcre2_match_data_create(n, _rxp_ctx);
-    _rxp_active  = pcre2_match_data_create(n, _rxp_ctx);
-    _rxp_n       = n;
+    n            = std::max(n, _working_cg._capacity + 7);
+    n            = std::max(n, (3 * _working_cg._capacity) / 2);
+    _working_cg._data  = pcre2_match_data_create(n, _rxp_ctx);
+    _working_cg._capacity = n;
   }
   return *this;
 }
@@ -406,29 +405,28 @@ Context::rxp_match_require(unsigned n)
 void
 Context::set_literal_capture(swoc::TextView text)
 {
-  auto ovector = pcre2_get_ovector_pointer(_rxp_active);
+  auto ovector = pcre2_get_ovector_pointer(_active_cg._data);
   ovector[0]   = 0;
   ovector[1]   = text.size() - 1;
-  _rxp_src     = text;
+  _active_cg._src     = text;
+  _active_cg._n = 1;
 }
 
 pcre2_match_data *
 Context::rxp_commit_match(swoc::TextView const &src)
 {
-  _rxp_src = src;
-  std::swap(_rxp_active, _rxp_working);
-  return _rxp_active;
+  std::swap(_active_cg, _working_cg);
+  _active_cg._src = src;
+  return _active_cg._data;
 }
 
 Feature const &
 Context::load_txn_var(swoc::TextView const &name)
 {
-  auto spot = _txn_vars.find(name);
-  if (spot == _txn_vars.end()) {
-    // Later, need to search inbound_ssn and global variables and retrieve those if found.
-    return NIL_FEATURE;
+  if ( auto spot = _txn_vars.find(name) ; spot != _txn_vars.end()) {
+    return spot->_value;
   }
-  return spot->_value;
+  return NIL_FEATURE;
 }
 
 Context::self_type &
@@ -510,16 +508,20 @@ Context::commit_transient()
 }
 
 TextView Context::active_group(int idx) {
-  auto ovector = pcre2_get_ovector_pointer(_rxp_active);
+  if (idx >= _active_cg._n) {
+    return {};
+  }
+
+  auto ovector = pcre2_get_ovector_pointer(_active_cg._data);
   idx *= 2; // To account for offset pairs.
   TSDebug(Config::PLUGIN_TAG.data(), "Access match group %d at offsets %ld:%ld", idx/2, ovector[idx], ovector[idx+1]);
-  return _rxp_src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
+  return _active_cg._src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
 }
 
 unsigned
 Context::ArgPack::count() const
 {
-  return pcre2_get_ovector_count(_ctx._rxp_active);
+  return _ctx._active_cg._n;
 }
 
 BufferWriter &

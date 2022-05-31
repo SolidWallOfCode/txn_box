@@ -354,28 +354,28 @@ Config::parse_composite_expr(TextView const &text)
   // features put in an array, which the replacement extractors use, each replacement having
   // the corresponding array index.
 
-  // Need to be careful - absent this it would be possible for specs in the pre-fetch span
-  // to be in different arena blocks and then there's no valid span.
+  // Need to be careful - make sure the prefetch span is in a single block.
   auto pf_size = specs.size() * sizeof(Extractor::Spec);
   auto pf_spot = _arena.require(pf_size).remnant().subspan(0, pf_size).rebind<Extractor::Spec>().data();
-  size_t pre_fetch_count = 0;
+  size_t pf_count = 0;
   for (auto &s : specs) {
     if (s._exf && ! s._exf->is_immediate()) { // needs transient memory, move it.
       *pf_spot++ = s;
       // Copy the base spec, but tweak it to use the prefetch extractor.
       *spec_spot = s; // copy base specification - used for pre-fetch evaluation.
-      s._data.u = pre_fetch_count; // index in the pre fetch data.
+      s._data.u = pf_count; // index in the pre fetch data.
       s._exf = &ex_prefetch; // Something - can't be the original.
+      // Note @a _max_arg_idx is carried over so capture group computations will be correct.
       ++spec_spot;
-      ++pre_fetch_count;
+      ++pf_count;
     } else {
       *spec_spot++ = s;
     }
   }
 
   MemSpan<Extractor::Spec> pf_span; // if no prefetch, this remains empty.
-  if (pre_fetch_count) { // if any prefetch extractors, preserve them.
-    pf_span = _arena.alloc_span<Extractor::Spec>(pre_fetch_count);
+  if (pf_count) { // if any prefetch extractors, preserve them.
+    pf_span = _arena.alloc_span<Extractor::Spec>(pf_count);
   }
 
   return Expr(Expr::Composite{spec_span, pf_span});

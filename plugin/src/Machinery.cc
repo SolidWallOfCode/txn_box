@@ -3755,7 +3755,7 @@ Do_with::load_case(Config &cfg, YAML::Node node)
     }
 
     if (do_node) {
-      auto c_scope = cfg.capture_scope((c._cmp ? c._cmp->rxp_group_count() : 0), node.Mark().line);
+      auto c_scope = cfg.capture_scope((c._cmp ? c._cmp->capture_count() : 0), node.Mark().line);
       auto &&[handle, errata]{cfg.parse_directive(do_node)};
       if (errata.is_ok()) {
         c._do = std::move(handle);

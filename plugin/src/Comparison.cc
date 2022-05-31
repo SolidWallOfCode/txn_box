@@ -25,7 +25,7 @@ using swoc::Rv;
 Comparison::Factory Comparison::_factory;
 
 unsigned
-Comparison::rxp_group_count() const
+Comparison::capture_count() const
 {
   return 0;
 }
@@ -624,7 +624,7 @@ protected:
   using Item = std::variant<Rxp, Expr>;
 
   /// Process the comparison based on the expression type.
-  /// This is used during configuration load.
+  /// This is used during configuration load and returns the comparison instance.
   struct expr_visitor {
     /** Constructor.
      *
@@ -656,6 +656,7 @@ protected:
      * @return @c true on success, @c false otherwise.
      */
     bool operator()(Rxp const &rxp);
+
     /** Compile the @a expr into a regular expression.
      *
      * @param expr Feature expression.
@@ -670,6 +671,12 @@ protected:
     Rxp::Options _rxp_opt; ///< Options for the regex.
     TextView _src;         ///< regex text.
   };
+
+  /// Get the capture count
+  struct capture_count_visitor {
+    size_t operator()(Rxp const& rxp) { return rxp.capture_count(); }
+    size_t operator()(Expr const& expr) { return expr.capture_count(); }
+  };
 };
 
 class Cmp_RxpSingle : public Cmp_Rxp
@@ -681,13 +688,24 @@ public:
   Cmp_RxpSingle(Expr &&expr, Rxp::Options);
   Cmp_RxpSingle(Rxp &&rxp);
 
+  unsigned capture_count() const override { return std::visit(capture_count_visitor{}, _rxp); };
+
 protected:
+  /** Compare the regular expression.
+   *
+   * @param ctx Context.
+   * @param active Active feature for comparison.
+   * @return @a true if @active is matched.
+   *
+   * @note If the match succeeds, @c ctx is updated with the capture groups.
+   */
   bool operator()(Context &ctx, feature_type_for<STRING> const &active) const override;
 
-  Item _rxp;
-  Rxp::Options _opt;
+  Item _rxp; ///< The regular expression.
+  Rxp::Options _opt; ///< Regular expression options.
 };
 
+/// A list of regular expressions.
 class Cmp_RxpList : public Cmp_Rxp
 {
   using self_type  = Cmp_RxpList;
@@ -695,38 +713,33 @@ class Cmp_RxpList : public Cmp_Rxp
   friend super_type;
 
 public:
-  Cmp_RxpList(Rxp::Options opt) : _opt(opt) {}
+  explicit Cmp_RxpList(Rxp::Options opt) : _opt(opt) {}
+  unsigned capture_count() const override;
 
 protected:
   struct expr_visitor {
-    Errata operator()(Feature &f);
-    Errata
-    operator()(Expr::List &)
-    {
-      return Errata(S_ERROR,"Invalid type");
-    }
-    Errata
-    operator()(Expr::Immediate &d)
-    {
-      _rxp.emplace_back(Expr{std::move(d)});
-      return {};
-    }
-    Errata
-    operator()(Expr::Composite &comp)
-    {
-      _rxp.emplace_back(Expr{std::move(comp)});
-      return {};
-    }
     Errata operator()(std::monostate) { return Errata(S_ERROR,"Invalid type"); }
+    Errata operator()(Feature &f);
+    Errata operator()(Expr::List &);
+    Errata operator()(Expr::Immediate &d);
+    Errata operator()(Expr::Composite &comp);
 
     Rxp::Options _rxp_opt;
     std::vector<Item> &_rxp;
   };
 
+  /** Compare the regular expression.
+   *
+   * @param ctx Context.
+   * @param active Active feature for comparison.
+   * @return @a true if @active is matched.
+   *
+   * @note If the match succeeds, @c ctx is updated with the capture groups.
+   */
   bool operator()(Context &ctx, feature_type_for<STRING> const &active) const override;
 
-  std::vector<Item> _rxp;
-  Rxp::Options _opt;
+  std::vector<Item> _rxp; ///< List of regular expressions for matching.
+  Rxp::Options _opt; ///< Regular expression options.
 };
 
 Errata
@@ -742,6 +755,20 @@ Cmp_RxpList::expr_visitor::operator()(Feature &f)
     return std::move(rxp_errata);
   }
   _rxp.emplace_back(std::move(rxp));
+  return {};
+}
+
+inline Errata Cmp_RxpList::expr_visitor::operator()(Expr::List &) {
+  return Errata(S_ERROR,"Invalid type");
+}
+
+inline Errata Cmp_RxpList::expr_visitor::operator()(Expr::Immediate &d) {
+  _rxp.emplace_back(Expr{std::move(d)});
+  return {};
+}
+
+inline Errata Cmp_RxpList::expr_visitor::operator()(Expr::Composite &comp) {
+  _rxp.emplace_back(Expr{std::move(comp)});
   return {};
 }
 
@@ -766,7 +793,7 @@ Cmp_Rxp::rxp_visitor::operator()(Expr const &expr)
   if (auto text = std::get_if<IndexFor(STRING)>(&f); text != nullptr) {
     auto &&[rxp, rxp_errata]{Rxp::parse(*text, _rxp_opt)};
     if (rxp_errata.is_ok()) {
-      _ctx.rxp_match_require(rxp.capture_count());
+      _ctx.cg_require(rxp.capture_count());
       return (*this)(rxp); // forward to Rxp overload.
     }
   }
@@ -855,6 +882,17 @@ bool
 Cmp_RxpList::operator()(Context &ctx, feature_type_for<STRING> const &) const
 {
   return std::any_of(_rxp.begin(), _rxp.end(), [&](Item const &item) { return std::visit(rxp_visitor{ctx, _opt, {}}, item); });
+}
+
+unsigned
+Cmp_RxpList::capture_count() const
+{
+  capture_count_visitor v;
+  unsigned zret = 0;
+  for (auto const &item : _rxp) {
+    zret = std::max<unsigned>(zret, std::visit(v, item));
+  }
+  return zret;
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -126,6 +126,10 @@ public:
   /// @return @c true if this is a literal expression, @c false otherwise.
   bool is_literal() const;
 
+
+  /// @return The number of capture groups in the expression.
+  size_t capture_count() const;
+
   /** Visitor to evaluate an expression.
    * Requires a @c Context for the extractors.
    */
@@ -175,3 +179,4 @@ Expr::result_type() const
 inline bool Expr::is_literal() const {  return _raw.index() == LITERAL; }
 inline bool Expr::empty() const { return _raw.index() == NO_EXPR; }
 inline bool Expr::is_null() const { return _raw.index() == LITERAL && std::get<LITERAL>(_raw).value_type() == NIL; }
+inline size_t Expr::capture_count() const { return _max_arg_idx > 0 ? _max_arg_idx : 0; }

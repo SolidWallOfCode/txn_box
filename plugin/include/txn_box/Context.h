@@ -170,20 +170,6 @@ public:
    */
   swoc::MemSpan<char> transient_buffer(size_t required = 0);
 
-#if 0
-  /** Get a transient span of a specific type.
-   *
-   * @tparam T Element type.
-   * @param count Number of elements.
-   * @return A span of @a count elemenents of type @a T
-   *
-   * Any previous transient span is committed. The arena remnant is resized as needed. The elements
-   * of the span are not initialized, this provides only storage.
-   */
-  template < typename T > swoc::MemSpan<T> transient_span(unsigned count);
-
-#endif
-
   /** Finalize a transient value.
    *
    * @param n Size of the value.
@@ -227,11 +213,7 @@ public:
 
 #if __has_include(<memory_resource>) && _GLIBCXX_USE_CXX11_ABI
   /// Access the internal memory arena as a memory resource.
-  std::pmr::memory_resource *
-  pmr()
-  {
-    return _arena.get();
-  }
+  std::pmr::memory_resource * pmr() { return _arena.get(); }
 #endif
 
   /** Convert a reserved span into memory in @a this.
@@ -399,13 +381,10 @@ public:
    * @param n Number of capture groups required.
    * @return Cpature data sufficient to match @a n groups.
    */
-  self_type &rxp_match_require(unsigned n);
+  self_type &cg_require(unsigned n);
 
-  pcre2_match_data *
-  rxp_working_match_data()
-  {
-    return _rxp_working;
-  }
+  /// @return The PCRE2 match data for the working capture group.
+  pcre2_match_data * rxp_working_match_data();
 
   /// Commit the working match data as the active match data.
   pcre2_match_data *rxp_commit_match(swoc::TextView const &src);
@@ -544,6 +523,18 @@ protected:
   /// Directive shared storage.
   swoc::MemSpan<void> _ctx_store;
 
+  /// Data for handling capture groups and regular expressions.
+  struct CaptueGroupData {
+    pcre2_match_data * _data = nullptr; ///< Match data.
+    FeatureView _src; ///< Source text for the capture groups.
+    int _n = 0; ///< Valid group count.
+    unsigned _capacity = 0; ///< Maximum valid groups in @a data.
+  };
+
+  CaptueGroupData _active_cg; ///< Active capture group info.
+  CaptueGroupData _working_cg; ///< Working capture group info.
+
+# if 0
   /// Active regex capture data.
   pcre2_match_data *_rxp_active = nullptr;
 
@@ -552,12 +543,15 @@ protected:
   /// @see rxp_commit_match
   pcre2_match_data *_rxp_working = nullptr;
 
-  /// Number of capture groups supported by current match data allocations.
-  unsigned _rxp_n = 0;
-
-  /// Active full to which the capture groups refer.
+  /// Active text to which the capture groups refer.
   FeatureView _rxp_src;
 
+  /// Number of supported capture groups.
+  /// This is capacity, not size. In a loaded configuration this is at least 1 to handle
+  /// literal matches. This applies to both active and working data.
+  unsigned _cg_capacity = 0;
+
+# endif
   /** Used for pre-fetching during feature expression evaluation.
    * If extractors need to be pre-fetched, the results are stored in a span which needs to be
    * accessible to extractors during expression evaluation.
@@ -770,4 +764,10 @@ inline ts::HttpSsn
 Context::inbound_ssn()
 {
   return _txn.inbound_ssn();
+}
+
+inline pcre2_match_data *
+Context::rxp_working_match_data()
+{
+  return _working_cg._data;
 }
