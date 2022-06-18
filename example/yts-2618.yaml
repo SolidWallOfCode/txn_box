@@ -1,13 +1,15 @@
+# plugin.config -
+# txn_box.so
 defines:
 - &redirect-body
   status: 301
   reason: Resource has moved.
-  body: "<HTML><HEAD><TITLE>Resource moved</TITLE></HEAD><BODY><H1>Relocted</H1>The resource \"{creq-url}\" is now at {this::location}.</BODY>"
+  body: "<HTML><HEAD><TITLE>Resource moved</TITLE></HEAD><BODY><H1>Relocated</H1>The resource \"{ua-url}\" is now at {this::location}.</BODY>"
 
 txn_box:
 - when: pre-remap
   do:
-  - with: "{creq-field::host}"
+  - with: ua-req-field<host>
     select:
     - match: "redirect.yahoo.com"
       do:

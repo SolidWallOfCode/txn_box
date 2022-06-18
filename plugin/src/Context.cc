@@ -53,6 +53,8 @@ Context::Context(std::shared_ptr<Config> const &cfg) : _cfg(cfg)
   if (cfg) {
     /// Make sure there are sufficient capture groups.
     this->cg_require(cfg->_capture_groups);
+    std::swap(_rxp_working, _rxp_active);
+    this->cg_require(cfg->_capture_groups);
   }
 
   if (reserved_size) {
@@ -136,6 +138,8 @@ Context::invoke_for_remap(Config &rule_cfg, TSRemapRequestInfo *rri)
   let hook_guard(_cur_hook, Hook::REMAP);
 
   this->clear_cache();
+  this->cg_require(rule_cfg._capture_groups);
+  std::swap(_rxp_working, _rxp_active);
   this->cg_require(rule_cfg._capture_groups);
 
   // What about directive storage?
@@ -392,12 +396,12 @@ Context::ts_callback(TSCont cont, TSEvent evt, void *)
 Context &
 Context::cg_require(unsigned n)
 {
-  if (_working_cg._capacity < n) {
+  if (_rxp_working._capacity < n) {
     // Bump up at least 7, or 50%, or at least @a n.
-    n            = std::max(n, _working_cg._capacity + 7);
-    n            = std::max(n, (3 * _working_cg._capacity) / 2);
-    _working_cg._data  = pcre2_match_data_create(n, _rxp_ctx);
-    _working_cg._capacity = n;
+    n            = std::max(n, _rxp_working._capacity + 7);
+    n            = std::max(n, (3 * _rxp_working._capacity) / 2);
+    _rxp_working._data  = pcre2_match_data_create(n, _rxp_ctx);
+    _rxp_working._capacity = n;
   }
   return *this;
 }
@@ -405,19 +409,20 @@ Context::cg_require(unsigned n)
 void
 Context::set_literal_capture(swoc::TextView text)
 {
-  auto ovector = pcre2_get_ovector_pointer(_active_cg._data);
+  auto ovector = pcre2_get_ovector_pointer(_rxp_active._data);
   ovector[0]   = 0;
   ovector[1]   = text.size() - 1;
-  _active_cg._src     = text;
-  _active_cg._n = 1;
+  _cg_count    = 1;
+  _cg_src      = text;
 }
 
 pcre2_match_data *
-Context::rxp_commit_match(swoc::TextView const &src)
+Context::rxp_commit_match(unsigned count, swoc::TextView const &src)
 {
-  std::swap(_active_cg, _working_cg);
-  _active_cg._src = src;
-  return _active_cg._data;
+  std::swap(_rxp_active, _rxp_working);
+  _cg_count = count;
+  _cg_src = src;
+  return _rxp_active._data;
 }
 
 Feature const &
@@ -507,27 +512,28 @@ Context::commit_transient()
   return *this;
 }
 
-TextView Context::active_group(int idx) {
-  if (idx >= _active_cg._n) {
+TextView Context::active_group(unsigned idx) {
+  if (idx >= _cg_count) {
     return {};
   }
 
-  auto ovector = pcre2_get_ovector_pointer(_active_cg._data);
+  auto ovector = pcre2_get_ovector_pointer(_rxp_active._data);
   idx *= 2; // To account for offset pairs.
   TSDebug(Config::PLUGIN_TAG.data(), "Access match group %d at offsets %ld:%ld", idx/2, ovector[idx], ovector[idx+1]);
-  return _active_cg._src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
+  return _cg_src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
 }
 
 unsigned
 Context::ArgPack::count() const
 {
-  return _ctx._active_cg._n;
+  return _ctx._rxp_active._capacity;
 }
 
 BufferWriter &
 Context::ArgPack::print(BufferWriter &w, swoc::bwf::Spec const &spec, unsigned idx) const
 {
-  return bwformat(w, spec, _ctx.active_group(idx));
+  static constexpr TextView EMPTY;
+  return bwformat(w, spec, idx >= _ctx._cg_count ? EMPTY : _ctx.active_group(idx));
 }
 
 std::any

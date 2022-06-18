@@ -64,7 +64,7 @@ RxpOp::Cfg_Visitor::operator()(Feature &f)
     rxp_errata.note(R"(While parsing regular expression.)");
     return std::move(rxp_errata);
   }
-  _cfg.require_rxp_group_count(rxp.capture_count());
+  _cfg.require_capture_group(rxp.capture_count());
   return RxpOp(std::move(rxp));
 }
 
@@ -102,7 +102,7 @@ RxpOp::Apply_Visitor::operator()(const Rxp &rxp) const
 {
   auto result = rxp(_src, _ctx.rxp_working_match_data());
   if (result > 0) {
-    _ctx.rxp_commit_match(_src);
+    _ctx.rxp_commit_match(result, _src);
     _ctx._remainder.clear();
     return true;
   }

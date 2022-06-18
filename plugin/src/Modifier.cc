@@ -232,8 +232,9 @@ Mod_rxp_replace::load(Config &cfg, YAML::Node node, TextView, TextView args, YAM
     op_errata.note(R"(While parsing pattern for modifier "{}".)", KEY);
     return std::move(op_errata);
   }
-  cfg.require_rxp_group_count(op.capture_count());
+  cfg.require_capture_group(op.capture_count());
 
+  auto cg_state { cfg.capture_scope(op.capture_count(), key_value.Mark().line)};
   auto && [ rep, rep_errata ] { cfg.parse_expr(key_value[1])};
   if (! rep_errata.is_ok()) {
     rep_errata.note(R"(While parsing replacement for modifier "{}".)", KEY);

@@ -80,6 +80,8 @@ public:
    */
   self_type &enable_hooks(TSHttpTxn txn);
 
+  /// @{ Extraction support
+
   /** Extract a feature.
    *
    * @param expr The feature expression.
@@ -101,7 +103,21 @@ public:
     EX_C_STR   ///< Force C-string (null terminated)
   };
 
+  /** Extract as a view.
+   *
+   * @param expr Feature expression.
+   * @param opts Options for result.
+   * @return A view of the extract feature.
+   *
+   * This forces the feature to be a string, even if the value is another type (e.g. a @c INTEGER
+   * will be converted to its string representation). The options support forcing a commit or
+   * forcing a C string.
+   *
+   * Useful when the value will be used in a string context (e.g. set the value in an HTTP field).
+   */
   FeatureView extract_view(Expr const &expr, std::initializer_list<ViewOption> opts = {});
+
+  /// @}
 
   /** Commit a feature.
    *
@@ -235,10 +251,12 @@ public:
    */
   template <typename T> swoc::MemSpan<T> initialized_storage_for(ReservedSpan const &span);
 
+  /// Current hook.
   Hook _cur_hook   = Hook::INVALID;
+  /// Continuation used for callbacks.
   TSCont _cont     = nullptr;
+  /// Current transaction.
   ts::HttpTxn _txn = nullptr;
-
   /// Current extracted feature.
   Feature _active;
   /// Extension for active feature when needed.
@@ -260,7 +278,7 @@ public:
   void set_literal_capture(swoc::TextView text);
 
   /// Return the text for the active capture group at index @a idx.
-  swoc::TextView active_group(int idx);
+  swoc::TextView active_group(unsigned idx);
 
   /** BWF interface for name binding.
    *
@@ -387,7 +405,7 @@ public:
   pcre2_match_data * rxp_working_match_data();
 
   /// Commit the working match data as the active match data.
-  pcre2_match_data *rxp_commit_match(swoc::TextView const &src);
+  pcre2_match_data *rxp_commit_match(unsigned count, swoc::TextView const &src);
 
   /** Make a transaction local copy of @a text that is a C string if needed.
    *
@@ -477,6 +495,13 @@ public:
     return *this;
   }
 
+  struct ExtractScope {
+    ExtractScope(Context & ctx, unsigned n);
+    ~ExtractScope();
+
+    swoc::MemSpan<Feature> _span;
+  };
+
 protected:
   /// Header for reserved memory.
   /// Default zero initialized.
@@ -523,41 +548,29 @@ protected:
   /// Directive shared storage.
   swoc::MemSpan<void> _ctx_store;
 
-  /// Data for handling capture groups and regular expressions.
-  struct CaptueGroupData {
+  /// Regular expression matching data.
+  struct RxpData {
     pcre2_match_data * _data = nullptr; ///< Match data.
-    FeatureView _src; ///< Source text for the capture groups.
-    int _n = 0; ///< Valid group count.
     unsigned _capacity = 0; ///< Maximum valid groups in @a data.
   };
 
-  CaptueGroupData _active_cg; ///< Active capture group info.
-  CaptueGroupData _working_cg; ///< Working capture group info.
+  // Active is the valid match, working is used to attempt a match.
+  // On a successful match, these are swapped to avoid allocating new data for each attempted match.
+  RxpData _rxp_active; ///< Active capture group info.
+  RxpData _rxp_working; ///< Working capture group info.
 
-# if 0
-  /// Active regex capture data.
-  pcre2_match_data *_rxp_active = nullptr;
+  /// Number of valid groups in active capture groups.
+  unsigned _cg_count = 0;
 
-  /// Temporary / working capture group data.
-  /// If successful, this becomes active via @c rxp_commit_match
-  /// @see rxp_commit_match
-  pcre2_match_data *_rxp_working = nullptr;
+  /// Source text for active match.
+  FeatureView _cg_src;
 
-  /// Active text to which the capture groups refer.
-  FeatureView _rxp_src;
-
-  /// Number of supported capture groups.
-  /// This is capacity, not size. In a loaded configuration this is at least 1 to handle
-  /// literal matches. This applies to both active and working data.
-  unsigned _cg_capacity = 0;
-
-# endif
   /** Used for pre-fetching during feature expression evaluation.
    * If extractors need to be pre-fetched, the results are stored in a span which needs to be
    * accessible to extractors during expression evaluation.
    * @internal This is not great, but other approaches were much worse.
    */
-  swoc::MemSpan<Feature> _expr_pre_fetch = nullptr;
+  swoc::MemSpan<Feature> _expr_pre_fetch;
 
   /// Additional clean up needed when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;
@@ -769,5 +782,5 @@ Context::inbound_ssn()
 inline pcre2_match_data *
 Context::rxp_working_match_data()
 {
-  return _working_cg._data;
+  return _rxp_working._data;
 }

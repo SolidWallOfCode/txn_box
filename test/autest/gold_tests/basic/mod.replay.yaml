@@ -38,6 +38,7 @@ meta:
         - "Nightwish"
         - "Delain"
 
+    # Check for using multiple capture groups.
     charlie:
     - ua-req-field<Bands>:
       - ua-req-field<Bands>

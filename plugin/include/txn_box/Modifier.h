@@ -67,11 +67,7 @@ public:
 
   // At least prevent compilation if a non-feature type is used.
   template <typename T>
-  auto
-  operator()(Context &, T const &) -> EnableForFeatureTypes<T, swoc::Rv<Feature>>
-  {
-    return {};
-  }
+  auto operator()(Context &, T const &) -> EnableForFeatureTypes<T, swoc::Rv<Feature>> { return {}; }
 
   /** Check if the comparison is valid for @a type.
    *

@@ -292,7 +292,7 @@ public:
    * @param n Number of capture groups.
    * @return @a this
    */
-  self_type &require_rxp_group_count(unsigned n);
+  self_type &require_capture_group(unsigned n);
 
   /** Indicate a directive may be scheduled on a @a hook at runtime.
    *
@@ -668,7 +668,7 @@ Config::hook_directives(Hook hook) const {
 }
 
 inline Config &
-Config::require_rxp_group_count(unsigned n) {
+Config::require_capture_group(unsigned n) {
   _capture_groups = std::max(_capture_groups, n);
   return *this;
 }

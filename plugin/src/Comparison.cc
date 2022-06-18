@@ -779,7 +779,7 @@ Cmp_Rxp::rxp_visitor::operator()(const Rxp &rxp)
 {
   auto result = rxp(_src, _ctx.rxp_working_match_data());
   if (result > 0) {
-    _ctx.rxp_commit_match(_src);
+    _ctx.rxp_commit_match(result, _src);
     _ctx._remainder.clear();
     return true;
   }
@@ -812,7 +812,7 @@ Cmp_Rxp::expr_visitor::operator()(Feature &f)
     rxp_errata.note(R"(While parsing feature expression for "{}" comparison.)", KEY);
     return std::move(rxp_errata);
   }
-  _cfg.require_rxp_group_count(rxp.capture_count());
+  _cfg.require_capture_group(rxp.capture_count());
   return Handle(new Cmp_RxpSingle(std::move(rxp)));
 }
 
