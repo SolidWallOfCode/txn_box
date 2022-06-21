@@ -416,17 +416,6 @@ public:
    */
   swoc::TextView localize_as_c_str(swoc::TextView text);
 
-  /** Pre-fetched features for feature expression evaluation.
-   *
-   * @return A reference to the @c Feature span.
-   *
-   * @internal A reference is necessary so that it can be assigned and restored
-   * recursively during evaluation.
-   */
-  swoc::MemSpan<Feature>& expr_pre_fetch() {
-    return _expr_pre_fetch;
-  }
-
   /// Clear transaction headers - not reliable across hooks.
   void clear_cache();
 
@@ -495,12 +484,37 @@ public:
     return *this;
   }
 
-  struct ExtractScope {
-    ExtractScope(Context & ctx, unsigned n);
-    ~ExtractScope();
+  /** Nested scope for expression pre fetch supoprt.
+   * When using prefetch an instance of this is declared to properly nest use of the @c Context
+   * pre fetch values.
+   */
+  struct PrefetchScope {
+    /** Constructor.
+     *
+     * @param ctx Context instance.
+     * @param n Number of pre fetch values.
+     *
+     * The active pre fetch span is set to span contained in this instance.
+     */
+    PrefetchScope(Context & ctx, unsigned n);
+    ~PrefetchScope();
 
-    swoc::MemSpan<Feature> _span;
+    swoc::MemSpan<Feature> _span; ///< Span for this scope.
+    swoc::MemSpan<Feature> _save; ///< Previously active span.
+    Context & _ctx; ///< Context.
   };
+
+  /** Pre-fetched features for feature expression evaluation.
+   *
+   * @return The pre-fetch feature span.
+   *
+   * @c PrefetchScope is used to handle any nesting of expressions - each evaluation uses that to
+   * obtain a non-shared span for the pre-fetch. This method is used while rendering the expression
+   * to retrieve the pre-fetch features.
+   */
+  swoc::MemSpan<Feature> expr_pre_fetch() {
+    return _expr_pre_fetch_active;
+  }
 
 protected:
   /// Header for reserved memory.
@@ -565,12 +579,20 @@ protected:
   /// Source text for active match.
   FeatureView _cg_src;
 
-  /** Used for pre-fetching during feature expression evaluation.
-   * If extractors need to be pre-fetched, the results are stored in a span which needs to be
-   * accessible to extractors during expression evaluation.
+  /** Extractor pre-fetching support.
+   * During feature expression evaluation any extraction that also needs the transient buffer must
+   * be extracted before the primary expression. To minimize memory pressure this is a span that
+   * can be re-used. If not empty then it's available, otherwise a new one must be created.
+   * @see PrefetchScope
+   *
    * @internal This is not great, but other approaches were much worse.
    */
-  swoc::MemSpan<Feature> _expr_pre_fetch;
+  swoc::MemSpan<Feature> _expr_pre_fetch_pool;
+  /** Expression evaluation pre fetch support.
+   * While rendering an expression that required pre-fetching those features are stored here during
+   * rendering so they are accessible.
+   */
+  swoc::MemSpan<Feature> _expr_pre_fetch_active;
 
   /// Additional clean up needed when @a this is destroyed.
   swoc::IntrusiveDList<Finalizer::Linkage> _finalizers;

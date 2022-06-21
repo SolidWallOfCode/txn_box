@@ -347,7 +347,7 @@ Config::parse_composite_expr(TextView const &text)
   auto spec_span = this->alloc_span<Extractor::Spec>(specs.size());
   auto spec_spot = spec_span.data();
 
-  // Must avoid multiple use of transient memory. If any of the extractors require transient
+  // Must avoid multiple concurrent use of transient memory. If any of the extractors require transient
   // memory, those extractors must be evaluated before the full expression evaluation.
   // This logic pulls them out of the base specs, replaces them with a feature reference extractor,
   // and puts them in the @c pre_fetch array. At run time those are evaluated and the resulting
@@ -356,15 +356,23 @@ Config::parse_composite_expr(TextView const &text)
 
   // Need to be careful - make sure the prefetch span is in a single block.
   auto pf_size = specs.size() * sizeof(Extractor::Spec);
-  auto pf_spot = _arena.require(pf_size).remnant().subspan(0, pf_size).rebind<Extractor::Spec>().data();
+  // Ugly hack - need to fix libswoc to support type based remnants, otherwise alignment can
+  // break things because when the allocation by type is done, that's aligned, but remnant isn't.
+  auto span_align = [](MemSpan<void> span, size_t n) -> MemSpan<Extractor::Spec> {
+    auto ptr = uintptr_t(span.data());
+    span.remove_prefix(swoc::Scalar<alignof(Extractor::Spec)>(swoc::round_up(ptr)) - ptr);
+    return span.prefix(sizeof(Extractor::Spec) * n).rebind<Extractor::Spec>();
+  };
+  auto pf_spot = span_align(_arena.require(pf_size, alignof(Extractor::Spec)).remnant(), specs.size()).data();
   size_t pf_count = 0;
   for (auto &s : specs) {
     if (s._exf && ! s._exf->is_immediate()) { // needs transient memory, move it.
       *pf_spot++ = s;
-      // Copy the base spec, but tweak it to use the prefetch extractor.
-      *spec_spot = s; // copy base specification - used for pre-fetch evaluation.
+      /// Update the inline copy to use prefetch.
       s._data.u = pf_count; // index in the pre fetch data.
       s._exf = &ex_prefetch; // Something - can't be the original.
+      // Copy the base spec, but tweak it to use the prefetch extractor.
+      *spec_spot = s; // copy base specification - used for pre-fetch evaluation.
       // Note @a _max_arg_idx is carried over so capture group computations will be correct.
       ++spec_spot;
       ++pf_count;

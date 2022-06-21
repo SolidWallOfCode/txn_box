@@ -56,7 +56,7 @@ public:
     /// Specifiers that need to be pre-fetched.
     swoc::MemSpan<Spec> _pre_fetch;
 
-    /// Compute the maximum argument index.
+    /// @return The maximum argument index for all of the specifiers.
     int max_arg_idx() const;
   };
 

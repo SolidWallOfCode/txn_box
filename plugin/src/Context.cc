@@ -173,10 +173,9 @@ Context::operator()(swoc::BufferWriter &w, Extractor::Spec const &spec)
 Feature
 Expr::evaluator::operator()(const Composite &comp)
 {
-  MemSpan<Feature> span = comp._pre_fetch.size() ? _ctx.alloc_span<Feature>(comp._pre_fetch.size()) : MemSpan<Feature>{};
-  let guard(_ctx.expr_pre_fetch(), span);
-  auto fspot = span.begin();
-  for (Spec const& s : comp._pre_fetch) {
+  Context::PrefetchScope pf_span(_ctx, comp._pre_fetch.size());
+  auto fspot = pf_span._span.begin();
+  for (auto const& s : comp._pre_fetch) {
     *fspot = s._exf->extract(_ctx, s);
     _ctx.commit(*fspot);
     ++fspot;
@@ -550,4 +549,24 @@ Expr::Composite::max_arg_idx() const
     zret = std::max<int>(zret, spec._idx);
   }
   return zret;
+}
+
+Context::PrefetchScope::PrefetchScope(Context &ctx, unsigned int n) : _ctx(ctx) {
+  if (ctx._expr_pre_fetch_pool.size() >= n) {
+    std::swap(_span, ctx._expr_pre_fetch_pool); // leave empty span in @a ctx.
+    memset(_span.subspan(0,n), NIL_FEATURE); // clear requested elements.
+  } else {
+    // Round to a multiple of 8, to create more frequent reuse.
+    _span = ctx.alloc_span<Feature>(swoc::Scalar<8>{swoc::round_up(n)});
+  }
+  _save = ctx._expr_pre_fetch_active;
+  ctx._expr_pre_fetch_active = _span;
+}
+
+Context::PrefetchScope::~PrefetchScope()
+{
+  if (_span.size() > _ctx._expr_pre_fetch_pool.size()) { // keep the larger span.
+    _ctx._expr_pre_fetch_pool = _span;
+  }
+  _ctx._expr_pre_fetch_active = _save;
 }

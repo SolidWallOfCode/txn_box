@@ -45,7 +45,7 @@ Extractor::validate(Config &, Extractor::Spec &, TextView const &)
 
 bool Extractor::is_immediate() const
 {
-  return true;
+  return false;
 }
 
 Feature
