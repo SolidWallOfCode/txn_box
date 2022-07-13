@@ -42,3 +42,11 @@ Once Traffic Server is built, build |TxB| using the following command ::
 
 where ``<ts_install_path>`` is the path to a Traffic Server install. In general this will be the
 same path as used for the ``prefix`` configuration option in Traffic Server.
+
+By default the system OpenSSL library will be used. This can be overridden by using another option ::
+
+   scons txn_box --with-trafficserver=<ts_install_path> --with-ssl=<openssl_install_path>
+
+This is intended to work identically to the ``--with-ssl`` for Traffic Server so the option can by cut and
+pasted from that build.
+

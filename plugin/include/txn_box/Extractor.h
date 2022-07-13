@@ -148,6 +148,7 @@ public:
   Ex_this() = default;
   explicit Ex_this(FeatureGroup &fg) : _fg(&fg) {}
 
+  bool is_immediate() const override { return true; }
   swoc::Rv<ActiveType> validate(Config &cfg, Spec &spec, swoc::TextView const &arg) override;
 
   Feature extract(Context &ctx, Spec const &spec) override;

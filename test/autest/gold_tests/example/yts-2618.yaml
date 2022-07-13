@@ -1,0 +1,18 @@
+# plugin.config -
+# txn_box.so <path-to-this-file>
+defines:
+- &redirect-body
+  status: 301
+  reason: "Resource has moved."
+  body: "<HTML><HEAD><TITLE>Resource moved</TITLE></HEAD><BODY><H1>Relocated</H1>The resource \"{ua-req-url}\" is now at {this::location}.</BODY>"
+
+txn_box:
+- when: pre-remap
+  do:
+  - with: ua-req-field<host>
+    select:
+    - match: "redirect.base.ex"
+      do:
+      - redirect:
+          location: "http://base.ex/redirect/{ua-req-path}"
+          <<: *redirect-body

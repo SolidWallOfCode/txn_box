@@ -22,7 +22,7 @@ meta:
           do:
           - proxy-rsp-field<Location>: "http://reply.ex/{ua-req-path}"
       # doc-redirect-reply-form->
-    - redirect: # Otherwise redirect with original path.
+    - redirect: # with didn't match, so redirect.
         location: "http://charlie.ex/{pre-remap-path}"
         status: 302
         reason: "Because I said so!"
