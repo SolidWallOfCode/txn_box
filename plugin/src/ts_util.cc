@@ -1027,6 +1027,7 @@ PerformAsTaskEvery(std::function<void()> &&task, std::chrono::milliseconds perio
     if (!data->_active) {
       TSActionCancel(static_cast<TSAction>(event));
       delete data;
+      TSMutexUnlock(TSContMutexGet(contp)); // don't destroy in a locked state.
       TSContDestroy(contp);
     }
     return 0;
