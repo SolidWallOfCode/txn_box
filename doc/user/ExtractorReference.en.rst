@@ -587,14 +587,14 @@ Session
    :result: string
    :arg: Entry name.
 
-   Extract the value for an entry in the local (server) certificate issuer for an inbound session.
+   Extract the value for an entry in the local (ATS) certificate issuer for an inbound session.
    This will accept a short or long name as the argument. Note these names are case sensitive.
 
 .. extractor:: inbound-cert-local-subject-field
    :result: string
    :arg: Entry name.
 
-   Extract the value for an entry in the local (server) certificate subject for an inbound session.
+   Extract the value for an entry in the local (ATS) certificate subject for an inbound session.
    This will accept a short or long name as the argument. Note these names are case sensitive.
 
 .. extractor:: inbound-cert-remote-issuer-field
@@ -614,6 +614,38 @@ Session
    This will accept a short or long name as the argument. Note these names are case sensitive.
 
    If a client certificate wasn't provided or failed validation, this will yield an empty string.
+
+.. extractor:: outbound-cert-local-issuer-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the local (ATS) certificate issuer for an outbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+.. extractor:: outbound-cert-local-subject-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the local (ATS) certificate subject for an outbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+.. extractor:: outbound-cert-remote-issuer-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the remote (server) certificate issuer for an outbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+   If the destination didn't provide a certificate or failed validation, this will yield an empty string.
+
+.. extractor:: outbound-cert-remote-subject-field
+   :result: string
+   :arg: Entry name.
+
+   Extract the value for an entry in the remote (server) certificate subject for an outbound session.
+   This will accept a short or long name as the argument. Note these names are case sensitive.
+
+   If the destination didn't provide a certificate or failed validation, this will yield an empty string.
 
 .. extractor::  outbound-txn-count
    :result: integer

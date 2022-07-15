@@ -283,7 +283,7 @@ ts::URL::scheme() const
 }
 
 TextView
-ts::URL::host() const
+URL::host() const
 {
   char const *text;
   int size;
@@ -294,20 +294,20 @@ ts::URL::host() const
 }
 
 in_port_t
-ts::URL::port() const
+URL::port() const
 {
   return this->is_valid() ? TSUrlPortGet(_buff, _loc) : 0;
 }
 
 bool
-ts::URL::is_port_canonical(TextView const &scheme, in_port_t port)
+URL::is_port_canonical(TextView const &scheme, in_port_t port)
 {
   return scheme.starts_with_nocase("http"_tv) &&
          ((80 == port && scheme.size() == 4) || (443 == port && scheme.size() == 5 && 's' == tolower(scheme[4])));
 }
 
 std::tuple<TextView, in_port_t>
-ts::URL::loc() const
+URL::loc() const
 {
   return {this->host(), this->port()};
 }
@@ -521,7 +521,7 @@ ts::HttpRequest::port_set(in_port_t port)
 }
 
 swoc::TextView
-HttpRequest::method() const
+ts::HttpRequest::method() const
 {
   int length;
   char const *text;
@@ -700,8 +700,25 @@ ts::HttpTxn::effective_url_get() const
   return {s, size};
 }
 
+TextView
+ts::HttpTxn::outbound_protocol_contains(swoc::TextView tag) const
+{
+  auto zret = TSHttpTxnServerProtocolStackContains(_txn, tag.data());
+  return zret;
+}
+
+int
+ts::HttpSsn::protocol_stack(MemSpan<const char *> tags) const
+{
+  int n = 0;
+  if (TS_SUCCESS != TSHttpSsnClientProtocolStackGet(_ssn, tags.count(), tags.data(), &n)) {
+    return -1;
+  }
+  return n;
+}
+
 ts::SSLContext
-ts::HttpSsn::ssl_context() const
+ts::HttpSsn::ssl_inbound_context() const
 {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
@@ -728,17 +745,10 @@ ts::HttpSsn::inbound_sni() const
 }
 
 TextView
-ts::HttpSsn::proto_contains(const swoc::TextView &tag) const
+ts::HttpSsn::inbound_protocol_contains(swoc::TextView tag) const
 {
-  TextView probe{tag};
-  if (tag.empty() || tag.back() != '\0') {
-    char *span = static_cast<char *>(alloca(tag.size() + 1));
-    memcpy(span, tag.data(), tag.size());
-    span[tag.size()] = '\0';
-    probe.assign(span, tag.size() + 1);
-  }
-  auto result = TSHttpSsnClientProtocolStackContains(_ssn, probe.data());
-  return {result, result ? strlen(result) : 0};
+  auto zret = TSHttpSsnClientProtocolStackContains(_ssn, tag.data());
+  return zret;
 }
 
 sockaddr const *
@@ -906,10 +916,10 @@ HttpTxn::override_fetch(const TxnConfigVar &var)
 }
 
 int
-HttpSsn::protocol_stack(MemSpan<const char *> tags) const
+HttpTxn::outbound_protocol_stack(MemSpan<const char *> tags) const
 {
   int n = 0;
-  if (TS_SUCCESS != TSHttpSsnClientProtocolStackGet(_ssn, tags.count(), tags.data(), &n)) {
+  if (TS_SUCCESS != TSHttpTxnServerProtocolStackGet(_txn, tags.count(), tags.data(), &n)) {
     return -1;
   }
   return n;

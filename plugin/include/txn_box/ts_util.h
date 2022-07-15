@@ -482,7 +482,7 @@ public:
    *
    * This is more efficient then obtaining the stack and then searching for @a tag.
    */
-  swoc::TextView proto_contains(swoc::TextView const &tag) const;
+  swoc::TextView inbound_protocol_contains(swoc::TextView tag) const;
 
   /** Retrieve the protocol stack for @a this session in to @a tags.
    *
@@ -501,11 +501,17 @@ public:
   /// @return The local address of the session.
   sockaddr const *addr_local() const;
 
-  /** The SSL context for the session.
+  /** SSL context for the inbound (UA) connection.
    *
    * @return An SSL context instance, which is valid iff the session is TLS.
    */
-  SSLContext ssl_context() const;
+  SSLContext ssl_inbound_context() const;
+
+  /** SSL context for the outbound connection.
+   *
+   * @return An SSL context instance, which is valid iff the session is TLS.
+   */
+  SSLContext ssl_outbound_context() const;
 
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
@@ -725,6 +731,26 @@ public:
   /// @return The address of the origin server for a transaction.
   sockaddr const *outbound_remote_addr() const;
 
+  /** Check for a specific tag in the protocol stack.
+   *
+   * @param tag Protocol tag.
+   * @return @c true if @a tag is present in the protocol stack.
+   *
+   * This is more efficient then obtaining the stack and then searching for @a tag.
+   */
+  swoc::TextView outbound_protocol_contains(swoc::TextView tag) const;
+
+  /** Retrieve the protocol stack for @a this session in to @a tags.
+   *
+   * @param tags [out] Protocol tags.
+   * @return The actual number of protocol tags, or -1 on error.
+   *
+   * The number of tags retrieved will be the minimum of the actual number of tags and the
+   * size of @a tags. The return value will be the number of actual tags. It is the caller's
+   * responsibility to handle the case where this is larger than @a tags.
+   */
+  int outbound_protocol_stack(swoc::MemSpan<char const *> tags) const;
+
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 
@@ -747,6 +773,7 @@ protected:
   static void config_integer_record(swoc::Errata &errata, swoc::TextView name, int min, int max);
 
   static void config_string_record(swoc::Errata &errata, swoc::TextView name);
+
 };
 
 /// An SSL context for a session.
