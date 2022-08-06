@@ -12,6 +12,7 @@
 
 #include <swoc/TextView.h>
 #include <swoc/bwf_std.h>
+#include <swoc/bwf_ex.h>
 
 #include "txn_box/Modifier.h"
 #include "txn_box/Config.h"
@@ -51,7 +52,9 @@ namespace
 {
 Config::Handle Plugin_Config;
 std::shared_mutex Plugin_Config_Mutex; // safe updating of the shared ptr.
-std::atomic<bool> Plugin_Reloading = false;
+/// Start time of the currently active reload. If the default value then no reload is active.
+/// @note A time instead of a @c bool for better diagnostics.
+std::atomic<std::chrono::system_clock::time_point> Plugin_Reloading;
 
 // Get a shared pointer to the configuration safely against updates.
 Config::Handle
@@ -94,24 +97,31 @@ CB_Txn_Start(TSCont, TSEvent, void *payload)
 void
 Task_ConfigReload()
 {
-  std::shared_ptr cfg = std::make_shared<Config>();
+  std::chrono::system_clock::time_point t_null;
   auto t0             = std::chrono::system_clock::now();
-  auto errata         = cfg->load_cli_args(cfg, G._args, 1);
-  if (!errata.is_ok()) {
+  if (Plugin_Reloading.compare_exchange_strong(t_null, t0)) {
+    std::shared_ptr cfg = std::make_shared<Config>();
+    auto errata         = cfg->load_cli_args(cfg, G._args, 1);
+    if (errata.is_ok()) {
+      std::unique_lock lock(Plugin_Config_Mutex);
+      Plugin_Config = cfg;
+    } else {
+      std::string err_str;
+      swoc::bwprint(err_str, "{}: Failed to reload configuration.\n{}", Config::PLUGIN_NAME, errata);
+      TSError("%s", err_str.c_str());
+    }
+    Plugin_Reloading = t_null;
+    auto delta       = std::chrono::system_clock::now() - t0;
+    std::string text;
+    TSDebug(Config::PLUGIN_TAG.data(), "%s",
+            swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
+                          std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
+              .c_str());
+  } else { // because the exchange failed, @a t_null is the value that was in @a Plugin_Loading
     std::string err_str;
-    swoc::bwprint(err_str, "{}: Failed to reload configuration.\n{}", Config::PLUGIN_NAME, errata);
+    swoc::bwprint(err_str, "{}: Reload requested while previous reload at {} still active", Config::PLUGIN_NAME, swoc::bwf::Date(std::chrono::system_clock::to_time_t(t_null)));
     TSError("%s", err_str.c_str());
-  } else {
-    std::unique_lock lock(Plugin_Config_Mutex);
-    Plugin_Config = cfg;
   }
-  Plugin_Reloading = false;
-  auto delta       = std::chrono::system_clock::now() - t0;
-  std::string text;
-  TSDebug(Config::PLUGIN_TAG.data(), "%s",
-          swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
-                        std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
-            .c_str());
 }
 
 int
@@ -123,14 +133,7 @@ CB_TxnBoxMsg(TSCont, TSEvent, void *data)
   if (TextView tag{msg->tag, strlen(msg->tag)}; tag.starts_with_nocase(TAG)) {
     tag.remove_prefix(TAG.size());
     if (0 == strcasecmp(tag, RELOAD)) {
-      bool expected = false;
-      if (Plugin_Reloading.compare_exchange_strong(expected, true)) {
-        ts::PerformAsTask(&Task_ConfigReload);
-      } else {
-        std::string err_str;
-        swoc::bwprint(err_str, "{}: Reload requested while previous reload still active", Config::PLUGIN_NAME);
-        TSError("%s", err_str.c_str());
-      }
+      ts::PerformAsTask(&Task_ConfigReload);
     }
   }
   return TS_SUCCESS;
@@ -139,7 +142,7 @@ CB_TxnBoxMsg(TSCont, TSEvent, void *data)
 int
 CB_TxnBoxShutdown(TSCont, TSEvent, void *)
 {
-  TSDebug("txn_box", "Core shut down");
+  TSDebug("txn_box", "Global shut down");
   std::unique_lock lock(Plugin_Config_Mutex);
   Plugin_Config.reset();
   return TS_SUCCESS;
