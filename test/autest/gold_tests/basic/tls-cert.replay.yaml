@@ -1,0 +1,49 @@
+# Testing dynamic SNI - set outbound SNI based on the request for specific inbound requests.
+meta:
+  version: "1.0"
+
+  txn_box:
+    global:
+    - when: proxy-req
+      do:
+      - proxy-req-field<ts-cert-subject>: inbound-cert-local-issuer-field<CN>
+    - when: proxy-rsp
+      do:
+      - proxy-rsp-field<target-cert-subject>: outbound-cert-remote-subject-field<CN>
+
+  blocks:
+  - base-req: &base-req
+      version: "1.1"
+      method: "GET"
+  - base-rsp: &base-rsp
+      status: 200
+      reason: OK
+      content:
+        size: 96
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+
+sessions:
+- protocol: [ { name: ip, version : 4} , { name: "tls", sni: "alpha.ex" } ]
+  transactions:
+  - all: { headers: { fields: [[ uuid, 101 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/v1/video/search/channel/delain"
+      headers:
+        fields:
+        - [ "Host", "alpha.ex" ]
+    proxy-request:
+      <<: *base-req
+      headers:
+        fields:
+        - [ "ts-cert-subject", { value: "random.server.com", as: equal } ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "target-cert-subject", { value: "server_cn", as: equal } ]

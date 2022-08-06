@@ -414,7 +414,7 @@ Context::load_txn_var(swoc::TextView const &name)
 {
   auto spot = _txn_vars.find(name);
   if (spot == _txn_vars.end()) {
-    // Later, need to search ssn and global variables and retrieve those if found.
+    // Later, need to search inbound_ssn and global variables and retrieve those if found.
     return NIL_FEATURE;
   }
   return spot->_value;

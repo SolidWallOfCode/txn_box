@@ -77,7 +77,7 @@ public:
 Feature
 Ex_inbound_sni::extract(Context &ctx, Spec const &)
 {
-  return ctx.inbound_ssn().inbound_sni();
+  return ctx.inbound_ssn().sni();
 }
 /* ------------------------------------------------------------------------------------ */
 /// Extract the client session remote address.
@@ -158,7 +158,7 @@ Ex_has_inbound_protocol_prefix::validate(Config &cfg, Extractor::Spec &spec, Tex
 auto
 Ex_has_inbound_protocol_prefix::extract(Context &ctx, Spec const &spec) -> Feature
 {
-  return !ctx._txn.ssn().inbound_protocol_contains(spec._data.text).empty();
+  return !ctx._txn.inbound_ssn().protocol_contains(spec._data.text).empty();
 }
 
 BufferWriter &
@@ -220,7 +220,7 @@ auto
 Ex_inbound_protocol_stack::extract(Context &ctx, Spec const &) -> Feature
 {
   std::array<char const *, 10> tags;
-  auto n = ctx._txn.ssn().protocol_stack(MemSpan{tags.data(), tags.size()});
+  auto n = ctx._txn.inbound_ssn().protocol_stack(MemSpan{tags.data(), tags.size()});
   if (n > 0) {
     auto span = ctx.alloc_span<Feature>(n);
     for (decltype(n) idx = 0; idx < n; ++idx) {
@@ -298,7 +298,7 @@ Ex_inbound_protocol::validate(Config &cfg, Spec &spec, const TextView &arg)
 BufferWriter &
 Ex_inbound_protocol::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto tag = ctx._txn.ssn().inbound_protocol_contains(spec._data.text);
+  auto tag = ctx._txn.inbound_ssn().protocol_contains(spec._data.text);
   return bwformat(w, spec, tag);
 }
 
@@ -352,7 +352,7 @@ Ex_inbound_cert_verify_result::validate(Config &, Extractor::Spec &, TextView co
 Feature
 Ex_inbound_cert_verify_result::extract(Context &ctx, const Spec &)
 {
-  return ctx._txn.ssn().ssl_inbound_context().verify_result();
+  return ctx._txn.ssl_inbound_context().verify_result();
 }
 
 /// Value for an object in the issuer section of the server certificate of an inbound session.
@@ -387,9 +387,9 @@ Ex_inbound_cert_local_issuer_value::validate(Config &, Spec &spec, const TextVie
 BufferWriter &
 Ex_inbound_cert_local_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_inbound_context();
+  auto ssl_ctx = ctx._txn.ssl_inbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.local_issuer_value(nid));
+  return bwformat(w, spec, ssl_ctx.local_issuer_field(nid));
 }
 
 class Ex_outbound_cert_local_issuer_value : public StringExtractor
@@ -422,16 +422,16 @@ Ex_outbound_cert_local_issuer_value::validate(Config &, Spec &spec, const TextVi
 BufferWriter &
 Ex_outbound_cert_local_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_outbound_context();
+  auto ssl_ctx = ctx._txn.ssl_outbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.local_issuer_value(nid));
+  return bwformat(w, spec, ssl_ctx.local_issuer_field(nid));
 }
 
 /// Value for an object in the subject section of the server certificate of an inbound session.
 /// Extractor argument is the name of the field.
-class Ex_inbound_cert_local_subject_value : public StringExtractor
+class Ex_inbound_cert_local_subject_field : public StringExtractor
 {
-  using self_type  = Ex_inbound_cert_local_subject_value;
+  using self_type  = Ex_inbound_cert_local_subject_field;
   using super_type = StringExtractor;
 
 public:
@@ -443,7 +443,7 @@ protected:
 };
 
 Rv<ActiveType>
-Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextView &arg)
+Ex_inbound_cert_local_subject_field::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
     return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
@@ -457,16 +457,16 @@ Ex_inbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextVi
 }
 
 BufferWriter &
-Ex_inbound_cert_local_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
+Ex_inbound_cert_local_subject_field::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_inbound_context();
+  auto ssl_ctx = ctx._txn.ssl_inbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.local_subject_value(nid));
+  return bwformat(w, spec, ssl_ctx.local_subject_field(nid));
 }
 
-class Ex_outbound_cert_local_subject_value : public StringExtractor
+class Ex_outbound_cert_local_subject_field : public StringExtractor
   {
-  using self_type  = Ex_outbound_cert_local_subject_value;
+  using self_type  = Ex_outbound_cert_local_subject_field;
   using super_type = StringExtractor;
 
   public:
@@ -478,7 +478,7 @@ class Ex_outbound_cert_local_subject_value : public StringExtractor
   };
 
 Rv<ActiveType>
-Ex_outbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextView &arg)
+Ex_outbound_cert_local_subject_field::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
     return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
@@ -492,11 +492,11 @@ Ex_outbound_cert_local_subject_value::validate(Config &, Spec &spec, const TextV
 }
 
 BufferWriter &
-Ex_outbound_cert_local_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
+Ex_outbound_cert_local_subject_field::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_outbound_context();
+  auto ssl_ctx = ctx._txn.ssl_outbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.local_subject_value(nid));
+  return bwformat(w, spec, ssl_ctx.local_subject_field(nid));
 }
 /// Value for an object in the issuer section of the client certificate of an inbound session.
 /// Extractor argument is the name of the field.
@@ -531,9 +531,9 @@ Ex_inbound_cert_remote_issuer_value::validate(Config &, Spec &spec, const TextVi
 BufferWriter &
 Ex_inbound_cert_remote_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_inbound_context();
+  auto ssl_ctx = ctx._txn.ssl_inbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.remote_issuer_value(nid));
+  return bwformat(w, spec, ssl_ctx.remote_issuer_field(nid));
 }
 
 class Ex_outbound_cert_remote_issuer_value : public StringExtractor
@@ -567,16 +567,16 @@ Ex_outbound_cert_remote_issuer_value::validate(Config &, Spec &spec, const TextV
 BufferWriter &
 Ex_outbound_cert_remote_issuer_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_outbound_context();
+  auto ssl_ctx = ctx._txn.ssl_outbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.remote_issuer_value(nid));
+  return bwformat(w, spec, ssl_ctx.remote_issuer_field(nid));
 }
 
 /// Value for an object in the subject section of the client certificate of an inbound session.
 /// Extractor argument is the name of the field.
-class Ex_inbound_cert_remote_subject_value : public StringExtractor
+class Ex_inbound_cert_remote_subject_field : public StringExtractor
 {
-  using self_type  = Ex_inbound_cert_remote_subject_value;
+  using self_type  = Ex_inbound_cert_remote_subject_field;
   using super_type = StringExtractor;
 
 public:
@@ -588,7 +588,7 @@ protected:
 };
 
 Rv<ActiveType>
-Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &spec, const TextView &arg)
+Ex_inbound_cert_remote_subject_field::validate(Config &, Spec &spec, const TextView &arg)
 {
   if (arg.empty()) {
     return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
@@ -602,9 +602,17 @@ Ex_inbound_cert_remote_subject_value::validate(Config &, Spec &spec, const TextV
   return {STRING};
 }
 
-class Ex_outbound_cert_remote_subject_value : public StringExtractor
+BufferWriter &
+Ex_inbound_cert_remote_subject_field::format(BufferWriter &w, Spec const &spec, Context &ctx)
+{
+  auto ssl_ctx = ctx._txn.ssl_inbound_context();
+  auto nid     = spec._data.u;
+  return bwformat(w, spec, ssl_ctx.remote_subject_field(nid));
+}
+
+class Ex_outbound_cert_remote_subject_field : public StringExtractor
   {
-  using self_type  = Ex_outbound_cert_remote_subject_value;
+  using self_type  = Ex_outbound_cert_remote_subject_field;
   using super_type = StringExtractor;
 
   public:
@@ -615,12 +623,27 @@ class Ex_outbound_cert_remote_subject_value : public StringExtractor
   protected:
   };
 
-BufferWriter &
-Ex_outbound_cert_remote_subject_value::format(BufferWriter &w, Spec const &spec, Context &ctx)
+Rv<ActiveType>
+Ex_outbound_cert_remote_subject_field::validate(Config &, Spec &spec, const TextView &arg)
 {
-  auto ssl_ctx = ctx._txn.ssn().ssl_outbound_context();
+  if (arg.empty()) {
+    return Errata(S_ERROR,R"("{}" extractor requires an argument for the value name.)", NAME);
+  }
+  intptr_t nid = ts::ssl_nid(arg);
+  if (NID_undef == nid) {
+    return Errata(S_ERROR,R"("{}" is not a valid certificate subject name in "{}" extractor.)", arg, NAME);
+  }
+  // Sigh - abuse the memspan and use the size as the integer value.
+  spec._data.u = nid;
+  return {STRING};
+}
+
+BufferWriter &
+Ex_outbound_cert_remote_subject_field::format(BufferWriter &w, Spec const &spec, Context &ctx)
+{
+  auto ssl_ctx = ctx._txn.ssl_outbound_context();
   auto nid     = spec._data.u;
-  return bwformat(w, spec, ssl_ctx.remote_subject_value(nid));
+  return bwformat(w, spec, ssl_ctx.remote_subject_field(nid));
 }
 /* ------------------------------------------------------------------------------------ */
 namespace
@@ -637,16 +660,16 @@ Ex_has_inbound_protocol_prefix has_inbound_protocol_prefix;
 Ex_inbound_protocol_stack inbound_protocol_stack;
 Ex_inbound_cert_verify_result inbound_cert_verify_result;
 Ex_inbound_cert_local_issuer_value inbound_cert_local_issuer_value;
-Ex_inbound_cert_local_subject_value inbound_cert_local_subject_value;
+Ex_inbound_cert_local_subject_field inbound_cert_local_subject_field;
 Ex_inbound_cert_remote_issuer_value inbound_cert_remote_issuer_value;
-Ex_inbound_cert_remote_subject_value inbound_cert_remote_subject_value;
+Ex_inbound_cert_remote_subject_field inbound_cert_remote_subject_field;
 
 Ex_has_outbound_protocol_prefix has_outbound_protocol_prefix;
 Ex_outbound_protocol_stack outbound_protocol_stack;
 Ex_outbound_cert_local_issuer_value outbound_cert_local_issuer_value;
-Ex_outbound_cert_local_subject_value outbound_cert_local_subject_value;
+Ex_outbound_cert_local_subject_field outbound_cert_local_subject_field;
 Ex_outbound_cert_remote_issuer_value outbound_cert_remote_issuer_value;
-Ex_outbound_cert_remote_subject_value outbound_cert_remote_subject_value;
+Ex_outbound_cert_remote_subject_field outbound_cert_remote_subject_field;
 
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
   Extractor::define(Ex_inbound_txn_count::NAME, &inbound_txn_count);
@@ -657,16 +680,16 @@ Ex_outbound_cert_remote_subject_value outbound_cert_remote_subject_value;
   Extractor::define(Ex_inbound_addr_remote::NAME, &inbound_addr_remote);
   Extractor::define(Ex_inbound_addr_local::NAME, &inbound_addr_local);
   Extractor::define(Ex_inbound_cert_verify_result::NAME, &inbound_cert_verify_result);
-  Extractor::define(Ex_inbound_cert_local_subject_value::NAME, &inbound_cert_local_subject_value);
+  Extractor::define(Ex_inbound_cert_local_subject_field::NAME, &inbound_cert_local_subject_field);
   Extractor::define(Ex_inbound_cert_local_issuer_value::NAME, &inbound_cert_local_issuer_value);
-  Extractor::define(Ex_inbound_cert_remote_subject_value::NAME, &inbound_cert_remote_subject_value);
+  Extractor::define(Ex_inbound_cert_remote_subject_field::NAME, &inbound_cert_remote_subject_field);
   Extractor::define(Ex_inbound_cert_remote_issuer_value::NAME, &inbound_cert_remote_issuer_value);
 
   Extractor::define(Ex_has_outbound_protocol_prefix::NAME, &has_outbound_protocol_prefix);
   Extractor::define(Ex_outbound_protocol_stack::NAME, &outbound_protocol_stack);
-  Extractor::define(Ex_outbound_cert_local_subject_value::NAME, &outbound_cert_local_subject_value);
+  Extractor::define(Ex_outbound_cert_local_subject_field::NAME, &outbound_cert_local_subject_field);
   Extractor::define(Ex_outbound_cert_local_issuer_value::NAME, &outbound_cert_local_issuer_value);
-  Extractor::define(Ex_outbound_cert_remote_subject_value::NAME, &outbound_cert_remote_subject_value);
+  Extractor::define(Ex_outbound_cert_remote_subject_field::NAME, &outbound_cert_remote_subject_field);
   Extractor::define(Ex_outbound_cert_remote_issuer_value::NAME, &outbound_cert_remote_issuer_value);
 
   return true;

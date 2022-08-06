@@ -11,28 +11,28 @@ Athenz style mTLS testing.
 '''
 
 ts = Test.TxnBoxTest("mTLS.replay.yaml"
-                     , config_path="mTLS.txnbox.yaml", config_key="txn_box"
-                           , remap=[ ['https://base.ex/' , "http://base.ex/"] ]
-                           , enable_tls=True
-                           , verifier_server_args='--format "{url}"'
-                           )
+                    , config_path="mTLS.txnbox.yaml", config_key="txn_box"
+                    , remap=[ ['https://base.ex/' , "http://base.ex/"] ]
+                    , enable_tls=True
+                    , verifier_server_args='--format "{url}"'
+                    )
 
 
 tr_alpha = Test.TxnBoxRun("Athenz mTLS alpha"
-                          , replay_path="mTLS-alpha.replay.yaml"
-                          , ssl_cert="../../ssl/alpha-signed.cert"
-                          , suffix="alpha"
-                , verifier_client_args="--verbose info"
-                )
+                         , replay_path="mTLS-alpha.replay.yaml"
+                         , ssl_cert="../../ssl/alpha-signed.cert"
+                         , suffix="alpha"
+                         , verifier_client_args="--verbose info"
+                         )
 
 
 # These are intended to connect but not be "authorized" because the issuer isn't alpha.
 tr_bravo = Test.TxnBoxRun("Athenz mTLS bravo"
-                          , replay_path="mTLS-bravo.replay.yaml"
-                          , ssl_cert="../../ssl/bravo-signed.cert"
-                          , suffix="bravo"
-                    , verifier_client_args="--verbose info"
-                    )
+                         , replay_path="mTLS-bravo.replay.yaml"
+                         , ssl_cert="../../ssl/bravo-signed.cert"
+                         , suffix="bravo"
+                         , verifier_client_args="--verbose info"
+                         )
 
 ts.Setup.Copy("../../ssl/server.key", os.path.join(ts.Variables.CONFIGDIR, "server.key"))
 ts.Setup.Copy("../../ssl/server.pem", os.path.join(ts.Variables.CONFIGDIR, "server.pem"))

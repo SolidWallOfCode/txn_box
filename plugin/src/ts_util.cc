@@ -708,7 +708,7 @@ ts::HttpTxn::outbound_protocol_contains(swoc::TextView tag) const
 }
 
 int
-ts::HttpSsn::protocol_stack(MemSpan<const char *> tags) const
+HttpSsn::protocol_stack(MemSpan<const char *> tags) const
 {
   int n = 0;
   if (TS_SUCCESS != TSHttpSsnClientProtocolStackGet(_ssn, tags.count(), tags.data(), &n)) {
@@ -717,35 +717,29 @@ ts::HttpSsn::protocol_stack(MemSpan<const char *> tags) const
   return n;
 }
 
-ts::SSLContext
-ts::HttpSsn::ssl_inbound_context() const
+SSLContext
+HttpSsn::ssl_context() const
 {
   if (_ssn) {
     TSVConn ssl_vc = TSHttpSsnClientVConnGet(_ssn);
-    return {reinterpret_cast<SSL *>(compat::vconn_ssl_get(ssl_vc, swoc::meta::CaseArg))};
+    return { reinterpret_cast<SSL *>(compat::vconn_ssl_get(ssl_vc, swoc::meta::CaseArg)) };
   }
-  return {nullptr};
+  return {};
 }
 
 TextView
-ts::HttpSsn::inbound_sni() const
+ts::HttpSsn::sni() const
 {
   if (_ssn) {
-    TSVConn ssl_vc             = TSHttpSsnClientVConnGet(_ssn);
-    TSSslConnection ts_ssl_ctx = compat::vconn_ssl_get(ssl_vc, swoc::meta::CaseArg);
-    if (ts_ssl_ctx) {
-      SSL *ssl        = reinterpret_cast<SSL *>(ts_ssl_ctx);
-      const char *sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-      if (sni) {
-        return {sni, strlen(sni)};
-      }
+    if ( auto ssl_ctx = this->ssl_context() ;  ssl_ctx.is_valid() ) {
+      return ssl_ctx.sni();
     }
   }
   return {};
 }
 
 TextView
-ts::HttpSsn::inbound_protocol_contains(swoc::TextView tag) const
+ts::HttpSsn::protocol_contains(swoc::TextView tag) const
 {
   auto zret = TSHttpSsnClientProtocolStackContains(_ssn, tag.data());
   return zret;
@@ -804,6 +798,14 @@ int
 HttpTxn::outbound_txn_count() const
 {
   return compat::get_outbound_txn_count(_txn, swoc::meta::CaseArg);
+}
+
+SSLContext HttpTxn::ssl_outbound_context() const
+{
+  if ( auto vc = TSHttpTxnServerVConnGet(_txn) ; vc ) {
+    return { reinterpret_cast<SSL *>(compat::vconn_ssl_get(vc, swoc::meta::CaseArg)) };
+  }
+  return {};
 }
 
 swoc::Rv<int>
@@ -1102,7 +1104,7 @@ SSLContext::verify_result() const
 }
 
 TextView
-SSLContext::local_subject_value(int nid) const
+SSLContext::local_subject_field(int nid) const
 {
   if (_obj != nullptr) {
     if (auto cert = SSL_get_certificate(_obj); cert != nullptr) {
@@ -1115,7 +1117,7 @@ SSLContext::local_subject_value(int nid) const
 }
 
 TextView
-SSLContext::local_issuer_value(int nid) const
+SSLContext::local_issuer_field(int nid) const
 {
   if (_obj != nullptr) {
     if (auto cert = SSL_get_certificate(_obj); cert != nullptr) {
@@ -1127,7 +1129,7 @@ SSLContext::local_issuer_value(int nid) const
   return {};
 }
 TextView
-SSLContext::remote_subject_value(int nid) const
+SSLContext::remote_subject_field(int nid) const
 {
   if (_obj != nullptr) {
     if (auto cert = SSL_get_peer_certificate(_obj); cert != nullptr) {
@@ -1140,7 +1142,7 @@ SSLContext::remote_subject_value(int nid) const
 }
 
 TextView
-SSLContext::remote_issuer_value(int nid) const
+SSLContext::remote_issuer_field(int nid) const
 {
   if (_obj != nullptr) {
     if (auto cert = SSL_get_peer_certificate(_obj); cert != nullptr) {

@@ -471,9 +471,9 @@ public:
   /// Transaction count.
   unsigned txn_count() const;
 
-  /// Return the inbound SNI name, if any.
+  /// Return the SNI name, if any.
   /// @internal This needs to be move to @c SSLContext.
-  swoc::TextView inbound_sni() const;
+  swoc::TextView sni() const;
 
   /** Check for a specific tag in the protocol stack.
    *
@@ -482,7 +482,7 @@ public:
    *
    * This is more efficient then obtaining the stack and then searching for @a tag.
    */
-  swoc::TextView inbound_protocol_contains(swoc::TextView tag) const;
+  swoc::TextView protocol_contains(swoc::TextView tag) const;
 
   /** Retrieve the protocol stack for @a this session in to @a tags.
    *
@@ -501,17 +501,11 @@ public:
   /// @return The local address of the session.
   sockaddr const *addr_local() const;
 
-  /** SSL context for the inbound (UA) connection.
+  /** SSL context for the session.
    *
    * @return An SSL context instance, which is valid iff the session is TLS.
    */
-  SSLContext ssl_inbound_context() const;
-
-  /** SSL context for the outbound connection.
-   *
-   * @return An SSL context instance, which is valid iff the session is TLS.
-   */
-  SSLContext ssl_outbound_context() const;
+  SSLContext ssl_context() const;
 
 protected:
   TSHttpSsn _ssn = nullptr; ///< Session handle.
@@ -573,18 +567,28 @@ class HttpTxn
 {
   using self_type = HttpTxn; ///< Self reference type.
 public:
+  /// Construct invalid object.
   HttpTxn() = default;
 
+  /** Construct from plugin API object.
+   *
+   * @param txn Plugin API transaction pointer.
+   */
   HttpTxn(TSHttpTxn txn);
 
+  /// Implicit conversion to plugin API object.
   operator TSHttpTxn() const;
 
+  /// @return User agent request header.
   HttpRequest ua_req_hdr();
 
+  /// @return Proxy request header.
   HttpRequest preq_hdr();
 
+  /// @return Upstream response header.
   HttpResponse ursp_hdr();
 
+  /// @return Proxy response header.
   HttpResponse prsp_hdr();
 
   /** Configure whether transaction level debugging is enabled.
@@ -640,8 +644,8 @@ public:
    */
   swoc::Errata cache_key_assign(swoc::TextView const &key);
 
-  /// @return The session object for @a this transaction.
-  HttpSsn ssn() const;
+  /// @return The inbound (user agent) session object for @a this transaction.
+  HttpSsn inbound_ssn() const;
 
   /** Fix the upstream address.
    *
@@ -680,6 +684,11 @@ public:
    */
   swoc::Errata override_assign(TxnConfigVar const &var, double f);
 
+  /** Get a transaction override value.
+   *
+   * @param var Transaction overridable variable.
+   * @return The current value or error.
+   */
   swoc::Rv<ConfVarData> override_fetch(TxnConfigVar const &var);
 
   /** Look up the transaction overridable configuration variable @a name.
@@ -703,6 +712,12 @@ public:
    */
   void arg_assign(int idx, void *value);
 
+  /** Rserver a plugin api transaction argument.
+   *
+   * @param name Name for the reservation.
+   * @param description Description of the reserving party.
+   * @return The index of the reserved argument or error.
+   */
   static swoc::Rv<int> reserve_arg(swoc::TextView const &name, swoc::TextView const &description);
 
   /** Perform DSO load time intialization.
@@ -751,6 +766,9 @@ public:
    */
   int outbound_protocol_stack(swoc::MemSpan<char const *> tags) const;
 
+  SSLContext ssl_outbound_context() const;
+  SSLContext ssl_inbound_context() const;
+
 protected:
   using TxnConfigVarTable = std::unordered_map<swoc::TextView, std::unique_ptr<TxnConfigVar>, std::hash<std::string_view>>;
 
@@ -783,20 +801,30 @@ class SSLContext
   struct ssl_st *_obj = nullptr;
 
   friend class HttpSsn;
+  friend class HttpTxn;
 
 public:
+  /// Construct an invalid instance.
+  SSLContext() = default;
+
+  /// @return @a true if initialized.
   bool is_valid() const;
+
+  /// Equality.
+  bool operator == (self_type const& that) const { return _obj == that._obj; }
+  /// Inequality.
+  bool operator != (self_type const& that) const { return _obj != that._obj; }
 
   /// @return The SNI name.
   swoc::TextView sni() const;
 
-  swoc::TextView local_issuer_value(int nid) const;
+  swoc::TextView local_issuer_field(int nid) const;
 
-  swoc::TextView local_subject_value(int nid) const;
+  swoc::TextView local_subject_field(int nid) const;
 
-  swoc::TextView remote_issuer_value(int nid) const;
+  swoc::TextView remote_issuer_field(int nid) const;
 
-  swoc::TextView remote_subject_value(int nid) const;
+  swoc::TextView remote_subject_field(int nid) const;
 
   /// @return The result of certificate verification.
   long verify_result() const;
@@ -989,9 +1017,14 @@ inline HttpTxn::operator TSHttpTxn() const
 }
 
 inline HttpSsn
-HttpTxn::ssn() const
+HttpTxn::inbound_ssn() const
 {
   return _txn ? TSHttpTxnSsnGet(_txn) : nullptr;
+}
+
+inline SSLContext HttpTxn::ssl_inbound_context() const
+{
+  return this->inbound_ssn().ssl_context();
 }
 
 inline unsigned
@@ -1034,6 +1067,7 @@ std::tuple<swoc::TextView, swoc::TextView> take_query_pair(swoc::TextView & src)
  * indicates there was no '='.
  */
 extern std::tuple<swoc::TextView, swoc::TextView> query_value_for(swoc::TextView query_str, swoc::TextView search_key, bool caseless_p = false);
+
 }; // namespace ts
 
 namespace swoc
@@ -1072,4 +1106,5 @@ get<1>(ts::HeapObject const &obj)
 {
   return obj.mloc();
 }
+
 } // namespace std

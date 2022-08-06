@@ -752,5 +752,5 @@ Context::make(Args &&... args)
 inline ts::HttpSsn
 Context::inbound_ssn()
 {
-  return _txn.ssn();
+  return _txn.inbound_ssn();
 }
