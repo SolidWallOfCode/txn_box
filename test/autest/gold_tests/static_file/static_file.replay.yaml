@@ -56,6 +56,13 @@ meta:
           do:
           - proxy-req-field<Author-i-tay>: text-block<missing>
 
+    - when: proxy-rsp
+      do:
+      - with: ua-req-path
+        select:
+        - match: "block-dump"
+          do:
+          - proxy-rsp-field<Block>: [ ua-req-field<block> , { as-text-block: "\"{ua-req-field<block>}\" is not a valid block name." }]
 
   # -- doc-1-->
     - when: upstream-rsp
@@ -415,6 +422,75 @@ sessions:
         - [ Content-Length, 96 ]
     proxy-response:
       status: 200
+
+  # basic modifier check.
+  - all: { headers: { fields: [[ uuid, block-dump-1 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/block-dump"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+        - [ "Block", "SWOC" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 200
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "Block", { as: equal , value: "Delain Concert." } ]
+
+  # Missing file check - is the @c text field used?
+  - all: { headers: { fields: [[ uuid, block-dump-2 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/block-dump"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+        - [ "Block", "missing" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 200
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "Block", { as: equal , value: "Concert missing." } ]
+
+  # Invalid name check.
+  - all: { headers: { fields: [[ uuid, block-dump-3 ]]}}
+    client-request:
+      <<: *base-req
+      url: "/block-dump"
+      headers:
+        fields:
+        - [ Host, base.ex ]
+        - [ "Block", "none" ]
+    proxy-request:
+      <<: *base-req
+    server-response:
+      status: 200
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 96 ]
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "Block", { as: equal , value: "\"none\" is not a valid block name." } ]
 
   # Verify correctness for empty upstream response - empty case
   # Disabled for now because of ATS core problem. Issue #8081.

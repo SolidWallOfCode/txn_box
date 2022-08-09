@@ -176,6 +176,13 @@ Modifiers
    Space. The value for the modifier is a feature expression in which :ex:`ip-col` can be used to
    extract data from the row. The value of that expression replaces the IP address.
 
+.. modifier:: as-text-block
+   :arg: Block name as a string.
+
+   Convert a string in to the contents of a text block. The active value is treated as the name.
+   The modifier value is used if there is no block for the name. If there is no block and no name
+   the result is an empty string.
+
 .. modifier:: url-encode
    :value: string
 

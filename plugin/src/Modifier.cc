@@ -912,7 +912,7 @@ class Mod_as_integer : public Modifier
   using super_type = Modifier;
 
 public:
-  static const std::string KEY; ///< Identifier name.
+  static constexpr TextView KEY { "as-integer" }; ///< Identifier name.
 
   /** Modify the feature.
    *
@@ -946,8 +946,6 @@ protected:
 
   explicit Mod_as_integer(Expr &&expr) : _value(std::move(expr)) {}
 };
-
-const std::string Mod_as_integer::KEY{"as-integer"};
 
 bool
 Mod_as_integer::is_valid_for(ActiveType const &ex_type) const

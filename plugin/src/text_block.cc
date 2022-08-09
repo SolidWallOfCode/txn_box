@@ -35,7 +35,16 @@ using namespace swoc::literals;
 using Clock = std::chrono::system_clock;
 
 /* ------------------------------------------------------------------------------------ */
-/// Define a static text block.
+
+/** Define a static text block.
+ *
+ * The content is stored in s shared pointer to a @c std::string.
+ *
+ * The shared pointer is used so the content can be persisted during a transaction even if there is a reload of that content.
+ *
+ * @c std::string is used because reloads make the content lifetime asynchronous with both configuration and transactions, making
+ * those arenas not appropriate.
+ */
 class Do_text_block_define : public Directive
 {
   using self_type  = Do_text_block_define; ///< Self reference type.
@@ -83,6 +92,7 @@ public:
   static Errata cfg_init(Config &cfg, CfgStaticData const *rtti);
 
 protected:
+  /// Storage for content.
   using Map       = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
   using MapHandle = std::unique_ptr<Map>;
 
@@ -119,6 +129,7 @@ protected:
   Do_text_block_define() = default;
 
   friend class Ex_text_block;
+  friend class Mod_as_text_block;
   friend Updater;
 };
 
@@ -300,6 +311,18 @@ public:
 
   Feature extract(Context &ctx, Spec const &spec) override;
   BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+protected:
+  /** Extract the content of the block for @a tag.
+   *
+   * @param ctx Transaction context.
+   * @param tag Block tag.
+   * @return A feature, a @c STRING if there is block content, @c NIL if not.
+   *
+   * The view returned is transaction persistent.
+   */
+  static Feature extract_block(Context & ctx, TextView tag);
+
+  friend class Mod_as_text_block; // Access to @c extract_block.
 };
 
 Rv<ActiveType>
@@ -314,44 +337,134 @@ Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &arg)
   return {STRING};
 }
 
-Feature
-Ex_text_block::extract(Context &ctx, const Spec &spec)
+Feature Ex_text_block::extract_block(Context& ctx, TextView tag)
 {
-  auto arg = spec._data.span.rebind<TextView>()[0];
   if (auto rtti = ctx.cfg().drtv_info(Do_text_block_define::KEY); nullptr != rtti) {
     // If there's file content, get a shared pointer to it to preserve the full until
     // the end of the transaction.
-    auto map = Do_text_block_define::map(rtti);
-    if (auto spot = map->find(arg); spot != map->end()) {
+    auto * map = Do_text_block_define::map(rtti);
+    if (auto spot = map->find(tag); spot != map->end()) {
       auto block = spot->second;
-      // This needs to persist until the end of the invoking directive. There's no direct
-      // support for that so the best that can be done is to persist until the end of the
-      // transaction by putting it in context storage.
-      std::shared_ptr<std::string> &content = *(ctx.make<std::shared_ptr<std::string>>());
-
+      std::shared_ptr<std::string> content;
       { // grab a copy of the shared pointer to file content.
         std::shared_lock lock(block->_content_mutex);
         content = block->_content;
       }
 
       if (content) {
-        ctx.mark_for_cleanup(&content); // only need to cleanup if non-nullptr.
-        return FeatureView{*content};
+        // If there is content, it must persist the content until end of the directive. There's no direct support for that so the
+        // best that can be done is to persist until the end of the transaction by putting it in context storage.
+        auto * ptr = ctx.make<std::shared_ptr<std::string>>(content); // make a copy in context storage.
+        ctx.mark_for_cleanup(ptr); // clean it up when the txn is done.
+        return FeatureView(*content);
       }
+
       // No file content, see if there's alternate text.
       if (block->_text.has_value()) {
         return FeatureView{block->_text.value()};
       }
     }
   }
-  // Couldn't find the directive, or the block, or any content
   return NIL_FEATURE;
+}
+
+Feature
+Ex_text_block::extract(Context &ctx, const Spec &spec)
+{
+  auto arg = spec._data.span.rebind<TextView>()[0];
+  return this->extract_block(ctx, arg);
 }
 
 BufferWriter &
 Ex_text_block::format(BufferWriter &w, Spec const &spec, Context &ctx)
 {
   return bwformat(w, spec, this->extract(ctx, spec));
+}
+
+// ------------------
+/// Convert to a text block, treating the active value as a text block name.
+class Mod_as_text_block : public Modifier
+{
+  using self_type = Mod_as_text_block;;
+  using super_type = Modifier;
+public:
+  static constexpr swoc::TextView KEY{"as-text-block"};
+
+  /** Modify the feature.
+   *
+   * @param ctx Run time context.
+   * @param feature Feature to modify [in,out]
+   * @return Errors, if any.
+   */
+  Rv<Feature> operator()(Context &ctx, Feature &feature) override;
+
+  /** Check if @a ftype is a valid type to be modified.
+   *
+   * @param ftype Type of feature to modify.
+   * @return @c true if this modifier can modity that feature type, @c false if not.
+   */
+  bool is_valid_for(ActiveType const &ex_type) const override;
+
+  /// Resulting type of feature after modifying always a string.
+  ActiveType result_type(ActiveType const &) const override;
+
+  /** Create an instance from YAML config.
+   *
+   * @param cfg Configuration state object.
+   * @param mod_node Node with modifier.
+   * @param key_node Node in @a mod_node that identifies the modifier.
+   * @return A constructed instance or errors.
+   */
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+protected:
+  Expr _value; ///< Default value.
+
+  explicit Mod_as_text_block(Expr && expr) : _value(std::move(expr)) {}
+};
+
+bool
+Mod_as_text_block::is_valid_for(ActiveType const &ex_type) const
+{
+  return ex_type.can_satisfy({NIL, STRING});
+}
+
+ActiveType
+Mod_as_text_block::result_type(ActiveType const &) const
+{
+  return { MaskFor(STRING) };
+}
+
+Rv<Modifier::Handle>
+Mod_as_text_block::load(Config &cfg, YAML::Node, TextView, TextView, YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  if (expr.is_null()) { // If no default, use an empty string.
+    return Handle(new self_type(Expr(FeatureView::Literal(""))));
+  } else if (expr.result_type().can_satisfy(MaskFor(STRING))) {
+    return Handle(new self_type{std::move(expr)});
+  }
+  return Errata(S_ERROR, "Value of {} modifier is not of type {}.", KEY, STRING);
+}
+
+Rv<Feature>
+Mod_as_text_block::operator()(Context &ctx, Feature &feature)
+{
+  Feature zret;
+  if (IndexFor(STRING) == feature.index()) {
+    auto tag = std::get<IndexFor(STRING)>(feature); // get the name.
+    zret = Ex_text_block::extract_block(ctx, tag);
+  }
+
+  if (is_nil(zret)) {
+    zret = ctx.extract_view(_value, {Context::ViewOption::EX_COMMIT});
+  }
+
+  return { zret };
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -363,6 +476,7 @@ Ex_text_block text_block;
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
   Config::define<Do_text_block_define>();
   Extractor::define(Ex_text_block::NAME, &text_block);
+  Modifier::define<Mod_as_text_block>();
   return true;
 }();
 } // namespace

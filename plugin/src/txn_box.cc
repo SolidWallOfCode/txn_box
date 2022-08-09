@@ -54,7 +54,9 @@ Config::Handle Plugin_Config;
 std::shared_mutex Plugin_Config_Mutex; // safe updating of the shared ptr.
 /// Start time of the currently active reload. If the default value then no reload is active.
 /// @note A time instead of a @c bool for better diagnostics.
-std::atomic<std::chrono::system_clock::time_point> Plugin_Reloading;
+/// @internal Older gcc versions don't like the default constructor when used with @c atomic.
+static constexpr std::chrono::system_clock::time_point SYSTEM_CLOCK_NULL_TIME;
+std::atomic<std::chrono::system_clock::time_point> Plugin_Reloading{SYSTEM_CLOCK_NULL_TIME};
 
 // Get a shared pointer to the configuration safely against updates.
 Config::Handle
@@ -97,7 +99,7 @@ CB_Txn_Start(TSCont, TSEvent, void *payload)
 void
 Task_ConfigReload()
 {
-  std::chrono::system_clock::time_point t_null;
+  auto t_null = SYSTEM_CLOCK_NULL_TIME;
   auto t0             = std::chrono::system_clock::now();
   if (Plugin_Reloading.compare_exchange_strong(t_null, t0)) {
     std::shared_ptr cfg = std::make_shared<Config>();
