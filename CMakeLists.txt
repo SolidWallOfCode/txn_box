@@ -19,6 +19,7 @@ FetchContent_Declare(
     GIT_TAG "master"
 )
 set(LIBSWOC_INSTALL off)
+set(LIBSWOC_TEST off)
 FetchContent_MakeAvailable(libSWOC)
 
 #pkg_check_modules(swoc REQUIRED IMPORTED_TARGET libswoc.static)

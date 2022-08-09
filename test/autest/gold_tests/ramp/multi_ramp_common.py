@@ -35,8 +35,8 @@ class State:
             elif target == 100:
                 lower = upper = RepeatCount
             else:
-                lower = int((RepeatCount * (r[1][0]-3)) / 100)
-                upper = int((RepeatCount * (r[1][0]+3)) / 100)
+                lower = int((RepeatCount * (r[1][0]-5)) / 100)
+                upper = int((RepeatCount * (r[1][0]+5)) / 100)
 
             if r[1][1] < lower or r[1][1] > upper:
                 result = "{}'{}' failed with {} not in {}..{}\n".format(result, r[0], r[1][1], lower, upper)

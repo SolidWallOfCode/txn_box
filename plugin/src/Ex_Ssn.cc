@@ -140,9 +140,6 @@ public:
 
   /// Extract the feature from the @a ctx.
   Feature extract(Context &ctx, Spec const &spec) override;
-
-  /// Required text formatting access.
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
 };
 
 Rv<ActiveType>
@@ -161,11 +158,6 @@ Ex_has_inbound_protocol_prefix::extract(Context &ctx, Spec const &spec) -> Featu
   return !ctx._txn.inbound_ssn().protocol_contains(spec._data.text).empty();
 }
 
-BufferWriter &
-Ex_has_inbound_protocol_prefix::format(BufferWriter &w, Extractor::Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
-}
 /* ------------------------------------------------------------------------------------ */
 class Ex_has_outbound_protocol_prefix : public Extractor
   {
