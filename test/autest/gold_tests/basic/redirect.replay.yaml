@@ -224,7 +224,7 @@ sessions:
   - all: { headers: { fields: [ [ uuid, encode ] ] } }
     client-request:
       <<: *base-req
-      url: "/run/query.html?comets=1P/Halley, 21P/Giacobini-Zinner, 103P/Hartley&area=solar"
+      url: "/run/query.html?comets=1P/Halley,21P/Giacobini-Zinner,103P/Hartley&area=solar"
       headers:
         fields:
         - [ "Host", "encode.ex" ]
@@ -236,7 +236,7 @@ sessions:
       status: 302
       headers:
         fields:
-        - [ "Location", { value: "http://delta.ex/run/query.html?comets%3D1P%2FHalley%2C%2021P%2FGiacobini-Zinner%2C%20103P%2FHartley%26area%3Dsolar", as: equal } ]
+        - [ "Location", { value: "http://delta.ex/run/query.html?comets%3D1P%2FHalley%2C21P%2FGiacobini-Zinner%2C103P%2FHartley%26area%3Dsolar", as: equal } ]
   - all: { headers: { fields: [ [ uuid, decode ] ] } }
     client-request:
       <<: *base-req
