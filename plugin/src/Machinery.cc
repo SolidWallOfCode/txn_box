@@ -2705,11 +2705,10 @@ Do_proxy_reply::invoke(Context &ctx)
   auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
   auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
 
-  // If the Location view is empty, it hasn't been set and therefore the clean up hook
-  // hasn't been set either, so need to do that.
+  // Is a fix up hook required to set the reason correctly?
   bool need_hook_p = false;
 
-  // Finalize the location and stash it in context storage.
+  // Finalize the reason and stash it in context storage.
   if (_reason_idx != FeatureGroup::INVALID_IDX) {
     Feature reason = _fg.extract(ctx, _reason_idx);
     if (reason.index() == IndexFor(STRING)) {
