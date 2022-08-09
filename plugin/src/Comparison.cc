@@ -222,7 +222,7 @@ protected:
     bool
     operator()(Feature const &f)
     {
-      return ValueTypeOf(f) == STRING;
+      return f.value_type() == STRING;
     }
     bool
     operator()(Expr::Direct const &d)
@@ -1506,7 +1506,7 @@ const ActiveType Cmp_for_all::TYPES{ActiveType::any_type()};
 bool
 Cmp_for_all::operator()(Context &ctx, Feature const &feature) const
 {
-  if (TUPLE != ValueTypeOf(feature)) {
+  if (TUPLE != feature.value_type()) {
     return (*_cmp)(ctx, feature);
   }
 
@@ -1560,7 +1560,7 @@ const ActiveType Cmp_for_any::TYPES{ActiveType::any_type()};
 bool
 Cmp_for_any::operator()(Context &ctx, Feature const &feature) const
 {
-  if (TUPLE != ValueTypeOf(feature)) {
+  if (TUPLE != feature.value_type()) {
     return (*_cmp)(ctx, feature);
   }
 
@@ -1614,7 +1614,7 @@ const ActiveType Cmp_for_none::TYPES{ActiveType::any_type()};
 bool
 Cmp_for_none::operator()(Context &ctx, Feature const &feature) const
 {
-  if (TUPLE != ValueTypeOf(feature)) {
+  if (TUPLE != feature.value_type()) {
     return (*_cmp)(ctx, feature);
   }
 
@@ -1669,7 +1669,7 @@ Cmp_as_tuple::operator()(Context &ctx, Feature const &feature) const
     return true;
   }
 
-  auto vtype = ValueTypeOf(feature);
+  auto vtype = feature.value_type();
   if (TUPLE != vtype) {
     return (*_cmps[0])(ctx, feature);
   }

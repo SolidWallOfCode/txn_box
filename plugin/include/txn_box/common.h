@@ -78,8 +78,9 @@ public:
   static self_type Direct(TextView const &view);
 };
 
-/// YAML tag type for literal (no feature extraction).
+/// YAML tag for literal (no feature extraction).
 static constexpr swoc::TextView LITERAL_TAG{"!literal"};
+/// YAML tag for duration.
 static constexpr swoc::TextView DURATION_TAG{"!duration"};
 
 // Self referential types, forward declared.
@@ -130,7 +131,7 @@ public:
 /// in which the type may not be known at configuration load time.
 /// @note Changes here must be synchronized with changes in
 /// - @c FeatureTypelist
-/// - @c Feature::value_type
+/// - @c FeatureIndexToValue
 enum ValueType : int8_t {
   NO_VALUE = 0, ///< No value, uninitialized
   NIL,          ///< Config level no data.
@@ -158,12 +159,13 @@ template <> struct tuple_size<ValueType> : public std::integral_constant<size_t,
 };
 }; // namespace std
 
-// *** @c FeatureTypeList, @c ValueType, and @c FeatureindexList must be kept in parallel synchronization! ***
+// *** @c FeatureTypeList, @c ValueType, and @c FeatureIndexToValue must be kept in synchronization! ***
 /// Type list of feature types.
 using FeatureTypeList =
   swoc::meta::type_list<std::monostate, nil_value, FeatureView, intmax_t, bool, double, swoc::IPAddr, std::chrono::nanoseconds,
                         std::chrono::system_clock::time_point, Cons *, FeatureTuple, Generic *>;
 
+// *** @c FeatureTypeList, @c ValueType, and @c FeatureIndexToValue must be kept in synchronization! ***
 /// Variant index to feature type.
 constexpr std::array<ValueType, FeatureTypeList::size> FeatureIndexToValue{
   NO_VALUE, NIL, STRING, INTEGER, BOOLEAN, FLOAT, IP_ADDR, DURATION, TIMEPOINT, CONS, TUPLE, GENERIC};
@@ -367,13 +369,6 @@ visit(VISITOR &&visitor, Feature const &feature)
 }
 } // namespace std
 /// @endcond
-
-/// @deprecated - use @c f.value_type()
-inline ValueType
-ValueTypeOf(Feature const &f)
-{
-  return f.value_type();
-}
 
 namespace detail
 {

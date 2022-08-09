@@ -2152,18 +2152,18 @@ Do_upstream_rsp_status::invoke(Context &ctx)
 {
   int status    = TS_HTTP_STATUS_NONE;
   Feature value = ctx.extract(_expr);
-  auto vtype    = ValueTypeOf(value);
+  auto vtype    = value.value_type();
   if (INTEGER == vtype) {
     status = std::get<IndexFor(INTEGER)>(value);
   } else if (TUPLE == vtype) {
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (0 < t.count() && t.count() <= 2) {
-      if (ValueTypeOf(t[0]) != INTEGER) {
+      if (t[0].value_type() != INTEGER) {
         return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
       status = std::get<IndexFor(INTEGER)>(t[0]);
       if (t.count() == 2) {
-        if (ValueTypeOf(t[1]) != STRING) {
+        if (t[1].value_type() != STRING) {
           return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
         }
         ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
@@ -2234,7 +2234,7 @@ Errata
 Do_upstream_reason::invoke(Context &ctx)
 {
   auto value = ctx.extract(_fmt);
-  if (STRING != ValueTypeOf(value)) {
+  if (STRING != value.value_type()) {
     return Errata(S_ERROR, R"(Value for "{}" is not a string.)", KEY);
   }
   ctx._txn.ursp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
@@ -2295,18 +2295,18 @@ Do_proxy_rsp_status::invoke(Context &ctx)
 {
   int status    = TS_HTTP_STATUS_NONE;
   Feature value = ctx.extract(_expr);
-  auto vtype    = ValueTypeOf(value);
+  auto vtype    = value.value_type();
   if (INTEGER == vtype) {
     status = std::get<IndexFor(INTEGER)>(value);
   } else if (TUPLE == vtype) {
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (0 < t.count() && t.count() <= 2) {
-      if (ValueTypeOf(t[0]) != INTEGER) {
+      if (t[0].value_type() != INTEGER) {
         return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
       }
       status = std::get<IndexFor(INTEGER)>(t[0]);
       if (t.count() == 2) {
-        if (ValueTypeOf(t[1]) != STRING) {
+        if (t[1].value_type() != STRING) {
           return Errata(S_ERROR, R"(Tuple for "{}" must be an integer and a string.)", KEY);
         }
         ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(t[1]));
@@ -2379,7 +2379,7 @@ Errata
 Do_proxy_rsp_reason::invoke(Context &ctx)
 {
   auto value = ctx.extract(_expr);
-  if (STRING != ValueTypeOf(value)) {
+  if (STRING != value.value_type()) {
     return Errata(S_ERROR, R"(Value for "{}" is not a string.)", KEY);
   }
   ctx._txn.prsp_hdr().reason_set(std::get<IndexFor(STRING)>(value));
@@ -2440,7 +2440,7 @@ Do_proxy_rsp_body::invoke(Context &ctx)
 {
   TextView body, mime{"text/html"};
   auto value = ctx.extract(_expr);
-  if (STRING == ValueTypeOf(value)) {
+  if (STRING == value.value_type()) {
     body = std::get<IndexFor(STRING)>(value);
   } else if (auto tp = std::get_if<IndexFor(TUPLE)>(&value); tp) {
     if (tp->count() == 2) {
@@ -2573,7 +2573,7 @@ Do_upstream_rsp_body::invoke(Context &ctx)
   };
 
   auto value            = ctx.extract(_expr);
-  auto vtype            = ValueTypeOf(value);
+  auto vtype            = value.value_type();
   TextView *content     = nullptr;
   TextView content_type = "text/html";
   if (STRING == vtype) {
@@ -2581,9 +2581,9 @@ Do_upstream_rsp_body::invoke(Context &ctx)
   } else if (TUPLE == vtype) {
     auto t = std::get<IndexFor(TUPLE)>(value);
     if (t.size() > 0) {
-      if (STRING == ValueTypeOf(t[0])) {
+      if (STRING == t[0].value_type()) {
         content = &std::get<IndexFor(STRING)>(t[0]);
-        if (t.size() > 1 && STRING == ValueTypeOf(t[1])) {
+        if (t.size() > 1 && STRING == t[1].value_type()) {
           content_type = std::get<IndexFor(STRING)>(t[1]);
         }
       }

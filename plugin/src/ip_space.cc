@@ -574,15 +574,15 @@ Do_ip_space_define::define_column(Config &cfg, YAML::Node node)
       }
       col._tags.set_default(INVALID_TAG);
       Feature lit = std::get<Expr::LITERAL>(tags_expr._raw);
-      if (ValueTypeOf(lit) == TUPLE) {
+      if (lit.value_type() == TUPLE) {
         for (auto f : std::get<IndexFor(TUPLE)>(lit)) {
-          if (ValueTypeOf(f) != STRING) {
+          if (f.value_type() != STRING) {
             return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG,
                          name_node.Mark(), COLUMNS_TAG, node.Mark());
           }
           col._tags.define(col._tags.count(), std::get<IndexFor(STRING)>(f));
         }
-      } else if (ValueTypeOf(lit) == STRING) {
+      } else if (lit.value_type() == STRING) {
         col._tags.define(col._tags.count(), std::get<IndexFor(STRING)>(lit));
       } else {
         return Errata(S_ERROR, "{} value at {} for {} define at {} must be a literal string or list of strings.", NAME_TAG, name_node.Mark(),
