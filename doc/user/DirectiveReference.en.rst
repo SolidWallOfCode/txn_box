@@ -404,7 +404,10 @@ Utility
       Explicit text content for the text block.
 
    duration
-      An optional value that specifies how often to check the file for changes. An implicit :mod:`as-duration` is applied to the value.
+      An optional value that specifies how often to check if the file has been updated. An implicit
+      :mod:`as-duration` is applied to the value. During a check, The file is considered updated if
+      the maximum (latest) of the modify and change times is larger than the same maximum the last
+      time the file was loaded. If this is not present no update checks are done.
 
    notify
       A feature expression that must be a string. This generates an INFO level message using the
@@ -414,7 +417,11 @@ Utility
    One of ``path`` and ``text`` must be present. If both are present ``path`` takes precedence. The
    file contents are used if the file can be read, otherwise the value in ``text`` is used. If
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot
-   be read.
+   be read. If update checking is enabled and the file disappears, the text will be used. If the
+   file is avaiable during a subsequent check and is updated (newer than the last load time) it will
+   be loaded and used instead of the text.
+
+   .. seealso:: :ref:`ex-text-block`, :ref:`mod-as-text-block`
 
 .. directive:: error
 

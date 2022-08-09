@@ -92,7 +92,7 @@ public:
   static Errata cfg_init(Config &cfg, CfgStaticData const *rtti);
 
 protected:
-  /// Storage for content.
+  /// Storage for instances.
   using Map       = std::unordered_map<TextView, self_type *, std::hash<std::string_view>>;
   using MapHandle = std::unique_ptr<Map>;
 
@@ -112,10 +112,10 @@ protected:
   std::shared_mutex _content_mutex;                                           ///< Lock for access @a content.
   ts::TaskHandle _task;                                                       ///< Handle for periodic checking task.
 
-  FeatureGroup _fg;
+  FeatureGroup _fg; ///< Support cross reference in the keys.
   using index_type                  = FeatureGroup::index_type;
   static auto constexpr INVALID_IDX = FeatureGroup::INVALID_IDX;
-  index_type _notify_idx;
+  index_type _notify_idx; ///< FG index for notifications.
 
   static inline const std::string NAME_TAG{"name"};
   static inline const std::string PATH_TAG{"path"};
@@ -126,6 +126,10 @@ protected:
   /// Map of names to text blocks.
   static Map *map(Directive::CfgStaticData const *rtti);
 
+  /// Get the "update" time for a file - the max of modified and changed times.
+  static Clock::time_point update_time(swoc::file::file_status const& stat);
+
+  /// Default constructor - only available to friends.
   Do_text_block_define() = default;
 
   friend class Ex_text_block;
@@ -134,6 +138,12 @@ protected:
 };
 
 const HookMask Do_text_block_define::HOOKS{MaskFor(Hook::POST_LOAD)};
+
+inline Clock::time_point
+Do_text_block_define::update_time(swoc::file::file_status const &stat)
+{
+  return std::max(swoc::file::modify_time(stat), swoc::file::status_time(stat));
+}
 
 Do_text_block_define::~Do_text_block_define() noexcept
 {
@@ -228,7 +238,7 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
       return Errata(S_ERROR, R"("{}" directive at {} - value "{}" for key "{}" is not readable [{}] and no alternate "{}" key was present.)",
                    KEY, drtv_node.Mark(), self->_path, PATH_TAG, ec, TEXT_TAG);
     }
-    self->_last_modified = swoc::file::modify_time(swoc::file::status(self->_path, ec));
+    self->_last_modified = self_type::update_time(swoc::file::status(self->_path, ec));
   }
 
   // Put the directive in the map.
@@ -270,7 +280,7 @@ Do_text_block_define::Updater::operator()()
   std::error_code ec;
   auto fs = swoc::file::status(_block->_path, ec);
   if (!ec) {
-    auto mtime = swoc::file::modify_time(fs);
+    auto mtime = self_type::update_time(fs);
     if (mtime <= _block->_last_modified) {
       return; // same as it ever was...
     }

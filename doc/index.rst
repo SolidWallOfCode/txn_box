@@ -37,6 +37,7 @@ intended, in the long run, to replace "remap.config".
    future.en
    misc.en
    dev/dev-guide.en
+   dev/acceleration.en
 
 Reference
 *********
