@@ -89,7 +89,7 @@ CB_Txn_Start(TSCont, TSEvent, void *payload)
 {
   auto txn{reinterpret_cast<TSHttpTxn>(payload)};
   if ( auto cfg = scoped_plugin_config() ; cfg ) {
-    Context *ctx = new Context(std::move(cfg));
+    Context *ctx = new Context(cfg);
     ctx->enable_hooks(txn);
   }
   TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
