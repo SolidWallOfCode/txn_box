@@ -34,6 +34,8 @@ using namespace swoc::literals;
 
 /* ------------------------------------------------------------------------------------ */
 Config::YamlCache Remap_Cfg_Cache;
+/// Static configuration for use in remap invocation when there is no global configuration.
+std::shared_ptr Remap_Static_Config = std::make_shared<Config>();
 /* ------------------------------------------------------------------------------------ */
 class RemapContext
 {
@@ -111,7 +113,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txn, TSRemapRequestInfo *rri)
 
   Context *ctx = static_cast<Context *>(ts::HttpTxn(txn).arg(G.TxnArgIdx));
   if (nullptr == ctx) {
-    ctx = new Context({});
+    ctx = new Context(Remap_Static_Config);
     ctx->enable_hooks(txn); // This sets G.TxnArgIdx
   }
   ctx->invoke_for_remap(*(r_ctx->rule_cfg), rri);
