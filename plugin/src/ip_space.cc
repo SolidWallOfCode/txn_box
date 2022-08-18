@@ -922,8 +922,6 @@ public:
 
   Feature extract(Context &ctx, Spec const &spec) override;
 
-  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
-
 protected:
   static constexpr auto INVALID_IDX = Do_ip_space_define::INVALID_IDX;
   struct Info {
@@ -1028,12 +1026,6 @@ Ex_ip_col::extract(Context &ctx, const Spec &spec)
     }
   }
   return NIL_FEATURE;
-}
-
-BufferWriter &
-Ex_ip_col::format(BufferWriter &w, Spec const &spec, Context &ctx)
-{
-  return bwformat(w, spec, this->extract(ctx, spec));
 }
 
 /* ------------------------------------------------------------------------------------ */
