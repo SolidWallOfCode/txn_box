@@ -603,7 +603,7 @@ Ex_inbound_cert_remote_subject_field::format(BufferWriter &w, Spec const &spec, 
 }
 
 class Ex_outbound_cert_remote_subject_field : public StringExtractor
-  {
+{
   using self_type  = Ex_outbound_cert_remote_subject_field;
   using super_type = StringExtractor;
 
@@ -613,7 +613,7 @@ class Ex_outbound_cert_remote_subject_field : public StringExtractor
     BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
 
   protected:
-  };
+};
 
 Rv<ActiveType>
 Ex_outbound_cert_remote_subject_field::validate(Config &, Spec &spec, const TextView &arg)
@@ -636,6 +636,28 @@ Ex_outbound_cert_remote_subject_field::format(BufferWriter &w, Spec const &spec,
   auto ssl_ctx = ctx._txn.ssl_outbound_context();
   auto nid     = spec._data.u;
   return bwformat(w, spec, ssl_ctx.remote_subject_field(nid));
+}
+/* ------------------------------------------------------------------------------------ */
+class Ex_ts_uuid : public StringExtractor {
+  using self_type  = Ex_ts_uuid;
+  using super_type = StringExtractor;
+
+public:
+  static constexpr TextView NAME{"ts-uuid"};
+  Rv<ActiveType> validate(Config &cfg, Spec &spec, TextView const &arg) override;
+  BufferWriter &format(BufferWriter &w, Spec const &spec, Context &ctx) override;
+};
+
+Rv<ActiveType>
+Ex_ts_uuid::validate(Config &, Spec &, const TextView &)
+{
+  return {STRING};
+}
+
+BufferWriter&
+Ex_ts_uuid::format(BufferWriter &w, const Spec &spec, Context &)
+{
+  return bwformat(w, spec, TSUuidStringGet(TSProcessUuidGet()));
 }
 /* ------------------------------------------------------------------------------------ */
 namespace
@@ -663,6 +685,8 @@ Ex_outbound_cert_local_subject_field outbound_cert_local_subject_field;
 Ex_outbound_cert_remote_issuer_value outbound_cert_remote_issuer_value;
 Ex_outbound_cert_remote_subject_field outbound_cert_remote_subject_field;
 
+Ex_ts_uuid ts_uuid;
+
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
   Extractor::define(Ex_inbound_txn_count::NAME, &inbound_txn_count);
   Extractor::define(Ex_inbound_sni::NAME, &inbound_sni);
@@ -683,6 +707,8 @@ Ex_outbound_cert_remote_subject_field outbound_cert_remote_subject_field;
   Extractor::define(Ex_outbound_cert_local_issuer_value::NAME, &outbound_cert_local_issuer_value);
   Extractor::define(Ex_outbound_cert_remote_subject_field::NAME, &outbound_cert_remote_subject_field);
   Extractor::define(Ex_outbound_cert_remote_issuer_value::NAME, &outbound_cert_remote_issuer_value);
+
+  Extractor::define(Ex_ts_uuid::NAME, &ts_uuid);
 
   return true;
 }();

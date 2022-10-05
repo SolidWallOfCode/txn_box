@@ -143,6 +143,9 @@ meta:
         - match: "2"
           do:
           - proxy-rsp-field<Best-Band>: var<Best-Band>
+        - match: "uuid"
+          do:
+          - proxy-rsp-field<ts-uuid>: ts-uuid
 
     remap-1:
     - with: ua-req-path
@@ -180,6 +183,21 @@ sessions:
 - protocol: [ { name: ip, version : 4} ]
   transactions:
   #
+  - all: { headers: { fields: [[ uuid, ts-uuid]]}}
+    client-request:
+      <<: *base-req
+      url: "/uuid"
+      headers:
+        fields:
+        - [ Host, one.ex ]
+    server-response:
+      <<: *base-rsp
+    proxy-response:
+      status: 200
+      headers:
+        fields:
+        - [ "ts-uuid", { as: present } ]
+
   - all: { headers: { fields: [[ uuid, 1 ]]}}
     client-request:
       <<: *base-req

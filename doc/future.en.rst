@@ -13,8 +13,6 @@ This is future intended work and so may change radically. The essence should rem
 Session
 =======
 
-inbound-local-addr
-
 inbound-remote-port
 
 inbound-local-port
@@ -32,19 +30,6 @@ The extracted feature can be post processed using options in the :txb:drtv:`with
 having a pair where the first element is the feature extraction, and the second is a map of options.
 Currently the only planned modifier is "hash".
 
-hash
-   "hash: <number>"
-
-   Hash the feature and reduce it to the range 1 .. ::code:`number`. Something like ::
-
-      with:
-      - "{creq.url}"
-      - hash: 4096
-
-   This will get the client request URL, hash it, then (as evenly as possibl) reduce it to a number
-   in the range 1 .. 4096.
-
-
 slice
    Extract elements of a list. This takes two arguments, the left and right slice points. These are
    positions between elements of a list. Position 0 is before any element, and position -0
@@ -56,14 +41,6 @@ Comparisons
 
 Directives
 **********
-
-apply
-   "apply: [ <regex>, <string> ]"
-
-   Apply the regular expression ::code:`regex` to ::code:`string`. This updates the extraction argument
-   list such that capture groups in the regular expression can be extracted via numbered extractors.
-   E.g. "{2}" is replaced by the second capture group. Groups that do not exist or were not part of
-   the regular expression match yield the empty string.
 
 call
    "call: <plugin>"
@@ -156,7 +133,7 @@ Issues
 
 *  Matching on just the first value is annoyingly verbose. This would be noticeably better if there
    was an "apply" directive which loaded the :code:`with` context, e.g. regular expression groups
-   and :code:`...` without even trying to do matches.e43se
+   and :code:`...` without even trying to do matches.
 
 *  Do_with support for :code:`do` in each comparison, this may be of more limited utility. But that
    would be verbose to (for instance) do something for every tuple with a specific first element

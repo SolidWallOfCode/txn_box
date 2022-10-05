@@ -792,3 +792,8 @@ This is an ecletic collection of extractors that do not depend on transaction or
 
       These fields are poorly documented, the general recommendation being "read the kernel code"
       which seems a bit terse. Use with caution.
+
+.. extractor:: ts-uuid
+   :result: string
+
+   The process level UUID for this instance of |TS|.
