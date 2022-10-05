@@ -603,18 +603,17 @@ sessions:
     proxy-response:
       status: 200
 
-  - all: { headers: { fields: [[ uuid, vinhoo-3]]}}
+  - all: { headers: { fields: [[ uuid, remap ]]}}
     client-request:
       <<: *base-req
-      url: "/original/path"
+      url: "/bravo/charlie"
       headers:
         fields:
-        - [ Host, one.ex ]
-        - [ "vinhoo-yaith", "C_WOEID=9994977" ]
+        - [ Host, alpha.ex ]
     proxy-request:
       <<: *base-req
       url:
-      - [ path, { value: "/original/path" , as: equal } ]
+      - [ path, { value: "/targ" , as: equal } ]
     server-response:
       <<: *base-rsp
     proxy-response:

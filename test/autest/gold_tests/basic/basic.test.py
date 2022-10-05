@@ -14,6 +14,7 @@ tr = Test.TxnBoxTestAndRun("Test basics", "basic.replay.yaml", config_path='Auto
                 ,remap=[ ['http://remap.ex', 'http://remapped.ex', ['--key=meta.txn_box.remap-1', 'basic.replay.yaml']]
                        , ['http://one.ex/path/', 'http://two.ex/path/']
                        , ['http://one.ex']
+                       , ['/bravo/charlie' , 'http://alpha.ex/targ']
                        ]
                 )
 ts = tr.Variables.TS

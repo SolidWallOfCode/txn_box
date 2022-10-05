@@ -21,6 +21,7 @@ meta:
       do:
       - proxy-rsp-field<target-cert-subject>: outbound-cert-remote-subject-field<CN>
       - proxy-rsp-field<local-cert-issuer>: "Organization='{outbound-cert-local-issuer-field<O>}' Country='{outbound-cert-local-issuer-field<C>}'"
+      - proxy-rsp-field<remote-cert-issuer>: "Issuer '{outbound-cert-remote-issuer-field<O>}'"
 
   blocks:
   - base-req: &base-req
@@ -61,7 +62,6 @@ sessions:
 
 - protocol: [ { name: ip, version : 4} ]
   transactions:
-    -
   # Verify the outbound client cert is there with the expected values.
   - all: { headers: { fields: [[ uuid, outbound-TLS ]]}}
     client-request:
@@ -81,7 +81,7 @@ sessions:
         - [ "target-cert-subject", { value: "server_cn", as: equal } ]
         - [ "local-cert-issuer", { value: "Organization='TxnBox' Country='S3'", as: equal } ]
 
-  # Test that an string for the outbound client cert disables the cert.
+  # Test that an empty string for the outbound client cert disables the cert.
   - all: { headers: { fields: [[ uuid, outbound-no-client-cert ]]}}
     client-request:
       <<: *base-req
@@ -100,7 +100,7 @@ sessions:
         - [ "local-cert-issuer", { value: "Organization='' Country=''", as: equal } ]
 
   # Test the string "NULL" for the outbound client cert disables the cert.
-  - all: { headers: { fields: [[ uuid, outbound-nulll-client-cert ]]}}
+  - all: { headers: { fields: [[ uuid, outbound-null-client-cert ]]}}
     client-request:
       <<: *base-req
       url: "/null-cert"
@@ -116,3 +116,4 @@ sessions:
       headers:
         fields:
         - [ "local-cert-issuer", { value: "Organization='' Country=''", as: equal } ]
+        - [ "remote-cert-issuer", { value: "Issuer 'Yahoo!'", as: equal } ]
