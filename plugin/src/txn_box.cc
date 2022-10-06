@@ -63,7 +63,8 @@ Config::Handle
 scoped_plugin_config()
 {
   std::shared_lock lock(Plugin_Config_Mutex);
-  return Plugin_Config;
+  auto zret = Plugin_Config; // Be *completely* sure this is done under lock.
+  return zret;
 }
 
 } // namespace
