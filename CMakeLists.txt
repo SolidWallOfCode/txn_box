@@ -16,14 +16,12 @@ find_package(PkgConfig REQUIRED)
 FetchContent_Declare(
     libSWOC
     GIT_REPOSITORY "https://github.com/solidwallofcode/libswoc"
-    GIT_TAG "master"
+    GIT_TAG "1.3.11"
 )
 set(LIBSWOC_INSTALL off)
 set(LIBSWOC_TEST off)
 FetchContent_MakeAvailable(libSWOC)
 
-#pkg_check_modules(swoc REQUIRED IMPORTED_TARGET libswoc.static)
-#pkg_check_modules(yaml-cpp REQUIRED IMPORTED_TARGET yaml-cpp)
 pkg_check_modules(trafficserver REQUIRED IMPORTED_TARGET trafficserver)
 
 add_subdirectory(plugin)

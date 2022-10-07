@@ -99,6 +99,8 @@ protected:
   /// Config level data for all text blocks.
   struct CfgInfo {
     MapHandle _map; ///< Map of names to specific text block definitions.
+
+    explicit CfgInfo(MapHandle && map) : _map(std::move(map)) {}
   };
 
   TextView _name;                                                             ///< Block name.
@@ -153,7 +155,7 @@ Do_text_block_define::~Do_text_block_define() noexcept
 auto
 Do_text_block_define::map(Directive::CfgStaticData const *rtti) -> Map *
 {
-  return rtti->_cfg_store.rebind<CfgInfo *>()[0]->_map.get();
+  return rtti->_cfg_store.rebind<CfgInfo>().data()->_map.get();
 }
 
 Errata
@@ -253,8 +255,12 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
 }
 
 Errata
-Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const *)
 {
+#if 1
+  auto cfg_info = cfg.make_drtv_data<CfgInfo>(KEY, MapHandle(new Map));
+  cfg.mark_for_cleanup(cfg_info);
+#else
   // Get space for instance.
   auto cfg_info = cfg.allocate_cfg_storage(sizeof(CfgInfo), 8).rebind<CfgInfo>().data();
   // Initialize it.
@@ -265,6 +271,7 @@ Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const *rtti)
   cfg_info->_map.reset(new Map);
   // Clean it up when the config is destroyed.
   cfg.mark_for_cleanup(cfg_info);
+#endif
   return {};
 }
 
@@ -349,11 +356,8 @@ Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &arg)
 
 Feature Ex_text_block::extract_block(Context& ctx, TextView tag)
 {
-  if (auto rtti = ctx.cfg().drtv_info(Do_text_block_define::KEY); nullptr != rtti) {
-    // If there's file content, get a shared pointer to it to preserve the full until
-    // the end of the transaction.
-    auto * map = Do_text_block_define::map(rtti);
-    if (auto spot = map->find(tag); spot != map->end()) {
+  if (auto info = ctx.cfg().find_drtv_data<Do_text_block_define::CfgInfo>(Do_text_block_define::KEY); info) {
+    if (auto spot = info->_map->find(tag); spot != info->_map->end()) {
       auto block = spot->second;
       std::shared_ptr<std::string> content;
       { // grab a copy of the shared pointer to file content.

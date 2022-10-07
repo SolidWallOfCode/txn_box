@@ -392,6 +392,26 @@ public:
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n, size_t align = 1);
 
+
+  template < typename T, typename ... Args > T * make_drtv_data(swoc::TextView name, Args && ... args) {
+    if ( auto rtti = this->drtv_info(name) ; rtti ) {
+      auto span = this->allocate_cfg_storage(sizeof(T), alignof(T));
+      // Temporary - need to clean up how config storage is handled for directives.
+      // Need to either hid the other CfgStaticData or have a method to get it non-cost.
+      const_cast<swoc::MemSpan<void>&>(rtti->_cfg_store) = span;
+      return new (span.data()) T(std::forward<Args>(args)...);
+    }
+    return nullptr;
+  }
+
+  template < typename T > T * find_drtv_data(swoc::TextView name) {
+    T * zret = nullptr;
+    if ( auto rtti = this->drtv_info(name) ; rtti ) {
+      zret = static_cast<T*>(rtti->_cfg_store.data());
+    }
+    return zret;
+  }
+
   /** Find or allocate an instance of @a T in configuration storage.
    *
    * @tparam T Type of object.
