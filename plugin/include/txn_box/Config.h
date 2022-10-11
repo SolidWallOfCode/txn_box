@@ -46,18 +46,27 @@ public:
     bool _ref_p = false; ///< Feature has been referenced / used.
   };
 
+  /// Scoped change to active feature.
+  /// Caches the active feature on construction and restores it on destruction.
   class ActiveFeatureScope
   {
-    using self_type = ActiveFeatureScope;
+    using self_type = ActiveFeatureScope; ///< Self reference type.
     friend class Config;
 
-    Config *_cfg = nullptr;
-    ActiveFeatureState _state;
+    Config *_cfg = nullptr; ///< Associated configuration instance.
+    ActiveFeatureState _state; ///< Previous active feature,
 
   public:
-    ActiveFeatureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
+    /** Construct from configuration.
+     *
+     * @param cfg Associated configuration.
+     *
+     * This caches the current active feature.
+     */
+    explicit ActiveFeatureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_feature) {}
 
-    ActiveFeatureScope(self_type &&that) : _cfg(that._cfg), _state(that._state) { that._cfg = nullptr; }
+    /// Move construcgtor.
+    ActiveFeatureScope(self_type &&that) noexcept : _cfg(that._cfg), _state(that._state) { that._cfg = nullptr; }
 
     // No copying.
     ActiveFeatureScope(self_type const &that) = delete;
@@ -65,7 +74,14 @@ public:
 
     ~ActiveFeatureScope();
   };
+
   friend ActiveFeatureScope;
+
+  /** Create an active feature scope.
+   *
+   * @param ex_type Type of the updated active feature.
+   * @return An RAII cache of the current active feature.
+   */
   ActiveFeatureScope feature_scope(ActiveType const &ex_type);
 
   /// Track the state of the active capture groups.
@@ -75,29 +91,30 @@ public:
     bool _ref_p     = false; ///< Regular expression capture groups referenced / used.
   };
 
+  /// Scope for group capture.
+  /// Caches the capture state on construction and restores it on destruction.
   class ActiveCaptureScope
   {
     using self_type = ActiveCaptureScope;
     friend class Config;
 
-    Config *_cfg = nullptr;
-    ActiveCaptureState _state;
+    Config *_cfg = nullptr; ///< Associated config.
+    ActiveCaptureState _state; ///< Cached capture state.
 
   public:
-    ActiveCaptureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
+    /** Construct from configuration.
+     *
+     * @param cfg Associated configuration.
+     */
+    explicit ActiveCaptureScope(Config &cfg) : _cfg(&cfg), _state(cfg._active_capture) {}
 
-    ActiveCaptureScope(self_type &&that);
+    ActiveCaptureScope(self_type &&that) noexcept;
 
     // No copying.
     ActiveCaptureScope(self_type const &that) = delete;
     self_type &operator=(self_type const &that) = delete;
 
-    ~ActiveCaptureScope()
-    {
-      if (_cfg) {
-        _cfg->_active_capture = _state;
-      }
-    }
+    ~ActiveCaptureScope();
   };
   friend ActiveCaptureScope;
   ActiveCaptureScope
@@ -350,7 +367,7 @@ public:
    * @return Errors, if any.
    */
   static swoc::Errata define(
-    swoc::TextView name, HookMask const &hooks, Directive::Options const &options, Directive::InstanceLoader &&worker,
+    swoc::TextView name, HookMask const &hooks, Directive::InstanceLoader &&worker,
     Directive::CfgInitializer &&cfg_init_cb = [](Config &, Directive::CfgStaticData const *) -> swoc::Errata { return {}; });
 
   /** Define a directive.
@@ -361,12 +378,7 @@ public:
    * This is used when the directive class layout is completely standard. The template picks out those
    * pieces and passes them to the argument based @c define.
    */
-  template <typename D>
-  static swoc::Errata
-  define()
-  {
-    return self_type::define(D::KEY, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
-  }
+  template <typename D> static swoc::Errata define();
 
   /** Define a directive alias.
    *
@@ -379,10 +391,7 @@ public:
    */
   template <typename D>
   static swoc::Errata
-  define(swoc::TextView name)
-  {
-    return self_type::define(name, D::HOOKS, D::OPTIONS, &D::load, &D::cfg_init);
-  }
+  define(swoc::TextView name);
 
   /** Allocate storage in @a this.
    *
@@ -392,26 +401,6 @@ public:
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n, size_t align = 1);
 
-
-  template < typename T, typename ... Args > T * make_drtv_data(swoc::TextView name, Args && ... args) {
-    if ( auto rtti = this->drtv_info(name) ; rtti ) {
-      auto span = this->allocate_cfg_storage(sizeof(T), alignof(T));
-      // Temporary - need to clean up how config storage is handled for directives.
-      // Need to either hid the other CfgStaticData or have a method to get it non-cost.
-      const_cast<swoc::MemSpan<void>&>(rtti->_cfg_store) = span;
-      return new (span.data()) T(std::forward<Args>(args)...);
-    }
-    return nullptr;
-  }
-
-  template < typename T > T * find_drtv_data(swoc::TextView name) {
-    T * zret = nullptr;
-    if ( auto rtti = this->drtv_info(name) ; rtti ) {
-      zret = static_cast<T*>(rtti->_cfg_store.data());
-    }
-    return zret;
-  }
-
   /** Find or allocate an instance of @a T in configuration storage.
    *
    * @tparam T Type of object.
@@ -419,31 +408,23 @@ public:
    * @param name Name of object.
    * @return A pointer to an initialized instance of @a T in configuration storage.
    *
-   * This can be used to allocate or retrieve the instance. If the name is not found, a @a T is
-   * allocated and default constructed. If found, a pointer to the existing instance is returned.
+   * Looks for the named object and if found returns it. If the name is not found, a @a T is
+   * allocated and constructed with the arguments after @a name forwarded.
    *
    * @note This should only be called during configuration loading.
    */
-  template < typename T, typename ... Args > T * obtain_named_object(swoc::TextView name, Args && ... args) {
-    auto spot = _named_objects.find(name);
-    if (spot != _named_objects.end()) {
-      return spot->second.rebind<T>().data();
-    }
-    auto span = this->allocate_cfg_storage(sizeof(T), alignof(T));
-    _named_objects[name] = span;
-    return new (span.data()) T(std::forward<Args>(args)...);
-  }
+  template < typename T, typename ... Args > T * obtain_named_object(swoc::TextView name, Args && ... args);
 
   /** Find named object.
    *
    * @tparam T Expected type of object.
    * @param name Name of the object.
    * @return A pointer to the object, or @c nullptr if not found.
+   *
+   * @note The caller is presumed to know that @a T is correct, no checks are done. This is purely a convenience to
+   * avoid excessive casting.
    */
-  template < typename T > T * named_object(swoc::TextView name) {
-    auto spot = _named_objects.find(name);
-    return spot != _named_objects.end() ? spot->second.rebind<T>().data() : nullptr;
-  }
+  template < typename T > T * named_object(swoc::TextView name);
 
   /** Prepare for context storage.
    *
@@ -677,10 +658,17 @@ Config::FileInfo::add_cfg_key(swoc::TextView key)
   _keys.emplace_back(key);
 }
 
-inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type &&that)
+inline Config::ActiveCaptureScope::ActiveCaptureScope(Config::ActiveCaptureScope::self_type &&that) noexcept
   : _cfg(that._cfg), _state(that._state)
 {
   that._cfg = nullptr;
+}
+
+inline Config::ActiveCaptureScope::~ActiveCaptureScope()
+{
+  if (_cfg) {
+    _cfg->_active_capture = _state;
+  }
 }
 
 inline Hook
@@ -714,4 +702,39 @@ Config::mark_for_cleanup(T *ptr) -> self_type &
   auto f = _arena.make<Finalizer>(ptr, [](void *ptr) { std::destroy_at(static_cast<T *>(ptr)); });
   _finalizers.append(f);
   return *this;
+}
+
+template <typename D>
+swoc::Errata
+Config::define()
+{
+  return self_type::define(D::KEY, D::HOOKS, &D::load, &D::cfg_init);
+}
+
+template <typename D>
+swoc::Errata
+Config::define(swoc::TextView name)
+{
+  return self_type::define(name, D::HOOKS, &D::load, &D::cfg_init);
+}
+
+template <typename T, typename... Args>
+T *
+Config::obtain_named_object(swoc::TextView name, Args &&...args)
+{
+  auto spot = _named_objects.find(name);
+  if (spot != _named_objects.end()) {
+    return spot->second.rebind<T>().data();
+  }
+  auto span = this->allocate_cfg_storage(sizeof(T), alignof(T));
+  _named_objects[name] = span;
+  return new (span.data()) T(std::forward<Args>(args)...);
+}
+
+template <typename T>
+T *
+Config::named_object(swoc::TextView name)
+{
+  auto spot = _named_objects.find(name);
+  return spot != _named_objects.end() ? spot->second.rebind<T>().data() : nullptr;
 }

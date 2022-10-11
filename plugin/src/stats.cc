@@ -40,9 +40,6 @@ public:
   static inline const std::string KEY{"stat-define"}; ///< Directive name.
   static const HookMask HOOKS;                        ///< Valid hooks for directive.
 
-  /// Reserved configuration storage.
-  static constexpr Options OPTIONS{sizeof(CfgInfo *)};
-
   Errata invoke(Context &ctx) override; ///< Runtime activation.
 
   /** Load from YAML node.
@@ -92,10 +89,8 @@ const HookMask Do_stat_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 TextView
 Do_stat_define::expand_and_localize(Config &cfg, TextView const &name)
 {
-  auto rtti = cfg.drtv_info(KEY);
-  if (rtti->_count > 0) {
-    Names &names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
-    if (auto spot = names.find(name); spot != names.end()) {
+  if ( auto cfg_info = cfg.named_object<CfgInfo>(KEY) ; cfg_info ) {
+    if (auto spot = cfg_info->_names.find(name); spot != cfg_info->_names.end()) {
       return spot->second;
     }
   }
@@ -103,14 +98,9 @@ Do_stat_define::expand_and_localize(Config &cfg, TextView const &name)
 }
 
 Errata
-Do_stat_define::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_stat_define::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  // Get space for instance.
-  auto cfg_info = cfg.allocate_cfg_storage(sizeof(CfgInfo), 8).rebind<CfgInfo>().data();
-  // Initialize it.
-  new (cfg_info) CfgInfo;
-  // Remember where it is.
-  rtti->_cfg_store.rebind<CfgInfo *>()[0] = cfg_info;
+  auto cfg_info = cfg.obtain_named_object<CfgInfo>(KEY);
   // Clean it up when the config is destroyed.
   cfg.mark_for_cleanup(cfg_info);
   return {};
@@ -124,7 +114,7 @@ Do_stat_define::invoke(Context &)
 }
 
 Rv<Directive::Handle>
-Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &,
+Do_stat_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &, swoc::TextView const &,
                      YAML::Node key_value)
 {
   auto self = new self_type();
@@ -181,7 +171,7 @@ Do_stat_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_nod
     self->_full_name = TextView{w.view()}.remove_suffix(1); // drop terminal null.
     self->_name      = self->_full_name.suffix(name.size());
   }
-  Names &names = rtti->_cfg_store.rebind<CfgInfo *>()[0]->_names;
+  Names &names = cfg.named_object<CfgInfo>(KEY)->_names;
   names.insert({self->_name, self->_full_name});
   drtv_node.remove(name_node);
 

@@ -2645,9 +2645,6 @@ public:
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  /// Specify the required amount of reserved configuration storage.
-  static constexpr Options OPTIONS{sizeof(CfgInfo)};
-
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
 
@@ -2689,10 +2686,9 @@ protected:
 const HookMask Do_proxy_reply::HOOKS{MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP})};
 
 Errata
-Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
-  new (cfg_info) CfgInfo; // Initialize the span.
+  auto cfg_info = cfg.obtain_named_object<CfgInfo>(KEY);
   // Only one proxy_reply can be effective per transaction, therefore shared state per context is best.
   cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
   cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
@@ -2702,7 +2698,9 @@ Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *rtti)
 Errata
 Do_proxy_reply::invoke(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto cfg_info = ctx.cfg().named_object<CfgInfo>(KEY);
+  if (!cfg_info) { return {}; } // Indicates shutdown is ongoing.
+
   auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
 
   // Is a fix up hook required to set the reason correctly?
@@ -2744,12 +2742,13 @@ Do_proxy_reply::invoke(Context &ctx)
 Errata
 Do_proxy_reply::fixup(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
-  auto hdr{ctx.proxy_rsp_hdr()};
-  // Set the reason.
-  if (!ctx_info->_reason.empty()) {
-    hdr.reason_set(ctx_info->_reason);
+  if ( auto cfg_info = ctx.cfg().named_object<CfgInfo>(KEY) ; cfg_info ) {
+    auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
+    auto hdr{ctx.proxy_rsp_hdr()};
+    // Set the reason.
+    if (!ctx_info->_reason.empty()) {
+      hdr.reason_set(ctx_info->_reason);
+    }
   }
   return {};
 }
@@ -2868,9 +2867,6 @@ public:
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
 
-  /// Specify the required amount of reserved configuration storage.
-  static constexpr Options OPTIONS{sizeof(CfgInfo)};
-
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
   /// Status code to use if not specified.
@@ -2915,11 +2911,9 @@ protected:
 const HookMask Do_redirect::HOOKS{MaskFor(Hook::PRE_REMAP, Hook::REMAP)};
 
 Errata
-Do_redirect::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_redirect::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
-  new (cfg_info) CfgInfo; // Initialize the span.
-  // Only one redirect can be effective per transaction, therefore shared state per context is best.
+  auto cfg_info = cfg.obtain_named_object<CfgInfo>(KEY);
   cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
   cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
   return {};
@@ -2929,7 +2923,10 @@ Do_redirect::cfg_init(Config &cfg, CfgStaticData const *rtti)
 Errata
 Do_redirect::invoke(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
+  auto cfg_info = ctx.cfg().named_object<CfgInfo>(KEY);
+  if (!cfg_info) {
+    return {}; // shutdown in progress and config data is already gone.
+  }
   auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
 
   // If the Location view is empty, it hasn't been set and therefore the clean up hook
@@ -2979,15 +2976,16 @@ Do_redirect::invoke(Context &ctx)
 Errata
 Do_redirect::fixup(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
-  auto hdr{ctx.proxy_rsp_hdr()};
+  if ( auto cfg_info = ctx.cfg().named_object<CfgInfo>(KEY) ; cfg_info ) {
+    auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
+    auto hdr{ctx.proxy_rsp_hdr()};
 
-  auto field{hdr.field_obtain(ts::HTTP_FIELD_LOCATION)};
-  field.assign(ctx_info->_location);
+    auto field{hdr.field_obtain(ts::HTTP_FIELD_LOCATION)};
+    field.assign(ctx_info->_location);
 
-  if (!ctx_info->_reason.empty()) {
-    hdr.reason_set(ctx_info->_reason);
+    if (!ctx_info->_reason.empty()) {
+      hdr.reason_set(ctx_info->_reason);
+    }
   }
   return {};
 }

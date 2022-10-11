@@ -58,6 +58,8 @@ public:
    * perform any initialization needed for the directive as a type, rather than as an instance used
    * in the configuration. The most common use is if the directive needs space in a @c Context -
    * that space must be reserved during the invocation of this functor.
+   *
+   * @see Config::obtain_named_object
    */
   using CfgInitializer = std::function<swoc::Errata(Config &cfg, CfgStaticData const *rtti)>;
 
@@ -67,7 +69,6 @@ public:
   struct FactoryInfo {
     unsigned _idx;                          ///< Index for doing config time type info lookup.
     HookMask _hook_mask;                    ///< Valid hooks for this directive.
-    size_t _cfg_reserve;                    ///< Reserved storage in configuration.
     Directive::InstanceLoader _load_cb;     ///< Functor to load the directive from YAML data.
     Directive::CfgInitializer _cfg_init_cb; ///< Configuration init callback.
   };
@@ -79,20 +80,7 @@ public:
   struct CfgStaticData {
     FactoryInfo const *_static;     ///< Related static information.
     unsigned _count = 0;            ///< Number of instances.
-    swoc::MemSpan<void> _cfg_store; ///< Shared config storage.
   };
-
-  /// Options for directive definition.
-  struct Options {
-    // Due to a compiler bug in g++ and clang, no in line initializer for nested classes.
-    // In turn, that means a default constructor which disables aggregate construction. Sigh.
-    constexpr Options() : _cfg_store_required(0) {}
-    constexpr Options(size_t storage) : _cfg_store_required(storage) {}
-    size_t _cfg_store_required; ///< Reserved per configuration storage.
-  };
-
-  /// Provide a default so the templated method works as expected.
-  inline static const Options OPTIONS;
 
   virtual ~Directive() = default;
 

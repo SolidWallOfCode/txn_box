@@ -515,9 +515,6 @@ Config::load_directive(YAML::Node const &drtv_node)
 
       // If this is the first use of the directive, do config level setup for the directive type.
       if (rtti->_count == 0) {
-        if (rtti->_static->_cfg_reserve > 0) {
-          rtti->_cfg_store = this->allocate_cfg_storage(rtti->_static->_cfg_reserve, 8);
-        }
         info._cfg_init_cb(*this, rtti);
       }
       ++(rtti->_count);
@@ -643,16 +640,12 @@ Config::parse_yaml(YAML::Node root, TextView path)
 };
 
 Errata
-Config::define(swoc::TextView name, HookMask const &hooks, Directive::Options const &options, Directive::InstanceLoader &&worker,
+Config::define(swoc::TextView name, HookMask const &hooks, Directive::InstanceLoader &&worker,
                Directive::CfgInitializer &&cfg_init_cb)
 {
   auto &info{_factory[name]};
   info._idx       = _factory.size() - 1;
   info._hook_mask = hooks;
-  if (options._cfg_store_required > 0) {
-    info._cfg_reserve = options._cfg_store_required;
-    self_type::_cfg_storage_required += swoc::Scalar<8>(swoc::round_up(info._cfg_reserve));
-  }
   info._load_cb     = std::move(worker);
   info._cfg_init_cb = std::move(cfg_init_cb);
   return {};
