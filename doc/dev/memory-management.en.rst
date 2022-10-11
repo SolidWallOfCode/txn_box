@@ -11,7 +11,11 @@
 Memory Mangement
 ****************
 
-While most elements do not require additional memory, this is not always the case. |TxB| provides
+While most elements do not require additional memory, this is not always the case. If elements in a
+constellation need to share
+
+
+|TxB| provides
 a number of mechanisms for allocating memory efficiently in the context of handling transactions.
 
 The primary reason to use |TxB| memory instead of :code:`malloc` is memory lifetime management.

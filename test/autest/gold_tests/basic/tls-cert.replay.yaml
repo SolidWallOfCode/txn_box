@@ -61,7 +61,6 @@ sessions:
 
 - protocol: [ { name: ip, version : 4} ]
   transactions:
-    -
   # Verify the outbound client cert is there with the expected values.
   - all: { headers: { fields: [[ uuid, outbound-TLS ]]}}
     client-request:
