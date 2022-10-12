@@ -11,38 +11,31 @@
 Memory Mangement
 ****************
 
-While most elements do not require additional memory, this is not always the case. If elements in a
-constellation need to share
+While most elements do not require additional memory, this is not always the case. If additional memory is needed to
+perform a task, this should be allocated in |TxB| memory that has a transaction based lifetime for faster allocation and
+automated cleanup. If elements in a constellation need to share data, the data must be placed in |TxB| managed memory to
+avoid corrouption or crashes on configuration reload.
 
-
-|TxB| provides
-a number of mechanisms for allocating memory efficiently in the context of handling transactions.
-
-The primary reason to use |TxB| memory instead of :code:`malloc` is memory lifetime management.
-Using the internal mechanisms memory that has exactly the lifetime of a configuration or a
-transaction is straightforward. In many cases the code can simply allocate without concern of leaks.
-In addition this restriction also makes the allocation much faster than with :code:`malloc`.
-
-Another reason is avoiding race conditions and collisions. Because configurations can be dynamically
-reloaded, pointers to configuration local memory that are stored statically can go bad or become
-corrupted during reload as the pointers are moved while a configuration is still in use. Use of the
-internal mechanisms ties the memory to a particular configuration or transaction context, avoiding
-this problem.
+|TxB| provides a number of mechanisms for allocating memory efficiently for configuration and transaction
+lifetimes.
 
 =====================
 Configuration Storage
 =====================
 
 The root of memomry management is the configuration instance, represented by an instance of
-:txb:`Config`. While allocating memory for its own uses, directives can request memmory in the
-configuration to be reserved for that directive. This is per directive class, not per directive
-instance. Access to the memory is via the inherited pointer :txb:`Directive::_rtti`.
+:txb:`Config`. This contains a memory arena with the same lifetime as the configuration and is used to store
+configuration related data. Elements can also allocate memory in this arena. Such memory has two useful
+properties.
 
-When the directive is defined with :txb:`Config::define` there is an options structure of type
-:txb:`Directive::Options` that can specify the amount of reserved storage in bytes in the
-:code:`_cfg_store_required` member. If the directive is used, the specified amount of storage is
-reserved. It is accessed by :code:`_rtti->_cfg_store`. This is of type :code:`MemSpan<void>` and
-specifies the reserved memory.
+*  The memory lifetime is the same as the configuration instance.
+*  The memory is accessible from any element.
+
+Raw configuration memory can be allocated as described later but this leaves the problem of locating that memory
+again, with the self referential problem of having to know the location of the memory in the configuration to
+find the location. The method :txb:`Config::obtain_named_object` provides a bootstrapping object in configuration.
+This finds or creates an instance of a specific type in configuration memory and associates it with a name. The
+method :txb:`Config::named_object` can be used later to find that object.
 
 The most challenging aspect is finding configuration allocated memory later. If the configuration
 based memory is used per directive instance, this is not a problem - a span can be stored in the

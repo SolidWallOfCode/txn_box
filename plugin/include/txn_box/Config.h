@@ -117,15 +117,17 @@ public:
     ~ActiveCaptureScope();
   };
   friend ActiveCaptureScope;
-  ActiveCaptureScope
-  capture_scope(unsigned count, unsigned line_no)
-  {
-    ActiveCaptureScope scope(*this);
-    _active_capture._count = count;
-    _active_capture._line  = line_no;
-    _active_capture._ref_p = false;
-    return scope;
-  }
+
+  /** Preserve the current capture group state.
+   *
+   * @param count Number of capture groups in the new state.
+   * @param line_no Configuration line number that required the change.
+   * @return A cached scope object.
+   *
+   * The current state is preserved in the returned object which, when destructed,
+   * restores the previous state.
+   */
+  ActiveCaptureScope capture_scope(unsigned count, unsigned line_no);
 
   /** Local extractor table.
    *
@@ -389,15 +391,13 @@ public:
    * This is used when a directive needs to be available under an alternative name. All of the arguments
    * are pulled from standard class members except the key (directive name).
    */
-  template <typename D>
-  static swoc::Errata
-  define(swoc::TextView name);
+  template <typename D> static swoc::Errata define(swoc::TextView name);
 
   /** Allocate storage in @a this.
    *
    * @param n Size in bytes.
    * @param align Memory alignment.
-   * @return The allocated span.
+   * @return The allocated memory.
    */
   swoc::MemSpan<void> allocate_cfg_storage(size_t n, size_t align = 1);
 

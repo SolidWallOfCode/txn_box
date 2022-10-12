@@ -15,6 +15,7 @@
 
 #include <swoc/MemArena.h>
 #include <swoc/Errata.h>
+#include <swoc/IntrusiveHashMap.h>
 
 #include "txn_box/common.h"
 #include "txn_box/Rxp.h"
@@ -37,12 +38,6 @@ class Context
 {
   using self_type = Context;
   friend class Config;
-  /// Cleanup functor for an inverted arena.
-  /// @internal Because the arena is inverted, calling the destructor will clean up everything.
-  /// For this reason @c delete must @b not be called (that will double free).
-  struct ArenaDestructor {
-    void operator()(swoc::MemArena *arena);
-  };
 
 public:
   /// Construct based a specific configuration.
@@ -147,7 +142,32 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template <typename T> swoc::MemSpan<T> alloc_span(unsigned count);
+  template <typename T> swoc::MemSpan<T> alloc_span(unsigned count, size_t align = 1);
+
+  /** Find or allocate an instance of @a T in configuration storage.
+   *
+   * @tparam T Type of object.
+   * @tparam Args Arguments to @a T constructor.
+   * @param name Name of object.
+   * @return A pointer to an initialized instance of @a T in configuration storage.
+   *
+   * Looks for the named object and if found returns it. If the name is not found, a @a T is
+   * allocated and constructed with the arguments after @a name forwarded.
+   *
+   * @note This should only be called during configuration loading.
+   */
+  template < typename T, typename ... Args > T * obtain_named_object(swoc::TextView name, Args && ... args);
+
+  /** Find named object.
+   *
+   * @tparam T Expected type of object.
+   * @param name Name of the object.
+   * @return A pointer to the object, or @c nullptr if not found.
+   *
+   * @note The caller is presumed to know that @a T is correct, no checks are done. This is purely a convenience to
+   * avoid excessive casting.
+   */
+  template < typename T > T * named_object(swoc::TextView name);
 
   /** Require @a n bytes of transient buffer.
    *
@@ -515,6 +535,13 @@ protected:
     swoc::MemSpan<void> _storage;
   };
 
+  /// Cleanup functor for an inverted arena.
+  /// @internal Because the arena is inverted, calling the destructor will clean up everything.
+  /// For this reason @c delete must @b not be called (that will double free).
+  struct ArenaDestructor {
+    void operator()(swoc::MemArena *arena);
+  };
+  
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
@@ -567,20 +594,9 @@ protected:
     /// Linkage for @c IntrusiveHashMap.
     struct Linkage : public swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev> {
       static swoc::TextView
-      key_of(self_type *self)
-      {
-        return self->_name;
-      }
-      static auto
-      hash_of(swoc::TextView const &text) -> decltype(Hash_Func(text))
-      {
-        return Hash_Func(text);
-      }
-      static bool
-      equal(swoc::TextView const &lhs, swoc::TextView const &rhs)
-      {
-        return lhs == rhs;
-      }
+      key_of(self_type *self) { return self->_name; }
+      static auto hash_of(swoc::TextView const &text) -> decltype(Hash_Func(text)){ return Hash_Func(text); }
+      static bool equal(swoc::TextView const &lhs, swoc::TextView const &rhs) { return lhs == rhs; }
     };
 
     TxnVar(swoc::TextView const &name, Feature const &value) : _name(name), _value(value) {}
@@ -588,6 +604,30 @@ protected:
 
   using TxnVariables = swoc::IntrusiveHashMap<TxnVar::Linkage>;
   TxnVariables _txn_vars; ///< Variables for the transaction.
+
+  /// Internal named object local to the context.
+  struct NamedObject {
+    using self_type = NamedObject; ///< Self reference type.
+    static constexpr std::hash<std::string_view> Hash_Func{};
+    
+    swoc::TextView _name;       ///< Name of variable.
+    swoc::MemSpan<void> _span;  ///< Object memroy.
+    self_type *_next = nullptr; ///< Intrusive link.
+    self_type *_prev = nullptr; ///< Intrusive link.
+
+    /// Linkage for @c IntrusiveHashMap.
+    struct Linkage : public swoc::IntrusiveLinkage<self_type, &self_type::_next, &self_type::_prev> {
+      static swoc::TextView
+      key_of(self_type *self) { return self->_name; }
+      static auto hash_of(swoc::TextView const &text) -> decltype(Hash_Func(text)){ return Hash_Func(text); }
+      static bool equal(swoc::TextView const &lhs, swoc::TextView const &rhs) { return lhs == rhs; }
+    };
+
+    NamedObject(swoc::TextView const &name, swoc::MemSpan<void> span) : _name(name), _span(span) {}
+  };
+
+  using NamedObjects = swoc::IntrusiveHashMap<NamedObject::Linkage>;
+  NamedObjects _named_objects; ///< Conext local data objects.
 
   /// Flag for continuing invoking directives.
   bool _terminal_p = false;
@@ -639,10 +679,10 @@ Context::mark_for_cleanup(T* ptr, void (*cleaner)(T*))
 
 template <typename T>
 swoc::MemSpan<T>
-Context::alloc_span(unsigned int count)
+Context::alloc_span(unsigned count, size_t align)
 {
   this->commit_transient();
-  return _arena->alloc(sizeof(T) * count).rebind<T>();
+  return _arena->alloc(sizeof(T) * count, align).rebind<T>();
 }
 
 inline swoc::MemSpan<void>
@@ -753,4 +793,26 @@ inline ts::HttpSsn
 Context::inbound_ssn()
 {
   return _txn.inbound_ssn();
+}
+
+template <typename T, typename... Args>
+T *
+Context::obtain_named_object(swoc::TextView name, Args&&... args)
+{
+  auto spot = _named_objects.find(name);
+  if (spot != _named_objects.end()) {
+    return static_cast<T*>(spot->_span.data());
+  }
+
+  auto span = this->alloc_span<T>(1, alignof(T));
+  _named_objects.insert(this->make<NamedObject>(name, span));
+  return new (span.data()) T(std::forward<Args>(args)...);
+}
+
+template <typename T>
+T *
+Context::named_object(swoc::TextView name)
+{
+  auto spot = _named_objects.find(name);
+  return spot != _named_objects.end() ? static_cast<T*>(spot->_span.data()) : nullptr;
 }

@@ -813,6 +813,16 @@ Config::feature_scope(ActiveType const &ex_type)
   return scope;
 }
 
+Config::ActiveCaptureScope
+Config::capture_scope(unsigned int count, unsigned int line_no)
+{
+  ActiveCaptureScope scope(*this);
+  _active_capture._count = count;
+  _active_capture._line  = line_no;
+  _active_capture._ref_p = false;
+  return scope;
+}
+
 Config::ActiveFeatureScope::~ActiveFeatureScope()
 {
   if (_cfg) {
