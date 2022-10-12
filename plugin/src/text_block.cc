@@ -56,8 +56,6 @@ public:
   static inline const std::string KEY{"text-block-define"}; ///< Directive name.
   static const HookMask HOOKS;                              ///< Valid hooks for directive.
 
-  static constexpr Options OPTIONS{sizeof(CfgInfo *)};
-
   /// Functor to do file content updating as needed.
   struct Updater {
     std::weak_ptr<Config> _cfg;   ///< Configuration.
@@ -99,6 +97,8 @@ protected:
   /// Config level data for all text blocks.
   struct CfgInfo {
     MapHandle _map; ///< Map of names to specific text block definitions.
+
+    explicit CfgInfo(MapHandle && map) : _map(std::move(map)) {}
   };
 
   TextView _name;                                                             ///< Block name.
@@ -124,7 +124,7 @@ protected:
   static inline const std::string NOTIFY_TAG{"notify"};
 
   /// Map of names to text blocks.
-  static Map *map(Directive::CfgStaticData const *rtti);
+  static Map *map(Config & cfg);
 
   /// Get the "update" time for a file - the max of modified and changed times.
   static Clock::time_point update_time(swoc::file::file_status const& stat);
@@ -151,9 +151,10 @@ Do_text_block_define::~Do_text_block_define() noexcept
 }
 
 auto
-Do_text_block_define::map(Directive::CfgStaticData const *rtti) -> Map *
+Do_text_block_define::map(Config & cfg) -> Map *
 {
-  return rtti->_cfg_store.rebind<CfgInfo *>()[0]->_map.get();
+  auto cfg_info = cfg.named_object<CfgInfo>(KEY);
+  return cfg_info ? cfg_info->_map.get() : nullptr;
 }
 
 Errata
@@ -168,7 +169,7 @@ Do_text_block_define::invoke(Context &ctx)
 }
 
 Rv<Directive::Handle>
-Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &,
+Do_text_block_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &,
                            swoc::TextView const &, YAML::Node key_value)
 {
   auto self = new self_type();
@@ -242,7 +243,7 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
   }
 
   // Put the directive in the map.
-  Map *map = self->map(rtti);
+  Map *map = self->map(cfg);
   if (auto spot = map->find(self->_name); spot != map->end()) {
     return Errata(S_ERROR, R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
                  self->_name, spot->second->_line_no);
@@ -253,17 +254,9 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *rtti, YAML::Node dr
 }
 
 Errata
-Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_text_block_define::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  // Get space for instance.
-  auto cfg_info = cfg.allocate_cfg_storage(sizeof(CfgInfo), 8).rebind<CfgInfo>().data();
-  // Initialize it.
-  new (cfg_info) CfgInfo;
-  // Remember where it is.
-  rtti->_cfg_store.rebind<CfgInfo *>()[0] = cfg_info;
-  // Create the map.
-  cfg_info->_map.reset(new Map);
-  // Clean it up when the config is destroyed.
+  auto cfg_info = cfg.obtain_named_object<CfgInfo>(KEY, MapHandle(new Map));
   cfg.mark_for_cleanup(cfg_info);
   return {};
 }
@@ -349,11 +342,8 @@ Ex_text_block::validate(Config &cfg, Spec &spec, const TextView &arg)
 
 Feature Ex_text_block::extract_block(Context& ctx, TextView tag)
 {
-  if (auto rtti = ctx.cfg().drtv_info(Do_text_block_define::KEY); nullptr != rtti) {
-    // If there's file content, get a shared pointer to it to preserve the full until
-    // the end of the transaction.
-    auto * map = Do_text_block_define::map(rtti);
-    if (auto spot = map->find(tag); spot != map->end()) {
+  if (auto info = ctx.cfg().named_object<Do_text_block_define::CfgInfo>(Do_text_block_define::KEY) ; info) {
+    if (auto spot = info->_map->find(tag); spot != info->_map->end()) {
       auto block = spot->second;
       std::shared_ptr<std::string> content;
       { // grab a copy of the shared pointer to file content.

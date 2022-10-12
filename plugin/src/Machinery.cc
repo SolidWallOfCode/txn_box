@@ -2626,11 +2626,6 @@ class Do_proxy_reply : public Directive
   using self_type  = Do_proxy_reply; ///< Self reference type.
   using super_type = Directive;      ///< Parent type.
 
-  /// Per configuration storage.
-  struct CfgInfo {
-    ReservedSpan _ctx_span; ///< Reserved span for @c CtxInfo.
-  };
-
   /// Per context information.
   /// This is what is stored in the span @c CfgInfo::_ctx_span
   struct CtxInfo {
@@ -2643,10 +2638,7 @@ public:
   inline static const std::string REASON_KEY = "reason";      ///< Key for reason value.
   inline static const std::string BODY_KEY   = "body";        ///< Key for body.
 
-  static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  /// Specify the required amount of reserved configuration storage.
-  static constexpr Options OPTIONS{sizeof(CfgInfo)};
+  static inline const HookMask HOOKS{MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP})}; ///< Valid hooks for directive.
 
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
@@ -2665,9 +2657,7 @@ public:
   static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
                          swoc::TextView const &arg, YAML::Node key_value);
 
-  /// Configuration level initialization.
-  static Errata cfg_init(Config &cfg, CfgStaticData const *rtti);
-
+  static Errata cfg_init(Config &cfg, CfgStaticData const *);
 protected:
   using index_type = FeatureGroup::index_type;
 
@@ -2686,15 +2676,9 @@ protected:
   Errata fixup(Context &ctx);
 };
 
-const HookMask Do_proxy_reply::HOOKS{MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP})};
-
 Errata
-Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
-  new (cfg_info) CfgInfo; // Initialize the span.
-  // Only one proxy_reply can be effective per transaction, therefore shared state per context is best.
-  cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
   cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
   return {};
 }
@@ -2702,8 +2686,7 @@ Do_proxy_reply::cfg_init(Config &cfg, CfgStaticData const *rtti)
 Errata
 Do_proxy_reply::invoke(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
+  auto ctx_info = ctx.obtain_named_object<CtxInfo>(KEY);
 
   // Is a fix up hook required to set the reason correctly?
   bool need_hook_p = false;
@@ -2744,12 +2727,11 @@ Do_proxy_reply::invoke(Context &ctx)
 Errata
 Do_proxy_reply::fixup(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
-  auto hdr{ctx.proxy_rsp_hdr()};
-  // Set the reason.
-  if (!ctx_info->_reason.empty()) {
-    hdr.reason_set(ctx_info->_reason);
+  if ( auto ctx_info = ctx.named_object<CtxInfo>(KEY) ; ctx_info ) {
+    if (!ctx_info->_reason.empty()) {
+      auto hdr{ctx.proxy_rsp_hdr()};
+      hdr.reason_set(ctx_info->_reason);
+    }
   }
   return {};
 }
@@ -2847,11 +2829,6 @@ class Do_redirect : public Directive
   using self_type  = Do_redirect; ///< Self reference type.
   using super_type = Directive;   ///< Parent type.
 
-  /// Per configuration storage.
-  struct CfgInfo {
-    ReservedSpan _ctx_span; ///< Reserved span for @c CtxInfo.
-  };
-
   /// Per context information, used for fix up on proxy response hook.
   /// -- doc Do_redirect::CtxInfo
   struct CtxInfo {
@@ -2867,9 +2844,6 @@ public:
   inline static const std::string BODY_KEY     = "body";     ///< Key for body.
 
   static const HookMask HOOKS; ///< Valid hooks for directive.
-
-  /// Specify the required amount of reserved configuration storage.
-  static constexpr Options OPTIONS{sizeof(CfgInfo)};
 
   /// Need to do fixups on a later hook.
   static constexpr Hook FIXUP_HOOK = Hook::PRSP;
@@ -2915,12 +2889,8 @@ protected:
 const HookMask Do_redirect::HOOKS{MaskFor(Hook::PRE_REMAP, Hook::REMAP)};
 
 Errata
-Do_redirect::cfg_init(Config &cfg, CfgStaticData const *rtti)
+Do_redirect::cfg_init(Config &cfg, CfgStaticData const *)
 {
-  auto cfg_info = rtti->_cfg_store.rebind<CfgInfo>().data();
-  new (cfg_info) CfgInfo; // Initialize the span.
-  // Only one redirect can be effective per transaction, therefore shared state per context is best.
-  cfg_info->_ctx_span = cfg.reserve_ctx_storage(sizeof(CtxInfo));
   cfg.reserve_slot(FIXUP_HOOK); // needed to fix up "Location" field in proxy response.
   return {};
 }
@@ -2929,8 +2899,7 @@ Do_redirect::cfg_init(Config &cfg, CfgStaticData const *rtti)
 Errata
 Do_redirect::invoke(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.initialized_storage_for<CtxInfo>(cfg_info->_ctx_span).data();
+  auto ctx_info = ctx.obtain_named_object<CtxInfo>(KEY);
 
   // If the Location view is empty, it hasn't been set and therefore the clean up hook
   // hasn't been set either, so need to do that.
@@ -2979,15 +2948,15 @@ Do_redirect::invoke(Context &ctx)
 Errata
 Do_redirect::fixup(Context &ctx)
 {
-  auto cfg_info = _rtti->_cfg_store.rebind<CfgInfo>().data();
-  auto ctx_info = ctx.storage_for(cfg_info->_ctx_span).rebind<CtxInfo>().data();
-  auto hdr{ctx.proxy_rsp_hdr()};
+  if ( auto ctx_info = ctx.named_object<CtxInfo>(KEY) ; ctx_info ) {
+    auto hdr{ctx.proxy_rsp_hdr()};
 
-  auto field{hdr.field_obtain(ts::HTTP_FIELD_LOCATION)};
-  field.assign(ctx_info->_location);
+    auto field{hdr.field_obtain(ts::HTTP_FIELD_LOCATION)};
+    field.assign(ctx_info->_location);
 
-  if (!ctx_info->_reason.empty()) {
-    hdr.reason_set(ctx_info->_reason);
+    if (!ctx_info->_reason.empty()) {
+      hdr.reason_set(ctx_info->_reason);
+    }
   }
   return {};
 }
