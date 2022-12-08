@@ -8,8 +8,6 @@
 #include <shared_mutex>
 #include <limits>
 
-#include "txn_box/common.h"
-
 #include <swoc/TextView.h>
 #include <swoc/Errata.h>
 #include <swoc/BufferWriter.h>
@@ -19,10 +17,12 @@
 #include <swoc/bwf_std.h>
 #include <swoc/Lexicon.h>
 
+#include "txn_box/common.h"
 #include "txn_box/Directive.h"
 #include "txn_box/Modifier.h"
 #include "txn_box/Config.h"
 #include "txn_box/Context.h"
+#include "txn_box/table_util.h"
 
 #include "txn_box/yaml_util.h"
 #include "txn_box/ts_util.h"
@@ -44,20 +44,8 @@ class Do_ip_space_define;
 
 namespace
 {
-/// Column data type.
-enum class ColumnData {
-  INVALID, ///< Invalid marker.
-  ADDRESS, ///< Special marker for range column (column 0)
-  STRING,  ///< text.
-  INTEGER, ///< integral value.
-  ENUM,    ///< enumeration.
-  FLAGS    ///< Set of flags.
-};
-
-/// A row in the space.
-using Row = MemSpan<std::byte>;
 /// IPSpace to store the rows.
-using Space = IPSpace<Row>;
+using Space = IPSpace<txb::Row>;
 /// Space information that must be reloaded on file change.
 struct SpaceInfo {
   Space space;          ///< IPSpace.
@@ -71,137 +59,11 @@ struct CtxActiveInfo {
   SpaceHandle _space;                  ///< Active space.
   Do_ip_space_define * _drtv = nullptr; ///< Active directive.
   IPAddr _addr;                        ///< Search address.
-  Row *_row = nullptr;                 ///< Active row.
+  txb::Row *_row = nullptr;                 ///< Active row.
 };
 
 } // namespace
 
-/** Simple class to emulate @c std::bitset over a variable amount of memory.
- * @c std::bitset doesn't work because the bit set size is a compile time constant.
- * @c std::vector<bool> doesn't work either because it does separate memory allocation.
- * In contrast to these, this class allows mapping an arbitrary previously allocated chunk of
- * memory as a bit set. This enables fitting it in to a @c Row in the @c IPSpace payload where
- * the @c Row data is allocated in a single chunk.
- */
-class BitSpan
-{
-  using self_type                = BitSpan;                              ///< Self reference type.
-  static constexpr unsigned BITS = std::numeric_limits<uint8_t>::digits; ///< # of bits per unit.
-
-  /// Reference class to make the index operator work.
-  /// An instance of this fronts for a particular bit in the bit set.
-  struct bit_ref {
-    /** Assign a @c bool to the bit.
-     *
-     * @param b Value to set.
-     * @return @a this
-     *
-     * The bit is set if @a b is @c true, and reset if @a b is @c false.
-     */
-    bit_ref &
-    operator=(bool b)
-    {
-      if (b)
-        bits.set(idx);
-      else
-        bits.reset(idx);
-      return *this;
-    }
-
-    /** Assign an @c int to the bit.
-     *
-     * @param v The integer to assign.
-     * @return @a this
-     *
-     * The bit is set to zero if @a v is zero, otherwise it is set to 1.
-     */
-    bit_ref &
-    operator=(int v)
-    {
-      return (*this) = (v != 0);
-    }
-
-    /** Allow bit to be used as a boolean.
-     *
-     * @return @c true if the bit is set, @c false if not.
-     */
-    explicit operator bool() { return (bits._span[idx / BITS] & (1 << (idx % BITS))) != 0; }
-
-    BitSpan &bits; ///< Containing span.
-    unsigned idx;  ///< Bit index.
-  };
-
-public:
-  /// Construct from chunk of memory.
-  BitSpan(MemSpan<void> const &span) : _span(span.rebind<uint8_t>()) {}
-  /// Construct from chunk of bytes.
-  BitSpan(MemSpan<uint8_t> const &span) : _span(span) {}
-
-  /** Set a bit
-   *
-   * @param idx Bit index.
-   * @return @a this.
-   */
-  self_type &set(unsigned idx);
-
-  /** Reset a bit.
-   *
-   * @param idx Bit index.
-   * @return @a this.
-   */
-  self_type &reset(unsigned idx);
-
-  /** Reset all bits.
-   *
-   * @return @a this.
-   */
-  self_type &reset();
-
-  /** Access a single bit.
-   *
-   * @param idx Index of bit.
-   * @return @c true if the bit is set, @c false if not.
-   */
-  bit_ref
-  operator[](unsigned idx)
-  {
-    return {*this, idx};
-  }
-
-  unsigned
-  count() const
-  {
-    unsigned zret = 0;
-    for (unsigned idx = 0, N = _span.count(); idx < N; ++idx) {
-      zret += std::bitset<BITS>(_span[idx]).count();
-    }
-    return zret;
-  }
-
-protected:
-  MemSpan<uint8_t> _span;
-};
-
-inline auto
-BitSpan::set(unsigned int idx) -> self_type &
-{
-  _span[idx / BITS] |= (1 << (idx % BITS));
-  return *this;
-}
-
-inline auto
-BitSpan::reset(unsigned int idx) -> self_type &
-{
-  _span[idx / BITS] &= ~(1 << (idx % BITS));
-  return *this;
-}
-
-inline auto
-BitSpan::reset() -> self_type &
-{
-  memset(_span, 0);
-  return *this;
-}
 /* ------------------------------------------------------------------------------------ */
 /// Container for IP Space support common to all the elements.
 struct Txb_IP_Space {

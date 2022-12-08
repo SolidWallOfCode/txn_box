@@ -16,7 +16,7 @@ find_package(PkgConfig REQUIRED)
 FetchContent_Declare(
     libSWOC
     GIT_REPOSITORY "https://github.com/solidwallofcode/libswoc"
-    GIT_TAG "1.3.11"
+    GIT_TAG "memspan-void-const"
 )
 set(LIBSWOC_INSTALL off)
 set(LIBSWOC_TEST off)
@@ -25,4 +25,4 @@ FetchContent_MakeAvailable(libSWOC)
 pkg_check_modules(trafficserver REQUIRED IMPORTED_TARGET trafficserver)
 
 add_subdirectory(plugin)
-#add_subdirectory(test/unit_tests)
+add_subdirectory(test/unit_tests)

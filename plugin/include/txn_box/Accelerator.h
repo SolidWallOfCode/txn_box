@@ -1,5 +1,5 @@
 /** @file
- * Comparison acceleration support.
+ * Support for accelerated comparisons.
  *
  * Copyright 2020 Verizon Media
  * SPDX-License-Identifier: Apache-2.0
@@ -18,7 +18,7 @@
 
 class Comparison;
 
-/// Base class for Accelerator implementations.
+/// Base class for accleration support.
 class Accelerator
 {
   using self_type = Accelerator;

@@ -1,5 +1,5 @@
 /** @file
- *  Utility helper for string accelerator class.
+ *  Utility helper for string match accelerator class.
  *
  * Copyright 2020, Verizon Media .
  * SPDX-License-Identifier: Apache-2.0
@@ -22,38 +22,34 @@
 class Comparison;
 template <class T> class reversed_view;
 
-///
-/// @brief PATRICA algorithm implementation using binary trees.
-///        This Data Structure allows to search for N key in exactly N nodes, providing a log(N) bit
-///        comparision with a single full key comparision per search. The key(or view) is stored in the node,
-///        nodes are traversed according to the bits of the key, this implementation does NOT uses the key
-///        while traversing, it only stores it for a possible letter reference when the end of the tree/search
-///        is reached and the full match needs to be granted.
-///
-/// @note We only support insert, full match and prefix match.
-/// @note To handle suffix_match please refer to @c reversed_view<T>
-/// @tparam Key
-/// @tparam Value
-///
-template <typename Key, typename Value> class StringTree
+/** PATRICA algorithm implementation using binary trees.
+ *
+ * This Data Structure allows to search for N key in exactly N nodes, providing a log(N) bit
+ * comparision with a single full key comparision per search. The key(or view) is stored in the
+ * node, nodes are traversed according to the bits of the key, this implementation does NOT uses the
+ * key while traversing, it only stores it for a possible letter reference when the end of the
+ * tree/search is reached and the full match needs to be granted.
+ *
+ * @note We only support insert, full match and prefix match.
+ * @note To handle suffix_match please refer to @c reversed_view<T>
+ * @tparam Key
+ * @tparam Value
+*/
+template <typename Key, typename Value> class StringMatcher
 {
   /// haven't test more than this types.
-  static_assert(swoc::meta::is_any_of<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>::value,
-                "Type not supported");
-  // static_assert(swoc::meta::is_any_of_v<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>,
-  //               "Type not supported");
-  using self_type = StringTree<Key, Value>;
+   static_assert(swoc::meta::is_any_of_v<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>,
+                 "Type not supported");
+
+  using self_type = StringMatcher;
+
   /// Node layout.
   struct Node {
     // types
     using self_type = Node;
-    using ptr_type  = self_type *;
 
-    Node(Key k, Value v, int32_t r = -1) : key{k}, value{v}, rank{r}
-    {
-      left  = this;
-      right = this;
-    }
+    Node(Key k, Value v, int32_t r = -1) : key{k}, value{v}, rank{r} {}
+
     Key key;
     Value value;
     /// bit pos where it differs from previous node.
@@ -61,8 +57,8 @@ template <typename Key, typename Value> class StringTree
     /// key/value rank.
     int32_t rank;
     /// only two ways, btree
-    self_type *left;
-    self_type *right;
+    self_type *left = nullptr;
+    self_type *right = nullptr;
 
     Node()             = delete;
     Node(Node const &) = delete;
@@ -80,15 +76,15 @@ public:
   using key_type   = Key;
 
   /// Construct a new String Tree object
-  StringTree();
+  StringMatcher();
 
   /// We have a bunch of memory to clean up after use.
-  ~StringTree();
+  ~StringMatcher();
 
-  StringTree(StringTree &&)      = delete;
-  StringTree(StringTree const &) = delete;
-  StringTree &operator=(StringTree const &) = delete;
-  StringTree &operator=(StringTree &&) = delete;
+  StringMatcher(self_type &&)      = delete;
+  StringMatcher(self_type const &) = delete;
+  StringMatcher &operator=(self_type const &) = delete;
+  StringMatcher &operator=(self_type &&) = delete;
 
   ///
   /// @brief  Inserts element into the tree, if the container doesn't already contain an element with an equivalent key.
@@ -110,7 +106,7 @@ public:
 
 private:
   /// hold the first element on the entire tree.
-  node_type_ptr _head;
+  node_type * _head;
   /// this gets incremented on every insert.
   int32_t _rank_counter;
   /// recursive memory cleanup function.
@@ -194,7 +190,7 @@ get_first_diff_bit_position(Key const &lhs, Key const &rhs)
 
 /// --------  StringTree implementation -------------
 
-template <typename Key, typename Value> StringTree<Key, Value>::StringTree()
+template <typename Key, typename Value> StringMatcher<Key, Value>::StringMatcher()
 {
   // We do not set the rank now, as for the head, -1 should be ok.
   // we may be able to no need to initialize empty string if Key=string_view, thinking about this
@@ -203,14 +199,14 @@ template <typename Key, typename Value> StringTree<Key, Value>::StringTree()
   _head->bit_count = 0;
 }
 
-template <typename Key, typename Value> StringTree<Key, Value>::~StringTree()
+template <typename Key, typename Value> StringMatcher<Key, Value>::~StringMatcher()
 {
   cleanup();
 }
 
 template <typename Key, typename Value>
 bool
-StringTree<Key, Value>::insert(Key const &key, Value const &value, Comparison *cmp)
+StringMatcher<Key, Value>::insert(Key const &key, Value const &value, Comparison *cmp)
 {
   node_type_ptr search_node = _head;
   int idx{0};
@@ -261,7 +257,7 @@ StringTree<Key, Value>::insert(Key const &key, Value const &value, Comparison *c
 
 template <typename Key, typename Value>
 std::pair<bool, Value>
-StringTree<Key, Value>::full_match(Key const &key, Comparison *cmp) const noexcept
+StringMatcher<Key, Value>::full_match(Key const &key, Comparison *cmp) const noexcept
 {
   node_type_ptr search_node = _head->left;
   int idx{0};
@@ -281,7 +277,7 @@ StringTree<Key, Value>::full_match(Key const &key, Comparison *cmp) const noexce
 
 template <typename Key, typename Value>
 std::vector<std::pair<Key, Value>>
-StringTree<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) const
+StringMatcher<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) const
 {
   // Nodes will help to follow, but basically we:
   // 1 - find the closest node.
@@ -352,7 +348,7 @@ StringTree<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) const
 
 template <typename Key, typename Value>
 void
-StringTree<Key, Value>::freeup(Node *n)
+StringMatcher<Key, Value>::freeup(Node *n)
 {
   if (n == nullptr) {
     return;
@@ -373,7 +369,7 @@ StringTree<Key, Value>::freeup(Node *n)
 
 template <typename Key, typename Value>
 void
-StringTree<Key, Value>::cleanup()
+StringMatcher<Key, Value>::cleanup()
 {
   freeup(_head);
 }
@@ -387,9 +383,7 @@ StringTree<Key, Value>::cleanup()
 template <typename View> class reversed_view
 {
   /// haven't test more than this types.
-  static_assert(swoc::meta::is_any_of<View, std::string, std::string_view, swoc::TextView>::value, "Type not supported");
-  // TODO: remove ^^ once is_any_of_v is available.
-  // static_assert(swoc::meta::is_any_of_v<View, std::string, std::string_view, swoc::TextView>, "Type not supported");
+  static_assert(swoc::meta::is_any_of_v<View, std::string, std::string_view, swoc::TextView>, "Type not supported");
 
 public:
   // Think, inherit from View instead??
