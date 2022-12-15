@@ -3397,7 +3397,6 @@ public:
 
 protected:
   Expr _expr; ///< Address.
-  ts::TxnConfigVar *_var = nullptr;
 
   Do_upstream_addr(Expr &&expr) : _expr(std::move(expr)) {}
 };
@@ -3425,6 +3424,120 @@ Do_upstream_addr::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::Tex
 
   if (!expr.result_type().can_satisfy(IP_ADDR)) {
     return Errata(S_ERROR, R"(Value for "{}" must be an IP address.)");
+  }
+
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+class Do_inbound_dscp : public Directive
+{
+  using self_type  = Do_inbound_dscp; ///< Self reference type.
+  using super_type = Directive;        ///< Parent type.
+public:
+  static inline const std::string KEY{"inbound-dscp"}; ///< Directive name.
+  static const HookMask HOOKS;                          ///< Valid hooks for directive.
+
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Address.
+
+  Do_inbound_dscp(Expr &&expr) : _expr(std::move(expr)) {}
+};
+
+const HookMask Do_inbound_dscp::HOOKS{MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP})};
+
+Errata
+Do_inbound_dscp::invoke(Context &ctx)
+{
+  feature_type_for<INTEGER> value = ctx.extract(_expr).as_integer(-1);
+  if (value >= 0) {
+    ctx._txn.set_inbound_dscp(value);
+  }
+  return {};
+}
+
+Rv<Directive::Handle>
+Do_inbound_dscp::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::TextView const &, swoc::TextView const &,
+                       YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  if (!expr.result_type().can_satisfy(INTEGER)) {
+    return Errata(S_ERROR, R"(Value for "{}" must be an integer.)");
+  }
+
+  return Handle(new self_type(std::move(expr)));
+}
+/* ------------------------------------------------------------------------------------ */
+class Do_outbound_dscp : public Directive
+{
+  using self_type  = Do_outbound_dscp; ///< Self reference type.
+  using super_type = Directive;        ///< Parent type.
+public:
+  static inline const std::string KEY{"outbound-dscp"}; ///< Directive name.
+  static const HookMask HOOKS;                          ///< Valid hooks for directive.
+
+  Errata invoke(Context &ctx) override; ///< Runtime activation.
+
+  /** Load from YAML node.
+   *
+   * @param cfg Configuration data.
+   * @param rtti Configuration level static data for this directive.
+   * @param drtv_node Node containing the directive.
+   * @param name Name from key node tag.
+   * @param arg Arg from key node tag.
+   * @param key_value Value for directive @a KEY
+   * @return A directive, or errors on failure.
+   */
+  static Rv<Handle> load(Config &cfg, CfgStaticData const *rtti, YAML::Node drtv_node, swoc::TextView const &name,
+                         swoc::TextView const &arg, YAML::Node key_value);
+
+protected:
+  Expr _expr; ///< Address.
+
+  Do_outbound_dscp(Expr &&expr) : _expr(std::move(expr)) {}
+};
+
+const HookMask Do_outbound_dscp::HOOKS{MaskFor({Hook::CREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP, Hook::URSP})};
+
+Errata
+Do_outbound_dscp::invoke(Context &ctx)
+{
+  feature_type_for<INTEGER> value = ctx.extract(_expr).as_integer(-1);
+  if (value >= 0) {
+    ctx._txn.set_outbound_dscp(value);
+  }
+  return {};
+}
+
+Rv<Directive::Handle>
+Do_outbound_dscp::load(Config &cfg, CfgStaticData const *, YAML::Node, swoc::TextView const &, swoc::TextView const &,
+                       YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    return std::move(errata);
+  }
+
+  if (!expr.result_type().can_satisfy(INTEGER)) {
+    return Errata(S_ERROR, R"(Value for "{}" must be an integer.)");
   }
 
   return Handle(new self_type(std::move(expr)));
@@ -3822,6 +3935,9 @@ namespace
   Config::define<Do_upstream_reason>();
 
   Config::define<Do_upstream_addr>();
+
+  Config::define<Do_inbound_dscp>();
+  Config::define<Do_outbound_dscp>();
 
   Config::define<Do_proxy_rsp_field>();
   Config::define<Do_proxy_rsp_status>();

@@ -933,8 +933,8 @@ class Cmp_is_null : public Comparison
   using self_type  = Cmp_is_null; ///< Self reference type.
   using super_type = Comparison;  ///< Parent type.
 public:
-  static const std::string KEY; ///< Comparison name.
-  static const ValueMask TYPES; ///< Supported types.
+  static inline const std::string KEY = "is-null"; ///< Comparison name.
+  static inline const ValueMask TYPES { MaskFor(NIL) }; ///< Supported types.
 
   bool operator()(Context &ctx, feature_type_for<NIL>) const override;
 
@@ -945,8 +945,6 @@ protected:
   Cmp_is_null() = default;
 };
 
-const std::string Cmp_is_null::KEY{"is-null"};
-const ValueMask Cmp_is_null::TYPES{MaskFor(NIL)};
 
 bool
 Cmp_is_null::operator()(Context &, feature_type_for<NIL>) const
@@ -959,6 +957,37 @@ Cmp_is_null::load(Config &, YAML::Node const &, TextView const &, TextView const
 {
   return {Handle{new self_type}, {}};
 }
+
+/** Check for not NULL value.
+ */
+class Cmp_is_valid : public Comparison
+{
+  using self_type  = Cmp_is_valid; ///< Self reference type.
+  using super_type = Comparison;  ///< Parent type.
+public:
+  static inline const std::string KEY = "is-valid"; ///< Comparison name.
+  static inline const ValueMask TYPES = ValueMask().set(); ///< Allow all types
+
+  bool operator()(Context &ctx, Feature const &feature) const;
+
+  /// Construct an instance from YAML configuration.
+  static Rv<Handle> load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node);
+
+protected:
+  Cmp_is_valid() = default;
+};
+
+bool
+Cmp_is_valid::operator()(Context &, Feature const &feature) const
+{
+  return ! is_nil(feature);
+}
+
+Rv<Comparison::Handle>
+Cmp_is_valid::load(Config &, YAML::Node const &, TextView const &, TextView const &, YAML::Node)
+{
+  return {Handle{new self_type}, {}};
+}
 /* ------------------------------------------------------------------------------------ */
 /** Check for empty (NULL or empty string)
  */
@@ -967,8 +996,8 @@ class Cmp_is_empty : public Comparison
   using self_type  = Cmp_is_empty; ///< Self reference type.
   using super_type = Comparison;   ///< Parent type.
 public:
-  static const std::string KEY; ///< Comparison name.
-  static const ValueMask TYPES; ///< Supported types.
+  static inline const std::string KEY = "is_empty"; ///< Comparison name.
+  static inline const ValueMask TYPES {MaskFor({NIL, STRING, TUPLE})}; ///< Supported types.
 
   bool operator()(Context &ctx, feature_type_for<NIL>) const override;
   bool operator()(Context &ctx, feature_type_for<STRING> const &s) const override;
@@ -980,9 +1009,6 @@ public:
 protected:
   Cmp_is_empty() = default;
 };
-
-const std::string Cmp_is_empty::KEY{"is-empty"};
-const ValueMask Cmp_is_empty::TYPES{MaskFor({NIL, STRING, TUPLE})};
 
 bool
 Cmp_is_empty::operator()(Context &, feature_type_for<NIL>) const
@@ -1743,6 +1769,7 @@ namespace
   Comparison::define(Cmp_is_true::KEY, Cmp_is_true::TYPES, Cmp_is_true::load);
   Comparison::define(Cmp_is_false::KEY, Cmp_is_false::TYPES, Cmp_is_false::load);
   Comparison::define(Cmp_is_null::KEY, Cmp_is_null::TYPES, Cmp_is_null::load);
+  Comparison::define(Cmp_is_valid::KEY, Cmp_is_null::TYPES, Cmp_is_valid::load);
   Comparison::define(Cmp_is_empty::KEY, Cmp_is_empty::TYPES, Cmp_is_empty::load);
 
   Comparison::define(Cmp_LiteralString::MATCH_KEY, Cmp_LiteralString::TYPES, Cmp_LiteralString::load);

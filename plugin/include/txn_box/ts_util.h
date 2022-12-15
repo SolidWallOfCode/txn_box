@@ -654,6 +654,20 @@ public:
    */
   bool set_upstream_addr(swoc::IPAddr const &addr) const;
 
+  /** Set the DCSP bits on the inbound connection.
+   *
+   * @param value DSCP value.
+   * @return @c true if the API call is successful.
+   */
+  bool set_inbound_dscp(int value) const;
+
+  /** Set the DCSP bits on the outbound connection.
+   *
+   * @param value DSCP value.
+   * @return @c true if the API call is successful.
+   */
+  bool set_outbound_dscp(int value) const;
+
   /** Assign @a n to the integer transaction overridable configuration @a var
    *
    * @param var Overridable variable.

@@ -18,6 +18,8 @@
 #include <swoc/TextView.h>
 #include <swoc/swoc_meta.h>
 
+#include "txn_box/BitSpan.h"
+
 // fwd declarations.
 class Comparison;
 template <class T> class reversed_view;
@@ -37,21 +39,21 @@ template <class T> class reversed_view;
 */
 template <typename Key, typename Value> class StringMatcher
 {
-  /// haven't test more than this types.
+  // Types that have been tested.
    static_assert(swoc::meta::is_any_of_v<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>,
                  "Type not supported");
 
   using self_type = StringMatcher;
 
-  /// Node layout.
+  /// Decision node.
   struct Node {
-    // types
-    using self_type = Node;
+    using self_type = Node; ///< Self-reference type.
 
     Node(Key k, Value v, int32_t r = -1) : key{k}, value{v}, rank{r} {}
 
-    Key key;
-    Value value;
+    Key key; ///< Node key.
+    Value value; ///< Value for key.
+
     /// bit pos where it differs from previous node.
     int32_t bit_count{0};
     /// key/value rank.
@@ -66,12 +68,11 @@ template <typename Key, typename Value> class StringMatcher
     Node &operator=(Node const &) = delete;
     Node &operator=(Node &&) = delete;
   };
-  // types
+
   using node_type     = Node;
-  using node_type_ptr = node_type *;
 
 public:
-  // types
+  // Export template arguments.
   using value_type = Value;
   using key_type   = Key;
 

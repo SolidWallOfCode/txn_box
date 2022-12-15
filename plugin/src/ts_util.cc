@@ -677,6 +677,17 @@ ts::HttpTxn::set_upstream_addr(const swoc::IPAddr &addr) const
   return TS_SUCCESS == TSHttpTxnServerAddrSet(_txn, (swoc::IPEndpoint(addr)));
 }
 
+bool
+ts::HttpTxn::set_inbound_dscp(int value) const
+{
+  return TS_SUCCESS == TSHttpTxnClientPacketDscpSet(_txn, value);
+}
+
+bool ts::HttpTxn::set_outbound_dscp(int value) const
+{
+  return TS_SUCCESS == TSHttpTxnServerPacketDscpSet(_txn, value);
+}
+
 swoc::MemSpan<char>
 ts::HttpTxn::ts_dup(swoc::TextView const &text)
 {

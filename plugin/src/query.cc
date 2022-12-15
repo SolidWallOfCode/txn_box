@@ -335,6 +335,74 @@ Ex_proxy_req_query_value::query_string(Context &ctx) const
 }
 
 /* ------------------------------------------------------------------------------------ */
+class Mod_query_value : public Modifier {
+  using self_type = Mod_query_value;
+  using super_type = Modifier;
+public:
+  static inline const std::string KEY { "query-value" };
+  bool is_valid_for(ActiveType const &ex_type) const override;
+  ActiveType result_type(ActiveType const &) const override;
+  Rv<Feature> operator()(Context &ctx, feature_type_for<STRING> qs) override;
+  static Rv<Handle> load(Config &cfg, YAML::Node node, TextView key, TextView arg, YAML::Node key_value);
+
+  static constexpr TextView ARG_NOCASE = "nc"; ///< Case insensitive match.
+protected:
+  /** Construct the modifier.
+   *
+   * @param expr Default (failed find) value expression.
+   * @param case_p Compare using case.
+   */
+  Mod_query_value(Expr && expr, bool case_p) : _expr(std::move(expr)), _case_p(case_p) {}
+  TextView _key; ///< Value key.
+  Expr _expr; ///< Default value expression.
+  bool _case_p = true; // Default to case sensitive.
+};
+
+bool Mod_query_value::is_valid_for(const ActiveType &ex_type) const
+{
+  return ex_type.can_satisfy(STRING);
+}
+
+ActiveType Mod_query_value::result_type(const ActiveType &) const
+{
+  return { NIL, STRING };
+}
+
+Rv<Feature> Mod_query_value::operator()(Context &ctx, FeatureView qs)
+{
+  if ( auto [ key , value ] { ts::query_value_for(qs, _key, ! _case_p)} ; !key.empty()) {
+    return { FeatureView(value) }; // found, return it.
+  }
+  return ctx.extract(_expr);
+}
+
+Rv<Modifier::Handle>
+Mod_query_value::load(Config & cfg, YAML::Node node, TextView key, TextView args, YAML::Node key_value)
+{
+  auto &&[expr, errata]{cfg.parse_expr(key_value)};
+  if (!errata.is_ok()) {
+    errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
+    return std::move(errata);
+  }
+  if (!(expr.is_null() || expr.result_type().can_satisfy(MaskFor(STRING)))) {
+    return Errata(S_ERROR, "Value of {} modifier is not of type {}.", KEY, STRING);
+  }
+
+  bool case_p = true;
+  while (args) {
+    auto token = args.take_prefix_at(',');
+    if (ARG_NOCASE == token) {
+      case_p = false;
+    } else {
+      return Errata(S_ERROR, R"(Invalid option "{}" for modifier "{}" at {}.)", token, KEY, key_value.Mark());
+    }
+  }
+
+
+  return Handle(new self_type{std::move(expr, case_p)});
+}
+
+/* ------------------------------------------------------------------------------------ */
 /** Sort the query string by name.
  *
  */
@@ -1072,6 +1140,7 @@ Ex_proxy_req_query_value proxy_req_query_value;
 
   Modifier::define<Mod_query_sort>();
   Modifier::define<Mod_query_filter>();
+  Modifier::define<Mod_query_value>();
 
   Config::define<Do_ua_req_query>();
   Config::define<Do_ua_req_query_value>();
