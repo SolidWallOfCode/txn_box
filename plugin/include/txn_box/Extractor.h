@@ -80,6 +80,8 @@ public:
    * The default implementation returns @c false.
    *
    * @return @c true if the extractor uses the context, @c false otherwise.
+   *
+   * @internal This is still in a bit of flux, needs to be cleaned up.
    */
   virtual bool has_ctx_ref() const;
 
@@ -101,7 +103,8 @@ public:
    *
    * @note Unlike @c Context based extraction, this is optional and should only be overridden for
    * extractors that do not extract runtime dependent data. In such cases the @c validate method
-   * should indicate this method is available by marking the type as config extractable.
+   * should indicate this method is available by marking the type as config extractable. The primary
+   * purpose is for extractors that use process or external data with no internal dependency.
    *
    * @see validate
    * @see extract(Context & ctx, Spec const& spec)

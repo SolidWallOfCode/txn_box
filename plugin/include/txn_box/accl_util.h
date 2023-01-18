@@ -111,7 +111,7 @@ private:
   /// this gets incremented on every insert.
   int32_t _rank_counter;
   /// recursive memory cleanup function.
-  void freeup(Node *n);
+  void freeup(node_type *n);
   /// clean up function, should deal with all the crap.
   void cleanup();
 };
@@ -168,6 +168,9 @@ template <typename Key>
 static auto
 get_first_diff_bit_position(Key const &lhs, Key const &rhs)
 {
+  swoc::MemSpan<const void> lhs_span(lhs.data(), lhs.size());
+  swoc::MemSpan<const void> rhs_span(rhs.data(), rhs.size());
+
   std::size_t byte_count{0};
   auto lhs_iter = std::begin(lhs);
   auto rhs_iter = std::begin(rhs);
@@ -209,7 +212,7 @@ template <typename Key, typename Value>
 bool
 StringMatcher<Key, Value>::insert(Key const &key, Value const &value, Comparison *cmp)
 {
-  node_type_ptr search_node = _head;
+  node_type * search_node = _head;
   int idx{0};
 
   // We wil try to go down the path and get close to the place where we want to insert the new value, then we will
@@ -228,11 +231,11 @@ StringMatcher<Key, Value>::insert(Key const &key, Value const &value, Comparison
   int const first_diff_bit = (search_node == _head ? 1 : detail::get_first_diff_bit_position(key, search_node->key));
 
   // Getting ready the new node.
-  node_type_ptr new_node = new Node(key, value, _rank_counter++);
+  node_type * new_node = new Node(key, value, _rank_counter++);
 
   // we will work on this two from now. Always left to start.
-  node_type_ptr p = _head;
-  node_type_ptr c = _head->left;
+  node_type * p = _head;
+  node_type * c = _head->left;
   // with the bit pos diff calculated on the search miss above, we now need to go down (c > p) using the bit diff.
   // first_diff_bit will tell us when to stop and insert the key.
   while (c->bit_count > p->bit_count && first_diff_bit > c->bit_count) {
@@ -260,7 +263,7 @@ template <typename Key, typename Value>
 std::pair<bool, Value>
 StringMatcher<Key, Value>::full_match(Key const &key, Comparison *cmp) const noexcept
 {
-  node_type_ptr search_node = _head->left;
+  node_type * search_node = _head->left;
   int idx{0};
 
   // Walk down the tree using the bit_count to check which direction take. We will check this on every node.
@@ -293,11 +296,11 @@ StringMatcher<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) cons
   // For now we return the entire list, we need to work on the rank to send back only one match, the best one.
   std::size_t const prefix_size{(prefix.size() * 8) - 1};
 
-  node_type_ptr root = _head->left;
-  node_type_ptr p    = _head->left;
+  node_type * root = _head->left;
+  node_type * p    = _head->left;
 
   int children_bit_count{0};
-  node_type_ptr c;
+  node_type * c;
   // We need to find the node where we will start the prefix lookup. Move down using prefix size.
   while (prefix_size > root->bit_count && root->bit_count > children_bit_count) {
     children_bit_count = root->bit_count;
@@ -308,11 +311,11 @@ StringMatcher<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) cons
   std::vector<std::pair<Key, Value>> search;
   // Once we have the closest node to start going down(or up), we will deal with the result as
   // this was a graph, and we will perform a "sort of" DFS till we find what we need.
-  std::unordered_map<node_type_ptr, bool> visited;
+  std::unordered_map<node_type *, bool> visited;
 
   // We use DFS from the root node we found, and visit all the related (by prefix) nodes down the line, till
   // we find an uplink.
-  std::stack<node_type_ptr> stack_downlinks;
+  std::stack<node_type *> stack_downlinks;
   stack_downlinks.push(root);
 
   while (!stack_downlinks.empty()) {
@@ -355,8 +358,8 @@ StringMatcher<Key, Value>::freeup(Node *n)
     return;
   }
 
-  node_type_ptr left  = n->left;
-  node_type_ptr right = n->right;
+  node_type * left  = n->left;
+  node_type * right = n->right;
 
   if (left->bit_count >= n->bit_count && (left != n && left != _head)) {
     freeup(left);
@@ -551,7 +554,7 @@ private:
     bool
     insert(string_tree_map::key_type key, string_tree_map::value_type value)
     {
-      return super::insert(reversed_view{key}, value);
+      return super_type::insert(reversed_view{key}, value);
     }
 
     std::vector<std::pair<string_tree_map::key_type, string_tree_map::value_type>>
@@ -559,7 +562,7 @@ private:
     {
       // This will go away, temporary hack.
       std::vector<std::pair<string_tree_map::key_type, string_tree_map::value_type>> r;
-      for (auto const &p : super::prefix_match(reversed_view{suffix}, cmp)) {
+      for (auto const &p : super_type::prefix_match(reversed_view{suffix}, cmp)) {
         // Temporal hack, 'get_view()' need to go away.
         r.push_back({p.first.get_view(), p.second});
       }

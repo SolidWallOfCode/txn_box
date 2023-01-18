@@ -13,6 +13,7 @@
 #endif
 #include <functional>
 
+#include <swoc/MemSpan.h>
 #include <swoc/MemArena.h>
 #include <swoc/Errata.h>
 #include <swoc/IntrusiveHashMap.h>
@@ -40,8 +41,16 @@ class Context
   friend class Config;
 
 public:
-  /// Construct based a specific configuration.
-  explicit Context(std::shared_ptr<Config> const &cfg);
+  /** Construct a context for a configuration.
+   *
+   * @param cfg Configuration base for context.
+   * @param static_data Seed memory for context.
+   *
+   * @a static_data is optional and should be be used only when the lifetime of the context is limited to
+   * a single function because the static storage lifetime must be at least as long as the @c Context
+   * instance lifetime.
+   */
+  explicit Context(std::shared_ptr<Config> const &cfg, swoc::MemSpan<void> buffer = swoc::MemSpan<void>{});
 
   ~Context();
 
@@ -274,6 +283,10 @@ public:
   template <typename T> swoc::MemSpan<T> initialized_storage_for(ReservedSpan const &span);
 
   Hook _cur_hook   = Hook::INVALID;
+  let<Hook> push_current_hook(Hook hook) {
+    return let(_cur_hook, hook);
+  }
+
   TSCont _cont     = nullptr;
   ts::HttpTxn _txn = nullptr;
 
@@ -541,7 +554,7 @@ protected:
   struct ArenaDestructor {
     void operator()(swoc::MemArena *arena);
   };
-  
+
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
@@ -609,7 +622,7 @@ protected:
   struct NamedObject {
     using self_type = NamedObject; ///< Self reference type.
     static constexpr std::hash<std::string_view> Hash_Func{};
-    
+
     swoc::TextView _name;       ///< Name of variable.
     swoc::MemSpan<void> _span;  ///< Object memroy.
     self_type *_next = nullptr; ///< Intrusive link.

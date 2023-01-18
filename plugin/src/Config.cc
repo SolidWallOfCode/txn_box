@@ -38,17 +38,21 @@ static constexpr char ARG_PREFIX = '<';
 static constexpr char ARG_SUFFIX = '>';
 
 /* ------------------------------------------------------------------------------------ */
-swoc::Lexicon<Hook> HookName{{{Hook::POST_LOAD, {"post-load"}},
-                              {Hook::TXN_START, {"txn-open"}},
-                              {Hook::CREQ, {"ua-req", "creq"}},
-                              {Hook::PREQ, {"proxy-req", "preq"}},
-                              {Hook::URSP, {"upstream-rsp", "ursp"}},
-                              {Hook::PRSP, {"proxy-rsp", "prsp"}},
-                              {Hook::PRE_REMAP, {"pre-remap"}},
-                              {Hook::POST_REMAP, {"post-remap"}},
-                              {Hook::TXN_CLOSE, {"txn-close"}},
-                              {Hook::REMAP, {"remap"}},
-                              {Hook::MSG, {"msg"}}}};
+swoc::Lexicon<Hook> const HookName{{
+                               {Hook::POST_LOAD, {"post-load"}},
+                               {Hook::PRE_ACTIVE, {"pre-active"}},
+                               {Hook::TXN_START, {"txn-open"}},
+                               {Hook::CREQ, {"ua-req", "creq"}},
+                               {Hook::PREQ, {"pr-req", "proxy-req", "preq"}},
+                               {Hook::URSP, {"up-rsp", "upstream-rsp", "ursp"}},
+                               {Hook::PRSP, {"pr-rsp", "proxy-rsp", "prsp"}},
+                               {Hook::PRE_REMAP, {"pre-remap"}},
+                               {Hook::POST_REMAP, {"post-remap"}},
+                               {Hook::TXN_CLOSE, {"txn-close"}},
+                               {Hook::REMAP, {"remap"}},
+                               {Hook::MSG, {"msg"}},
+                               {Hook::TASK, {"task"}},
+                             }, Hook::INVALID, "invalid"};
 
 std::array<TSHttpHookID, std::tuple_size<Hook>::value> TS_Hook;
 
@@ -64,8 +68,6 @@ bwformat(BufferWriter &w, bwf::Spec const &spec, Hook hook)
 namespace
 {
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
-  HookName.set_default(Hook::INVALID);
-
   TS_Hook[IndexFor(Hook::TXN_START)]  = TS_HTTP_TXN_START_HOOK;
   TS_Hook[IndexFor(Hook::CREQ)]       = TS_HTTP_READ_REQUEST_HDR_HOOK;
   TS_Hook[IndexFor(Hook::PREQ)]       = TS_HTTP_SEND_REQUEST_HDR_HOOK;
@@ -213,8 +215,8 @@ Config::validate(Extractor::Spec &spec)
     }
 
     Extractor * ex = nullptr;
-    if (_local_extractors) {
-      if (auto spot = _local_extractors->find(name) ; spot != _local_extractors->end()) {
+    if (_local_extractor_binding) {
+      if (auto spot = _local_extractor_binding->find(name) ; spot != _local_extractor_binding->end()) {
         ex = spot->second;
       }
     }
@@ -533,6 +535,13 @@ Config::load_directive(YAML::Node const &drtv_node)
 }
 
 Rv<Directive::Handle>
+Config::parse_directive(YAML::Node const &drtv_node, Hook hook)
+{
+  let hook_guard(_hook, hook);
+  return this->parse_directive(drtv_node);
+}
+
+Rv<Directive::Handle>
 Config::parse_directive(YAML::Node const &drtv_node)
 {
   if (drtv_node.IsMap()) {
@@ -567,7 +576,7 @@ Config::load_top_level_directive(YAML::Node drtv_node)
       if (errata.is_ok()) {
         auto when = static_cast<When *>(handle.get());
         // Steal the directive out of the When.
-        _roots[IndexFor(when->_hook)].emplace_back(std::move(when->_directive));
+        this->on_hook(when->_hook, std::move(when->_directive));
         if (Hook::POST_LOAD != _hook) { // post load hooks don't count.
           _has_top_level_directive_p = true;
         }
@@ -790,6 +799,7 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
   auto &post_load_directives = this->hook_directives(Hook::POST_LOAD);
   if (post_load_directives.size() > 0) {
     std::unique_ptr<Context> ctx{new Context(handle)};
+    auto hook_scope = ctx->push_current_hook(Hook::POST_LOAD);
     for (auto &&drtv : post_load_directives) {
       auto errata = drtv->invoke(*ctx);
       if (!errata.is_ok()) {
@@ -798,6 +808,17 @@ Config::load_cli_args(Handle handle, swoc::MemSpan<char const *> argv, int arg_i
       }
     }
   }
+
+  // Everything is set up, do final initialization operations. These cannot fail the configuration load.
+  auto &pre_active_directives = this->hook_directives(Hook::PRE_ACTIVE);
+  if (pre_active_directives.size() > 0) {
+    std::unique_ptr<Context> ctx{new Context(handle)};
+    auto hook_scope = ctx->push_current_hook(Hook::PRE_ACTIVE);
+    for (auto & drtv : pre_active_directives) {
+      drtv->invoke(*ctx);
+    }
+  }
+
   // Done with the files - clear them out.
   _cfg_file_count = _cfg_files.size();
   _cfg_files.clear();

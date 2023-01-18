@@ -16,7 +16,7 @@ find_package(PkgConfig REQUIRED)
 FetchContent_Declare(
     libSWOC
     GIT_REPOSITORY "https://github.com/solidwallofcode/libswoc"
-    GIT_TAG "memspan-void-const"
+    GIT_TAG "1.4.1"
 )
 set(LIBSWOC_INSTALL off)
 set(LIBSWOC_TEST off)

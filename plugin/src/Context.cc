@@ -40,12 +40,16 @@ Expr::bwf_ex::operator()(std::string_view &literal, Extractor::Spec &spec)
   return zret;
 }
 /* ------------------------------------------------------------------------------------ */
-
-Context::Context(std::shared_ptr<Config> const &cfg) : _cfg(cfg)
+Context::Context(std::shared_ptr<Config> const &cfg, MemSpan<void> buffer) : _cfg(cfg)
 {
   size_t reserved_size = G._remap_ctx_storage_required + (cfg ? cfg->reserved_ctx_storage_size() : 0);
   // This is arranged so @a _arena destructor will clean up properly, nothing more need be done.
-  _arena.reset(swoc::MemArena::construct_self_contained(4000 + reserved_size));
+  if (buffer.empty()) {
+    _arena.reset(swoc::MemArena::construct_self_contained(4000 + reserved_size));
+  } else { // self contained doesn't support buffers. Need to fix that.
+    swoc::MemArena tmp{buffer};
+    _arena.reset(tmp.make<swoc::MemArena>(std::move(tmp)));
+  }
 
   _rxp_ctx = pcre2_general_context_create(
     [](PCRE2_SIZE size, void *ctx) -> void * { return static_cast<self_type *>(ctx)->_arena->alloc(size).data(); },

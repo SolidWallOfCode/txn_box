@@ -39,8 +39,8 @@ class Do_ua_req_url_host : public Directive
   using self_type  = Do_ua_req_url_host;
 
 public:
-  static const std::string KEY;
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const std::string KEY{"ua-req-url-host"};
+  static inline const HookMask HOOKS = MaskFor(Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP);
 
   /** Construct with feature expression..
    *
@@ -66,9 +66,6 @@ public:
 protected:
   Expr _expr; ///< Feature expression.
 };
-
-const std::string Do_ua_req_url_host::KEY{"ua-req-url-host"};
-const HookMask Do_ua_req_url_host::HOOKS = MaskFor(Hook::PREQ, Hook::PRE_REMAP, Hook::REMAP, Hook::POST_REMAP);
 
 Do_ua_req_url_host::Do_ua_req_url_host(Expr &&expr) : _expr(std::move(expr)) {}
 
@@ -3035,8 +3032,9 @@ class Do_debug : public Directive
   using super_type = Directive;
 
 public:
-  static const std::string KEY;
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const std::string KEY = "debug";
+  static inline const HookMask HOOKS{MaskFor({Hook::POST_LOAD, Hook::MSG, Hook::TASK, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
+                                              Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
@@ -3048,10 +3046,6 @@ protected:
 
   Do_debug(Expr &&tag, Expr &&msg);
 };
-
-const std::string Do_debug::KEY{"debug"};
-const HookMask Do_debug::HOOKS{MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
-                                        Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
 
 Do_debug::Do_debug(Expr &&tag, Expr &&msg) : _tag(std::move(tag)), _msg(std::move(msg)) {}
 
@@ -3105,7 +3099,8 @@ class Do_error : public Directive
 
 public:
   static inline const std::string KEY{"error"};
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const HookMask HOOKS{MaskFor({Hook::POST_LOAD, Hook::MSG, Hook::TASK, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
+                                       Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
@@ -3116,9 +3111,6 @@ protected:
 
   Do_error(Expr &&msg);
 };
-
-const HookMask Do_error::HOOKS{MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
-                                        Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
 
 Do_error::Do_error(Expr &&msg) : _msg(std::move(msg)) {}
 
@@ -3149,8 +3141,7 @@ class Do_note : public Directive
   using super_type = Directive; ///< Super type.
 public:
   static inline const std::string KEY{"note"}; ///< Name of directive.
-  /// Valid hooks for this directive.
-  static inline const HookMask HOOKS{MaskFor(Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
+  static inline const HookMask HOOKS{MaskFor(Hook::POST_LOAD, Hook::MSG, Hook::TASK, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
                                              Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP)};
 
   /// Runtime invocation.
@@ -3205,7 +3196,18 @@ class Do_warning : public Directive
 
 public:
   static inline const std::string KEY{"warning"};
-  static const HookMask HOOKS; ///< Valid hooks for directive.
+  static inline const HookMask HOOKS{MaskFor({  Hook::POST_LOAD
+                                              , Hook::MSG
+                                              , Hook::TASK
+                                              , Hook::TXN_START
+                                              , Hook::CREQ
+                                              , Hook::PREQ
+                                              , Hook::URSP
+                                              , Hook::PRSP
+                                              , Hook::PRE_REMAP
+                                              , Hook::POST_REMAP
+                                              , Hook::REMAP
+  })};
 
   Errata invoke(Context &ctx) override;
   static Rv<Handle> load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextView const &name,
@@ -3216,9 +3218,6 @@ protected:
 
   Do_warning(Expr &&msg);
 };
-
-const HookMask Do_warning::HOOKS{MaskFor({Hook::POST_LOAD, Hook::TXN_START, Hook::CREQ, Hook::PREQ, Hook::URSP, Hook::PRSP,
-                                          Hook::PRE_REMAP, Hook::POST_REMAP, Hook::REMAP})};
 
 Do_warning::Do_warning(Expr &&msg) : _msg(std::move(msg)) {}
 
@@ -3798,21 +3797,21 @@ Do_with::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::Te
   if (do_node && for_each_node) {
     return Errata(S_ERROR, R"("{}" directive cannot have both "{}" and "{}" as keys - {}.)", DO_KEY, FOR_EACH_KEY, drtv_node.Mark());
   } else if (do_node) {
-    auto &&[do_handle, errata]{cfg.parse_directive(do_node)};
-    if (errata.is_ok()) {
+    auto &&[do_handle, err]{cfg.parse_directive(do_node)};
+    if (err.is_ok()) {
       self->_do = std::move(do_handle);
     } else {
-      errata.note(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), drtv_node.Mark());
-      return std::move(errata);
+      err.note(R"(While parsing "{}" key at {} in selection case at {}.)", DO_KEY, do_node.Mark(), drtv_node.Mark());
+      return std::move(err);
     }
   } else if (for_each_node) {
-    auto &&[fe_handle, errata]{cfg.parse_directive(for_each_node)};
-    if (errata.is_ok()) {
+    auto &&[fe_handle, err]{cfg.parse_directive(for_each_node)};
+    if (err.is_ok()) {
       self->_do               = std::move(fe_handle);
       self->_opt.f.for_each_p = true;
     } else {
-      errata.note(R"(While parsing "{}" key at {} in selection case at {}.)", FOR_EACH_KEY, for_each_node.Mark(), drtv_node.Mark());
-      return std::move(errata);
+      err.note(R"(While parsing "{}" key at {} in selection case at {}.)", FOR_EACH_KEY, for_each_node.Mark(), drtv_node.Mark());
+      return std::move(err);
     }
   }
   return handle;
@@ -3875,17 +3874,15 @@ When::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_node, swoc::TextV
 {
   Errata zret;
   if (Hook hook{HookName[key_value.Scalar()]}; hook != Hook::INVALID) {
-    if (YAML::Node do_node{drtv_node[DO_KEY]}; do_node) {
-      auto save = cfg._hook;
-      cfg._hook = hook;
-      auto &&[do_handle, do_errata]{cfg.parse_directive(do_node)};
-      cfg._hook = save;
-      if (do_errata.is_ok()) {
+    if (YAML::Node node{drtv_node[DO_KEY]} ; node) {
+      let guard(cfg._hook, hook);
+      auto &&[handle, errata]{cfg.parse_directive(node)};
+      if (errata.is_ok()) {
         cfg.reserve_slot(hook);
-        return {Handle{new self_type{hook, std::move(do_handle)}}, {}};
+        return {Handle{new self_type{hook, std::move(handle)}}, {}};
       } else {
-        zret.note(do_errata);
-        zret.note(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY, do_node.Mark(), KEY,
+        zret.note(errata);
+        zret.note(R"(Failed to load directive in "{}" at {} in "{}" directive at {}.)", DO_KEY, node.Mark(), KEY,
                    key_value.Mark());
       }
     } else {

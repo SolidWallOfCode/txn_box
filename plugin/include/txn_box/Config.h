@@ -138,7 +138,9 @@ public:
    * let ex_scope(cfg._local_extractors, local_table);
    * @endcode
    */
-  Extractor::Table * _local_extractors = nullptr;
+  Extractor::Table * _local_extractor_binding = nullptr;
+
+  let<Extractor::Table *> push_extractor_binding(Extractor::Table * binding);
 
   /// Global and session variable map.
   using Variables = std::map<swoc::TextView, unsigned>;
@@ -211,15 +213,12 @@ public:
    */
   Errata parse_yaml(YAML::Node root, swoc::TextView path);
 
-  void
-  mark_as_remap()
-  {
-    _hook = Hook::REMAP;
-  }
+  /// Mark the configuration as a remap configuration.
+  void mark_as_remap();
 
   /** Load directives at the top level.
    *
-   * @param node Base plugin configuation node.
+   * @param node Base plugin configuration node.
    * @return Errors, if any.
    *
    * Processing of directives directly in the base node value is handled specially
@@ -227,6 +226,11 @@ public:
    */
   Errata load_top_level_directive(YAML::Node node);
 
+  /** Load directive as a remap.
+   *
+   * @param node Data to parse.
+   * @return Errors, if any.
+   */
   Errata load_remap_directive(YAML::Node node);
 
   /** Load / create a directive from a node.
@@ -235,6 +239,14 @@ public:
    * @return A new directive instance, or errors if loading failed.
    */
   swoc::Rv<Directive::Handle> parse_directive(YAML::Node const &drtv_node);
+
+  /** Load / create a directive from a node for a specific hook.
+   *
+   * @param drtv_node Directive node.
+   * @param hook Hook for the directive.
+   * @return A new directive instance, or errors if loading failed.
+   */
+  swoc::Rv<Directive::Handle> parse_directive(YAML::Node const &drtv_node, Hook hook);
 
   /** Parse a feature expression.
    *
@@ -272,21 +284,10 @@ public:
    * run time it must be first localized.
    */
   std::string_view &localize(std::string_view &text, LocalOpt opt = LOCAL_VIEW);
-  swoc::TextView
-  localize(std::string_view const &text, LocalOpt opt = LOCAL_VIEW)
-  {
-    swoc::TextView tv{text};
-    return this->localize(tv, opt);
-  }
-
+  swoc::TextView localize(std::string_view const &text, LocalOpt opt = LOCAL_VIEW);
   self_type &localize(Feature &feature);
 
-  template <typename T>
-  auto
-  localize(T &) -> EnableForFeatureTypes<T, self_type &>
-  {
-    return *this;
-  }
+  template <typename T> auto localize(T &) -> EnableForFeatureTypes<T, self_type &>;
 
   /** Allocate config space for an array of @a T.
    *
@@ -299,12 +300,7 @@ public:
    *
    * @see mark_for_cleanup
    */
-  template <typename T>
-  swoc::MemSpan<T>
-  alloc_span(unsigned count)
-  {
-    return _arena.alloc(sizeof(T) * count).rebind<T>();
-  }
+  template <typename T> swoc::MemSpan<T> alloc_span(unsigned count);
 
   /** Hook for which the directives are being loaded.
    *
@@ -454,25 +450,10 @@ public:
   Directive::CfgStaticData const *drtv_info(swoc::TextView const &name) const;
 
   /// @return Number of files loaded for this configuration.
-  size_t
-  file_count() const
-  {
-    return _cfg_file_count;
-  }
+  size_t file_count() const;
 
   /// @return The total amount of context storage reserved.
-  size_t
-  reserved_ctx_storage_size() const
-  {
-    return _ctx_storage_required;
-  }
-
-  template <typename T>
-  T *
-  active_value(swoc::TextView const &name)
-  {
-    return static_cast<T *>(_active_values[name]);
-  }
+  size_t reserved_ctx_storage_size() const;
 
   struct active_value_save {
     void *&_value;
@@ -482,11 +463,27 @@ public:
     ~active_value_save() { _value = _saved; }
   };
 
-  active_value_save
-  active_value_let(swoc::TextView const &name, void *value)
-  {
-    return active_value_save(_active_values[name], value);
-  }
+  template <typename T> T * active_value(swoc::TextView const &name);
+
+  /** Replace then restore an active value.
+   *
+   * @param name Name of the value.
+   * @param value Temporary value.
+   * @return An object which, when destructed, restores the previous value.
+   *
+   * @code
+   * auto value_scope = cfg.active_value_let("", xx);
+   * // ... scoped code.
+   */
+  active_value_save active_value_let(swoc::TextView const &name, void *value);
+
+  /** Add a directive to a hook.
+   *
+   * @param hook Hook.
+   * @param handle Directive handle.
+   * @return @a this
+   */
+  self_type & on_hook(Hook hook, Directive::Handle && handle);
 
 protected:
   /// As the top level directive, this needs special access.
@@ -676,6 +673,19 @@ Config::current_hook() const
 {
   return _hook;
 }
+
+inline size_t
+Config::reserved_ctx_storage_size() const
+{
+  return _ctx_storage_required;
+}
+
+inline size_t
+Config::file_count() const
+{
+  return _cfg_file_count;
+}
+
 inline bool
 Config::has_top_level_directive() const
 {
@@ -737,4 +747,56 @@ Config::named_object(swoc::TextView name)
 {
   auto spot = _named_objects.find(name);
   return spot != _named_objects.end() ? spot->second.rebind<T>().data() : nullptr;
+}
+
+inline void Config::mark_as_remap()
+{
+  _hook = Hook::REMAP;
+}
+
+inline auto
+Config::active_value_let(swoc::TextView const& name, void *value) -> active_value_save
+{
+  return active_value_save(_active_values[name], value);
+}
+
+template <typename T>
+T *
+Config::active_value(swoc::TextView const& name)
+{
+  return static_cast<T *>(_active_values[name]);
+}
+
+inline let<Extractor::Table *>
+Config::push_extractor_binding(Extractor::Table *binding)
+{
+  return let(_local_extractor_binding, binding);
+}
+
+template <typename T>
+swoc::MemSpan<T>
+Config::alloc_span(unsigned int count)
+{
+  return _arena.alloc(sizeof(T) * count).rebind<T>();
+}
+
+swoc::TextView
+Config::localize(const std::string_view &text, Config::LocalOpt opt)
+{
+  swoc::TextView tv{text};
+  return this->localize(tv, opt);
+}
+
+template <typename T>
+auto
+Config::localize(T &) -> EnableForFeatureTypes<T, self_type &>
+{
+  return *this;
+}
+
+Config::self_type &
+Config::on_hook(Hook hook, Directive::Handle &&handle)
+{
+  _roots[IndexFor(hook)].emplace_back(std::move(handle));
+  return *this;
 }

@@ -727,7 +727,8 @@ extern swoc::Lexicon<ValueType> const ValueTypeNames;
 enum class Hook {
   INVALID,     ///< Invalid hook (default initialization value).
   POST_LOAD,   ///< After configuration has been loaded.
-  POST_ACTIVE, ///< After the configuration has become active.
+  PRE_ACTIVE, ///< After the configuration has become active.
+  TASK,        ///< Task - no session or transaction.
   MSG,         ///< During plugin message handling (implicit).
   TXN_START,   ///< Transaction start.
   CREQ,        ///< Read Request from user agent.
@@ -827,7 +828,7 @@ MaskFor(P... parms) -> std::enable_if_t<std::conjunction_v<std::is_same<Hook, P>
 }
 
 /// Name lookup for hook values.
-extern swoc::Lexicon<Hook> HookName;
+extern swoc::Lexicon<Hook> const HookName;
 
 inline FeatureView
 FeatureView::Literal(TextView const &view)
@@ -955,3 +956,4 @@ namespace std::chrono
 using days  = duration<hours::rep, ratio<86400>>;
 using weeks = duration<hours::rep, ratio<86400 * 7>>;
 } // namespace std::chrono
+
