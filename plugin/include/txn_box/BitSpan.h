@@ -29,7 +29,7 @@ protected:
 
 public:
   /// Construct from span.
-  BitView(MemSpan<void const> const &span)  : _span(const_cast<uint8_t*>(static_cast<uint8_t const*>(span.data())), span.size()) {}
+  BitView(MemSpan<void const> span)  : _span(const_cast<uint8_t*>(static_cast<uint8_t const*>(span.data())), span.size()) {}
 
   /** Access a single bit.
    *
@@ -39,7 +39,14 @@ public:
   bool operator[](unsigned idx);
 
   /// @return The number of bits set.
-  unsigned count() const;
+  unsigned count() const {
+    static constexpr std::array<uint8_t, 16> count = { 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
+    unsigned zret = 0;
+    for ( auto bptr = _span.data(), blimit = _span.end() ; bptr < blimit ; ++bptr) {
+      zret += count[(*bptr) & 0xF] + count[(*bptr >> 4) & 0xF];
+    }
+    return zret;
+  }
 
   /** First bit difference.
    *
@@ -60,7 +67,7 @@ protected:
   struct bit_ref;
 public:
   /// Construct from chunk of memory.
-  BitSpan(MemSpan<void> &span) : _span(span.rebind<uint8_t>()) {}
+  BitSpan(MemSpan<void> span) : _span(span.rebind<uint8_t>()) {}
 
   /** Set a bit
    *

@@ -393,7 +393,7 @@ Feature::active_type() const
     auto &tp = std::get<IndexFor(TUPLE)>(*this);
     if (tp.size() == 0) { // empty tuple can be a tuple of any type.
       at = ActiveType::TupleOf(ActiveType::any_type().base_types());
-    } else if (auto tt = tp[0].value_type();
+    } else if (auto tt = tp[0].value_arg();
                std::all_of(tp.begin() + 1, tp.end(), [=](Feature const &f) { return f.value_type() == tt; })) {
       at = ActiveType::TupleOf(tt);
     } // else leave it as just a tuple with no specific type.

@@ -40,73 +40,22 @@ namespace bwf = swoc::bwf;
 using namespace txb::table;
 
 /* ------------------------------------------------------------------------------------ */
-class Do_ip_space_define;
-
-namespace
-{
-
-/// Key for defining directive.
-/// Also used as the key for config level storage.
-static inline constexpr swoc::TextView DRTV_KEY = "ip-space-define";
-
-/// Space information that must be reloaded on file change.
-struct IPAddrTableInfo {
-  /// Table is @c IPSpace with @c Row payload.
-  using Table = IPSpace<Row>;
-  Table table;          ///< IP table data.
-  swoc::MemArena arena; ///< Row storage.
-
-  /// Reference during active use.
-  using Handle = std::shared_ptr<IPAddrTableInfo>;
-};
-
-/// Context information for the active IP Space.
-/// This is set up by the @c ip-space modifier and is only valid in the expression scope.
-struct CtxActiveInfo {
-  using self_type = CtxActiveInfo; ///< Self reference type.
-
-  IPAddr _addr;                         ///< Search address.
-  IPAddrTableInfo::Handle _info;        ///< Active space.
-  Do_ip_space_define * _drtv = nullptr; ///< Active directive.
-  Row *_row = nullptr;                  ///< Active row.
-
-  /** Access the context level information.
-   *
-   * @param ctx The context instance.
-   * @return The active table instance.
-   */
-  static self_type * instance(Context & ctx);
-};
-
-auto
-CtxActiveInfo::instance(Context &ctx) -> self_type *
-{
-  auto info = CfgInfo::instance(ctx.cfg());
-  return info ? ctx.storage_for(info->_ctx_reserved_span).rebind<CtxActiveInfo>().data() : nullptr;
-}
-
-} // namespace
-/* ------------------------------------------------------------------------------------ */
 /// Define an IP Space
 class Do_ip_space_define : public Directive, public txb::table::Base
 {
   using self_type  = Do_ip_space_define; ///< Self reference type.
   using super_type = Directive;          ///< Parent type.
-  using CfgInfo = txb::table::Base::CfgInfo;
+  using cfg_info = txb::table::CfgInfo;
 
 public:
+  using table_type = swoc::IPSpace<Row>;
+  using table_data_type     = txb::table::Base::TableData<self_type>;
+  using ctx_scope_data_type = txb::table::Base::CtxScopeBase<self_type, IPAddr>;
+
   static inline constexpr swoc::TextView KEY = "ip-table-define"; ///< Directive name.
   static const HookMask HOOKS;  ///< Valid hooks for directive.
 
-  /// Functor to do file content updating as needed.
-  struct Updater {
-    std::weak_ptr<Config> _cfg; ///< Configuration.
-    Do_ip_space_define *_block; ///< Space instance.
-
-    void operator()(); ///< Do the update check.
-  };
-
-  ~Do_ip_space_define() noexcept override; ///< Destructor.
+  ~Do_ip_space_define() noexcept override = default; ///< Destructor.
 
   Errata invoke(Context &ctx) override; ///< Runtime activation.
 
@@ -131,23 +80,14 @@ public:
    */
   static Errata cfg_init(Config &cfg, CfgStaticData const *rtti);
 
-  /// Index for missing / invalid column.
-  static constexpr unsigned INVALID_IDX = std::numeric_limits<unsigned>::max();
-
-  /// Convert a column index from a @a name.
-  unsigned col_idx(swoc::TextView const &name);
-
 protected:
-  IPAddrTableInfo::Handle _space; ///< The IP Space
-  std::shared_mutex _space_mutex; ///< Reader / writer for @a _space.
-
-  ts::TaskHandle _task;           ///< Handle for periodic checking task.
-
-  int _line_no = 0; ///< For debugging name conflicts.
+  table_data_type::Handle _instance; ///< The IP Space
+  std::shared_mutex _instance_mutex; ///< Reader / writer for @a _space.
+  txb::ExternalFile _file; ///< External file handling.
 
   Do_ip_space_define() = default; ///< Default constructor.
 
-  IPAddrTableInfo::Handle acquire_space();
+  table_data_type::Handle table_data(); ///< Obtain stable reference to table data.
 
   /** Parse the input file.
    *
@@ -155,37 +95,20 @@ protected:
    * @param content File content.
    * @return The parsed space, or errors.
    */
-  Rv<IPAddrTableInfo::Handle> parse_space(Config &cfg, TextView content);
+  Errata update_table(Config &cfg, TextView content);
 
   friend class Mod_ip_space;
   friend class Ex_ip_col;
-  friend Updater;
 };
 
 const HookMask Do_ip_space_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 
-Do_ip_space_define::~Do_ip_space_define() noexcept
-{
-  _task.cancel();
-}
-
 Errata
-Do_ip_space_define::invoke(Context &ctx)
-{
-  // Start update checking.
-  if (_duration.count()) {
-    _task =
-      ts::PerformAsTaskEvery(Updater{ctx.acquire_cfg(), this}, std::chrono::duration_cast<std::chrono::milliseconds>(_duration));
-  }
-  return {};
-}
-
-auto
-Do_ip_space_define::parse_space(Config &cfg, TextView content) -> Rv<IPAddrTableInfo::Handle>
+Do_ip_space_define::update_table(Config &cfg, TextView content)
 {
   TextView line;
   unsigned line_no = 0;
-  auto space       = std::make_shared<IPAddrTableInfo>();
+  auto instance       = std::make_shared<table_data_type>();
   while (!(line = content.take_prefix_at('\n')).empty()) {
     ++line_no;
     line.trim_if(&isspace);
@@ -198,13 +121,17 @@ Do_ip_space_define::parse_space(Config &cfg, TextView content) -> Rv<IPAddrTable
       return Errata(S_ERROR, R"(Invalid range "{}" at line {}.)", token, line_no);
     }
 
-    Row row = space->arena.alloc(_row_size).rebind<std::byte>();
-    if ( auto errata = this->parse_columns(cfg, row, line, line_no) ; ! errata.is_ok()) {
+    Row row = instance->_arena.alloc(_row_size).rebind<std::byte>();
+    if ( auto errata = this->parse_row(cfg, row, line, line_no) ; ! errata.is_ok()) {
       return errata;
     }
-    space->table.fill(range, row);
+    instance->_table.fill(range, row);
   }
-  return space;
+
+  std::unique_lock lock(_instance_mutex);
+  _instance = instance;
+
+  return {};
 }
 
 Rv<Directive::Handle>
@@ -215,16 +142,8 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
   Handle handle(self);
   self->_line_no = drtv_node.Mark().line;
 
-  if (auto errata = self->parse_name(cfg, drtv_node, key_value) ; ! errata.is_ok()) {
-    return std::move(errata.note("For directive {} at {}", KEY, drtv_node.Mark()));
-  }
-
-  if (auto errata = self->parse_path(cfg, drtv_node, key_value) ; ! errata.is_ok()) {
-    return std::move(errata.note("For directive {} at {}", KEY, drtv_node.Mark()));
-  }
-
-  if (auto errata = self->parse_duration(cfg, drtv_node, key_value) ; ! errata.is_ok()) {
-    return std::move(errata.note("For directive {} at {}", KEY, drtv_node.Mark()));
+  if (auto errata = self->parse_name(cfg, drtv_node) ; ! errata.is_ok()) {
+    return std::move(errata.note("In directive {} at {}", KEY, drtv_node.Mark()));
   }
 
   // To simplify indexing, put in a "range" column as index 0, so config indices and internal
@@ -233,7 +152,6 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
   self->_cols[0]._name = "range";
   self->_cols[0]._idx  = 0;
   self->_cols[0]._type = ColumnType::KEY;
-  self->_col_names.define(self->_cols[0]._idx, self->_cols[0]._name);
 
   if (auto cols_node = key_value[COLUMNS_TAG] ; cols_node) {
     if (cols_node.IsMap()) {
@@ -256,26 +174,16 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
     drtv_node.remove(COLUMNS_TAG);
   }
 
-  std::error_code ec;
-  auto content = swoc::file::load(self->_path, ec);
-  if (ec) {
-    return Errata(S_ERROR, "Unable to read input file {} for space {} - {}", self->_path, self->_name, ec);
+  if (auto errata = self->_file.load(cfg, drtv_node) ; errata.is_ok()) {
+    return std::move(errata.note("In directive {} at {}", KEY, drtv_node.Mark()));
   }
-  self->_last_modified              = swoc::file::modify_time(swoc::file::status(self->_path, ec));
-  auto &&[space_info, space_errata] = self->parse_space(cfg, content);
-  if (!space_errata.is_ok()) {
-    space_errata.note(R"(While parsing IPSpace file "{}" in space "{}".)", self->_path, self->_name);
-    return std::move(space_errata);
-  }
-  self->_space = space_info;
 
-  // Put the directive in the map.
-  Map & map = CfgInfo::instance(cfg)->_map;
-  if (auto spot = map.find(self->_name); spot != map.end()) {
-    return Errata(S_ERROR, R"("{}" directive at {} has the same name "{}" as another instance at line {}.)", KEY, drtv_node.Mark(),
-                 self->_name, spot->second->_line_no);
-  }
-  map[self->_name] = self;
+  self->_file.name(self->_name);
+  self->_file.update_cb([=](Config& cfg, TextView content) -> Errata { return self->update_table(cfg, content);});
+
+  /// Don't register until all loading has finished successfully.
+
+  CfgInfo::instance(cfg, KEY)->register_drtv(self);
 
   return handle;
 }
@@ -287,61 +195,18 @@ Do_ip_space_define::cfg_init(Config &cfg, CfgStaticData const *)
   // Scoped access to defined space in a @c Context.
   // Only one space can be active at a time therefore this can be shared among the instances in
   // a single @c Context. Use @c let to manage nested references.
-  cfg_info->_reserved_span = cfg.reserve_ctx_storage(sizeof(CtxActiveInfo));
+  cfg_info->_reserved_span = cfg.reserve_ctx_storage(sizeof(ctx_scope_data_type));
   cfg.mark_for_cleanup(cfg_info);
   return {};
 }
 
-void
-Do_ip_space_define::Updater::operator()()
+auto
+Do_ip_space_define::table_data() -> table_data_type::Handle
 {
-  auto cfg = _cfg.lock(); // Make sure the config is still around while work is done.
-  if (!cfg) {
-    return;
-  }
-
-  if (!_block->is_time_to_check()) {
-    return; // not time yet.
-  }
-
-  std::error_code ec;
-  auto fs = swoc::file::status(_block->_path, ec);
-  if (!ec) {
-    auto mtime = swoc::file::modify_time(fs);
-    if (mtime <= _block->_last_modified) {
-      return; // same as it ever was...
-    }
-    std::string content = swoc::file::load(_block->_path, ec);
-    if (!ec) { // swap in updated content.
-      auto &&[space, errata]{_block->parse_space(*cfg, content)};
-      if (errata.is_ok()) {
-        std::unique_lock lock(_block->_space_mutex);
-        _block->_space = space;
-      }
-      _block->_last_modified = mtime;
-      return;
-    }
-  }
+  std::unique_lock lock(_instance_mutex);
+  return _instance;
 }
 
-unsigned
-Do_ip_space_define::col_idx(TextView const &name)
-{
-  if (auto spot =
-        std::find_if(_cols.begin(), _cols.end(), [&](Column &c) { return 0 == strcasecmp(c._name, name); });
-      spot != _cols.end()) {
-    return spot - _cols.begin();
-  }
-  // Not found.
-  return INVALID_IDX;
-}
-
-IPAddrTableInfo::Handle
-Do_ip_space_define::acquire_space()
-{
-  std::shared_lock lock(_space_mutex);
-  return _space;
-}
 /* ------------------------------------------------------------------------------------ */
 /// IPSpace modifier
 /// Convert an IP address feature in to an IPSpace row.
@@ -349,15 +214,12 @@ class Mod_ip_space : public Modifier
 {
   using self_type  = Mod_ip_space; ///< Self reference type.
   using super_type = Modifier;     ///< Parent type.
+  using drtv_type = Do_ip_space_define; ///< Associated directive.
 
 public:
   Mod_ip_space(Expr &&expr, TextView const &view, Do_ip_space_define *drtv);
 
   static inline constexpr swoc::TextView KEY{"ip-space"};
-
-  struct CfgActiveInfo {
-    Do_ip_space_define *_drtv = nullptr;
-  };
 
   /** Modify the feature.
    *
@@ -412,55 +274,49 @@ Mod_ip_space::result_type(const ActiveType &) const
 Rv<Modifier::Handle>
 Mod_ip_space::load(Config &cfg, YAML::Node node, TextView, TextView arg, YAML::Node key_value)
 {
-  auto *csi = CfgInfo::instance(cfg);
-  CfgActiveInfo info;
+  auto *csi = CfgInfo::instance(cfg, drtv_type::KEY);
+  drtv_type * drtv = nullptr;
+
   // Unfortunately supporting remap requires dynamic access.
   if (csi) { // global, resolve to the specific ipspace directive.
-    auto &map = csi->_map;
-    auto spot = map.find(arg);
-    if (spot == map.end()) {
+    drtv = static_cast<drtv_type*>(csi->drtv(arg));
+    if (drtv == nullptr) {
       return Errata(S_ERROR, R"("{}" at {} is not the name of a defined IP space.)", arg, node.Mark());
     }
-    info._drtv = spot->second;
-  } // else leave @a _drtv null as a signal to find it dynamically.
+  } // else leave @a drtv null as a signal to find it dynamically.
 
   // Make info about active space available to expression parsing.
-  auto scope{cfg.active_value_let(KEY, &info)};
+  Base * dummy = nullptr; // dummy for scope if no context.
+  let<Base*> drtv_scope{csi ? csi->_active_drtv : dummy, drtv};
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
 
   if (!errata.is_ok()) {
     errata.note(R"(While parsing "{}" modifier at {}.)", KEY, key_value.Mark());
     return std::move(errata);
   }
-  return Handle(new self_type{std::move(expr), cfg.localize(arg), info._drtv});
+  return Handle(new self_type{std::move(expr), cfg.localize(arg), drtv});
 }
 
 Rv<Feature>
 Mod_ip_space::operator()(Context &ctx, feature_type_for<IP_ADDR> addr)
 {
   // Set up local active state.
-  CtxActiveInfo active;
+  drtv_type::ctx_scope_data_type active;
   auto drtv = _drtv; // may be locally updated, need a copy.
   if (drtv) {
-    active._space = drtv->acquire_space();
-  } else {
-    if (auto *csi = CfgInfo::instance(ctx.cfg()); nullptr != csi) {
-      auto &map = csi->_map;
-      if (auto spot = map.find(_name); spot != map.end()) {
-        drtv          = spot->second;
-        active._space = drtv->acquire_space();
-      }
-    }
+    active._table = drtv->table_data();
+  } else if ( nullptr != (drtv = CfgInfo::drtv<drtv_type>(ctx.cfg(), _name))) {
+    active._table = drtv->table_data();
   }
   Feature value{FeatureView::Literal("")};
-  if (active._space) {
-    auto &&[range, payload] = *active._space->space.find(addr);
-    active._row             = range.empty() ? nullptr : &payload;
-    active._addr            = addr;
+  if (active._table) {
+    auto &&[range, payload] = *active._table->_table.find(addr);
+    active._row             = range.empty() ? nullptr : payload;
+    active._key             = addr;
     active._drtv            = drtv;
 
     // Current active data.
-    auto * store = CtxActiveInfo::instance(ctx);
+    auto * store = drtv_type::ctx_scope_data_type ::instance(ctx);
     // Temporarily update it to local conditions.
     let scope(*store, active);
     value = ctx.extract(_expr);
@@ -474,20 +330,15 @@ class Ex_ip_col : public Extractor
 {
   using self_type  = Ex_ip_col; ///< Self reference type.
   using super_type = Extractor; ///< Parent type.
+  using drtv_type = Do_ip_space_define;
 
 public:
   static constexpr TextView NAME{"ip-col"};
+  static constexpr auto INVALID_IDX = drtv_type::INVALID_IDX;
 
   Rv<ActiveType> validate(Config &cfg, Spec &spec, TextView const &arg) override;
 
   Feature extract(Context &ctx, Spec const &spec) override;
-
-protected:
-  static constexpr auto INVALID_IDX = Do_ip_space_define::INVALID_IDX;
-  struct Info {
-    unsigned _idx = INVALID_IDX; ///< Column index.
-    TextView _arg;               ///< Argument name for use in remap / lazy lookup.
-  };
 };
 
 Rv<ActiveType>
@@ -498,92 +349,28 @@ Ex_ip_col::validate(Config &cfg, Spec &spec, const TextView &arg)
     return Errata(S_ERROR, R"("{}" extractor requires an argument to specify the column.)", NAME);
   }
 
-  auto *mod_info = cfg.active_value<Mod_ip_space::CfgActiveInfo>(Mod_ip_space::KEY);
+  auto *mod_info = cfg.active_value<drtv_type::ctx_scope_data_type>(Mod_ip_space::KEY);
   if (!mod_info) {
     return Errata(S_ERROR, R"("{}" extractor can only be used with an active IP Space from the {} modifier.)", NAME, Mod_ip_space::KEY);
   }
 
-  auto span       = cfg.allocate_cfg_storage(sizeof(Info)).rebind<Info>();
+  auto span       = cfg.allocate_cfg_storage(sizeof(drtv_type::ExInfo)).rebind<drtv_type::ExInfo>();
   spec._data.span = span;
-  Info &info      = span[0];
-  auto drtv       = mod_info->_drtv;
-  // Always do the column conversion if it's an integer - that won't change at runtime.
-  if (auto n = svtou(arg, &parsed); arg.size() == parsed.size()) {
-    if (drtv && n >= drtv->_cols.size()) {
-      return Errata(S_ERROR, R"(Invalid column index, {} of {} in space {}.)", n, drtv->_cols.size(), drtv->_name);
-    }
-    info._idx = n;
-  } else if (drtv) { // otherwise if it's not remap, verify the column name and convert to index.
-    auto idx = drtv->col_idx(arg);
-    if (idx == INVALID_IDX) {
-      return Errata(S_ERROR, R"(Invalid column argument, "{}" in space {} is not recognized as an index or name.)", arg, drtv->_name);
-    }
-    info._idx = idx;
-  } else {
-    info._arg = cfg.localize(arg);
-    info._idx = INVALID_IDX;
-    return {{NIL, STRING, INTEGER, IP_ADDR, TUPLE}};
+  drtv_type::ExInfo &info      = span[0];
+  if ( auto errata = info.init(cfg, mod_info->_drtv, arg) ; ! errata.is_ok() ) {
+    return errata;
   }
 
-  ActiveType result_type = NIL;
-  switch (drtv->_cols[info._idx]._type) {
-  default:
-    break; // shouldn't happen.
-  case ColumnType::KEY:
-    result_type = IP_ADDR;
-    break;
-  case ColumnType::STRING:
-    result_type = STRING;
-    break;
-  case ColumnType::INTEGER:
-    result_type = INTEGER;
-    break;
-  case ColumnType::ENUM:
-    result_type = STRING;
-    break;
-  case ColumnType::FLAGS:
-    result_type = TUPLE;
-    break;
-  }
-  return {{ NIL, result_type }}; // any column can return @c NIL if the address isn't found.
+  return {{ NIL, mod_info->_drtv->_cols[info._idx].active_type() }}; // any column can return @c NIL if the address isn't found.
 }
 
 Feature
 Ex_ip_col::extract(Context &ctx, const Spec &spec)
 {
   // Get all the pieces needed.
-  if ( auto ctx_ai = CtxActiveInfo::instance(ctx) ; ctx_ai ) {
-    auto info = spec._data.span.rebind<Info>().data(); // Extractor local storage.
-    auto idx  = (info->_idx != INVALID_IDX ? info->_idx : ctx_ai->_drtv->col_idx(info->_arg));
-    if (idx != INVALID_IDX) { // Column is valid.
-      auto &col = ctx_ai->_drtv->_cols[idx];
-      if (ctx_ai->_row) {
-        auto data = col.data_in_row(ctx_ai->_row);
-        switch (col._type) {
-        default:
-          break; // Shouldn't happen.
-        case ColumnType::KEY:
-          return {ctx_ai->_addr};
-        case ColumnType::STRING:
-          return FeatureView::Literal(data.rebind<TextView>()[0]);
-        case ColumnType::INTEGER:
-          return {data.rebind<feature_type_for<INTEGER>>()[0]};
-        case ColumnType::ENUM:
-          return FeatureView::Literal(col._tags[data.rebind<unsigned>()[0]]);
-        case ColumnType::FLAGS: {
-          auto bits   = txb::BitSpan(data);
-          auto n_bits = bits.count();
-          auto t      = ctx.alloc_span<Feature>(n_bits);
-          for (unsigned k = 0, t_idx = 0; k < col._tags.count(); ++k) {
-            if (bits[k]) {
-              t[t_idx++] = FeatureView::Literal(col._tags[k]);
-            }
-          }
-          return {t};
-        }
-        }
-      }
-    }
+  if ( auto ctx_ai = drtv_type::ctx_scope_data_type::instance(ctx) ; ctx_ai ) {
+    auto info = spec._data.span.rebind<Base::ExInfo>().data(); // Extractor local storage.
+    return info->extract(ctx, ctx_ai, ctx_ai->_row, spec);
   }
   return NIL_FEATURE;
 }
@@ -596,7 +383,7 @@ Ex_ip_col ex_ip_col;
 [[maybe_unused]] bool INITIALIZED = []() -> bool {
   Config::define<Do_ip_space_define>();
   // Alias it as the old name.
-  Config::define("do-ip-space-define", Do_ip_space_define::HOOKS, Do_ip_space_define::InstanceLoader, Do_ip_space_define::cfg_init);
+  Config::define("do-ip-space-define", Do_ip_space_define::HOOKS, Do_ip_space_define::load, Do_ip_space_define::cfg_init);
   Modifier::define(Mod_ip_space::KEY, Mod_ip_space::load);
   Extractor::define(ex_ip_col.NAME, &ex_ip_col);
   return true;

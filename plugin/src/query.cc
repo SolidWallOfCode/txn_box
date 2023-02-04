@@ -377,7 +377,7 @@ Rv<Feature> Mod_query_value::operator()(Context &ctx, FeatureView qs)
 }
 
 Rv<Modifier::Handle>
-Mod_query_value::load(Config & cfg, YAML::Node node, TextView key, TextView args, YAML::Node key_value)
+Mod_query_value::load(Config & cfg, YAML::Node, TextView, TextView args, YAML::Node key_value)
 {
   auto &&[expr, errata]{cfg.parse_expr(key_value)};
   if (!errata.is_ok()) {
@@ -399,7 +399,7 @@ Mod_query_value::load(Config & cfg, YAML::Node node, TextView key, TextView args
   }
 
 
-  return Handle(new self_type{std::move(expr, case_p)});
+  return Handle(new self_type{std::move(expr), case_p});
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -757,7 +757,7 @@ Rv<Modifier::Handle> Mod_query_filter::load(Config &cfg, YAML::Node node, TextVi
 {
   auto self = new self_type;
   Handle handle(self);
-  let local_ex_scope{cfg._local_extractors, &_ex_table};
+  let local_ex_scope{cfg._local_extractor_binding, &_ex_table};
 
   // Need reserved context storage to pass the current @c QPair down to nested extractors.
   // The reserved span is stored in the configuration and then used at run time.

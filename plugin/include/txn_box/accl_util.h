@@ -17,12 +17,77 @@
 
 #include <swoc/TextView.h>
 #include <swoc/swoc_meta.h>
+#include <swoc/MemArena.h>
 
 #include "txn_box/BitSpan.h"
 
 // fwd declarations.
-class Comparison;
 template <class T> class reversed_view;
+
+/** Bit reference.
+   *
+   * @tparam W Element type, must support bitwise operations.
+ */
+template < typename W > struct BitRef {
+  using self_type = BitRef;
+
+  /// Default constructor - first bit.
+  BitRef() = default;
+
+  /** Constructor.
+     *
+     * @param idx Element index.
+     * @param pos Bit position in element.
+   */
+  BitRef(unsigned idx, unsigned pos) : _idx(idx), _mask(static_cast<W>(1) << pos) { }
+  BitRef(self_type const&) = default;
+
+  /// Assignment
+  self_type & operator = (self_type const&) = default;
+
+  /// Equality
+  bool operator == (self_type const& that) const;
+  /// Inequality
+  bool operator != (self_type const& that) const;
+  /// Ordering.
+  bool operator <  (self_type const& that) const;
+
+  /** Apply the reference to data.
+   *
+   * @param data Source data to check.
+   * @return @c true if the referenced bit is set, @c false if not.
+   */
+  bool apply(W const* data) const { return (data[_idx] & _mask) != 0; }
+  template < typename K > bool apply(K const& key) const { return this->apply(key.data()); }
+
+  /// Prefix increment.
+  self_type & operator ++ ();
+
+  unsigned _idx = 0; ///< Element index.
+  W _mask = 1; ///< Mask for target bit.
+};
+
+template <typename W>
+bool BitRef<W>::operator<(const BitRef::self_type &that) const
+{ return _idx < that._idx || (_idx == that._idx && _mask < that._mask); }
+
+template <typename W>
+bool BitRef<W>::operator!=(const BitRef::self_type &that) const
+{ return _idx != that._idx || _mask != that._mask; }
+
+template <typename W>
+bool BitRef<W>::operator==(const BitRef::self_type &that) const
+{ return _idx == that._idx && _mask == that._mask; }
+
+template <typename W>
+auto BitRef<W>::operator++() -> self_type &
+{
+  if (0 == (_mask << 1)) {
+    _mask = 1;
+    ++_idx;
+  }
+  return *this;
+}
 
 /** PATRICA algorithm implementation using binary trees.
  *
@@ -40,42 +105,78 @@ template <class T> class reversed_view;
 template <typename Key, typename Value> class StringMatcher
 {
   // Types that have been tested.
-   static_assert(swoc::meta::is_any_of_v<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>,
+  static_assert(swoc::meta::is_any_of_v<Key, std::string, std::string_view, swoc::TextView, reversed_view<swoc::TextView>>,
                  "Type not supported");
 
   using self_type = StringMatcher;
-
-  /// Decision node.
-  struct Node {
-    using self_type = Node; ///< Self-reference type.
-
-    Node(Key k, Value v, int32_t r = -1) : key{k}, value{v}, rank{r} {}
-
-    Key key; ///< Node key.
-    Value value; ///< Value for key.
-
-    /// bit pos where it differs from previous node.
-    int32_t bit_count{0};
-    /// key/value rank.
-    int32_t rank;
-    /// only two ways, btree
-    self_type *left = nullptr;
-    self_type *right = nullptr;
-
-    Node()             = delete;
-    Node(Node const &) = delete;
-    Node(Node &&)      = delete;
-    Node &operator=(Node const &) = delete;
-    Node &operator=(Node &&) = delete;
-  };
-
-  using node_type     = Node;
-
 public:
   // Export template arguments.
-  using value_type = Value;
-  using key_type   = Key;
+  using value_arg  = Value;
+  using key_arg   = Key;
+  using key_type = key_arg;
 
+  /// Type of elements in the key and node paths.
+  using elt_type = std::remove_const_t<std::remove_reference_t<decltype(key_arg()[0])>>;
+
+  static constexpr int32_t UNRANKED = -1;
+
+protected:
+
+  using bit_ref = BitRef<elt_type>;
+
+  /// Node for a key/value.
+  /// This is always attached for a branch / decision node.
+  struct value_node {
+    using self_type = value_node; ///< Self reference type.
+
+    /** Constructor.
+     *
+     * @param key Key.
+     * @param value Value.
+     * @param r Rank.
+     */
+    value_node(key_type key, value_arg const& value, int32_t r = UNRANKED) : _key{key}, _value{value}, _rank{r} {}
+
+    Key _key; ///< Node key.
+    Value _value; ///< Value for key.
+    int32_t _rank = UNRANKED;  ///< Node rank.
+    bool _final_p = true; ///< Final character in match (exact, not prefix).
+
+    value_node()             = delete;
+    value_node(self_type const &) = delete;
+    value_node &operator=(self_type const &) = delete;
+  };
+  using value_type = value_node const;
+
+  /// Decision node.
+  /// If a decision node has a value, then the bit index should be the first bit past the end of the
+  /// key for the value.
+  struct branch_node {
+    using self_type = branch_node; ///< Self-reference type.
+
+    branch_node(bit_ref ref, elt_type const * path) : _bit(ref), _path(path) {}
+    branch_node * next(Key const& key) const { return _bit.apply(key) ? _left : _right; }
+
+    bit_ref _bit; ///< Deciding bit for the branch.
+
+    self_type *_left = nullptr; ///< Left (unset bit)
+    self_type *_right = nullptr; ///< Right (set bit)
+    elt_type const * _path = nullptr; ///< Key / path for this node.
+    value_node * _value = nullptr; ///< Value, if any.
+
+    branch_node()             = delete;
+    branch_node(self_type const &) = delete;
+    self_type &operator=(self_type const &) = delete;
+
+    ~branch_node() {
+      if (_value) { std::destroy_at(&(_value->_value)); }
+      if (_left) { std::destroy_at(_left); }
+      if (_right) { std::destroy_at(_right); }
+    }
+  };
+
+
+public:
   /// Construct a new String Tree object
   StringMatcher();
 
@@ -91,29 +192,18 @@ public:
   /// @brief  Inserts element into the tree, if the container doesn't already contain an element with an equivalent key.
   /// @return true if the k/v was properly inserted, false if not.
   ///
-  bool insert(Key const &key, Value const &value, Comparison *cmp = nullptr);
-  ///
-  /// @brief  Finds an element with equivalent key. Only full match.
-  /// @return A pair with a boolean indicating if the key was found and the value associated with it.
-  ///         If value was not found, value can be ignored
-  std::pair<bool, Value> full_match(Key const &key, Comparison *cmp = nullptr) const noexcept;
-  ///
-  /// @brief  Find a value(s) associated with a prefix of a key, this function will perform a prefix search
-  ///         only among all the related keys in the tree.
-  /// @return list of pairs with all the found matches.
-  ///
-  /// TODO: this needs to be changed and use rank to return only 1 value.
-  std::vector<std::pair<Key, Value>> prefix_match(Key const &prefix, Comparison *cmp = nullptr) const;
+  bool insert(Key const &key, Value const &value, int32_t rank = UNRANKED);
+
+  /** Search the container for the value with @a key.
+   *
+   * @param key Search key.
+   * @return A pointer to the key / value pair structure.
+   */
+  value_type * find(Key const &key) const noexcept;
 
 private:
-  /// hold the first element on the entire tree.
-  node_type * _head;
-  /// this gets incremented on every insert.
-  int32_t _rank_counter;
-  /// recursive memory cleanup function.
-  void freeup(node_type *n);
-  /// clean up function, should deal with all the crap.
-  void cleanup();
+  branch_node * _root = nullptr; ///< Root of the nodes.
+  swoc::MemArena _arena; ///< Storage for nodes and strings.
 };
 
 /// --------------------------------------------------------------------------------------------------------------------
@@ -122,14 +212,14 @@ namespace detail
 // Just to make the code a bit more readable
 static constexpr int BIT_ON{1};
 
-/// @brief return a bit value from a particular position in a byte
-static auto
-get_bit_from_byte(char key, int position) noexcept
-{
-  int const position_in_byte = position - ((position / 8) * 8);
-  return ((key) >> (7 - position_in_byte)) & 1;
+template < typename W > BitRef<W> bit_cmp(W const * lhs, W const * rhs, BitRef<W> idx, BitRef<W> limit) {
+  while (idx < limit && idx.apply(lhs) == idx.apply(rhs)) {
+    ++idx;
+  }
+  return idx;
 }
 
+# if 0
 /// @brief Specialization to deal with suffix and prefix byte getter.
 template <typename T>
 auto
@@ -139,6 +229,7 @@ get_byte(typename T::const_pointer ptr, int byte_number,
   typename T::const_pointer byte = ptr - byte_number;
   return *byte;
 }
+
 template <typename T>
 auto
 get_byte(typename T::const_pointer ptr, int byte_number,
@@ -151,232 +242,140 @@ get_byte(typename T::const_pointer ptr, int byte_number,
 /// @brief Get a specific bit position from a stream of bytes.
 template <typename Key>
 static auto
-get_bit(Key const &key, int position)
+get_bit(Key const &key, BitRef<typename Key::value_type> spot)
 {
-  if (position / 8 >= key.size()) {
-    return 0;
-  }
-  typename Key::const_pointer ptr = &*std::begin(key);
-  assert(ptr != nullptr);
-  int const byte_number      = position / 8;
-  int const position_in_byte = position - (byte_number * 8);
-  auto byte                  = get_byte<Key>(ptr, byte_number);
-  return ((byte) >> (7 - position_in_byte)) & 1;
+  return spot.apply(key.data());
 }
 
 template <typename Key>
 static auto
 get_first_diff_bit_position(Key const &lhs, Key const &rhs)
 {
-  swoc::MemSpan<const void> lhs_span(lhs.data(), lhs.size());
-  swoc::MemSpan<const void> rhs_span(rhs.data(), rhs.size());
-
   std::size_t byte_count{0};
   auto lhs_iter = std::begin(lhs);
   auto rhs_iter = std::begin(rhs);
   while ((lhs_iter != std::end(lhs) && rhs_iter != std::end(rhs)) && *lhs_iter == *rhs_iter) {
     ++lhs_iter;
     ++rhs_iter;
-    byte_count++;
+    ++byte_count;
   }
 
-  std::size_t bit_diff_count{0};
+  std::size_t bit_pos{0};
 
-  for (int bit_pos = 0; bit_pos < 8; ++bit_pos, ++bit_diff_count) {
+  for (bit_pos = 0; bit_pos < 8; ++bit_pos) {
     if (get_bit_from_byte(*lhs_iter, bit_pos) != get_bit_from_byte(*rhs_iter, bit_pos)) {
       break;
     }
   }
 
-  return (byte_count << 3) + bit_diff_count;
+  return BitRef<typename Key::value_type>{byte_count, bit_pos};
 }
+
+# endif
+
 } // namespace detail
 
-/// --------  StringTree implementation -------------
+/// --------  Implementation -------------
 
 template <typename Key, typename Value> StringMatcher<Key, Value>::StringMatcher()
 {
-  // We do not set the rank now, as for the head, -1 should be ok.
-  // we may be able to no need to initialize empty string if Key=string_view, thinking about this
-  // as isPrefix may badly fail if null. Maybe check for head(before call to isPrefix).
-  _head            = new Node(Key{""}, Value{});
-  _head->bit_count = 0;
+  _root            = _arena.make<branch_node>(bit_ref{}, "");
 }
 
 template <typename Key, typename Value> StringMatcher<Key, Value>::~StringMatcher()
 {
-  cleanup();
+  std::destroy_at(_root);
 }
 
 template <typename Key, typename Value>
 bool
-StringMatcher<Key, Value>::insert(Key const &key, Value const &value, Comparison *cmp)
+StringMatcher<Key, Value>::insert(Key const &key, Value const &value, int32_t rank)
 {
-  node_type * search_node = _head;
-  int idx{0};
+  branch_node * parent_node;
+  branch_node * search_node = _root; // Current node for search.
+  branch_node * child_node = _root->next(key); // Next node to search.
+  bit_ref cur_bit_idx, next_bit_idx;
+  bit_ref bit_idx_limit{unsigned(key.size()), 0};
+  bit_ref bit_diff; //
+
+  if (child_node == nullptr) { // missing root child, just set it.
+    auto bnode = _arena.make<branch_node>(bit_idx_limit, key.data());
+    bnode->_value = _arena.make<value_node>(key, value, rank);
+    (_root->_bit.apply(key) ? _root->_right : _root->_left) = bnode;
+    return true;
+  }
+
+  // Invariant - there is at least one child node of root on the target side.
 
   // We wil try to go down the path and get close to the place where we want to insert the new value, then we will
-  // follow the logic as like a search miss.
+  // follow the logic as like a search miss. Done this way to guarantee @a search_node is never null.
   do {
-    idx         = search_node->bit_count;
-    search_node = (detail::get_bit(key, search_node->bit_count) == detail::BIT_ON ? search_node->right : search_node->left);
-  } while (idx < search_node->bit_count);
+    parent_node = search_node;
+    search_node = child_node;
+    next_bit_idx         = std::min(search_node->_bit, bit_idx_limit);
+    bit_diff = detail::bit_cmp(key.data(), search_node->_path, cur_bit_idx, next_bit_idx);
+    cur_bit_idx = next_bit_idx;
+    if (bit_diff < next_bit_idx || next_bit_idx == bit_idx_limit) { // difference or reached end of search key.
+      break;
+    }
+    // Can't update this before the previous check - if that fails then @a key is long enough for @c next.
+    child_node  = search_node->next(key);
+  } while (child_node);
 
-  // In case it's already here.
-  if (key == search_node->key) {
+  if (search_node->_value && key == search_node->_value->_key) { // already present.
     return false;
-  }
-
-  // Get the first bit position that differs
-  int const first_diff_bit = (search_node == _head ? 1 : detail::get_first_diff_bit_position(key, search_node->key));
-
-  // Getting ready the new node.
-  node_type * new_node = new Node(key, value, _rank_counter++);
-
-  // we will work on this two from now. Always left to start.
-  node_type * p = _head;
-  node_type * c = _head->left;
-  // with the bit pos diff calculated on the search miss above, we now need to go down (c > p) using the bit diff.
-  // first_diff_bit will tell us when to stop and insert the key.
-  while (c->bit_count > p->bit_count && first_diff_bit > c->bit_count) {
-    p = c;
-    c = (detail::get_bit(key, c->bit_count) == detail::BIT_ON ? c->right : c->left);
-  }
-  // set up the new node and link it.
-  new_node->bit_count = first_diff_bit;
-  int const bit       = detail::get_bit(key, first_diff_bit);
-  // we pick the side base on the bit value. If 0 then left, 1 goes to right node.
-  new_node->left  = bit == detail::BIT_ON ? c : new_node;
-  new_node->right = bit == detail::BIT_ON ? new_node : c;
-
-  if (detail::get_bit(key, p->bit_count) == detail::BIT_ON) {
-    p->right = new_node;
+  } else if (nullptr == child_node) { // past end of existing nodes, add.
+    auto bnode = _arena.make<branch_node>(bit_idx_limit, key.data());
+    (search_node->_bit.apply(key) ? search_node->_right : search_node->_left) = bnode;
+    bnode->_value = _arena.make<value_node>(key, value, rank);
   } else {
-    p->left = new_node;
+    auto &parent_link = (parent_node->_bit.apply(key) ? parent_node->_right : parent_node->_left);
+    auto bnode        = _arena.make<branch_node>(bit_diff, key.data());
+    (bnode->_bit.apply(key) ? bnode->_right : bnode->_left) = parent_link;
+    parent_link                                             = bnode;
+    // Add the new value.
+    auto vnode                                              = _arena.make<branch_node>(bit_idx_limit, key.data());
+    vnode->_value                                           = _arena.make<value_node>(key, value, rank);
+    (bnode->_bit.apply(key) ? bnode->_left : bnode->_right) = vnode;
   }
-
-  // new key/values ok.
   return true;
 }
 
 template <typename Key, typename Value>
-std::pair<bool, Value>
-StringMatcher<Key, Value>::full_match(Key const &key, Comparison *cmp) const noexcept
+auto
+StringMatcher<Key, Value>::find(Key const &key) const noexcept -> value_node const *
 {
-  node_type * search_node = _head->left;
-  int idx{0};
+  auto search_node = _root->next(key);
+  bit_ref bit_idx = search_node->_bit;
+  value_node * candidate = nullptr;
+  size_t key_idx = 0;
+  size_t ksize = key.size();
 
-  // Walk down the tree using the bit_count to check which direction take. We will check this on every node.
-  // If 1 we follow right, on 0 we go left. We will stop when find the uplink. At this point only we will compare the key.
-  do {
-    idx         = search_node->bit_count;
-    search_node = detail::get_bit(key, search_node->bit_count) == detail::BIT_ON ? search_node->right : search_node->left;
-  } while (idx < search_node->bit_count);
-
-  // cmp
-  const bool found = search_node->key == key;
-  // either the requested value, or an empty value (it happens that we have one already at _head).
-  return {found, found ? search_node->value : _head->value};
-}
-
-template <typename Key, typename Value>
-std::vector<std::pair<Key, Value>>
-StringMatcher<Key, Value>::prefix_match(Key const &prefix, Comparison *cmp) const
-{
-  // Nodes will help to follow, but basically we:
-  // 1 - find the closest node.
-  // 2 - with the closest node, we walk down the tree till we find an uplink. DFS is performed.
-  // 3 - downlinks and the first uplink will be check for prefix.
-
-  // helper to check prefix on two strings.
-  auto const is_prefix = [](Key const &prefix, Key const &value) {
-    return std::mismatch(std::begin(prefix), std::end(prefix), std::begin(value)).first == std::end(prefix);
+  while (search_node) {
+    bit_idx     = search_node->_bit;
+    if (auto vnode = search_node->_value ; vnode) {
+      // walk the key characters to verify they match the search key.
+      auto klimit = std::min(ksize, vnode->_key.size());
+      while (key_idx < klimit) {
+        if (key[key_idx] != key[key_idx]) return nullptr;
+        ++key_idx;
+      }
+      if (vnode->_final_p) {
+        if (vnode->_key.size() == key.size()) {
+          return (candidate && candidate->_rank < vnode->_rank) ? candidate : vnode;
+        }
+      } else { // prefix - track the best ranking prefix.
+        if (! candidate || candidate->_rank > vnode->_rank) {
+          candidate = vnode;
+        }
+      }
+    }
+    search_node = search_node->next(key);
   };
 
-  // For now we return the entire list, we need to work on the rank to send back only one match, the best one.
-  std::size_t const prefix_size{(prefix.size() * 8) - 1};
-
-  node_type * root = _head->left;
-  node_type * p    = _head->left;
-
-  int children_bit_count{0};
-  node_type * c;
-  // We need to find the node where we will start the prefix lookup. Move down using prefix size.
-  while (prefix_size > root->bit_count && root->bit_count > children_bit_count) {
-    children_bit_count = root->bit_count;
-    c                  = root;
-    root               = detail::get_bit(prefix, root->bit_count) == detail::BIT_ON ? root->right : root->left;
-  }
-
-  std::vector<std::pair<Key, Value>> search;
-  // Once we have the closest node to start going down(or up), we will deal with the result as
-  // this was a graph, and we will perform a "sort of" DFS till we find what we need.
-  std::unordered_map<node_type *, bool> visited;
-
-  // We use DFS from the root node we found, and visit all the related (by prefix) nodes down the line, till
-  // we find an uplink.
-  std::stack<node_type *> stack_downlinks;
-  stack_downlinks.push(root);
-
-  while (!stack_downlinks.empty()) {
-    auto e = stack_downlinks.top();
-    stack_downlinks.pop();
-    visited[e] = true;
-
-    auto not_seen = visited.find(e->left) == std::end(visited);
-    // We have to do a special check for uplinks as it can get us into a circular list and it may make us check
-    // nodes that does not belong to the prefix we are looking for. We have to run the check on both branches.
-    // isPrefix will check the up-link in this case to avoid the circular issue.
-    if (e->bit_count > e->left->bit_count && not_seen && is_prefix(prefix, e->left->key)) {
-      search.push_back({e->left->key, e->left->value});
-    }
-    // Same on the right branch.
-    not_seen = visited.find(e->right) == std::end(visited);
-    if (e->bit_count > e->right->bit_count && not_seen && is_prefix(prefix, e->right->key)) {
-      search.push_back({e->right->key, e->right->value});
-    }
-
-    if (e->bit_count <= e->left->bit_count && e != e->left) {
-      stack_downlinks.push(e->left);
-    }
-    if (e->bit_count <= e->right->bit_count && e != e->right) {
-      stack_downlinks.push(e->right);
-    }
-
-    if (is_prefix(prefix, e->key)) {
-      search.push_back({e->key, e->value});
-    }
-  }
-  return search;
+  return candidate;
 }
 
-template <typename Key, typename Value>
-void
-StringMatcher<Key, Value>::freeup(Node *n)
-{
-  if (n == nullptr) {
-    return;
-  }
-
-  node_type * left  = n->left;
-  node_type * right = n->right;
-
-  if (left->bit_count >= n->bit_count && (left != n && left != _head)) {
-    freeup(left);
-  }
-  if (right->bit_count >= n->bit_count && (right != n && right != _head)) {
-    freeup(right);
-  }
-  // ^^ should catch the nullptr
-  delete n;
-}
-
-template <typename Key, typename Value>
-void
-StringMatcher<Key, Value>::cleanup()
-{
-  freeup(_head);
-}
 /// --------------------------------------------------------------------------------------------------------------------
 
 ///
@@ -390,9 +389,14 @@ template <typename View> class reversed_view
   static_assert(swoc::meta::is_any_of_v<View, std::string, std::string_view, swoc::TextView>, "Type not supported");
 
 public:
-  // Think, inherit from View instead??
   using const_pointer = typename View::const_pointer;
   using pointer       = typename View::pointer;
+  using value_type    = typename View::value_type;
+
+  using iterator = typename View::reverse_iterator;
+  using const_iterator = typename View::const_reverse_iterator;
+
+# if 0
   // Define our own iterator which show a reverse view of the original.
   struct iterator {
     explicit iterator(typename View::reverse_iterator iter) : _iter(iter) {}
@@ -433,12 +437,13 @@ public:
   private:
     typename View::reverse_iterator _iter;
   };
+# endif
 
   reversed_view() noexcept = default;
 
   explicit reversed_view(View view) noexcept : _view(view) {}
-  bool
-  operator==(View const &v) const noexcept
+
+  bool operator==(View const &v) const noexcept
   {
     return v == _view;
   }
@@ -452,13 +457,13 @@ public:
   iterator
   begin() const noexcept
   {
-    return iterator{_view.rbegin()};
+    return _view.rbegin();
   }
 
   iterator
   end() const noexcept
   {
-    return iterator{_view.rend()};
+    return _view.rend();
   }
 
   typename View::size_type
@@ -467,21 +472,12 @@ public:
     return _view.size();
   }
 
-  typename View::const_pointer
-  data() const noexcept
-  {
-    return _view.data();
-  }
+  value_type operator [] (size_t idx) const { return _view[_view.size() - idx - 1]; }
+  value_type & operator [] (size_t idx) { return _view[_view.size() - idx - 1]; }
+
   // for debugging purpose we may need to log it.
   template <typename T> friend std::ostream &operator<<(std::ostream &os, reversed_view<T> const &v);
   template <typename T> friend bool operator==(reversed_view<T> const &lhs, reversed_view<T> const &rhs);
-
-  // To be removed. POC for testing purposes.
-  View
-  get_view() const noexcept
-  {
-    return _view;
-  }
 
 private:
   View _view;
@@ -501,77 +497,3 @@ operator==(reversed_view<View> const &lhs, reversed_view<View> const &rhs)
 {
   return lhs._view == rhs._view;
 }
-
-/// --------------------------------------------------------------------------------------------------------------------
-
-///
-/// @brief Abstraction of the string_tree implementation which can be used for:
-///        full_match, prefix_match and suffix_match
-///        Two instance of a string_trie are being held here, one for full/prefix search and a second one for suffix_match
-///        which uses the original implementation plus a wrapper around the TextView in order to make it look like a
-///        reversed string, TextView won't be modified.
-///        TransformView can help?
-class string_tree_map
-{
-public:
-  using value_type  = swoc::TextView;
-  using key_type    = swoc::TextView;
-  using search_type = std::vector<std::pair<key_type, value_type>>;
-
-  bool
-  insert(key_type key, value_type value)
-  {
-    return _prefix_map.insert(key, value) && _suffix_map.insert(key, value);
-  }
-
-  std::pair<bool, value_type>
-  full_match(key_type key) const noexcept
-  {
-    return _prefix_map.full_match(key);
-  }
-
-  std::vector<std::pair<key_type, value_type>>
-  prefix_match(key_type prefix, Comparison *cmp = nullptr) const
-  {
-    return _prefix_map.prefix_match(prefix, cmp);
-  }
-
-  std::vector<std::pair<key_type, value_type>>
-  suffix_match(key_type suffix, Comparison *cmp = nullptr) const
-  {
-    // Logic works, but need to tweak the internal wrapper implementation (SuffixMatchMap)
-    // to be able to translate this in a cheap way. Also, as the goal is to just return 1
-    // element from the tree, this may entirely go away.
-    return _suffix_map.suffix_match(suffix, cmp);
-  }
-
-private:
-  using PrefixAndFullMatchMap = StringTree<key_type, value_type>;
-  // Suffix match search, it will show the original string as reversed.
-  struct SuffixMatchMap : private StringTree<reversed_view<string_tree_map::key_type>, value_type> {
-    using super = StringTree<reversed_view<string_tree_map::key_type>, value_type>;
-
-    bool
-    insert(string_tree_map::key_type key, string_tree_map::value_type value)
-    {
-      return super_type::insert(reversed_view{key}, value);
-    }
-
-    std::vector<std::pair<string_tree_map::key_type, string_tree_map::value_type>>
-    suffix_match(string_tree_map::key_type suffix, Comparison *cmp) const
-    {
-      // This will go away, temporary hack.
-      std::vector<std::pair<string_tree_map::key_type, string_tree_map::value_type>> r;
-      for (auto const &p : super_type::prefix_match(reversed_view{suffix}, cmp)) {
-        // Temporal hack, 'get_view()' need to go away.
-        r.push_back({p.first.get_view(), p.second});
-      }
-      return r;
-    }
-  };
-
-  // Only handle full_match, prefix_match;
-  PrefixAndFullMatchMap _prefix_map;
-  // Only handle suffix match.
-  SuffixMatchMap _suffix_map;
-};

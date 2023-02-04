@@ -780,7 +780,7 @@ Config::alloc_span(unsigned int count)
   return _arena.alloc(sizeof(T) * count).rebind<T>();
 }
 
-swoc::TextView
+inline swoc::TextView
 Config::localize(const std::string_view &text, Config::LocalOpt opt)
 {
   swoc::TextView tv{text};
@@ -794,8 +794,8 @@ Config::localize(T &) -> EnableForFeatureTypes<T, self_type &>
   return *this;
 }
 
-Config::self_type &
-Config::on_hook(Hook hook, Directive::Handle &&handle)
+inline auto
+Config::on_hook(Hook hook, Directive::Handle &&handle) -> self_type &
 {
   _roots[IndexFor(hook)].emplace_back(std::move(handle));
   return *this;
