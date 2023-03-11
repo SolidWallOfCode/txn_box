@@ -3,9 +3,9 @@
 meta:
   version: "1.0"
 # -- doc-secure-text-->
-  secure_text: &secure-text "# Yoyodyne uses SmackerTwo for responsible disclosure.\n\
+  secure_text: &secure-text "# Yoyodyne uses SmackerTwo for irresponsible disclosure.\n\
                              # To report abusive behavior please visit http://yoyodyne.ex\n\
-                             Contact: mailto:security@yoyodyne.ex\n\
+                             # Contact: mailto:security@yoyodyne.ex\n\
                             "
 # -- doc-secure-text--<
 

@@ -414,6 +414,14 @@ Utility
       string in the diagnostic log when the content is reloaded. This is optional - if missing no
       notification is done.
 
+   stable
+      If this key is present, the contents of the text are *stable* which means content will only be
+      replaced, not discarded. If the content file is changed but cannot be read, the default is
+      to discard the content block because the inaccessibility is presumed intentional. If the
+      block is stable then only a valid read of an updated file will change the content. Note that
+      a stable block will only use the ``text`` key if the file is not initially available. Once a
+      successful load occurs there will always be text that is considered valid.
+
    One of ``path`` and ``text`` must be present. If both are present ``path`` takes precedence. The
    file contents are used if the file can be read, otherwise the value in ``text`` is used. If
    only ``path`` is present it is a configuration error if the file specified by ``path`` cannot

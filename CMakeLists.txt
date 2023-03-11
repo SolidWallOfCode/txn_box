@@ -16,7 +16,7 @@ find_package(PkgConfig REQUIRED)
 FetchContent_Declare(
     libSWOC
     GIT_REPOSITORY "https://github.com/solidwallofcode/libswoc"
-    GIT_TAG "1.3.11"
+    GIT_TAG "master"
 )
 set(LIBSWOC_INSTALL off)
 set(LIBSWOC_TEST off)

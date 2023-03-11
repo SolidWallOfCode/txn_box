@@ -109,6 +109,7 @@ protected:
   Clock::time_point _last_modified;                                           ///< Last modified time of the file.
   std::shared_ptr<std::string> _content;                                      ///< Content of the file.
   int _line_no = 0;                                                           ///< For debugging name conflicts.
+  bool _stable_p = false;                                                      ///< Don't discard old text if new text unavailable
   std::shared_mutex _content_mutex;                                           ///< Lock for access @a content.
   ts::TaskHandle _task;                                                       ///< Handle for periodic checking task.
 
@@ -122,6 +123,7 @@ protected:
   static inline const std::string TEXT_TAG{"text"};
   static inline const std::string DURATION_TAG{"duration"};
   static inline const std::string NOTIFY_TAG{"notify"};
+  static inline const std::string STABLE_TAG{"stable"};
 
   /// Map of names to text blocks.
   static Map *map(Config & cfg);
@@ -178,13 +180,14 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_n
   self->_line_no = drtv_node.Mark().line;
 
   auto errata =
-    self->_fg.load(cfg, key_value, {{NAME_TAG, FeatureGroup::REQUIRED}, {PATH_TAG}, {TEXT_TAG}, {DURATION_TAG}, {NOTIFY_TAG}});
+    self->_fg.load(cfg, key_value, {{NAME_TAG, FeatureGroup::REQUIRED}, {PATH_TAG}, {TEXT_TAG}, {DURATION_TAG}, {NOTIFY_TAG}, {STABLE_TAG}});
 
   if (!errata.is_ok()) {
     errata.note(R"(While parsing value at {} in "{}" directive at {}.)", key_value.Mark(), KEY, drtv_node.Mark());
     return errata;
   }
-  auto idx = fg.index_of(NAME_TAG);
+
+  auto idx = fg.index_of(NAME_TAG); // marked required, so always present at this piont.
 
   // Must have a NAME, and either TEXT or PATH. DURATION is optional, but must be a duration if present.
   auto &name_expr{fg[idx]._expr};
@@ -242,6 +245,10 @@ Do_text_block_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_n
     self->_last_modified = self_type::update_time(swoc::file::status(self->_path, ec));
   }
 
+  if (auto i = fg.index_of(STABLE_TAG) ; i != INVALID_IDX) {
+    self->_stable_p = true;
+  }
+
   // Put the directive in the map.
   Map *map = self->map(cfg);
   if (auto spot = map->find(self->_name); spot != map->end()) {
@@ -294,11 +301,14 @@ Do_text_block_define::Updater::operator()()
       return;
     }
   }
-  // If control flow gets here, the file is no longer accessible and the content
-  // should be cleared. If the file shows up again, it should have a modified time
-  // later than the previously existing file, so that can be left unchanged.
-  std::unique_lock lock(_block->_content_mutex);
-  _block->_content.reset();
+
+  if (!_block->_stable_p) {
+    // If control flow gets here, the file is no longer accessible and the content
+    // should be cleared. If the file shows up again, it should have a modified time
+    // later than the previously existing file, so that can be left unchanged.
+    std::unique_lock lock(_block->_content_mutex);
+    _block->_content.reset();
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */
