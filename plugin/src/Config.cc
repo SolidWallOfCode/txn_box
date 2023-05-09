@@ -180,19 +180,19 @@ Config::localize(Feature &feature)
   return *this;
 }
 
-std::string_view &
-Config::localize(std::string_view &text, LocalOpt opt)
+TextView &
+Config::localize(TextView &text, LocalOpt opt)
 {
   if (text.size()) {
     if (LOCAL_CSTR == opt) {
       auto span{_arena.alloc(text.size() + 1).rebind<char>()};
       memcpy(span, text);
       span[text.size()] = 0;
-      text              = span.subspan(0, text.size()).view();
+      text              = span.subspan(0, text.size());
     } else {
       auto span{_arena.alloc(text.size()).rebind<char>()};
       memcpy(span, text);
-      text = span.view();
+      text = span;
     }
   }
   return text;

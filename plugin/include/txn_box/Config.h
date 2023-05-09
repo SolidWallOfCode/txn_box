@@ -271,14 +271,13 @@ public:
    * Strings in the YAML configuration are transient. If the content needs to be available at
    * run time it must be first localized.
    */
-  std::string_view &localize(std::string_view &text, LocalOpt opt = LOCAL_VIEW);
+  swoc::TextView &localize(swoc::TextView &text, LocalOpt opt = LOCAL_VIEW);
   swoc::TextView
   localize(std::string_view const &text, LocalOpt opt = LOCAL_VIEW)
   {
     swoc::TextView tv{text};
     return this->localize(tv, opt);
   }
-
   self_type &localize(Feature &feature);
 
   template <typename T>

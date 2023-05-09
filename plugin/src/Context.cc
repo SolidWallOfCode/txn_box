@@ -235,7 +235,7 @@ Context::extract_view(const Expr &expr, std::initializer_list<ViewOption> opts)
         auto span = _arena->require(view.size() + 1).remnant().rebind<char>();
         memcpy(span, view);
         span[view.size()] = '\0';
-        view              = span.view();
+        view              = TextView(span);
         view.remove_suffix(1); // drop null from view.
         view._cstr_p    = true;
         view._literal_p = false;
@@ -268,7 +268,7 @@ Context::commit(FeatureView const &view)
   } else if (view._direct_p) {
     auto span{_arena->alloc(view.size())};
     memcpy(span, view);
-    zret            = span.view(); // update full to be the localized copy.
+    zret            = TextView(span.rebind<char>()); // update full to be the localized copy.
     zret._direct_p  = false;
     zret._literal_p = true;
   } else if (auto r{_arena->remnant()}; r.contains(view.data())) {
@@ -441,7 +441,7 @@ Context::localize_as_c_str(swoc::TextView text)
     auto span = _arena->alloc_span<char>(text.size() + 1);
     memcpy(span, text);
     span[text.size()] = '\0';
-    text              = span.view();
+    text              = span;
   }
   return text;
 }

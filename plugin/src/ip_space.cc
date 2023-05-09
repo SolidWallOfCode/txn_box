@@ -690,7 +690,7 @@ Do_ip_space_define::load(Config &cfg, CfgStaticData const *, YAML::Node drtv_nod
   if (ec) {
     return Errata(S_ERROR, "Unable to read input file {} for space {} - {}", self->_path, self->_name, ec);
   }
-  self->_last_modified              = swoc::file::modify_time(swoc::file::status(self->_path, ec));
+  self->_last_modified              = swoc::file::last_write_time(swoc::file::status(self->_path, ec));
   auto &&[space_info, space_errata] = self->parse_space(cfg, content);
   if (!space_errata.is_ok()) {
     space_errata.note(R"(While parsing IPSpace file "{}" in space "{}".)", self->_path, self->_name);
@@ -736,7 +736,7 @@ Do_ip_space_define::Updater::operator()()
   std::error_code ec;
   auto fs = swoc::file::status(_block->_path, ec);
   if (!ec) {
-    auto mtime = swoc::file::modify_time(fs);
+    auto mtime = swoc::file::last_write_time(fs);
     if (mtime <= _block->_last_modified) {
       return; // same as it ever was...
     }

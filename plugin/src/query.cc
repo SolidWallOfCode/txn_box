@@ -50,7 +50,7 @@ struct QPair {
   QPair() = default;
   QPair(TextView k, TextView v) : name(k), value(v) {}
 
-  TextView all() const { return { name.data(), value.data_end()}; }
+  TextView all() const { return TextView(name.data(), value.data_end()); }
 };
 
 QPair query_take_qpair(TextView & qs) {

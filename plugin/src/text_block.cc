@@ -142,7 +142,7 @@ const HookMask Do_text_block_define::HOOKS{MaskFor(Hook::POST_LOAD)};
 inline Clock::time_point
 Do_text_block_define::update_time(swoc::file::file_status const &stat)
 {
-  return std::max(swoc::file::modify_time(stat), swoc::file::status_time(stat));
+  return std::max(swoc::file::last_write_time(stat), swoc::file::status_time(stat));
 }
 
 Do_text_block_define::~Do_text_block_define() noexcept
