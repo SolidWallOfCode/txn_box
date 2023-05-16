@@ -40,9 +40,9 @@ static constexpr char ARG_SUFFIX = '>';
 /* ------------------------------------------------------------------------------------ */
 swoc::Lexicon<Hook> HookName{{{Hook::POST_LOAD, {"post-load"}},
                               {Hook::TXN_START, {"txn-open"}},
-                              {Hook::CREQ, {"ua-req", "creq"}},
-                              {Hook::PREQ, {"proxy-req", "preq"}},
-                              {Hook::URSP, {"upstream-rsp", "ursp"}},
+                              {Hook::CREQ, {"ua-req", "creq", "client-req"}},
+                              {Hook::PREQ, {"proxy-req", "preq", "upstream-req", "up-req"}},
+                              {Hook::URSP, {"upstream-rsp", "ursp", "up-rsp"}},
                               {Hook::PRSP, {"proxy-rsp", "prsp"}},
                               {Hook::PRE_REMAP, {"pre-remap"}},
                               {Hook::POST_REMAP, {"post-remap"}},
