@@ -25,8 +25,6 @@
 #include <ts/remap.h>
 
 class Directive;
-struct _tm_remap_request_info;
-using TSRemapRequestInfo = _tm_remap_request_info;
 
 /** Per transaction context.
  *
@@ -541,7 +539,7 @@ protected:
   struct ArenaDestructor {
     void operator()(swoc::MemArena *arena);
   };
-  
+
   /// Transaction local storage.
   /// This is a pointer so that the arena can be inverted to minimize allocations.
   std::unique_ptr<swoc::MemArena, ArenaDestructor> _arena;
@@ -609,7 +607,7 @@ protected:
   struct NamedObject {
     using self_type = NamedObject; ///< Self reference type.
     static constexpr std::hash<std::string_view> Hash_Func{};
-    
+
     swoc::TextView _name;       ///< Name of variable.
     swoc::MemSpan<void> _span;  ///< Object memroy.
     self_type *_next = nullptr; ///< Intrusive link.
