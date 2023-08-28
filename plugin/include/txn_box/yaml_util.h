@@ -106,6 +106,7 @@ swoc::Rv<YAML::Node> yaml_load(swoc::file::path const &path);
 
 namespace YAML
 {
+# if !defined(YAML_H_62B23520_7C8E_11DE_8A39_0800200C9A66)
 // Need these to pass views in to node indexing.
 template <> struct convert<std::string_view> {
   static Node
@@ -123,6 +124,7 @@ template <> struct convert<std::string_view> {
     return true;
   }
 };
+#endif
 
 template <> struct convert<swoc::TextView> {
   static Node
