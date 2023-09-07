@@ -20,6 +20,8 @@
 #include <swoc/Lexicon.h>
 #include <swoc/bwf_fwd.h>
 
+#include <ts/apidefs.h>
+
 constexpr swoc::TextView DEBUG_TAG = "txn_box";
 
 constexpr swoc::Errata::Severity S_DEBUG{1};
@@ -30,7 +32,6 @@ constexpr swoc::Errata::Severity S_ERROR{4};
 // Forward declares
 class Config;
 class Context;
-using TSCont = struct tsapi_cont *;
 
 namespace YAML
 {
