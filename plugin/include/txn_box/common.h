@@ -20,8 +20,6 @@
 #include <swoc/Lexicon.h>
 #include <swoc/bwf_fwd.h>
 
-#include <ts/apidefs.h>
-
 constexpr swoc::TextView DEBUG_TAG = "txn_box";
 
 constexpr swoc::Errata::Severity S_DEBUG{1};
@@ -861,7 +859,6 @@ struct Global {
   swoc::Errata _preload_errata;
   int TxnArgIdx = -1;
   std::vector<std::string> _args; ///< Global configuration arguments.
-  TSCont _cont;                   ///< Global continuation to start transaction handling.
   /// Amount of reserved storage requested by remap directives.
   /// This is not always correct, @c Context must handle overflows gracefully.
   std::atomic<size_t> _remap_ctx_storage_required{0};
