@@ -30,6 +30,12 @@ using swoc::MemSpan;
 namespace bwf = swoc::bwf;
 using namespace swoc::literals;
 
+#if TS_VERSION_MAJOR >= 10
+
+DbgCtl txn_box_dbg_ctl{DEBUG_TAG};
+
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 namespace ts
 {

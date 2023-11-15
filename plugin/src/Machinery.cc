@@ -3060,7 +3060,7 @@ Do_debug::invoke(Context &ctx)
 {
   TextView tag = ctx.extract_view(_tag, {Context::EX_COMMIT, Context::EX_C_STR});
   TextView msg = ctx.extract_view(_msg);
-  TSDebug(tag.data(), "%.*s", static_cast<int>(msg.size()), msg.data());
+  TS_DBG("%.*s", static_cast<int>(msg.size()), msg.data());
   return {};
 }
 

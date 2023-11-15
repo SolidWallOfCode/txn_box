@@ -501,7 +501,7 @@ Context::commit_transient()
 TextView Context::active_group(int idx) {
   auto ovector = pcre2_get_ovector_pointer(_rxp_active);
   idx *= 2; // To account for offset pairs.
-  TSDebug(Config::PLUGIN_TAG.data(), "Access match group %d at offsets %ld:%ld", idx/2, ovector[idx], ovector[idx+1]);
+  TS_DBG("Access match group %d at offsets %ld:%ld", idx/2, ovector[idx], ovector[idx+1]);
   return _rxp_src.substr(ovector[idx], ovector[idx + 1] - ovector[idx]);
 }
 
