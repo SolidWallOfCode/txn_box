@@ -9,10 +9,8 @@ DependsOn([
     Component("libswoc", version_range='1.3.0-*'),
     Component("libswoc.static", version_range='1.3.0-*'),
     Component("trafficserver", version_range='7.*-*'),
+    Component("yaml-cpp"),
 ])
-
-if ts_ver < Version("9"):
-    DependsOn([ Component("libyaml-cpp") ])
 
 files = Pattern(src_dir="src",includes=["*.cc"]).files()
 env.Append(CPPPATH="include")
