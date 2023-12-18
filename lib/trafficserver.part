@@ -3,7 +3,7 @@ Import('*')
 PartName("trafficserver")
 PartVersion(env.get("PKG_VERSION"))
 
-# if we have a --with-trafficserver use that as value we pass 
+# if we have a --with-trafficserver use that as value we pass
 # else use the system which is the default of the compiler
 pkg_prefix = env.get("PKG_PREFIX")
 if pkg_prefix:
@@ -15,8 +15,6 @@ if pkg_prefix:
 
 
 cfg = env.Configure()
-if not cfg.CheckCHeader("ts/ts.h"):
-    env.PrintError("ts/ts.h was not found!",show_stack=False)
 cfg.Finish()
 
 # Based on current design we don't link with anything from trafficserver directly
