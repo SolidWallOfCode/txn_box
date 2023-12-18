@@ -213,7 +213,7 @@ struct bool_visitor {
   auto
   operator()(F const &) const -> EnableForFeatureTypes<F, bool>
   {
-    TSDebug("txn_box", "should not be here!");
+    TS_DBG("should not be here!");
     return false;
   }
 

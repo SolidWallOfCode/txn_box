@@ -20,8 +20,6 @@
 #include <swoc/Lexicon.h>
 #include <swoc/bwf_fwd.h>
 
-constexpr swoc::TextView DEBUG_TAG = "txn_box";
-
 constexpr swoc::Errata::Severity S_DEBUG{1};
 constexpr swoc::Errata::Severity S_INFO{2};
 constexpr swoc::Errata::Severity S_WARN{3};

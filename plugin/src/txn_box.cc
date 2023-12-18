@@ -116,10 +116,10 @@ Task_ConfigReload()
     Plugin_Reloading = t_null;
     auto delta       = std::chrono::system_clock::now() - t0;
     std::string text;
-    TSDebug(Config::PLUGIN_TAG.data(), "%s",
-            swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
-                          std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
-              .c_str());
+    TS_DBG("%s",
+           swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
+                         std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
+             .c_str());
   } else { // because the exchange failed, @a t_null is the value that was in @a Plugin_Loading
     std::string err_str;
     swoc::bwprint(err_str, "{}: Reload requested while previous reload at {} still active", Config::PLUGIN_NAME, swoc::bwf::Date(std::chrono::system_clock::to_time_t(t_null)));
@@ -145,7 +145,7 @@ CB_TxnBoxMsg(TSCont, TSEvent, void *data)
 int
 CB_TxnBoxShutdown(TSCont, TSEvent, void *)
 {
-  TSDebug("txn_box", "Global shut down");
+  TS_DBG("Global shut down");
   std::unique_lock lock(Plugin_Config_Mutex);
   Plugin_Config.reset();
   return TS_SUCCESS;
@@ -164,8 +164,8 @@ TxnBoxInit()
   }
   auto delta = std::chrono::system_clock::now() - t0;
   std::string text;
-  TSDebug(Config::PLUGIN_TAG.data(), "%s",
-          swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
+  TS_DBG("%s",
+         swoc::bwprint(text, "{} files loaded in {} ms.", Plugin_Config->file_count(),
                         std::chrono::duration_cast<std::chrono::milliseconds>(delta).count())
             .c_str());
 
