@@ -1,0 +1,65 @@
+meta:
+  version: "1.0"
+
+  # Testing configuration based upon sni.
+  txn_box:
+    global:
+    - when: txn-open
+      do:
+      - with: inbound-sni
+        select:
+          - none-of:
+            - tld: "avoid_configuration.com"
+            do:
+            - txn-conf<proxy.config.http.insert_forwarded>: "by=unknown"
+
+sessions:
+- protocol: [ { name: ip, version : 4} , { name: "tls", sni: "server1.avoid_configuration.com" } ]
+  transactions:
+  - client-request:
+      version: "1.1"
+      method: "GET"
+      url: "https://server1.avoid_configuration.com/candy"
+      headers:
+        fields:
+        - [ Host, server1.avoid_configuration.com ]
+        - [ uuid, 1 ]
+
+    # The inserted_forwarded should not be engaged for this SNI.
+    proxy-request:
+      headers:
+        fields:
+        - [ Forwarded, { as: absent } ]
+
+    server-response:
+      status: 200
+      reason: OK
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 234 ]
+
+- protocol: [ { name: ip, version : 4} , { name: "tls", sni: "server1.configure_me.com" } ]
+  transactions:
+  - client-request:
+      version: "1.1"
+      method: "GET"
+      url: "https://server1.configure_me.com/candy"
+      headers:
+        fields:
+        - [ Host, server1.configure_me.com ]
+        - [ uuid, 2 ]
+
+    # The inserted_forwarded should be engaged for this SNI.
+    proxy-request:
+      headers:
+        fields:
+        - [ Forwarded, { value: "by=unknown", as: equal } ]
+
+    server-response:
+      status: 200
+      reason: OK
+      headers:
+        fields:
+        - [ Content-Type, html/plaintext ]
+        - [ Content-Length, 234 ]
